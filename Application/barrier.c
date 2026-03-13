@@ -2228,7 +2228,7 @@ void door()
 						
 						pid_mode_switch(is_Line);
 						line_pid_obj = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
-						TC_speed = (struct Gradual){0, 0, 0};
+						TC_speed = 0;
 						
 						nodesr.flag |= 0x80;
 						flag = 0;	//确定路线
@@ -2252,7 +2252,7 @@ void door()
 						update_route_by_QR();
 						
 						line_pid_obj = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
-						TC_speed = (struct Gradual){0, 0, 0};
+						TC_speed = 0;
 						
 						motor_all.Cspeed = nodesr.nowNode.speed;
 						pid_mode_switch(is_Line);

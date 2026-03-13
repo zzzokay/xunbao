@@ -1,9 +1,9 @@
 test1\queue.o: ../Middlewares/Third_Party/FreeRTOS/Source/queue.c
-test1\queue.o: C:\keil\ARM\ARMCC\Bin\..\include\stdlib.h
-test1\queue.o: C:\keil\ARM\ARMCC\Bin\..\include\string.h
+test1\queue.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdlib.h
+test1\queue.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\string.h
 test1\queue.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
-test1\queue.o: C:\keil\ARM\ARMCC\Bin\..\include\stddef.h
-test1\queue.o: C:\keil\ARM\ARMCC\Bin\..\include\stdint.h
+test1\queue.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stddef.h
+test1\queue.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdint.h
 test1\queue.o: ../Core/Inc/FreeRTOSConfig.h
 test1\queue.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
 test1\queue.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h

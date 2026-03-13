@@ -2,7 +2,7 @@
 #include "motor_task.h"
 #include "pid.h"
 #include "motor.h"
-//#include "bsp_buzzer.h"
+#include "bsp_buzzer.h"
 
 
 
@@ -20,7 +20,7 @@ volatile struct Motors motor_all = {
 	.is_DOWM = false,
 };
 
-struct Gradual TC_speed = {0, 0, 0}, TG_speed = {0, 0, 0}, TP_speed = {0, 0, 0}, TCO_speed = {0, 0, 0};
+float TC_speed = 0, TG_speed = 0, TP_speed = 0, TCO_speed = 0;
 
 /**
  * @brief:
@@ -40,7 +40,7 @@ void CarBrake(void)
 	motor_set_pwm(4, 0);
 
 	motor_pid_clear();
-	TC_speed = (struct Gradual){0, 10, 0};
+	TC_speed = 0;
 }
 
 /**
@@ -50,47 +50,26 @@ void CarBrake(void)
  * @param {float} increment
  * @return {*}
  */
-void gradual_cal(struct Gradual *gradual, float target, float increment1, float increment2)
+void gradual_cal(float *gradual, float target, float increment1, float increment2)
 {
-	uint8_t direction = 0;
-
-	if (target - gradual->Now < 0) // 减速
-		direction = 0;
-	else
-		direction = 1;
-	
-	if (gradual->Now != target)
+	if (*gradual < target)
 	{
-		if (direction)
-			gradual->Now += increment1;
-		else
-			gradual->Now -= increment2;
+		*gradual += increment1;
+		if (*gradual > target)
+			*gradual = target;
 	}
-	else
+	else if (*gradual > target)
 	{
-		return;
-	}
-
-	if (direction == 1) // 加速
-	{
-		if (gradual->Now > target)
-		{
-			gradual->Now = target;
-		}
-	}
-	else if (direction == 0)
-	{
-		if (gradual->Now < target) // 速度小于目标速度
-		{
-			gradual->Now = target;
-		}
+		*gradual -= increment2;
+		if (*gradual < target)
+			*gradual = target;
 	}
 }
 
 /*卡死停车*/
 void CarBrake_Stop(void)
 {
-//	buzzer_on();
+	buzzer_on();
 	while(1)
 	{
 		CarBrake();

@@ -4,12 +4,6 @@
 #include "sys.h"
 #include "stdbool.h"
 
-struct Gradual
-{
-	float Last;			//改变时的上一次的值
-	float Now;			//当前值
-	float D_value;		//改变时刻的目标值与当前值的差
-};
 
 struct Motors
 {
@@ -43,9 +37,9 @@ struct Motors
 #define SPEED5  75
 
 extern volatile struct Motors motor_all;
-extern struct Gradual TC_speed, TG_speed,TP_speed,TCO_speed;
+extern float TC_speed, TG_speed, TP_speed, TCO_speed;
 
-void gradual_cal(struct Gradual *gradual, float target, float increment1, float increment2);
+void gradual_cal(float *gradual, float target, float increment1, float increment2);
 void CarBrake(void);
 void CarBrake_Stop(void);
 

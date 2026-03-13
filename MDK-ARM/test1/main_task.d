@@ -1,8 +1,8 @@
 test1\main_task.o: ..\Task\main_task.c
 test1\main_task.o: ..\Task\main_task.h
 test1\main_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
-test1\main_task.o: C:\keil\ARM\ARMCC\Bin\..\include\stddef.h
-test1\main_task.o: C:\keil\ARM\ARMCC\Bin\..\include\stdint.h
+test1\main_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stddef.h
+test1\main_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdint.h
 test1\main_task.o: ../Core/Inc/FreeRTOSConfig.h
 test1\main_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
 test1\main_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
@@ -62,7 +62,7 @@ test1\main_task.o: ../Application/delay.h
 test1\main_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\main_task.o: ../USMAT/uart.h
 test1\main_task.o: ../USMAT/sys.h
-test1\main_task.o: C:\keil\ARM\ARMCC\Bin\..\include\stdio.h
+test1\main_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h
 test1\main_task.o: ../Module/imu.h
 test1\main_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\main_task.o: ../Application/turn.h
@@ -77,14 +77,14 @@ test1\main_task.o: ../Module/bsp_linefollower.h
 test1\main_task.o: ../Application/scaner.h
 test1\main_task.o: ../Math/pid.h
 test1\main_task.o: ../Motor/speed_ctrl.h
-test1\main_task.o: C:\keil\ARM\ARMCC\Bin\..\include\stdbool.h
+test1\main_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdbool.h
 test1\main_task.o: ../Motor/encoder.h
 test1\main_task.o: ../Core/Inc/tim.h
 test1\main_task.o: ..\Task\motor_task.h
 test1\main_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\main_task.o: ../Module/openmv.h
 test1\main_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
-test1\main_task.o: C:\keil\ARM\ARMCC\Bin\..\include\math.h
+test1\main_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\math.h
 test1\main_task.o: ../Math/sin_generate.h
 test1\main_task.o: ../Application/gray.h
 test1\main_task.o: ../Module/QR.h

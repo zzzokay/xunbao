@@ -1,8 +1,8 @@
 test1\task_create.o: ..\Task\task_create.c
 test1\task_create.o: ..\Task\task_create.h
 test1\task_create.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
-test1\task_create.o: C:\keil\ARM\ARMCC\Bin\..\include\stddef.h
-test1\task_create.o: C:\keil\ARM\ARMCC\Bin\..\include\stdint.h
+test1\task_create.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stddef.h
+test1\task_create.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdint.h
 test1\task_create.o: ../Core/Inc/FreeRTOSConfig.h
 test1\task_create.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
 test1\task_create.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
@@ -53,4 +53,4 @@ test1\task_create.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_gr
 test1\task_create.o: ..\Task\ArriveDetect_task.h
 test1\task_create.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\task_create.o: ..\Task\task_create.h
-test1\task_create.o: C:\keil\ARM\ARMCC\Bin\..\include\stdio.h
+test1\task_create.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h
