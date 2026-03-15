@@ -30,8 +30,8 @@ void main_task(void *pvParameters)
 	xLastWakeTime = xTaskGetTickCount();   //获取系统节拍、
 //	zhunbei(); // 启动流程//注意有挡板 会卡在这
 	encoder_clear(); // 路程记录清零
-	Motor_Control(is_Line, SPEED0, SPEED0, 0);
-	
+	//Motor_Control(is_Line, SPEED0, SPEED0, 0);
+	Motor_Control(is_No, SPEED0, SPEED0, 0);
 	
 	uint8_t test_flag =1;
 	while (1)
