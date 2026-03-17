@@ -57,7 +57,7 @@ void main_task(void *pvParameters)
 		{
 			motor_all.Cincrement = 0.05;
 			pid_mode_switch(is_Line);
-			motor_all.Cspeed = SPEED1;
+			motor_all.Cspeed = SPEED2;
 			MOTOR_PWM_MAX = 7000;
 			test_flag=0;
 //			LEFT_RIGHT_LINE=1;
