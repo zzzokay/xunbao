@@ -63,37 +63,39 @@ void motor_task(void *pvParameters)
 	
 	while (1)
 	{
+		/*1. 获取pid error - 仅在循迹模式下执行（外环误差）*/
+		//handle_line_error();
 
-		/*1. 获取电机速度（内环实际值）与路程计算*/
+		/*2. 获取电机速度（内环实际值）与路程计算*/
 		handle_motor_speed();
 		
-		/*2. 处理墙角模式 - 在上坡时增强PID响应*/
+		/*3. 处理墙角模式 - 在上坡时增强PID响应*/
 		handle_qiang_jiao();
 		
-		/*3. 处理红外传感器 - 检测障碍物*/
+		/*4. 处理红外传感器 - 检测障碍物*/
 		handle_infrared();
 	
-		/*4. 处理模式切换逻辑 - 确保模式切换平滑过渡*/
+		/*5. 处理模式切换逻辑 - 确保模式切换平滑过渡*/
 		handle_mode_switch();
 	
-		/*5. 灯鼠控制 - 状态指示*/
-		handle_led_mouse();
+		/*6. 灯鼠控制 - 状态指示*/
+		//handle_led_mouse();
 	
-		/*6. 设置目标速度 （内环目标值）*/
+		/*7. 设置目标速度 （内环目标值）*/
 		handle_target_speed();
 
-		/*7. 执行PID计算和电机控制*/
+		/*8. 执行PID计算和电机控制*/
 		handle_pid_control();
 
 		// 调试信息输出（注释掉的部分）
-		// /*陀螺仪模式*/ printf("Gyro:%.2f LSP:%.2f RSP:%.2f L0:%.2f L1:%.2f R0:%.2f R1:%.2f\r\n", imu.yaw,motor_all.Lspeed,motor_all.Rspeed,motor_L0.output,motor_L1.output,motor_R0.output,motor_R1.output);
+		 /*陀螺仪模式*/ printf("Gyro:%.2f LSP:%.2f RSP:%.2f L0:%.2f L1:%.2f R0:%.2f R1:%.2f\r\n", imu.yaw,motor_all.Lspeed,motor_all.Rspeed,motor_L0.output,motor_L1.output,motor_R0.output,motor_R1.output);
 	     /*电机环PID*/// printf("LSP:%.2f RSP:%.2f L0:%.2f L1:%.2f R0:%.2f R1:%.2f\r\n", motor_all.Lspeed,motor_all.Rspeed,motor_L0.output,motor_L1.output,motor_R0.output,motor_R1.output);
 		// /*电机环目标值*/ printf("L0tar:%.2f\tL1tar:%.2f\tR0tar:%.2f\tR1tar:%.2f\r\n", motor_L0.target, motor_L1.target, motor_R0.target, motor_R1.target);
 		// /*循迹值*/ printf_byte(Scaner.detail);
 		// /*陀螺仪读数*/ printf("yaw:%.2f\troll:%.2f\tpitch:%.2f\tbasic:%.2f\r\n", imu.yaw, imu.roll, imu.pitch, basic_p);
 		// /*当前目标节点*/ printf("%d\r\n",nodesr.nowNode.nodenum);
 		// /*三门大炮*/ printf("前%d 左%d 右%d\r\n", Infrared_ahead, infrared.head_left, infrared.head_right);
-		// /*各轮子测量值*/ printf("L0:%.1f,L1:%.1f,R0:%.1f,R1:%.1f\r\n", motor_L0.measure, motor_L1.measure, motor_R0.measure, motor_R1.measure);
+		 /*各轮子测量值*/ printf("L0:%.1f,L1:%.1f,R0:%.1f,R1:%.1f\r\n", motor_L0.measure, motor_L1.measure, motor_R0.measure, motor_R1.measure);
 		// /*打印识别数字*/ printf("%d\r\n", Clue_Num);
 
 		vTaskDelayUntil(&xLastWakeTime, (5 / portTICK_RATE_MS)); // 绝对休眠5ms，确保执行频率稳定
@@ -102,8 +104,16 @@ void motor_task(void *pvParameters)
 
 /*处理电机速度获取和路程计算*/
 /*
+ * 功能：
+ * 1. 读取编码器值计算电机速度
+ * 2. 计算平均速度
+ * 3. 累计行驶路程
  * 路程计算公式：
  * Distance = (编码器平均值 * 车轮直径 * π) / (编码器每圈脉冲数 * 减速比)
+ * 其中：
+ * - 车轮直径：10.4cm
+ * - 编码器每圈脉冲数：5720
+ * - 减速比：0.362
  */
 void handle_motor_speed(void)
 {
@@ -306,7 +316,17 @@ void handle_target_speed(void)
 		motor_R0.target = motor_all.Rspeed * LiuShuiRate;
 		motor_R1.target = motor_all.Rspeed;
 	}
-
+	//	else if(WavePlateLeft_Flag)  // 左波浪板模式（已注释）
+	//	{
+	//		motor_L0.target = motor_L1.target = motor_all.Lspeed * 1.2f;
+	//		motor_R0.target = motor_R1.target = motor_all.Rspeed;
+	//	}
+	//	else if(WavePlateRight_Flag)  // 右波浪板模式（已注释）
+	//	{
+	//		motor_L0.target = motor_L1.target = motor_all.Lspeed;
+	//		motor_R0.target = motor_R1.target = motor_all.Rspeed * 1.2f;
+	//	}
+	//	else if(ScanerMode == RF)  // RF模式（已注释）
 	else  // 普通模式
 	{
 		// 四个电机设置相同的目标速度
@@ -345,11 +365,14 @@ void handle_pid_control(void)
 
 /*模式转换函数*/
 /*
- * is_Turn  - 转向模式
- * is_Line  - 循迹模式
+ * 功能：在不同PID模式之间切换
+ * 参数：target_mode - 目标模式
+ * 模式说明：
+ * is_Turn  - 转向模式：机器人需要旋转（如90°、360°）
+ * is_Line  - 循迹模式：沿预定路径（如黑线）移动
  * is_Gyro  - 陀螺仪模式：走向指定角度
  * is_Free  - 开环模式：取消pid计算，输入速度为ccr
- * is_No    - 不使用转向环模式：重置所有参数
+ * is_No    - 空模式：重置所有参数，停止自动控制
  */
 void pid_mode_switch(uint8_t target_mode)
 {
@@ -459,13 +482,22 @@ void get_motor_speed()
 }
 
 /*创建电机任务*/
+/*
+ * 功能：创建电机控制任务
+ * 任务参数：
+ * - 任务函数：motor_task
+ * - 任务名称："motor_task"
+ * - 堆栈大小：motor_size（定义为512）
+ * - 优先级：motor_task_priority（定义为10）
+ * - 任务句柄：motor_handler
+ */
 void motor_task_create(void)
 {
 	xTaskCreate((TaskFunction_t)motor_task,  	  // 任务函数
 			(const char *)"motor_task",  	  // 任务名字
-			(uint32_t)motor_size,  	  // 任务堆栈大小 （定义为512）
+			(uint32_t)motor_size,  	  // 任务堆栈大小
 			(void *)NULL,  		  // 传递给任务参数的指针参数
-			(UBaseType_t)motor_task_priority, // 任务的优先级定义为10）
+			(UBaseType_t)motor_task_priority, // 任务的优先级
 			(TaskHandle_t *)&motor_handler);  // 任务句柄
 }
 

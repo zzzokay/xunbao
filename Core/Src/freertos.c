@@ -128,12 +128,12 @@ void StartDefaultTask(void const * argument)
 {
   /* USER CODE BEGIN StartDefaultTask */
   /* Infinite loop */
-	user_init();	
+		user_init();	
 	Start_task_create();
-	motor_set_pwm(1,1000);
-	motor_set_pwm(2,1000);
-	motor_set_pwm(3,1000);
-	motor_set_pwm(4,1000);
+//	motor_set_pwm(1,1000);
+//	motor_set_pwm(2,1000);
+//	motor_set_pwm(3,1000);
+//	motor_set_pwm(4,1000);
 	
 	vTaskDelete(NULL);//任务自删
 	
