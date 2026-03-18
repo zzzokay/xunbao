@@ -1,8 +1,8 @@
 test1\rec_usart.o: ..\Module\Rec_usart.c
 test1\rec_usart.o: ..\Module\Rec_usart.h
 test1\rec_usart.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
-test1\rec_usart.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stddef.h
-test1\rec_usart.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdint.h
+test1\rec_usart.o: C:\keil\ARM\ARMCC\Bin\..\include\stddef.h
+test1\rec_usart.o: C:\keil\ARM\ARMCC\Bin\..\include\stdint.h
 test1\rec_usart.o: ../Core/Inc/FreeRTOSConfig.h
 test1\rec_usart.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
 test1\rec_usart.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
@@ -46,13 +46,13 @@ test1\rec_usart.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_tim_ex.h
 test1\rec_usart.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart.h
 test1\rec_usart.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart_ex.h
 test1\rec_usart.o: ../Core/Inc/usart.h
-test1\rec_usart.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\string.h
-test1\rec_usart.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdlib.h
+test1\rec_usart.o: C:\keil\ARM\ARMCC\Bin\..\include\string.h
+test1\rec_usart.o: C:\keil\ARM\ARMCC\Bin\..\include\stdlib.h
 test1\rec_usart.o: ../Core/Inc/stm32f7xx_it.h
 test1\rec_usart.o: ../Motor/speed_ctrl.h
 test1\rec_usart.o: ../USMAT/sys.h
-test1\rec_usart.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdbool.h
-test1\rec_usart.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\math.h
+test1\rec_usart.o: C:\keil\ARM\ARMCC\Bin\..\include\stdbool.h
+test1\rec_usart.o: C:\keil\ARM\ARMCC\Bin\..\include\math.h
 test1\rec_usart.o: ../Application/turn.h
 test1\rec_usart.o: ../Application/sys.h
 test1\rec_usart.o: ../Module/imu.h
@@ -61,3 +61,5 @@ test1\rec_usart.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h
 test1\rec_usart.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h
 test1\rec_usart.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h
 test1\rec_usart.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
+test1\rec_usart.o: ../Math/pid.h
+test1\rec_usart.o: C:\keil\ARM\ARMCC\Bin\..\include\stdio.h

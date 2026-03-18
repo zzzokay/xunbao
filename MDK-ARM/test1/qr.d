@@ -1,8 +1,8 @@
 test1\qr.o: ..\Module\QR.c
 test1\qr.o: ..\Module\QR.h
 test1\qr.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
-test1\qr.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stddef.h
-test1\qr.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdint.h
+test1\qr.o: C:\keil\ARM\ARMCC\Bin\..\include\stddef.h
+test1\qr.o: C:\keil\ARM\ARMCC\Bin\..\include\stdint.h
 test1\qr.o: ../Core/Inc/FreeRTOSConfig.h
 test1\qr.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
 test1\qr.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
@@ -56,7 +56,7 @@ test1\qr.o: ../Application/sys.h
 test1\qr.o: ../Application/map_message.h
 test1\qr.o: ../Application/map.h
 test1\qr.o: ../Core/Inc/usart.h
-test1\qr.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\math.h
-test1\qr.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h
-test1\qr.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\string.h
+test1\qr.o: C:\keil\ARM\ARMCC\Bin\..\include\math.h
+test1\qr.o: C:\keil\ARM\ARMCC\Bin\..\include\stdio.h
+test1\qr.o: C:\keil\ARM\ARMCC\Bin\..\include\string.h
 test1\qr.o: ../Application/barrier.h

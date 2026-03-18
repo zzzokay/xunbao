@@ -4,7 +4,7 @@ test1\barrier.o: ..\Application\sys.h
 test1\barrier.o: ../Drivers/CMSIS/Device/ST/STM32F7xx/Include/stm32f7xx.h
 test1\barrier.o: ../Drivers/CMSIS/Device/ST/STM32F7xx/Include/stm32f750xx.h
 test1\barrier.o: ../Drivers/CMSIS/Include/core_cm7.h
-test1\barrier.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdint.h
+test1\barrier.o: C:\keil\ARM\ARMCC\Bin\..\include\stdint.h
 test1\barrier.o: ../Drivers/CMSIS/Include/cmsis_version.h
 test1\barrier.o: ../Drivers/CMSIS/Include/cmsis_compiler.h
 test1\barrier.o: ../Drivers/CMSIS/Include/cmsis_armcc.h
@@ -16,7 +16,7 @@ test1\barrier.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_rcc.h
 test1\barrier.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_def.h
 test1\barrier.o: ../Drivers/CMSIS/Device/ST/STM32F7xx/Include/stm32f7xx.h
 test1\barrier.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h
-test1\barrier.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stddef.h
+test1\barrier.o: C:\keil\ARM\ARMCC\Bin\..\include\stddef.h
 test1\barrier.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_rcc_ex.h
 test1\barrier.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_exti.h
 test1\barrier.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_gpio.h
@@ -40,7 +40,7 @@ test1\barrier.o: ..\Application\delay.h
 test1\barrier.o: ../Core/Inc/main.h
 test1\barrier.o: ../Motor/speed_ctrl.h
 test1\barrier.o: ../USMAT/sys.h
-test1\barrier.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdbool.h
+test1\barrier.o: C:\keil\ARM\ARMCC\Bin\..\include\stdbool.h
 test1\barrier.o: ../Motor/motor.h
 test1\barrier.o: ../Math/pid.h
 test1\barrier.o: ../Core/Inc/tim.h
@@ -66,11 +66,11 @@ test1\barrier.o: ..\Application\map_message.h
 test1\barrier.o: ..\Application\map.h
 test1\barrier.o: ../Task/motor_task.h
 test1\barrier.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
-test1\barrier.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\math.h
+test1\barrier.o: C:\keil\ARM\ARMCC\Bin\..\include\math.h
 test1\barrier.o: ../Module/bsp_buzzer.h
 test1\barrier.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\barrier.o: ../Module/bsp_led.h
-test1\barrier.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h
+test1\barrier.o: C:\keil\ARM\ARMCC\Bin\..\include\stdio.h
 test1\barrier.o: ../Module/QR.h
 test1\barrier.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\barrier.o: ..\Application\motion.h
@@ -85,6 +85,6 @@ test1\barrier.o: ../Math/filter.h
 test1\barrier.o: ../Module/K210.h
 test1\barrier.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\barrier.o: ../Core/Inc/usart.h
-test1\barrier.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\string.h
+test1\barrier.o: C:\keil\ARM\ARMCC\Bin\..\include\string.h
 test1\barrier.o: ../Core/Inc/adc.h
 test1\barrier.o: ..\Application\gray.h

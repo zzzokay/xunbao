@@ -1,4 +1,6 @@
 #include "Rec_usart.h"
+#include "pid.h"
+#include "stdio.h"
 uint8_t R_data[BUFFER_SIZE_rec];
 #define LINE_SPEED_MAX 68
 #define CAR_ALINE_SPEED_MAX 50
@@ -82,81 +84,81 @@ void get_PIDdata(uint8_t *data, uint16_t size)
 		
 				
 		// 设置左右电机的PID参数
-//		if (data[0] == 'P' && data[1] == 'L'&& data[2] == '1')
-//		{
-//			L1_param.kp = rec_data;
-////			printf("L0_KP = %.3f\n", L1_param.kp);
-//		}
-//		else if (data[0] == 'I' && data[1] == 'L'&& data[2] == '1')
-//		{
-//			L1_param.ki = rec_data;
-//			printf("L1_KI = %.3f\n", L1_param.ki);
-//		}
-//		else if (data[0] == 'D' && data[1] == 'L'&& data[2] == '1')
-//		{
-//			L0_param.kd = rec_data;
-//			printf("L0_Kd = %.3f\n", L0_param.kd);
-//		}
+		if (data[0] == 'P' && data[1] == 'L'&& data[2] == '1')
+		{
+			motor_pid_paramL1.kp = rec_data;
+//			printf("L0_KP = %.3f\n", motor_pid_paramL1.kp);
+		}
+		else if (data[0] == 'I' && data[1] == 'L'&& data[2] == '1')
+		{
+			motor_pid_paramL1.ki = rec_data;
+			printf("L1_KI = %.3f\n", motor_pid_paramL1.ki);
+		}
+		else if (data[0] == 'D' && data[1] == 'L'&& data[2] == '1')
+		{
+			motor_pid_paramL0.kd = rec_data;
+			printf("L0_Kd = %.3f\n", motor_pid_paramL0.kd);
+		}
 		
-//		else if (data[0] == 'P' && data[1] == 'R'&& data[2] == '0')
-//		{
-//			R0_param.kp = rec_data;
-//			printf("R0_Kp = %.3f\n", R0_param.kp);
-//		}
-//		else if (data[0] == 'I' && data[1] == 'R'&& data[2] == '0')
-//		{
-//			R0_param.ki = rec_data;
-//			printf("R0_Ki = %.3f\n", R0_param.ki);
-//		}
-//		else if (data[0] == 'D' && data[1] == 'R'&& data[2] == '0')
-//		{
-//			R0_param.kd = rec_data;
-//			printf("R0_Kd = %.3f\n", R0_param.kd);
-//		}
-//		
-//		else	if (data[0] == 'P' && data[1] == 'L'&& data[2] == '1')
-//		{
-//			L1_param.kp = PIDpara;
-//			printf("L1_KP = %.3f\n", L1_param.kp);
-//		}
-//		else if (data[0] == 'I' && data[1] == 'L'&& data[2] == '1')
-//		{
-//			L1_param.ki = PIDpara;
-//			printf("L1_KI = %.3f\n", L1_param.ki);
-//		}
-//		else if (data[0] == 'D' && data[1] == 'L'&& data[2] == '1')
-//		{
-//			L1_param.kd = PIDpara;
-//			printf("L1_Kd = %.3f\n", L1_param.kd);
-//		}
-//		
-//		else if (data[0] == 'P' && data[1] == 'R'&& data[2] == '1')
-//		{
-//			R1_param.kp = -PIDpara;
-//			printf("R1_Kp = %.3f\n", R1_param.kp);
-//		}
-//		else if (data[0] == 'I' && data[1] == 'R'&& data[2] == '1')
-//		{
-//			R1_param.ki = -PIDpara;
-//			printf("R1_Ki = %.3f\n", R1_param.ki);
-//		}
-//		else if (data[0] == 'D' && data[1] == 'R'&& data[2] == '1')
-//		{
-//			R1_param.kd = PIDpara;
-//			printf("R1_Kd = %.3f\n", R1_param.kd);
-//		}
-//		
-//		
-//		else if (data[0] == 'T' && data[1] == 'A'&& data[2] == 'R'&& data[3] == 'L')
-//		{
-//			motor_all.Lspeed = PIDpara;
-//			printf("targetL = %.3f\n", motor_all.Lspeed);
-//		}
-//		else if (data[0] == 'T' && data[1] == 'A'&& data[2] == 'R'&& data[3] == 'R')
-//		{
-//			motor_all.Rspeed = PIDpara;
-//			printf("targetR = %.3f\n", motor_all.Rspeed);
-//		}
+		else if (data[0] == 'P' && data[1] == 'R'&& data[2] == '0')
+		{
+			motor_pid_paramR0.kp = rec_data;
+			printf("R0_Kp = %.3f\n", motor_pid_paramR0.kp);
+		}
+		else if (data[0] == 'I' && data[1] == 'R'&& data[2] == '0')
+		{
+			motor_pid_paramR0.ki = rec_data;
+			printf("R0_Ki = %.3f\n", motor_pid_paramR0.ki);
+		}
+		else if (data[0] == 'D' && data[1] == 'R'&& data[2] == '0')
+		{
+			motor_pid_paramR0.kd = rec_data;
+			printf("R0_Kd = %.3f\n", motor_pid_paramR0.kd);
+		}
+		
+		else	if (data[0] == 'P' && data[1] == 'L'&& data[2] == '1')
+		{
+			motor_pid_paramL1.kp = rec_data;
+			printf("L1_KP = %.3f\n", motor_pid_paramL1.kp);
+		}
+		else if (data[0] == 'I' && data[1] == 'L'&& data[2] == '1')
+		{
+			motor_pid_paramL1.ki = rec_data;
+			printf("L1_KI = %.3f\n", motor_pid_paramL1.ki);
+		}
+		else if (data[0] == 'D' && data[1] == 'L'&& data[2] == '1')
+		{
+			motor_pid_paramL1.kd = rec_data;
+			printf("L1_Kd = %.3f\n", motor_pid_paramL1.kd);
+		}
+		
+		else if (data[0] == 'P' && data[1] == 'R'&& data[2] == '1')
+		{
+			motor_pid_paramR1.kp = rec_data;
+			printf("R1_Kp = %.3f\n", motor_pid_paramR1.kp);
+		}
+		else if (data[0] == 'I' && data[1] == 'R'&& data[2] == '1')
+		{
+			motor_pid_paramR1.ki = rec_data;
+			printf("R1_Ki = %.3f\n", motor_pid_paramR1.ki);
+		}
+		else if (data[0] == 'D' && data[1] == 'R'&& data[2] == '1')
+		{
+			motor_pid_paramR1.kd = rec_data;
+			printf("R1_Kd = %.3f\n", motor_pid_paramR1.kd);
+		}
+		
+		
+		else if (data[0] == 'T' && data[1] == 'A'&& data[2] == 'R'&& data[3] == 'L')
+		{
+			motor_all.Lspeed = rec_data;
+			printf("targetL = %.3f\n", motor_all.Lspeed);
+		}
+		else if (data[0] == 'T' && data[1] == 'A'&& data[2] == 'R'&& data[3] == 'R')
+		{
+			motor_all.Rspeed = rec_data;
+			printf("targetR = %.3f\n", motor_all.Rspeed);
+		}
 
 	}
 	

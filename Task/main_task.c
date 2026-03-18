@@ -30,7 +30,7 @@ void main_task(void *pvParameters)
 	xLastWakeTime = xTaskGetTickCount();   //获取系统节拍、
 //	zhunbei(); // 启动流程//注意有挡板 会卡在这
 	encoder_clear(); // 路程记录清零
-	Motor_Control(is_Line, SPEED0, SPEED0, 0);
+//	Motor_Control(is_Line, SPEED0, SPEED0, 0);
 	
 	
 	uint8_t test_flag =1;
@@ -53,16 +53,16 @@ void main_task(void *pvParameters)
 		}
 		
 		
-		if(test_flag)
-		{
-			motor_all.Cincrement = 0.05;
-			pid_mode_switch(is_Line);
-			motor_all.Cspeed = SPEED1;
-			MOTOR_PWM_MAX = 7000;
-			test_flag=0;
-//			LEFT_RIGHT_LINE=1;
-			
-		}
+//		if(test_flag)
+//		{
+//			motor_all.Cincrement = 0.05;
+//			pid_mode_switch(is_Line);
+//			motor_all.Cspeed = SPEED1;
+//			MOTOR_PWM_MAX = 7000;
+//			test_flag=0;
+////			LEFT_RIGHT_LINE=1;
+//			
+//		}
 		
 		
 //		/*节点间处理*/

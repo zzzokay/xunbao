@@ -39,7 +39,7 @@
 #include "barrier.h"
 #include "K210.h"
 #include "gray.h"
-
+#include "Rec_usart.h"
 
 /*全局变量定义*/
 TaskHandle_t motor_handler;       // 电机任务句柄
@@ -63,6 +63,10 @@ void motor_task(void *pvParameters)
 	
 	while (1)
 	{
+			//pid调参接口
+			get_PIDdata(R_data,Rx_len);
+
+		
 		/*1. 获取pid error - 仅在循迹模式下执行（外环误差）*/
 		//handle_line_error();
 
@@ -88,14 +92,14 @@ void motor_task(void *pvParameters)
 		handle_pid_control();
 
 		// 调试信息输出（注释掉的部分）
-		 /*陀螺仪模式*/ printf("Gyro:%.2f LSP:%.2f RSP:%.2f L0:%.2f L1:%.2f R0:%.2f R1:%.2f\r\n", imu.yaw,motor_all.Lspeed,motor_all.Rspeed,motor_L0.output,motor_L1.output,motor_R0.output,motor_R1.output);
+//		 /*陀螺仪模式*/ printf("Gyro:%.2f LSP:%.2f RSP:%.2f L0:%.2f L1:%.2f R0:%.2f R1:%.2f\r\n", imu.yaw,motor_all.Lspeed,motor_all.Rspeed,motor_L0.output,motor_L1.output,motor_R0.output,motor_R1.output);
 	     /*电机环PID*/// printf("LSP:%.2f RSP:%.2f L0:%.2f L1:%.2f R0:%.2f R1:%.2f\r\n", motor_all.Lspeed,motor_all.Rspeed,motor_L0.output,motor_L1.output,motor_R0.output,motor_R1.output);
 		// /*电机环目标值*/ printf("L0tar:%.2f\tL1tar:%.2f\tR0tar:%.2f\tR1tar:%.2f\r\n", motor_L0.target, motor_L1.target, motor_R0.target, motor_R1.target);
 		// /*循迹值*/ printf_byte(Scaner.detail);
 		// /*陀螺仪读数*/ printf("yaw:%.2f\troll:%.2f\tpitch:%.2f\tbasic:%.2f\r\n", imu.yaw, imu.roll, imu.pitch, basic_p);
 		// /*当前目标节点*/ printf("%d\r\n",nodesr.nowNode.nodenum);
 		// /*三门大炮*/ printf("前%d 左%d 右%d\r\n", Infrared_ahead, infrared.head_left, infrared.head_right);
-		 /*各轮子测量值*/ printf("L0:%.1f,L1:%.1f,R0:%.1f,R1:%.1f\r\n", motor_L0.measure, motor_L1.measure, motor_R0.measure, motor_R1.measure);
+//		 /*各轮子测量值*/ printf("L0:%.1f,L1:%.1f,R0:%.1f,R1:%.1f\r\n", motor_L0.measure, motor_L1.measure, motor_R0.measure, motor_R1.measure);
 		// /*打印识别数字*/ printf("%d\r\n", Clue_Num);
 
 		vTaskDelayUntil(&xLastWakeTime, (5 / portTICK_RATE_MS)); // 绝对休眠5ms，确保执行频率稳定
