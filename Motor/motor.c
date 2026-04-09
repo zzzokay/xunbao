@@ -19,12 +19,16 @@ void motor_init(void)
 	HAL_TIM_Base_Start(&htim4);
 	HAL_TIM_Base_Start(&htim8);
 	HAL_TIM_Base_Start(&htim9);
+	HAL_TIM_Base_Start(&htim12);
 	
 	HAL_TIM_PWM_Start(&htim4,TIM_CHANNEL_1);  //右后
 	HAL_TIM_PWM_Start(&htim4,TIM_CHANNEL_2);
 	HAL_TIM_PWM_Start(&htim4,TIM_CHANNEL_3);  //右前
 	HAL_TIM_PWM_Start(&htim4,TIM_CHANNEL_4);
-	
+	HAL_TIM_PWM_Start(&htim12,TIM_CHANNEL_1);  //右前
+	HAL_TIM_PWM_Start(&htim12,TIM_CHANNEL_2);
+
+
 	HAL_TIM_PWM_Start(&htim8,TIM_CHANNEL_3);  //左前
 	HAL_TIM_PWM_Start(&htim8,TIM_CHANNEL_4);
 	
@@ -53,10 +57,14 @@ void motor_set_pwm(uint8_t motor, int32_t pid_out)
 		
 		switch (motor)
 		{	
+//			case 4: TIM12->CCR1 = 0; TIM12->CCR2 = ccr;	break;  //右前	R0
 			case 1: TIM9->CCR1 = 0; TIM9->CCR2 = ccr;	break;  //左前	L0//TIM9->CCR1
 			case 2: TIM8->CCR4 = 0; TIM8->CCR3 = ccr;	break;  //左后	L1
 			case 3: TIM4->CCR1 = 0; TIM4->CCR2 = ccr;	break;  //右前	R0 
-			case 4: TIM4->CCR4 = 0; TIM4->CCR3 = ccr;	break;  //右后	R1 
+			case 4: TIM4->CCR3 = 0; TIM4->CCR4 = ccr;	break;  //右后	R1 
+//			case 1: TIM9->CCR1 = 0; TIM9->CCR2 = ccr;	break;  //左前	L0//TIM9->CCR1
+//			case 2: TIM8->CCR4 = 0; TIM8->CCR3 = ccr;	break;  //左后	L1
+//			case 3: TIM4->CCR1 = 0; TIM4->CCR2 = ccr;	break;  //右后	R1 
 
 			default: ; //TODO
 		}
@@ -71,13 +79,52 @@ void motor_set_pwm(uint8_t motor, int32_t pid_out)
 		
 		switch (motor)
 		{
+//			case 4: TIM12->CCR2 = 0; TIM12->CCR1 = ccr;	break;  //右前	R0
 			case 1: TIM9->CCR2 = 0; TIM9->CCR1 = ccr;	break;  //左前	L0//TIM9->CCR2
 			case 2: TIM8->CCR3 = 0; TIM8->CCR4 = ccr;	break;  //左后	L1
 			case 3: TIM4->CCR2 = 0; TIM4->CCR1 = ccr;	break;  //右前	R0
-			case 4: TIM4->CCR3 = 0; TIM4->CCR4 = ccr;	break;  //右后	R1
+			case 4: TIM4->CCR4 = 0; TIM4->CCR3 = ccr;	break;  //右后	R1
+//			case 1: TIM9->CCR2 = 0; TIM9->CCR1 = ccr;	break;  //左前	L0//TIM9->CCR2
+//			case 2: TIM8->CCR3 = 0; TIM8->CCR4 = ccr;	break;  //左后	L1
+//			case 3: TIM4->CCR2 = 0; TIM4->CCR1 = ccr;	break;  //右后	R1
 			
 			default: ; //TODO
 		}
 	}
 //	printf("%d\r\n",ccr);
+}
+
+
+void motor_set_pwm_R0(uint8_t motor,  int32_t pid_out)
+{
+	int32_t ccr = 0;
+	
+	if(motor==4)
+	{
+		if (pid_out >= 0)
+		{
+			if (pid_out > MOTOR_PWM_MAX)
+				ccr = MOTOR_PWM_MAX;
+			else
+				ccr = pid_out;
+			
+			 TIM12->CCR1 = 0; TIM12->CCR2 = ccr;	  //右前	R0
+
+
+		}
+		
+		else if (pid_out < 0)
+		{
+			if (pid_out < -MOTOR_PWM_MAX)
+				ccr = MOTOR_PWM_MAX;
+			else
+				ccr = -pid_out;
+			
+				 TIM12->CCR2 = 0; TIM12->CCR1 = ccr;  //右前	R0
+			
+		}
+//	printf("%d\r\n",ccr);
+	
+	
+	}
 }

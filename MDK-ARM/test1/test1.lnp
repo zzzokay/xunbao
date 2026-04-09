@@ -58,7 +58,6 @@
 "test1\bsp_buzzer.o"
 "test1\k210.o"
 "test1\openmv.o"
-"test1\qr.o"
 "test1\rudder_control.o"
 "test1\rec_usart.o"
 "test1\barrier.o"

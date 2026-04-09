@@ -67,6 +67,7 @@ extern TIM_HandleTypeDef htim4;
 extern TIM_HandleTypeDef htim8;
 extern TIM_HandleTypeDef htim9;
 extern TIM_HandleTypeDef htim11;
+extern TIM_HandleTypeDef htim12;
 extern DMA_HandleTypeDef hdma_uart5_rx;
 extern DMA_HandleTypeDef hdma_usart3_rx;
 extern UART_HandleTypeDef huart5;
@@ -310,7 +311,7 @@ void TIM4_IRQHandler(void)
 //void USART3_IRQHandler(void)
 //{
 //  /* USER CODE BEGIN USART3_IRQn 0 */
-				//Ҫע��
+//				//Ҫע��
 //  /* USER CODE END USART3_IRQn 0 */
 //  HAL_UART_IRQHandler(&huart3);
 //  /* USER CODE BEGIN USART3_IRQn 1 */
@@ -327,6 +328,7 @@ void TIM8_BRK_TIM12_IRQHandler(void)
 
   /* USER CODE END TIM8_BRK_TIM12_IRQn 0 */
   HAL_TIM_IRQHandler(&htim8);
+  HAL_TIM_IRQHandler(&htim12);
   /* USER CODE BEGIN TIM8_BRK_TIM12_IRQn 1 */
 
   /* USER CODE END TIM8_BRK_TIM12_IRQn 1 */
@@ -388,6 +390,9 @@ void UART5_IRQHandler(void)
 			
         Rx_len =BUFFER_SIZE_rec -  __HAL_DMA_GET_COUNTER(&hdma_uart5_rx);
 				recv_end_flag = 1;
+    
+
+
      }
 
 	

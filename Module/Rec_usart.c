@@ -48,14 +48,13 @@ void get_PIDdata(uint8_t *data, uint16_t size)
 {
 	if(recv_end_flag==1)
 	{
-
-	int startIdx,endIdx;		//定义有效数据的起始索引和结束索引
+		printf("1");
+ 	int startIdx,endIdx;		//定义有效数据的起始索引和结束索引
 	char valueStr[30] = {0}; 	//定义有效数据对应的字符串
 	float rec_data;				//
 	
 	if(data[size-1] == '!')		//当最后一位为字符'!'(说明下，==进行判断时，两端都必须是数值，也即左侧会解析为数值(uint8_t数组的值)，右侧也会解析为数值(字符'!'对应的ascii值)
 	{
-
 		//找到 '=' 的索引
 		for(int i=0;i<size;i++)
 		{

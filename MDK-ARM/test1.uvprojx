@@ -1213,16 +1213,6 @@
               <FilePath>..\Module\openmv.h</FilePath>
             </File>
             <File>
-              <FileName>QR.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Module\QR.c</FilePath>
-            </File>
-            <File>
-              <FileName>QR.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\Module\QR.h</FilePath>
-            </File>
-            <File>
               <FileName>Rudder_control.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Module\Rudder_control.c</FilePath>

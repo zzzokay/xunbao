@@ -102,6 +102,8 @@ void motor_task(void *pvParameters)
 //		 /*各轮子测量值*/ printf("L0:%.1f,L1:%.1f,R0:%.1f,R1:%.1f\r\n", motor_L0.measure, motor_L1.measure, motor_R0.measure, motor_R1.measure);
 		// /*打印识别数字*/ printf("%d\r\n", Clue_Num);
 
+//		 /*各轮子测量值*/ printf("R1:%.1f\r\n",motor_R1.measure);
+
 		vTaskDelayUntil(&xLastWakeTime, (5 / portTICK_RATE_MS)); // 绝对休眠5ms，确保执行频率稳定
 	}
 }
@@ -358,9 +360,9 @@ void handle_pid_control(void)
 		incremental_PID(&motor_R1, &motor_pid_paramR1);  // 右后轮
 
 		/*设置电机PWM值*/
-		motor_set_pwm(1, (int32_t)motor_L0.output);  // 左前轮
-		motor_set_pwm(2, (int32_t)motor_L1.output);  // 左后轮
-		motor_set_pwm(3, (int32_t)motor_R0.output);  // 右前轮
+//		motor_set_pwm(1, (int32_t)motor_L0.output);  // 左前轮
+//		motor_set_pwm(2, (int32_t)motor_L1.output);  // 左后轮
+//		motor_set_pwm(3, (int32_t)motor_R0.output);  // 右前轮
 		motor_set_pwm(4, (int32_t)motor_R1.output);  // 右后轮
 	}
 }

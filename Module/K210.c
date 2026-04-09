@@ -92,7 +92,7 @@ void Process_QR_Data(uint8_t line, uint8_t stageA, uint8_t stageB) {
         line_clue = line;
         clue_A_stage = stageA;
         clue_B_stage = stageB;
-        buzzer_flag = 1;
+//        buzzer_flag = 1;
         get_cude = 1;
         close_Maxicam();
         consecutive_count = 0; // ÖØÖÃ¼ÆÊı

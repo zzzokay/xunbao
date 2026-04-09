@@ -136,12 +136,21 @@ void pid_init(void)
 	motor_pid_paramR0.actualMax = 100;
 
 	/*R1µç»ú*/
+//	motor_pid_paramR1.outputMax = MOTOR_PWM_MAX;
+//	motor_pid_paramR1.kp = 40; // 55
+//	motor_pid_paramR1.ki = 10; // 42.0
+//	motor_pid_paramR1.kd = 5;  // 25
+//	motor_pid_paramR1.differential_filterK = 0.5;
+//	motor_pid_paramR1.actualMax = 100;
+
+
 	motor_pid_paramR1.outputMax = MOTOR_PWM_MAX;
-	motor_pid_paramR1.kp = 40; // 55
-	motor_pid_paramR1.ki = 10; // 42.0
-	motor_pid_paramR1.kd = 5;  // 25
+	motor_pid_paramR1.kp = 0; // 55
+	motor_pid_paramR1.ki = 0; // 42.0
+	motor_pid_paramR1.kd = 0;  // 25
 	motor_pid_paramR1.differential_filterK = 0.5;
 	motor_pid_paramR1.actualMax = 100;
+
 
 	/*¼¤¹âÑ­¼£*/
 	/*

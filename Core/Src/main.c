@@ -113,6 +113,7 @@ HAL_Delay(5000);
   MX_UART5_Init();
   MX_UART8_Init();
   MX_ADC1_Init();
+  MX_TIM12_Init();
   /* USER CODE BEGIN 2 */
 	
   /* USER CODE END 2 */

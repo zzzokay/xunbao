@@ -14,5 +14,6 @@ void motor_init(void);
 void motor_set_pwm(uint8_t motor, int32_t pid_out);
 void pid_init(void);
 void motor_pid_clear(void);
+void motor_set_pwm_R0(uint8_t motor,  int32_t pid_out);
 
 #endif

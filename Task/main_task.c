@@ -21,7 +21,7 @@
 #include "QR.h"
 #include "K210.h"
 #include "scaner.h"
-
+#include "motor.h"
 
 /*主任务*/
 void main_task(void *pvParameters)
@@ -53,16 +53,23 @@ void main_task(void *pvParameters)
 		}
 		
 		
-//		if(test_flag)
-//		{
-//			motor_all.Cincrement = 0.05;
-//			pid_mode_switch(is_Line);
-//			motor_all.Cspeed = SPEED1;
-//			MOTOR_PWM_MAX = 7000;
-//			test_flag=0;
-////			LEFT_RIGHT_LINE=1;
-//			
-//		}
+		if(1)
+		{
+			motor_all.Cincrement = 0.05;
+			pid_mode_switch(is_Line);
+			motor_all.Cspeed = 10;
+			MOTOR_PWM_MAX = 7000;
+			test_flag=0;
+//			LEFT_RIGHT_LINE=1; 
+			
+//		motor_set_pwm(4, 1000);  // 右后轮
+//		motor_set_pwm(1, 1000);  // 左前轮
+//		motor_set_pwm(2, 1000);  // 左后轮
+//		motor_set_pwm(3, 1000);  // 右前轮
+
+//		TIM12->CCR1 = 0; TIM12->CCR2 = 1000;
+//			motor_set_pwm_R0(4,1000);
+		}
 		
 		
 //		/*节点间处理*/

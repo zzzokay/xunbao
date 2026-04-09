@@ -92,3 +92,4 @@ test1\main_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_o
 test1\main_task.o: ../Module/K210.h
 test1\main_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\main_task.o: ../Core/Inc/usart.h
+test1\main_task.o: ../Motor/motor.h
