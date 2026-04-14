@@ -1,0 +1,305 @@
+version: "4.1"
+name: test1
+type: ARM
+deviceName: null
+packDir: null
+srcDirs: []
+virtualFolder:
+  name: <virtual_root>
+  files: []
+  folders:
+    - name: Application
+      files:
+        - path: ../Application/barrier.c
+        - path: ../Application/barrier.h
+        - path: ../Application/delay.c
+        - path: ../Application/delay.h
+        - path: ../Application/gray.c
+        - path: ../Application/gray.h
+        - path: ../Application/IIC.c
+        - path: ../Application/IIC.h
+        - path: ../Application/map.c
+        - path: ../Application/map.h
+        - path: ../Application/map_message.c
+        - path: ../Application/map_message.h
+        - path: ../Application/motion.c
+        - path: ../Application/motion.h
+        - path: ../Application/scaner.c
+        - path: ../Application/scaner.h
+        - path: ../Application/sys.h
+        - path: ../Application/turn.c
+        - path: ../Application/turn.h
+        - path: ../Application/command.c
+        - path: ../Application/command.h
+      folders:
+        - name: MDK-ARM
+          files:
+            - path: startup_stm32f750xx.s
+          folders: []
+        - name: User
+          files:
+            - path: ../Application/command.c
+            - path: ../Application/command.h
+          folders:
+            - name: Core
+              files:
+                - path: ../Core/Src/main.c
+                - path: ../Core/Src/gpio.c
+                - path: ../Core/Src/freertos.c
+                - path: ../Core/Src/adc.c
+                - path: ../Core/Src/dma.c
+                - path: ../Core/Src/tim.c
+                - path: ../Core/Src/usart.c
+                - path: ../Core/Src/stm32f7xx_it.c
+                - path: ../Core/Src/stm32f7xx_hal_msp.c
+                - path: ../Core/Src/stm32f7xx_hal_timebase_tim.c
+              folders: []
+    - name: Drivers
+      files: []
+      folders:
+        - name: STM32F7xx_HAL_Driver
+          files:
+            - path: ../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_tim.c
+            - path: ../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_tim_ex.c
+            - path: ../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_adc.c
+            - path: ../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_adc_ex.c
+            - path: ../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_rcc.c
+            - path: ../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_rcc_ex.c
+            - path: ../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_flash.c
+            - path: ../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_flash_ex.c
+            - path: ../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_gpio.c
+            - path: ../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_dma.c
+            - path: ../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_dma_ex.c
+            - path: ../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_pwr.c
+            - path: ../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_pwr_ex.c
+            - path: ../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_cortex.c
+            - path: ../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal.c
+            - path: ../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_i2c.c
+            - path: ../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_i2c_ex.c
+            - path: ../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_exti.c
+            - path: ../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_uart.c
+            - path: ../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_uart_ex.c
+          folders: []
+        - name: CMSIS
+          files:
+            - path: ../Core/Src/system_stm32f7xx.c
+          folders: []
+    - name: Middlewares
+      files: []
+      folders:
+        - name: FreeRTOS
+          files:
+            - path: ../Middlewares/Third_Party/FreeRTOS/Source/croutine.c
+            - path: ../Middlewares/Third_Party/FreeRTOS/Source/event_groups.c
+            - path: ../Middlewares/Third_Party/FreeRTOS/Source/list.c
+            - path: ../Middlewares/Third_Party/FreeRTOS/Source/queue.c
+            - path: ../Middlewares/Third_Party/FreeRTOS/Source/stream_buffer.c
+            - path: ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c
+            - path: ../Middlewares/Third_Party/FreeRTOS/Source/timers.c
+            - path: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.c
+            - path: ../Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/heap_4.c
+            - path: ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/r0p1/port.c
+          folders: []
+    - name: Motor
+      files:
+        - path: ../Motor/motor.c
+        - path: ../Motor/motor.h
+        - path: ../Motor/Encoder.c
+        - path: ../Motor/Encoder.h
+        - path: ../Motor/speed_ctrl.c
+        - path: ../Motor/speed_ctrl.h
+      folders: []
+    - name: Task
+      files:
+        - path: ../Task/motor_task.c
+        - path: ../Task/motor_task.h
+        - path: ../Task/ArriveDetect_task.c
+        - path: ../Task/ArriveDetect_task.h
+        - path: ../Task/task_create.c
+        - path: ../Task/task_create.h
+        - path: ../Task/main_task.c
+        - path: ../Task/main_task.h
+        - path: ../Task/temporary_task.c
+        - path: ../Task/temporary_task.h
+      folders: []
+    - name: Math
+      files:
+        - path: ../Math/filter.c
+        - path: ../Math/filter.h
+        - path: ../Math/pid.c
+        - path: ../Math/pid.h
+        - path: ../Math/sin_generate.c
+        - path: ../Math/sin_generate.h
+      folders: []
+    - name: USMAT
+      files:
+        - path: ../USMAT/sys.c
+      folders: []
+    - name: Module
+      files:
+        - path: ../Module/imu.c
+        - path: ../Module/imu.h
+        - path: ../Module/bsp_linefollower.c
+        - path: ../Module/bsp_linefollower.h
+        - path: ../Module/bsp_buzzer.c
+        - path: ../Module/bsp_buzzer.h
+        - path: ../Module/K210.c
+        - path: ../Module/K210.h
+        - path: ../Module/openmv.c
+        - path: ../Module/openmv.h
+        - path: ../Module/QR.c
+        - path: ../Module/QR.h
+        - path: ../Module/Rudder_control.c
+        - path: ../Module/Rudder_control.h
+        - path: ../Module/Rec_usart.c
+        - path: ../Module/Rec_usart.h
+      folders: []
+    - name: ::CMSIS
+      files: []
+      folders: []
+dependenceList: []
+outDir: build
+miscInfo:
+  uid: 297bb3bfd17bcde94fab5a15307bdc9f
+targets:
+  test1:
+    cppPreprocessAttrs:
+      defineList:
+        - USE_HAL_DRIVER
+        - STM32F750xx
+      incList:
+        - ../Core/Inc
+        - ../Drivers/STM32F7xx_HAL_Driver/Inc
+        - ../Drivers/STM32F7xx_HAL_Driver/Inc/Legacy
+        - ../Middlewares/Third_Party/FreeRTOS/Source/include
+        - ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS
+        - ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/r0p1
+        - ../Drivers/CMSIS/Device/ST/STM32F7xx/Include
+        - ../Drivers/CMSIS/Include
+        - ../Motor
+        - ../Task
+        - ../Math
+        - ../USMAT
+        - ../Module
+        - ../Application
+        - .cmsis/include
+        - RTE/_test1
+      libList: []
+    excludeList:
+      - <virtual_root>/Application/User/command.c
+    settings: {}
+    toolchain: AC5
+    toolchainConfigMap:
+      AC5:
+        archExtensions: ""
+        cpuType: Cortex-M7
+        floatingPointHardware: single
+        options:
+          version: 4
+          afterBuildTasks: []
+          asm-compiler:
+            defines: []
+          beforeBuildTasks: []
+          c/cpp-compiler:
+            CXX_FLAGS: --diag_suppress=1 --diag_suppress=1295
+            C_FLAGS: --diag_suppress=1 --diag_suppress=1295
+            c99-mode: true
+            one-elf-section-per-function: true
+            optimization: level-0
+            warnings: all-warnings
+          global:
+            output-debug-info: enable
+            use-microLIB: true
+          linker:
+            $outputTaskExcludes:
+              - .bin
+            output-format: elf
+            ro-base: ""
+            rw-base: ""
+            xo-base: ""
+        scatterFilePath: ""
+        storageLayout:
+          RAM:
+            - id: 1
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
+            - id: 2
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
+            - id: 3
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
+            - id: 1
+              isChecked: true
+              mem:
+                size: "0x50000"
+                startAddr: "0x20000000"
+              noInit: false
+              tag: IRAM
+            - id: 2
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: IRAM
+          ROM:
+            - id: 1
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
+            - id: 2
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
+            - id: 3
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
+            - id: 1
+              isChecked: true
+              isStartup: true
+              mem:
+                size: "0x10000"
+                startAddr: "0x8000000"
+              tag: IROM
+            - id: 2
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: IROM
+        useCustomScatterFile: false
+    uploadConfigMap:
+      JLink:
+        baseAddr: ""
+        bin: ""
+        cpuInfo:
+          cpuName: "null"
+          vendor: "null"
+        otherCmds: ""
+        proType: 1
+        speed: 8000
+    uploader: JLink

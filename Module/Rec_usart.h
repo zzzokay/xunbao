@@ -29,8 +29,8 @@ extern volatile uint8_t start_flag ;//舵控板上的按键控制程序运行的标志位
 void Rec_usart_init(void);
 
 //入参：字符串数组(存储ascii码数组)的地址 ; 字符串数组的长度
-void get_PIDdata(uint8_t *data, uint16_t size);
-
+// void get_PIDdata(uint8_t *data, uint16_t size);
+void get_PIDdata();
 
 
 #endif

@@ -63,9 +63,8 @@ void motor_task(void *pvParameters)
 	
 	while (1)
 	{
-			//pid调参接口
-			get_PIDdata(R_data,Rx_len);
-
+		//pid调参接口
+		get_PIDdata();
 		
 		/*1. 获取pid error - 仅在循迹模式下执行（外环误差）*/
 		//handle_line_error();
