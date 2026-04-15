@@ -17,8 +17,6 @@
 
 #define TARGET_CENTER_Y 50 
 
-extern uint8_t R_data[BUFFER_SIZE_rec];
-
 extern volatile uint16_t last_center_y[5];
 extern	volatile uint8_t send_target_flag ;
 extern uint8_t S_recData;

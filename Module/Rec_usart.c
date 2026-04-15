@@ -1,7 +1,14 @@
 #include "Rec_usart.h"
 #include "pid.h"
 #include "stdio.h"
-uint8_t Rx_data[30];
+#include "command.h"
+#include "dma.h"
+
+#define BUFFER_SIZE_rec  10
+
+uint8_t Rx_data[BUFFER_SIZE_rec];
+uint8_t command[30];
+
 #define LINE_SPEED_MAX 68
 #define CAR_ALINE_SPEED_MAX 50
 
@@ -11,7 +18,7 @@ uint8_t Rx_data[30];
 #define GET_HIGH_BYTE(A) ((uint8_t)((A) >> 8))
 //宏函数 获得A的高八位
 
-
+extern DMA_HandleTypeDef hdma_uart4_rx;
 
 volatile int center_x =50;
 volatile int center_y =50;
@@ -27,55 +34,40 @@ volatile uint8_t recv_flag =0;//接收标志位
 
 void Rec_usart_init(void)
 {
-	
-	 HAL_UART_Receive_IT(&huart4,Rx_data,BUFFER_SIZE_rec);
-
+	 HAL_UARTEx_ReceiveToIdle_DMA(&huart4,Rx_data,BUFFER_SIZE_rec);
+	 __HAL_DMA_DISABLE_IT(&hdma_uart4_rx,DMA_IT_HT);
 }
+	
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
 	if(huart==&huart4)
 	{
-	   recv_flag=1;
-		 HAL_UART_Receive_IT(&huart4,Rx_data,BUFFER_SIZE_rec);
-		//HAL_UART_Receive_IT(&huart4,Rx_data,1);
+			Command_Write(Rx_data,Size);
+			HAL_UARTEx_ReceiveToIdle_DMA(&huart4,Rx_data,sizeof(Rx_data));
+			__HAL_DMA_DISABLE_IT(&hdma_uart4_rx,DMA_IT_HT);
 	}
-
-}	
-
-
+}
 void get_PIDdata()
 {
-	// uint8_t length=Command_GetCommand(command);
-	// 	if(length>0)
-	// 	{ 
-	// 		sscanf((char*)command,"[%[^,],%[^,],%[^]]",dev,param,value);
-	// 		if(strcmp(dev,"slider")==0)
-	// 		{ 
-	// 			if(strcmp(param,"kp")==0){kp=atof(value);}
-	// 			if(strcmp(param,"ki")==0){ki=atof(value);}	
-	// 			if(strcmp(param,"kd")==0){kd=atof(value);}
-	// 			if(strcmp(param,"target")==0){target_speed=atof(value);}
-	// 		}
-	// 		// motor_pid.Kp = kp;     
-	// 		// motor_pid.Ki = ki;      
-	// 		// motor_pid.Kd = kd;      
-	// 		// motor_pid.Target = target_speed; 
-			
-			
-	// 		memset(dev,0,sizeof(dev));
-	// 		memset(param,0,sizeof(param));
-	// 		memset(value,0,sizeof(value));
-	// 		memset(command, 0, sizeof(command));
-	// 	}
-	if(recv_flag == 1)
-	{
-		printf("Received\n");
-		recv_flag = 0;
-	}
-	//else{printf("waiting...\n");}
+	 char dev[10],param[10],value[10];
+	 uint8_t length=Command_GetCommand(command);
+		if(length>0)
+		{ 
+			sscanf((char*)command,"[%[^,],%[^,],%[^]]",dev,param,value);
+			if(strcmp(dev,"slider")==0)
+			{ 
+				if(strcmp(param,"kp")==0){motor_pid_paramL0.kp = atof(value);}
+				if(strcmp(param,"ki")==0){motor_pid_paramL0.ki = atof(value);}	
+				if(strcmp(param,"kd")==0){motor_pid_paramL0.kd = atof(value);}
+				if(strcmp(param,"target")==0){motor_L0.target = atof(value);}
+			}
 
-
+			memset(dev,0,sizeof(dev));
+			memset(param,0,sizeof(param));
+			memset(value,0,sizeof(value));
+			memset(command, 0, sizeof(command));
+			}
 
 }
 

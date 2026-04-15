@@ -1332,6 +1332,16 @@
               <FileType>5</FileType>
               <FilePath>..\Application\turn.h</FilePath>
             </File>
+            <File>
+              <FileName>command.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Application\command.c</FilePath>
+            </File>
+            <File>
+              <FileName>command.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Application\command.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
