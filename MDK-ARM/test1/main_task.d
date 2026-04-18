@@ -67,6 +67,8 @@ test1\main_task.o: ../Module/imu.h
 test1\main_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\main_task.o: ../Application/turn.h
 test1\main_task.o: ../Application/sys.h
+test1\main_task.o: ../Motor/speed_ctrl.h
+test1\main_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdbool.h
 test1\main_task.o: ../Application/map.h
 test1\main_task.o: ../Application/map_message.h
 test1\main_task.o: ../Application/map.h
@@ -76,8 +78,6 @@ test1\main_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_o
 test1\main_task.o: ../Module/bsp_linefollower.h
 test1\main_task.o: ../Application/scaner.h
 test1\main_task.o: ../Math/pid.h
-test1\main_task.o: ../Motor/speed_ctrl.h
-test1\main_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdbool.h
 test1\main_task.o: ../Motor/encoder.h
 test1\main_task.o: ../Core/Inc/tim.h
 test1\main_task.o: ..\Task\motor_task.h

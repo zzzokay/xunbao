@@ -39,6 +39,8 @@ test1\scaner.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart_ex.h
 test1\scaner.o: ../Math/pid.h
 test1\scaner.o: ../USMAT/sys.h
 test1\scaner.o: ../Core/Inc/main.h
+test1\scaner.o: ../Motor/speed_ctrl.h
+test1\scaner.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdbool.h
 test1\scaner.o: ..\Application\map.h
 test1\scaner.o: ..\Application\map_message.h
 test1\scaner.o: ..\Application\map.h
@@ -62,8 +64,6 @@ test1\scaner.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.
 test1\scaner.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h
 test1\scaner.o: ../Task/motor_task.h
 test1\scaner.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
-test1\scaner.o: ../Motor/speed_ctrl.h
-test1\scaner.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdbool.h
 test1\scaner.o: ../Module/bsp_linefollower.h
 test1\scaner.o: ../Motor/motor.h
 test1\scaner.o: ../Core/Inc/tim.h

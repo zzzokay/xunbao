@@ -62,8 +62,26 @@ void incremental_PID(struct I_pid_obj *motor, struct PID_param *pid)
 
 	motor->output += pid->kp * proportion + pid->ki * integral + pid->kd * differential;
 
+	// 输出限幅
+	if (motor->output >1000)
+	{
+		motor->output = 1000;
+	}
+	else if (motor->output < -1000)
+	{
+		motor->output = -1000;
+	}
+
 	motor->last2_bias = motor->last_bias;
 	motor->last_bias = motor->bias;
+	//过小的输出置零
+	  if (motor->target == 0) // 如果有轻微抖动，也可改成 abs(motor->measure) < 2
+    {
+        motor->output = 0;
+        motor->bias = 0;
+        motor->last_bias = 0;
+        motor->last2_bias = 0;
+    }
 }
 
 /**
@@ -98,6 +116,16 @@ float positional_PID(struct P_pid_obj *obj, struct PID_param *pid)
 				   (1 - pid->differential_filterK) * obj->last_differential;
 
 	obj->output = pid->kp * obj->bias + pid->ki * obj->integral + pid->kd * differential;
+
+	// 输出限幅
+	if (obj->output > pid->outputMax)
+	{
+		obj->output = pid->outputMax;
+	}
+	else if (obj->output < pid->outputMin)
+	{
+		obj->output = pid->outputMin;
+	}
 
 	obj->last_bias = obj->bias;
 	obj->last_differential = differential;
@@ -145,9 +173,9 @@ void pid_init(void)
 
 
 	motor_pid_paramR1.outputMax = MOTOR_PWM_MAX;
-	motor_pid_paramR1.kp = 0; // 55
-	motor_pid_paramR1.ki = 0; // 42.0
-	motor_pid_paramR1.kd = 0;  // 25
+	motor_pid_paramR1.kp = 40; // 55
+	motor_pid_paramR1.ki = 10; // 42.0
+	motor_pid_paramR1.kd = 5;  // 25
 	motor_pid_paramR1.differential_filterK = 0.5;
 	motor_pid_paramR1.actualMax = 100;
 

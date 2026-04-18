@@ -24,7 +24,7 @@ wheel wheel_1,wheel_2,wheel_3,wheel_4;
 uint8_t dog[4] = {0};   //电机狗
 
 short Buffer_Encoder[4] = {0};  
-short Speed[4];
+float Speed[4];
 
 /**
  * @brief: 定义小车的轮子编码器属于哪个定时器

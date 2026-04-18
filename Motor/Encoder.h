@@ -27,7 +27,7 @@ void Encoder_task(void *pvParameters);
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim);
 void encoder_clear(void);
 
-extern short Speed[4];
+extern float Speed[4];
 extern uint8_t dog[4];   //µç»ú¹·
 
 #endif

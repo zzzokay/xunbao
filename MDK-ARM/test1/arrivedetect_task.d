@@ -57,6 +57,8 @@ test1\arrivedetect_task.o: ../Application/scaner.h
 test1\arrivedetect_task.o: ../Application/sys.h
 test1\arrivedetect_task.o: ../Math/pid.h
 test1\arrivedetect_task.o: ../USMAT/sys.h
+test1\arrivedetect_task.o: ../Motor/speed_ctrl.h
+test1\arrivedetect_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdbool.h
 test1\arrivedetect_task.o: ../Application/map.h
 test1\arrivedetect_task.o: ../Application/map_message.h
 test1\arrivedetect_task.o: ../Application/map.h

@@ -16,6 +16,9 @@
 
 
 #define TARGET_CENTER_Y 50 
+#define UART   				 huart4
+#define MOTOR_PID_PARAM		 motor_pid_paramR1
+#define MOTOR 				 motor_R1
 
 extern volatile uint16_t last_center_y[5];
 extern	volatile uint8_t send_target_flag ;

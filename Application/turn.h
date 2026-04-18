@@ -3,6 +3,7 @@
 
 #include "sys.h"
 #include "imu.h"
+#include "speed_ctrl.h"
 
 struct Angle {
 	float AngleT;
@@ -13,7 +14,7 @@ float need2turn(float nowangle,float targetangle);
 float getAngleZ(void);
 uint8_t Turn360Step(void);
 uint8_t Turn_Angle(float Angle);
-uint8_t runWithAngle(float angle_want, float speed);
+uint8_t Go_Angle(float angle_want, float speed, struct Motors *motor);
 uint8_t Stage_turn_Angle(float Angle);
 void Turn_Angle_Relative(float Angle1);
 void Turn_Angle_Relative_Open(float Angle1);

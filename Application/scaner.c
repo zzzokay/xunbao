@@ -1,3 +1,34 @@
+/**
+ * =============================================================================
+ * 循迹系统 - scaner.c
+ * =============================================================================
+ * 
+ * 【调用关系】
+ *  ┌─────────────────────────────────────────────────
+ *  │  任务 → getline_error() → Line_Scan() <-> value_calculation()           
+ *  │          				    ↓ (写入)           计算line_data.error和line_data.pos    
+ *  │         				line_data[5] ← 历史数据        
+ *  │         			 	Scaner       ← 当前数据        
+ *  │             				 ↓ (读取)                            
+ *  │  任务 → Go_Line(speed) → Get_scaner_error() 根据5次数据计算出最佳error     
+ *  └─────────────────────────────────────────────────————————————
+ *  
+ *  【全局变量交流】
+ *  - line_data[5]  ← 历史数据（两个函数组的核心桥梁）
+ *  - Scaner         ← 当前循迹数据
+ *  - Fspeed         ← PID输出
+ *  - motor_all      ← 电机速度
+ * 
+ * 
+ *  【主要函数】
+ *  - getline_error()     入口：读取传感器并处理
+ *  - Go_Line(speed)      入口：PID计算差速
+ *  - Cross_getline(void) 入口：读取传感器并处理
+ *  - Line_Scan()         核心：更新历史
+ *  - Get_scaner_error()  容错：从历史选最佳
+ * 
+ * =============================================================================
+ */
 #include "scaner.h"
 #include "map.h"
 #include "math.h"
@@ -34,7 +65,7 @@ volatile SCANER Cross_Scaner;
 
 uint8_t isFilter = 1;
 /*循迹PID计算*/
-void Go_Line(float speed)
+void Go_Line(float speed, struct Motors *motor)
 {
 	if(isFilter && ScanerMode == RF)
 	{
@@ -55,17 +86,8 @@ void Go_Line(float speed)
 	Fspeed *= fabsf(speed) / 50;
 
 
-	motor_all.Lspeed = speed - Fspeed;
-	motor_all.Rspeed = speed + Fspeed;
-//	printf("%.2f %.2f\r\n",motor_all.Lspeed,motor_all.Rspeed);
-	
-//		if(ScanerMode == Gray)
-//	{
-//		motor_L0.target = speed*0.5;
-//		motor_L1.target = motor_all.Lspeed;
-//		motor_R0.target = speed*0.5;
-//		motor_R1.target = motor_all.Rspeed;
-//	}
+	motor->Lspeed = speed - Fspeed;
+	motor->Rspeed = speed + Fspeed;
 }
 
 /*获取模式处理后的循迹值*/

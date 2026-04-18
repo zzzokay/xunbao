@@ -87,3 +87,4 @@ test1\motor_task.o: ../Module/Rec_usart.h
 test1\motor_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\string.h
 test1\motor_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdlib.h
 test1\motor_task.o: ../Core/Inc/stm32f7xx_it.h
+test1\motor_task.o: ../Math/filter.h

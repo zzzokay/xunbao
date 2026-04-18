@@ -34,18 +34,19 @@ volatile uint8_t recv_flag =0;//接收标志位
 
 void Rec_usart_init(void)
 {
-	 HAL_UARTEx_ReceiveToIdle_DMA(&huart4,Rx_data,BUFFER_SIZE_rec);
+	 HAL_UARTEx_ReceiveToIdle_DMA(&UART,Rx_data,BUFFER_SIZE_rec);
 	 __HAL_DMA_DISABLE_IT(&hdma_uart4_rx,DMA_IT_HT);
 }
 	
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
-	if(huart==&huart4)
+	if(huart==&UART)
 	{
-			Command_Write(Rx_data,Size);
-			HAL_UARTEx_ReceiveToIdle_DMA(&huart4,Rx_data,sizeof(Rx_data));
-			__HAL_DMA_DISABLE_IT(&hdma_uart4_rx,DMA_IT_HT);
+		Command_Write(Rx_data,Size);
+		HAL_UART_Transmit_DMA(&UART,Rx_data,Size);
+		HAL_UARTEx_ReceiveToIdle_DMA(&UART,Rx_data,sizeof(Rx_data));
+		__HAL_DMA_DISABLE_IT(&hdma_uart4_rx,DMA_IT_HT);
 	}
 }
 void get_PIDdata()
@@ -57,10 +58,14 @@ void get_PIDdata()
 			sscanf((char*)command,"[%[^,],%[^,],%[^]]",dev,param,value);
 			if(strcmp(dev,"slider")==0)
 			{ 
-				if(strcmp(param,"kp")==0){motor_pid_paramL0.kp = atof(value);}
-				if(strcmp(param,"ki")==0){motor_pid_paramL0.ki = atof(value);}	
-				if(strcmp(param,"kd")==0){motor_pid_paramL0.kd = atof(value);}
-				if(strcmp(param,"target")==0){motor_L0.target = atof(value);}
+				if(strcmp(param,"kp")==0){MOTOR_PID_PARAM.kp = atof(value);}
+				if(strcmp(param,"ki")==0){MOTOR_PID_PARAM.ki = atof(value);}	
+				if(strcmp(param,"kd")==0){MOTOR_PID_PARAM.kd = atof(value);}
+				if(strcmp(param,"target")==0)
+				{
+					motor_all.Lspeed = atof(value);
+					motor_all.Rspeed = atof(value);
+				}
 			}
 
 			memset(dev,0,sizeof(dev));
@@ -68,6 +73,7 @@ void get_PIDdata()
 			memset(value,0,sizeof(value));
 			memset(command, 0, sizeof(command));
 			}
+		
 
 }
 

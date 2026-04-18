@@ -52,10 +52,10 @@ test1\turn.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h
 test1\turn.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h
 test1\turn.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h
 test1\turn.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
-test1\turn.o: ../Math/pid.h
-test1\turn.o: ../USMAT/sys.h
 test1\turn.o: ../Motor/speed_ctrl.h
+test1\turn.o: ../USMAT/sys.h
 test1\turn.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdbool.h
+test1\turn.o: ../Math/pid.h
 test1\turn.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\math.h
 test1\turn.o: ..\Application\map.h
 test1\turn.o: ..\Application\map_message.h

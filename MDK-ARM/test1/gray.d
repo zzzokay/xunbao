@@ -40,6 +40,8 @@ test1\gray.o: ..\Application\scaner.h
 test1\gray.o: ..\Application\sys.h
 test1\gray.o: ../Math/pid.h
 test1\gray.o: ../USMAT/sys.h
+test1\gray.o: ../Motor/speed_ctrl.h
+test1\gray.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdbool.h
 test1\gray.o: ..\Application\delay.h
 test1\gray.o: ../Task/main_task.h
 test1\gray.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
@@ -63,7 +65,5 @@ test1\gray.o: ../Task/task_create.h
 test1\gray.o: ../Task/temporary_task.h
 test1\gray.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\gray.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\string.h
-test1\gray.o: ../Motor/speed_ctrl.h
-test1\gray.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdbool.h
 test1\gray.o: ../Core/Inc/adc.h
 test1\gray.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h

@@ -73,6 +73,8 @@ test1\temporary_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cm
 test1\temporary_task.o: ../Module/bsp_led.h
 test1\temporary_task.o: ../Application/turn.h
 test1\temporary_task.o: ../Application/sys.h
+test1\temporary_task.o: ../Motor/speed_ctrl.h
+test1\temporary_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdbool.h
 test1\temporary_task.o: ../Application/map.h
 test1\temporary_task.o: ../Application/map_message.h
 test1\temporary_task.o: ../Application/map.h
@@ -89,6 +91,4 @@ test1\temporary_task.o: ../Module/Rec_usart.h
 test1\temporary_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\string.h
 test1\temporary_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdlib.h
 test1\temporary_task.o: ../Core/Inc/stm32f7xx_it.h
-test1\temporary_task.o: ../Motor/speed_ctrl.h
-test1\temporary_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdbool.h
 test1\temporary_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\math.h

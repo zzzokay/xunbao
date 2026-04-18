@@ -273,7 +273,7 @@ void Turn_Angle360(void)
 }
 
 /*×ÔÆ½ºâ×ß*/
-uint8_t runWithAngle(float angle_want, float speed)
+uint8_t Go_Angle(float angle_want, float speed, struct Motors *motor)
 {
 	float GGspeed, now_angle;
 	
@@ -286,22 +286,17 @@ uint8_t runWithAngle(float angle_want, float speed)
 
 	GGspeed = GGspeed * speed / 50;
 
-	if (GGspeed >= motor_all.GyroG_speedMax)
+	if (GGspeed >= motor->GyroG_speedMax)
 	{
-		GGspeed = motor_all.GyroG_speedMax;
+		GGspeed = motor->GyroG_speedMax;
 	}
-	else if (GGspeed <= -motor_all.GyroG_speedMax)
+	else if (GGspeed <= -motor->GyroG_speedMax)
 	{
-		GGspeed = -motor_all.GyroG_speedMax;
+		GGspeed = -motor->GyroG_speedMax;
 	}
-	
-	// printf("%.2f %.2f %.2f\r\n", gyroG_pid.measure,speed,GGspeed);
 
-	motor_all.Lspeed = speed + GGspeed;
-	motor_all.Rspeed = speed - GGspeed;
-
-	// motor_all.Lspeed = speed - GGspeed;
-	// motor_all.Rspeed = speed + GGspeed;
+	motor->Lspeed = speed + GGspeed;
+	motor->Rspeed = speed - GGspeed;
 
 	return 1;
 }
