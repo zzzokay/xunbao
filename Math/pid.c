@@ -63,19 +63,19 @@ void incremental_PID(struct I_pid_obj *motor, struct PID_param *pid)
 	motor->output += pid->kp * proportion + pid->ki * integral + pid->kd * differential;
 
 	// 输出限幅
-	if (motor->output >1000)
+	if (motor->output >4000)
 	{
-		motor->output = 1000;
+		motor->output = 4000;
 	}
-	else if (motor->output < -1000)
+	else if (motor->output < -4000)
 	{
-		motor->output = -1000;
+		motor->output = -4000;
 	}
 
 	motor->last2_bias = motor->last_bias;
 	motor->last_bias = motor->bias;
 	//过小的输出置零
-	  if (motor->target == 0) // 如果有轻微抖动，也可改成 abs(motor->measure) < 2
+	  if (motor->target == 0 && motor->measure == 0) // 如果有轻微抖动，也可改成 abs(motor->measure) < 2
     {
         motor->output = 0;
         motor->bias = 0;

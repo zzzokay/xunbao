@@ -98,10 +98,10 @@ void motor_task(void *pvParameters)
 		// /*陀螺仪读数*/ printf("yaw:%.2f\troll:%.2f\tpitch:%.2f\tbasic:%.2f\r\n", imu.yaw, imu.roll, imu.pitch, basic_p);
 		// /*当前目标节点*/ printf("%d\r\n",nodesr.nowNode.nodenum);
 		// /*三门大炮*/ printf("前%d 左%d 右%d\r\n", Infrared_ahead, infrared.head_left, infrared.head_right);
-		 /*各轮子测量值*/ printf("L0:%.1f,L1:%.1f,R0:%.1f,R1:%.1f,TargetL:%.1f,TargetR:%.1f\r\n", motor_L0.measure, motor_L1.measure, motor_R0.measure, motor_R1.measure ,motor_all.Lspeed, motor_all.Rspeed);
+		 /*各轮子测量值*/// printf("L0:%.1f,L1:%.1f,R0:%.1f,R1:%.1f,TargetL:%.1f,TargetR:%.1f\r\n", motor_L0.measure, motor_L1.measure, motor_R0.measure, motor_R1.measure ,motor_all.Lspeed, motor_all.Rspeed);
 		
-		/*电机pid参数,测量值，目标值*/// printf("%.1f, %.1f, %.1f, %.1f, %.1f, %d, %.1f\r\n", MOTOR_PID_PARAM.kp, MOTOR_PID_PARAM.ki, MOTOR_PID_PARAM.kd,  MOTOR.output, MOTOR.measure, -(int)Speed[3], MOTOR.target);
-		/*右前与后的测量值，目标值，输出值*///printf("R0:%.1f, R1:%.1f, TargetR:%.1f, OutputR0:%.1f, OutputR1:%.1f\r\n", motor_R0.measure, motor_R1.measure, motor_all.Rspeed, motor_R0.output, motor_R1.output);
+		/*电机pid参数,测量值，目标值*/ printf("%.1f, %.1f, %.1f, %.1f, %.1f, %d, %.1f, %.1f\r\n", MOTOR_PID_PARAM.kp, MOTOR_PID_PARAM.ki, MOTOR_PID_PARAM.kd,  MOTOR.output, MOTOR.measure, -(int)Speed[4], MOTOR.target, motor_all.Cspeed);
+		
 		// /*打印识别数字*/ printf("%d\r\n", Clue_Num);
 
 //		 /*各轮子测量值*/ printf("R1:%.1f\r\n",motor_R1.measure);
@@ -191,8 +191,8 @@ void handle_line_mode(void)
 		// 执行循迹控制
 		//Go_Line(TC_speed, &motor_all);
 		 // 调试速度环用
-		//motor_all.Lspeed = TC_speed; 
-		//motor_all.Rspeed = TC_speed;								
+		motor_all.Lspeed = TC_speed; 
+		motor_all.Rspeed = TC_speed;								
 	}
 	else
 		motor_all.Cspeed = 0;  // 非循迹模式时，重置循迹速度
@@ -436,12 +436,12 @@ void get_motor_speed()
 	TIM2->CNT = 0;
 
 	// 右前轮
-	Speed[2] = (short)TIM5->CNT;
-	TIM5->CNT = 0;
+	Speed[2] = (short)TIM3->CNT;
+	TIM3->CNT = 0;
 
 	// 右后轮
-	Speed[3] = (short)TIM3->CNT;
-	TIM3->CNT = 0;
+	Speed[3] = (short)TIM5->CNT;
+	TIM5->CNT = 0;
 
 	// 设置方向系数：左边为正，右边为负
 	dirct[0] = dirct[1] = 1;     // 左前轮、左后轮
@@ -454,10 +454,10 @@ void get_motor_speed()
 	motor_R1.measure = (float)Speed[3] * dirct[3];  // 右后轮
 
 	// 对电机实际速度进行滤波处理，保留小数精度
-	filter_motor_speed(&motor_L0.measure, 0);
-	filter_motor_speed(&motor_L1.measure, 1);
-	filter_motor_speed(&motor_R0.measure, 2);
-	filter_motor_speed(&motor_R1.measure, 3);
+	//filter_motor_speed(&motor_L0.measure, 0);
+	//filter_motor_speed(&motor_L1.measure, 1);
+	//filter_motor_speed(&motor_R0.measure, 2);
+	//filter_motor_speed(&motor_R1.measure, 3);
 }
 
 /*处理PID计算和电机控制*/
@@ -482,7 +482,8 @@ void handle_pid_control(void)
 		//motor_set_pwm(1, (int32_t)motor_L0.output);  // 左前轮
 		//motor_set_pwm(2, (int32_t)motor_L1.output);  // 左后轮
  		//motor_set_pwm(3, (int32_t)motor_R0.output);  // 右前轮
-		//motor_set_pwm(4, (int32_t)motor_R1.output);  // 右后轮
+		motor_set_pwm(4, (int32_t)motor_R1.output);  // 右后轮
+
 	
 	}
 }

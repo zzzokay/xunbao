@@ -63,8 +63,7 @@ void get_PIDdata()
 				if(strcmp(param,"kd")==0){MOTOR_PID_PARAM.kd = atof(value);}
 				if(strcmp(param,"target")==0)
 				{
-					motor_all.Lspeed = atof(value);
-					motor_all.Rspeed = atof(value);
+					motor_all.Cspeed = atof(value);
 				}
 			}
 

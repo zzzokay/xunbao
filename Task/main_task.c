@@ -37,41 +37,30 @@ void main_task(void *pvParameters)
 	while (1)
 	{
 
-		/*二轮处理*/
-		if(map.routetime == 1)
-		{
-			map.routetime = 2;
-			get_newroute();
+		// /*二轮处理*/
+		// if(map.routetime == 1)
+		// {
+		// 	map.routetime = 2;
+		// 	get_newroute();
 
-			// 陀螺仪角度复位，采样10次取平均值
-			IMU_CalibrateZero(&basic_y,&basic_p);
-			mpuZreset(basic_y, nodesr.nowNode.angle); // 把此时角度变为此结点角度
-			zhunbei();
+		// 	// 陀螺仪角度复位，采样10次取平均值
+		// 	IMU_CalibrateZero(&basic_y,&basic_p);
+		// 	mpuZreset(basic_y, nodesr.nowNode.angle); // 把此时角度变为此结点角度
+		// 	zhunbei();
 
-			encoder_clear(); // 路程记录清零
-			Motor_Control(is_Line, SPEED0, SPEED0, 0);
-		}
+		// 	encoder_clear(); // 路程记录清零
+		// 	Motor_Control(is_Line, SPEED0, SPEED0, 0);
+		// }
 		
 		
-		if(1)
-		{
-			motor_all.Cincrement = 0.05;
-			pid_mode_switch(is_Line);
-			motor_all.Cspeed = 10;
-			MOTOR_PWM_MAX = 7000;
-			test_flag=0;
-//			LEFT_RIGHT_LINE=1; 
-			
-//		motor_set_pwm(4, 1000);  // 右后轮
-//		motor_set_pwm(1, 1000);  // 左前轮
-//		motor_set_pwm(2, 1000);  // 左后轮
-//		motor_set_pwm(3, 1000);  // 右前轮
+ 		if(test_flag)
+ 		{
+ 			motor_all.Cincrement = 0.1;
+ 			pid_mode_switch(is_Line);
+ 			MOTOR_PWM_MAX = 7000;
+ 			test_flag=0;
 
-//		TIM12->CCR1 = 0; TIM12->CCR2 = 1000;
-//			motor_set_pwm_R0(4,1000);
-		}
-		
-		
+		}			
 //		/*节点间处理*/
 //		Cross();
 //		

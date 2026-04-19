@@ -22,21 +22,16 @@ Dialog DLL:      TCM.DLL V1.56.1.0
  
 <h2>Project:</h2>
 C:\Users\14166\Desktop\MC_32\robotcup\xunbao\MDK-ARM\test1.uvprojx
-Project File Date:  04/18/2026
+Project File Date:  04/19/2026
 
 <h2>Output:</h2>
 *** Using Compiler 'V5.06 update 7 (build 960)', folder: 'D:\KEIL5\Core\ARM\version5\Bin'
 Build target 'test1'
-compiling motor_task.c...
-../Module/Rec_usart.h(34): warning:  #1295-D: Deprecated declaration get_PIDdata - give arg types
-  void get_PIDdata();
-..\Task\motor_task.c(244): warning:  #167-D: argument of type "volatile struct Motors *" is incompatible with parameter of type "struct Motors *"
-  		Go_Angle(angle.AngleG, TG_speed, &motor_all);
-..\Task\motor_task.c: 2 warnings, 0 errors
+compiling pid.c...
 linking...
-Program Size: Code=44336 RO-data=4352 RW-data=3652 ZI-data=21148  
+Program Size: Code=40220 RO-data=776 RW-data=516 ZI-data=20884  
 FromELF: creating hex file...
-"test1\test1.axf" - 0 Error(s), 2 Warning(s).
+"test1\test1.axf" - 0 Error(s), 0 Warning(s).
 
 <h2>Software Packages used:</h2>
 
@@ -59,7 +54,7 @@ Package Vendor: Keil
 
    * Component: ARM::CMSIS:CORE:5.6.0
       Include file:  CMSIS/Core/Include/tz_context.h
-Build Time Elapsed:  00:00:06
+Build Time Elapsed:  00:00:05
 </pre>
 </body>
 </html>

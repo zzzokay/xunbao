@@ -10,33 +10,33 @@
 uint8_t filter_Open = 0;
 
 /**
- * @brief: ×î´ó×îÐ¡Öµ+»¬¶¯Æ½¾ùÂË²¨
+ * @brief: ï¿½ï¿½ï¿½ï¿½ï¿½Ð¡Öµ+ï¿½ï¿½ï¿½ï¿½Æ½ï¿½ï¿½ï¿½Ë²ï¿½
  * @param {float} angle
  * @return {*}
  */
 float filter(float angle)
 {
     static uint8_t index = 0;
-    static uint8_t count = 0;         // ¼ÇÂ¼Êý¾ÝµãÊýÁ¿
+    static uint8_t count = 0;         // ï¿½ï¿½Â¼ï¿½ï¿½ï¿½Ýµï¿½ï¿½ï¿½ï¿½ï¿½
     static float temp_angle[8];
     float max, min, sum = 0;
     
-    // Ð´ÈëÐÂÊý¾Ý
+    // Ð´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     temp_angle[index] = angle;
     index = (index + 1) % 8;
     if (count < 8) count++;
     
-    // ¼ÆËã×ÜºÍ
+    // ï¿½ï¿½ï¿½ï¿½ï¿½Üºï¿½
     for (uint8_t i = 0; i < count; i++) {
         sum += temp_angle[i];
     }
     
-    // ³õÊ¼»¯½×¶Î£¨Êý¾Ýµã²»×ã8¸ö£©
+    // ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½×¶Î£ï¿½ï¿½ï¿½ï¿½Ýµã²»ï¿½ï¿½8ï¿½ï¿½ï¿½ï¿½
     if (count < 8) {
         return sum / count;
     }
     
-    // Õý³£ÂË²¨£¨ÒÆ³ý×î´óÖµºÍ×îÐ¡Öµ£©
+    // ï¿½ï¿½ï¿½ï¿½ï¿½Ë²ï¿½ï¿½ï¿½ï¿½Æ³ï¿½ï¿½ï¿½ï¿½Öµï¿½ï¿½ï¿½ï¿½Ð¡Öµï¿½ï¿½
     max = temp_angle[0];
     min = temp_angle[0];
     
@@ -49,45 +49,45 @@ float filter(float angle)
 }
 
 /**
- * @brief: µç»úËÙ¶È»¬¶¯´°¿ÚÂË²¨£¨·ÀÂö³å¸ÉÈÅ£©
- * @param {float*} speed µç»úµ±Ç°ËÙ¶ÈµÄÖ¸Õë£¬ÂË²¨ºóÖ±½ÓÐÞ¸Ä¸ÃÖµ
- * @param {uint8_t} motor_id µç»ú±àºÅ (0~3)
+ * @brief: ï¿½ï¿½ï¿½ï¿½Ù¶È»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å£ï¿½
+ * @param {float*} speed ï¿½ï¿½ï¿½ï¿½ï¿½Ç°ï¿½Ù¶Èµï¿½Ö¸ï¿½ë£¬ï¿½Ë²ï¿½ï¿½ï¿½Ö±ï¿½ï¿½ï¿½Þ¸Ä¸ï¿½Öµ
+ * @param {uint8_t} motor_id ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ (0~3)
  */
 void filter_motor_speed(float *speed, uint8_t motor_id)
 {
     if (motor_id >= 4) return;
     
-    static float speed_buf[4][4] = {0}; // 4¸öµç»ú£¬Ã¿¸ö´æ´¢4¸öÀúÊ·Êý¾Ý
-    static uint8_t index[4] = {0};      // 4¸öµç»úµÄµ±Ç°Êý¾ÝÐ´ÈëÎ»ÖÃ
-    static uint8_t count[4] = {0};      // µ±Ç°ÒÑÓÐÊý¾ÝÁ¿
+    static float speed_buf[4][4] = {0}; // 4ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã¿ï¿½ï¿½ï¿½æ´¢4ï¿½ï¿½ï¿½ï¿½Ê·ï¿½ï¿½ï¿½ï¿½
+    static uint8_t index[4] = {0};      // 4ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Äµï¿½Ç°ï¿½ï¿½ï¿½ï¿½Ð´ï¿½ï¿½Î»ï¿½ï¿½
+    static uint8_t count[4] = {0};      // ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     
-    float sum = 0.0f;                   // ·ÀÖ¹¾«¶È¶ªÊ§Ê¹ÓÃfloat
+    float sum = 0.0f;                   // ï¿½ï¿½Ö¹ï¿½ï¿½ï¿½È¶ï¿½Ê§Ê¹ï¿½ï¿½float
     float max, min;
     
-    // Ð´ÈëÐÂÊý¾Ý
+    // Ð´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     speed_buf[motor_id][index[motor_id]] = *speed;
     index[motor_id] = (index[motor_id] + 1) % 4;
     if (count[motor_id] < 4) count[motor_id]++;
     
-    // ¼ÆËã×ÜºÍ
+    // ï¿½ï¿½ï¿½ï¿½ï¿½Üºï¿½
+    
     for (uint8_t i = 0; i < count[motor_id]; i++) {
         sum += speed_buf[motor_id][i];
     }
-    
-    // ³õÊ¼»¯½×¶Î£¨Êý¾Ýµã²»×ã4¸ö£©
+    // ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½×¶Î£ï¿½ï¿½ï¿½ï¿½Ýµã²»ï¿½ï¿½4ï¿½ï¿½ï¿½ï¿½
     if (count[motor_id] < 4) {
         *speed = sum / count[motor_id];
         return;
     }
     
-    // // Õý³£ÂË²¨£¨ÒÆ³ý×î´óÖµºÍ×îÐ¡ÖµºóµÄËãÊõÆ½¾ù£©
-    // max = speed_buf[motor_id][0];
-    // min = speed_buf[motor_id][0];
+    // ï¿½ï¿½ï¿½ï¿½ï¿½Ë²ï¿½ï¿½ï¿½ï¿½Æ³ï¿½ï¿½ï¿½ï¿½Öµï¿½ï¿½ï¿½ï¿½Ð¡Öµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ½ï¿½ï¿½ï¿½ï¿½
+    max = speed_buf[motor_id][0];
+    min = speed_buf[motor_id][0];
     
-    // for (uint8_t i = 1; i < 4; i++) {
-    //     if (speed_buf[motor_id][i] > max) max = speed_buf[motor_id][i];
-    //     if (speed_buf[motor_id][i] < min) min = speed_buf[motor_id][i];
-    // }
+    for (uint8_t i = 1; i < 4; i++) {
+        if (speed_buf[motor_id][i] > max) max = speed_buf[motor_id][i];
+        if (speed_buf[motor_id][i] < min) min = speed_buf[motor_id][i];
+    }
     
-    *speed = (sum - max - min) / 4.0f;
+    *speed = (sum - max - min) / 2.0f;
 }
