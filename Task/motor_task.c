@@ -46,7 +46,7 @@
 
 /*全局变量定义*/
 TaskHandle_t motor_handler;       // 电机任务句柄
-int dirct[4] = {-1, 1, -1, -1};   // 电机方向系数：[左前, 左后, 右前, 右后]
+int dirct[4] ;   // 电机方向系数：[左前, 左后, 右前, 右后]
 volatile uint8_t PIDMode;         // 当前PID模式
 uint8_t line_gyro_switch = 0;     // 循迹与陀螺仪模式切换标志
 uint8_t Nosmall = 1;              
@@ -98,9 +98,10 @@ void motor_task(void *pvParameters)
 		// /*陀螺仪读数*/ printf("yaw:%.2f\troll:%.2f\tpitch:%.2f\tbasic:%.2f\r\n", imu.yaw, imu.roll, imu.pitch, basic_p);
 		// /*当前目标节点*/ printf("%d\r\n",nodesr.nowNode.nodenum);
 		// /*三门大炮*/ printf("前%d 左%d 右%d\r\n", Infrared_ahead, infrared.head_left, infrared.head_right);
-		 /*各轮子测量值*/ //printf("L0:%.1f,L1:%.1f,R0:%.1f,R1:%.1f,TargetL:%.1f,TargetR:%.1f\r\n", motor_L0.measure, motor_L1.measure, motor_R0.measure, motor_R1.measure ,motor_all.Lspeed, motor_all.Rspeed);
+		 /*各轮子测量值*/ printf("L0:%.1f,L1:%.1f,R0:%.1f,R1:%.1f,TargetL:%.1f,TargetR:%.1f\r\n", motor_L0.measure, motor_L1.measure, motor_R0.measure, motor_R1.measure ,motor_all.Lspeed, motor_all.Rspeed);
 		
-		/*电机pid参数,测量值，目标值*/ printf("%.1f, %.1f, %.1f, %.1f, %.1f, %d, %.1f\r\n", MOTOR_PID_PARAM.kp, MOTOR_PID_PARAM.ki, MOTOR_PID_PARAM.kd,  MOTOR.output, MOTOR.measure, -(int)Speed[3], MOTOR.target);
+		/*电机pid参数,测量值，目标值*/// printf("%.1f, %.1f, %.1f, %.1f, %.1f, %d, %.1f\r\n", MOTOR_PID_PARAM.kp, MOTOR_PID_PARAM.ki, MOTOR_PID_PARAM.kd,  MOTOR.output, MOTOR.measure, -(int)Speed[3], MOTOR.target);
+		/*右前与后的测量值，目标值，输出值*///printf("R0:%.1f, R1:%.1f, TargetR:%.1f, OutputR0:%.1f, OutputR1:%.1f\r\n", motor_R0.measure, motor_R1.measure, motor_all.Rspeed, motor_R0.output, motor_R1.output);
 		// /*打印识别数字*/ printf("%d\r\n", Clue_Num);
 
 //		 /*各轮子测量值*/ printf("R1:%.1f\r\n",motor_R1.measure);
@@ -334,33 +335,6 @@ void handle_target_speed(void)
 	}
 }
 
-/*处理PID计算和电机控制*/
-/*
- * 功能：执行电机PID控制计算并输出PWM信号
- * 执行条件：非开环模式（PIDMode != is_Free）
- * 主要流程：
- * 1. 计算四个电机的PID输出
- * 2. 设置电机PWM值
- */
-void handle_pid_control(void)
-{
-	if (PIDMode != is_Free)  // 非开环模式时执行PID控制
-	{
-		/*PID计算*/
-		incremental_PID(&motor_L0, &motor_pid_paramL0);  // 左前轮
-		incremental_PID(&motor_L1, &motor_pid_paramL1);  // 左后轮
-		incremental_PID(&motor_R0, &motor_pid_paramR0);  // 右前轮
-		incremental_PID(&motor_R1, &motor_pid_paramR1);  // 右后轮
-
-		/*设置电机PWM值*/
-		//motor_set_pwm(1, (int32_t)motor_L0.output);  // 左前轮
-		//motor_set_pwm(2, (int32_t)motor_L1.output);  // 左后轮
- 		//motor_set_pwm(3, (int32_t)motor_R0.output);  // 右后轮
-		motor_set_pwm(4, (int32_t)motor_R1.output);  // 右前轮
-	
-	}
-}
-
 
 
 /*模式转换函数*/
@@ -462,12 +436,12 @@ void get_motor_speed()
 	TIM2->CNT = 0;
 
 	// 右前轮
-	Speed[2] = (short)TIM3->CNT;
-	TIM3->CNT = 0;
+	Speed[2] = (short)TIM5->CNT;
+	TIM5->CNT = 0;
 
 	// 右后轮
-	Speed[3] = (short)TIM5->CNT;
-	TIM5->CNT = 0;
+	Speed[3] = (short)TIM3->CNT;
+	TIM3->CNT = 0;
 
 	// 设置方向系数：左边为正，右边为负
 	dirct[0] = dirct[1] = 1;     // 左前轮、左后轮
@@ -484,6 +458,33 @@ void get_motor_speed()
 	filter_motor_speed(&motor_L1.measure, 1);
 	filter_motor_speed(&motor_R0.measure, 2);
 	filter_motor_speed(&motor_R1.measure, 3);
+}
+
+/*处理PID计算和电机控制*/
+/*
+ * 功能：执行电机PID控制计算并输出PWM信号
+ * 执行条件：非开环模式（PIDMode != is_Free）
+ * 主要流程：
+ * 1. 计算四个电机的PID输出
+ * 2. 设置电机PWM值
+ */
+void handle_pid_control(void)
+{
+	if (PIDMode != is_Free)  // 非开环模式时执行PID控制
+	{
+		/*PID计算*/
+		incremental_PID(&motor_L0, &motor_pid_paramL0);  // 左前轮
+		incremental_PID(&motor_L1, &motor_pid_paramL1);  // 左后轮
+		incremental_PID(&motor_R0, &motor_pid_paramR0);  // 右前轮
+		incremental_PID(&motor_R1, &motor_pid_paramR1);  // 右后轮
+
+		/*设置电机PWM值*/
+		//motor_set_pwm(1, (int32_t)motor_L0.output);  // 左前轮
+		//motor_set_pwm(2, (int32_t)motor_L1.output);  // 左后轮
+ 		//motor_set_pwm(3, (int32_t)motor_R0.output);  // 右前轮
+		//motor_set_pwm(4, (int32_t)motor_R1.output);  // 右后轮
+	
+	}
 }
 
 /*创建电机任务*/

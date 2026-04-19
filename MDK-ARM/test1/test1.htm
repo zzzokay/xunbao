@@ -3,7 +3,7 @@
 <title>Static Call Graph - [test1\test1.axf]</title></head>
 <body><HR>
 <H1>Static Call Graph for image test1\test1.axf</H1><HR>
-<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060960: Last Updated: Sat Apr 18 23:03:32 2026
+<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060960: Last Updated: Sun Apr 19 15:56:35 2026
 <BR><P>
 <H3>Maximum Stack Usage =        672 bytes + Unknown(Cycles, Untraceable Function Pointers)</H3><H3>
 Call chain for Maximum Stack Depth:</H3>
@@ -2450,11 +2450,10 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[83]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;motor_task
 </UL>
 
-<P><STRONG><a name="[182]"></a>handle_pid_control</STRONG> (Thumb, 68 bytes, Stack size 8 bytes, motor_task.o(i.handle_pid_control))
-<BR><BR>[Stack]<UL><LI>Max Depth = 40<LI>Call Chain = handle_pid_control &rArr; motor_set_pwm
+<P><STRONG><a name="[182]"></a>handle_pid_control</STRONG> (Thumb, 48 bytes, Stack size 8 bytes, motor_task.o(i.handle_pid_control))
+<BR><BR>[Stack]<UL><LI>Max Depth = 20<LI>Call Chain = handle_pid_control &rArr; incremental_PID
 </UL>
 <BR>[Calls]<UL><LI><a href="#[183]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;incremental_PID
-<LI><a href="#[ae]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;motor_set_pwm
 </UL>
 <BR>[Called By]<UL><LI><a href="#[83]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;motor_task
 </UL>
@@ -2577,15 +2576,14 @@ Global Symbols
 <LI><a href="#[190]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;pid_init
 </UL>
 
-<P><STRONG><a name="[ae]"></a>motor_set_pwm</STRONG> (Thumb, 148 bytes, Stack size 32 bytes, motor.o(i.motor_set_pwm))
+<P><STRONG><a name="[ae]"></a>motor_set_pwm</STRONG> (Thumb, 144 bytes, Stack size 32 bytes, motor.o(i.motor_set_pwm))
 <BR><BR>[Stack]<UL><LI>Max Depth = 32<LI>Call Chain = motor_set_pwm
 </UL>
 <BR>[Called By]<UL><LI><a href="#[13d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Motor_Control
-<LI><a href="#[182]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;handle_pid_control
 <LI><a href="#[ac]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;CarBrake
 </UL>
 
-<P><STRONG><a name="[83]"></a>motor_task</STRONG> (Thumb, 170 bytes, Stack size 48 bytes, motor_task.o(i.motor_task))
+<P><STRONG><a name="[83]"></a>motor_task</STRONG> (Thumb, 160 bytes, Stack size 48 bytes, motor_task.o(i.motor_task))
 <BR><BR>[Stack]<UL><LI>Max Depth = 368<LI>Call Chain = motor_task &rArr; get_PIDdata &rArr; __0sscanf &rArr; __vfscanf_char &rArr; __vfscanf &rArr; _scanf_real
 </UL>
 <BR>[Calls]<UL><LI><a href="#[18a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;xTaskGetTickCount
