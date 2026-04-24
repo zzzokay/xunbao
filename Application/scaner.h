@@ -2,7 +2,7 @@
 #define __SCANER_H
 #include "sys.h"
 #include "pid.h"
-#include "speed_ctrl.h"
+#include "chassis_api.h"
 #define Lamp_Max 16   //Ñ­¼£µÆ×î´óÊý
 #define Lamp_Half 8
 typedef struct scaner	
@@ -31,12 +31,13 @@ extern const float lineG_weight_default[8];
 void Go_Line(float speed, struct Motors *motor);
 void get_detail(void);
 void Cross_getline(void);
-uint8_t Line_Scan(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_ignore);
+uint8_t Line_Scan(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_ignore, uint8_t track_mode);
 void actions(uint8_t action);
 uint8_t getline_error(void);
+void getline_error_ex(volatile SCANER *scaner, int8_t edge_ignore, uint8_t track_mode);
 // void MODE_Switch(int8_t MODE_need);
 void printf_byte(uint16_t data);
-float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned char SensorNum, float *Error, u8 *LED_Num_Temp);
+float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned char SensorNum, uint8_t track_mode, float *Error, u8 *LED_Num_Temp);
 void Update_line_data(uint8_t error_kind, float pos, float error);
 uint8_t pos_detect(float pos);
 float Get_scaner_error(void);

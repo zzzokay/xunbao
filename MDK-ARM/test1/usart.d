@@ -51,8 +51,6 @@ test1\usart.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\string.h
 test1\usart.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdlib.h
 test1\usart.o: ../Core/Inc/stm32f7xx_it.h
 test1\usart.o: ../Motor/speed_ctrl.h
-test1\usart.o: ../USMAT/sys.h
-test1\usart.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdbool.h
 test1\usart.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\math.h
 test1\usart.o: ../Application/turn.h
 test1\usart.o: ../Application/sys.h
@@ -62,3 +60,9 @@ test1\usart.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h
 test1\usart.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h
 test1\usart.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h
 test1\usart.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
+test1\usart.o: ../Application/chassis_api.h
+test1\usart.o: ../Task/motor_task.h
+test1\usart.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
+test1\usart.o: ../USMAT/sys.h
+test1\usart.o: ../Math/pid.h
+test1\usart.o: ../Application/turn.h

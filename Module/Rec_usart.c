@@ -14,9 +14,9 @@ uint8_t command[30];
 
 
 #define GET_LOW_BYTE(A) ((uint8_t)(A))
-//ºêº¯Êý »ñµÃAµÄµÍ°ËÎ»
+//ï¿½êº¯ï¿½ï¿½ ï¿½ï¿½ï¿½Aï¿½ÄµÍ°ï¿½Î»
 #define GET_HIGH_BYTE(A) ((uint8_t)((A) >> 8))
-//ºêº¯Êý »ñµÃAµÄ¸ß°ËÎ»
+//ï¿½êº¯ï¿½ï¿½ ï¿½ï¿½ï¿½Aï¿½Ä¸ß°ï¿½Î»
 
 extern DMA_HandleTypeDef hdma_uart4_rx;
 
@@ -27,10 +27,10 @@ volatile int center_y =50;
 volatile uint16_t last_center_y[HISTORY_SIZE];
 
 uint8_t S_recData;
-volatile uint8_t start_flag =0;//¶æ¿Ø°åÉÏµÄ°´¼ü¿ØÖÆ³ÌÐòÔËÐÐµÄ±êÖ¾Î»
+volatile uint8_t start_flag =0;//ï¿½ï¿½Ø°ï¿½ï¿½ÏµÄ°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÐµÄ±ï¿½Ö¾Î»
 
 
-volatile uint8_t recv_flag =0;//½ÓÊÕ±êÖ¾Î»
+volatile uint8_t recv_flag =0;//ï¿½ï¿½ï¿½Õ±ï¿½Ö¾Î»
 
 void Rec_usart_init(void)
 {
@@ -75,132 +75,6 @@ void get_PIDdata()
 		
 
 }
-
-
-// //Èë²Î£º×Ö·û´®Êý×é(´æ´¢asciiÂëÊý×é)µÄµØÖ· ; ×Ö·û´®Êý×éµÄ³¤¶È
-// void get_PIDdata(uint8_t *data, uint16_t size)
-// {
-// 	if(recv_end_flag==1)
-// 	{
-// 		printf("1");
-//  	int startIdx,endIdx;		//¶¨ÒåÓÐÐ§Êý¾ÝµÄÆðÊ¼Ë÷ÒýºÍ½áÊøË÷Òý
-// 	char valueStr[30] = {0}; 	//¶¨ÒåÓÐÐ§Êý¾Ý¶ÔÓ¦µÄ×Ö·û´®
-// 	float rec_data;				//
-	
-// 	if(data[size-1] == '!')		//µ±×îºóÒ»Î»Îª×Ö·û'!'(ËµÃ÷ÏÂ£¬==½øÐÐÅÐ¶ÏÊ±£¬Á½¶Ë¶¼±ØÐëÊÇÊýÖµ£¬Ò²¼´×ó²à»á½âÎöÎªÊýÖµ(uint8_tÊý×éµÄÖµ)£¬ÓÒ²àÒ²»á½âÎöÎªÊýÖµ(×Ö·û'!'¶ÔÓ¦µÄasciiÖµ)
-// 	{
-// 		//ÕÒµ½ '=' µÄË÷Òý
-// 		for(int i=0;i<size;i++)
-// 		{
-// 			if(data[i] == '=')
-// 			{
-// 				startIdx = i + 1;	//ÕÒµ½ÓÐÐ§Êý¾ÝÆðÊ¼Ë÷Òý
-// 				break;
-// 			}
-// 		}
-// 		//ÕÒµ½ '!' µÄË÷Òý
-// 		for (int i = startIdx; i < size; i++)
-//         {
-//             if (data[i] == '!')
-//             {
-//                 endIdx = i;		//ÕÒµ½ÓÐÐ§Êý¾Ý½áÊøË÷Òý
-//                 break;
-//             }
-//         }
-// 		//ÌáÈ¡ '='Óë'!'Ö®¼äµÄÊýÖµ
-// 		if (startIdx > 0 && endIdx > startIdx)
-// 		{
-// 			strncpy(valueStr, (char*)&data[startIdx], endIdx - startIdx);	//½«ÓÐÐ§Êý¾Ý³¤¶ÈµÄ×Ö·û´ÓdataÔ´×Ö·û´®ÖÐ¿½±´µ½valueStr×Ö·û´®ÖÐ
-// 			valueStr[endIdx - startIdx] = '\0';	//½«valueStr×Ö·û´®Î²²¿²¹ÉÏ'\0'£¬×÷Îª×Ö·û´®½áÊø±êÖ¾
-// 			rec_data = atof(valueStr);		//½«×Ö·û´®×ª»»Îª¸¡µãÊý("2.32"-->2.32)
-// 		}
-		
-				
-// 		// ÉèÖÃ×óÓÒµç»úµÄPID²ÎÊý
-// 		if (data[0] == 'P' && data[1] == 'L'&& data[2] == '1')
-// 		{
-// 			motor_pid_paramL1.kp = rec_data;
-// //			printf("L0_KP = %.3f\n", motor_pid_paramL1.kp);
-// 		}
-// 		else if (data[0] == 'I' && data[1] == 'L'&& data[2] == '1')
-// 		{
-// 			motor_pid_paramL1.ki = rec_data;
-// 			printf("L1_KI = %.3f\n", motor_pid_paramL1.ki);
-// 		}
-// 		else if (data[0] == 'D' && data[1] == 'L'&& data[2] == '1')
-// 		{
-// 			motor_pid_paramL0.kd = rec_data;
-// 			printf("L0_Kd = %.3f\n", motor_pid_paramL0.kd);
-// 		}
-		
-// 		else if (data[0] == 'P' && data[1] == 'R'&& data[2] == '0')
-// 		{
-// 			motor_pid_paramR0.kp = rec_data;
-// 			printf("R0_Kp = %.3f\n", motor_pid_paramR0.kp);
-// 		}
-// 		else if (data[0] == 'I' && data[1] == 'R'&& data[2] == '0')
-// 		{
-// 			motor_pid_paramR0.ki = rec_data;
-// 			printf("R0_Ki = %.3f\n", motor_pid_paramR0.ki);
-// 		}
-// 		else if (data[0] == 'D' && data[1] == 'R'&& data[2] == '0')
-// 		{
-// 			motor_pid_paramR0.kd = rec_data;
-// 			printf("R0_Kd = %.3f\n", motor_pid_paramR0.kd);
-// 		}
-		
-// 		else	if (data[0] == 'P' && data[1] == 'L'&& data[2] == '1')
-// 		{
-// 			motor_pid_paramL1.kp = rec_data;
-// 			printf("L1_KP = %.3f\n", motor_pid_paramL1.kp);
-// 		}
-// 		else if (data[0] == 'I' && data[1] == 'L'&& data[2] == '1')
-// 		{
-// 			motor_pid_paramL1.ki = rec_data;
-// 			printf("L1_KI = %.3f\n", motor_pid_paramL1.ki);
-// 		}
-// 		else if (data[0] == 'D' && data[1] == 'L'&& data[2] == '1')
-// 		{
-// 			motor_pid_paramL1.kd = rec_data;
-// 			printf("L1_Kd = %.3f\n", motor_pid_paramL1.kd);
-// 		}
-		
-// 		else if (data[0] == 'P' && data[1] == 'R'&& data[2] == '1')
-// 		{
-// 			motor_pid_paramR1.kp = rec_data;
-// 			printf("R1_Kp = %.3f\n", motor_pid_paramR1.kp);
-// 		}
-// 		else if (data[0] == 'I' && data[1] == 'R'&& data[2] == '1')
-// 		{
-// 			motor_pid_paramR1.ki = rec_data;
-// 			printf("R1_Ki = %.3f\n", motor_pid_paramR1.ki);
-// 		}
-// 		else if (data[0] == 'D' && data[1] == 'R'&& data[2] == '1')
-// 		{
-// 			motor_pid_paramR1.kd = rec_data;
-// 			printf("R1_Kd = %.3f\n", motor_pid_paramR1.kd);
-// 		}
-		
-		
-// 		else if (data[0] == 'T' && data[1] == 'A'&& data[2] == 'R'&& data[3] == 'L')
-// 		{
-// 			motor_all.Lspeed = rec_data;
-// 			printf("targetL = %.3f\n", motor_all.Lspeed);
-// 		}
-// 		else if (data[0] == 'T' && data[1] == 'A'&& data[2] == 'R'&& data[3] == 'R')
-// 		{
-// 			motor_all.Rspeed = rec_data;
-// 			printf("targetR = %.3f\n", motor_all.Rspeed);
-// 		}
-
-// 	}
-	
-// 		HAL_UART_Receive_DMA(&huart5,R_data,30);
-
-// 		recv_end_flag =0;
-// 	}
-// }
-
 
 
 

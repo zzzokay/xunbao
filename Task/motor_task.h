@@ -15,19 +15,19 @@ void motor_task(void *pvParameters);//声明任务函数
 #define is_Back  1
 void motor_task_create(void);
 extern volatile uint8_t PIDMode;
-enum PID_Mode {
+
+typedef enum {
 	is_No = 0,  //关闭所有操作
 	is_Free,   //保留切换前的状态1
 	is_Line,   //循迹2
 	is_Turn,   //转弯3
 	is_Gyro,   //自平衡4
-	is_sp
+	
 };
 extern uint8_t open_qiang_jiao;
 extern uint8_t Nosmall;
 extern int MOTOR_PWM_MAX;
 /*----------内部用----------------------*/
-void pid_mode_switch(uint8_t target_mode);
 void get_motor_speed(void);
 void handle_line_error(void);
 void handle_motor_speed(void);
@@ -36,7 +36,7 @@ void handle_infrared(void);
 void handle_line_mode(void);
 void handle_turn_mode(void);
 void handle_gyro_mode(void);
-void handle_mode_switch(void);
+void handle_mode_switch(uint8_t target_mode);
 void handle_led_mouse(void);
 void handle_target_speed(void);
 void handle_pid_control(void);

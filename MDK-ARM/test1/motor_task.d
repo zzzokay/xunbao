@@ -58,11 +58,12 @@ test1\motor_task.o: ../Math/pid.h
 test1\motor_task.o: ../USMAT/uart.h
 test1\motor_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h
 test1\motor_task.o: ../Motor/speed_ctrl.h
-test1\motor_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdbool.h
 test1\motor_task.o: ../Application/turn.h
 test1\motor_task.o: ../Application/sys.h
 test1\motor_task.o: ../Module/imu.h
 test1\motor_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
+test1\motor_task.o: ../Application/chassis_api.h
+test1\motor_task.o: ../Application/turn.h
 test1\motor_task.o: ../Application/scaner.h
 test1\motor_task.o: ../Module/bsp_linefollower.h
 test1\motor_task.o: ../Math/sin_generate.h
@@ -87,4 +88,4 @@ test1\motor_task.o: ../Module/Rec_usart.h
 test1\motor_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\string.h
 test1\motor_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdlib.h
 test1\motor_task.o: ../Core/Inc/stm32f7xx_it.h
-test1\motor_task.o: ../Math/filter.h
+test1\motor_task.o: ../Motor/speed_ctrl.h

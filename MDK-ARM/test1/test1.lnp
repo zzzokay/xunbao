@@ -70,6 +70,7 @@
 "test1\scaner.o"
 "test1\turn.o"
 "test1\command.o"
+"test1\chassis_api.o"
 --library_type=microlib --strict --scatter "test1\test1.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers

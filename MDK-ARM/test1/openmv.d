@@ -56,7 +56,6 @@ test1\openmv.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h
 test1\openmv.o: ../USMAT/uart.h
 test1\openmv.o: ../USMAT/sys.h
 test1\openmv.o: ../Motor/speed_ctrl.h
-test1\openmv.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdbool.h
 test1\openmv.o: ..\Module\K210.h
 test1\openmv.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\openmv.o: ..\Module\Rudder_control.h

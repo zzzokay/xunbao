@@ -1,5 +1,5 @@
 #include "map_message.h"
-#include "speed_ctrl.h"
+#include "chassis_api.h"
 
 //平台型景点（P1-P8）
 //障碍型景点（如B1-B9） 长桥、翘板桥、台阶式楼梯、减速板

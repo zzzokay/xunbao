@@ -21,16 +21,18 @@
 
 /*开始任务*/
 void Start_task(void *pvParameters)
-{
+{	
+	user_init();
+
 	taskENTER_CRITICAL(); // 进入临界区
-	//   	user_init();
-	
-	Rec_usart_init();
-	
+   
+	Rec_usart_init();	
 	main_task_create(); // 创建主控任务
 	motor_task_create();
 	create_ArriveDetect_task();//检测结点任务！！不可以挂起suspend	
+	
 	vTaskDelete(Start_handler); // 删除开始任务
+
 	taskEXIT_CRITICAL();		// 退出临界区
 }
 
@@ -49,7 +51,7 @@ void GET_free_RAM(TaskHandle_t xTask)
 /*初始化外设，结构体等*/
 void user_init(void)
 {
-////	uart_init(115200); // 初始化重定向串口
+//	uart_init(115200); // 初始化重定向串口
 	Encoder_init();
 //	IIC_Init();
 	Gray_Init();
@@ -60,10 +62,4 @@ void user_init(void)
 	
 	vTaskDelay(2000);
 
-	// 陀螺仪角度复位，采样10次取平均值
-	//IMU_CalibrateZero(&basic_y,&basic_p);
-//	while(1)
-//		vTaskDelay(2);
-	
-	//mpuZreset(basic_y, nodesr.nowNode.angle); // 把此时角度变为此结点角度
 }

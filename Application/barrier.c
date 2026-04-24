@@ -1,7 +1,6 @@
 #include "barrier.h"
 #include "sys.h"
 #include "delay.h"
-#include "speed_ctrl.h"
 #include "motor.h"
 #include "pid.h"
 #include "imu.h"
@@ -26,6 +25,7 @@
 #include "string.h"
 #include "adc.h"
 #include "gray.h"
+#include "chassis_api.h"
 
 #define FORWARD_SPEED 5 //7
 #define BACK_SPEED -3 //-15/-7
@@ -3991,75 +3991,9 @@ void CGChange(float Speed)
 //	}
 }
 
-/*快速模式切换
-	is_Turn 模式 仅仅aim有效 目标角度
-	is_Line 模式 四个参数有效 LSPEED = RSPEED aim为循迹偏置
-	is_Gyro 模式 四个参数有效 LSPEED = RSPEED aim为陀螺仪旋转目标值
-	is_Free和is_NO 模式 前三个参数有效
-*/
 void Motor_Control(uint8_t target_mode,float LSPEED,float RSPEED,float aim)
 {
-	switch(target_mode)
-	{
-		/*原地转*/
-		case is_Turn:
-		{
-			Turn_Angle_Relative(aim);
-			break;
-		}
-		
-		/*循迹模式*/
-		case is_Line:
-		{
-			scaner_set.CatchsensorNum = aim;
-			pid_mode_switch(is_Line);
-			if(fabs(LSPEED-RSPEED)>1) //防止有人不听话
-			{
-				motor_all.Cspeed = 0;
-				// Kabuto_Audio(7);   						//准备完毕
-			}
-			else
-			{
-				motor_all.Cspeed = LSPEED;
-			}
-			break;
-		}
-		
-		/*陀螺仪自平衡模式*/
-		case is_Gyro:
-		{
-			// mpuZreset(imu.yaw,nodesr.nowNode.angle);
-			angle.AngleG = aim;	
-			pid_mode_switch(is_Gyro); 					//使用陀螺仪
-			if(fabs(LSPEED-RSPEED)>1) 					//防止有人不听话
-				motor_all.Gspeed = 0;
-			else
-				motor_all.Gspeed = LSPEED;
-			break;
-		}
-		
-		/*空模式*/
-		case is_Free:
-		{
-			pid_mode_switch(is_Free);
-
-			motor_set_pwm(1,(int32_t)LSPEED);
-			motor_set_pwm(2,(int32_t)LSPEED);
-			motor_set_pwm(3,(int32_t)RSPEED);
-			motor_set_pwm(4,(int32_t)RSPEED);
-
-			break;
-		}
-		
-		/*归零 - 用于停车等*/
-		case is_No:
-		{
-			pid_mode_switch(is_No);
-			motor_all.Lspeed = LSPEED;
-			motor_all.Rspeed = RSPEED;
-			break;
-		}
-	}
+	Chassis_MotorControl(target_mode, LSPEED, RSPEED, aim);
 }
 int Six2Zero(void)
 {
@@ -4076,11 +4010,4 @@ int Six2Zero(void)
 	}
 	sum = 0;
 	return 0;
-}
-/*自定义距离前进*/
-void Want2Go(float Dis)
-{
-	float num = motor_all.Distance;
-	while (fabsf(motor_all.Distance - num) < Dis)
-		vTaskDelay(2);
 }

@@ -77,7 +77,6 @@ void select_speed_stage(void);
 void Connect(uint8_t Route[]);
 void CGChange(float Speed);
 void Motor_Control(uint8_t target_mode, float LSPEED, float RSPEED, float aim);
-void Want2Go(float Dis);
 void update_route_for_stage34(void);
 void update_route_by_QR(void);
 void update_rout_by_treasure_7(void);

@@ -36,11 +36,11 @@
 #include "stdio.h"
 #include "pid.h"
 #include "motor_task.h"
-#include "speed_ctrl.h"
 #include "bsp_linefollower.h"
 #include "motor.h"
 #include "gray.h"
 #include "string.h"
+#include "chassis_api.h"
 
 #define LINE_SPEED_MAX 100
 #define LINEG_SPEED_MAX 100
@@ -64,6 +64,60 @@ volatile SCANER Cross_Scaner;
 
 
 uint8_t isFilter = 1;
+
+static uint16_t ReadLineSensorDetail(void)
+{
+	uint16_t detail = 0XFFFF;
+	detail ^= ((HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_14)) << 15);
+	detail ^= ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_5)) << 14);
+	detail ^= ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_8)) << 13);
+	detail ^= ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_4)) << 12);
+	detail ^= ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_7)) << 11);
+	detail ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_7)) << 10);
+	detail ^= ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6)) << 9);
+	detail ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15)) << 8);
+	detail ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_5)) << 7);
+	detail ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_0)) << 6);
+	detail ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_4)) << 5);
+	detail ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_3)) << 4);
+	detail ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_3)) << 3);
+	detail ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2)) << 2);
+	detail ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_1)) << 1);
+	detail ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14)) << 0); // 不同输出1.相同输出
+	return detail;
+}
+
+/*节点间临时循迹值获取*/
+void Cross_getline(void)
+{
+	u8 linenum = 0; // 记录线的数目
+	u8 lednum = 0;
+
+	Cross_Scaner.detail = ReadLineSensorDetail();
+	for (uint8_t i = 0; i < 16; i++) // 从小车方向从左往右数亮灯数和引导线数
+	{										// linenum用来记录有多少条线，line用来记录第几条线。
+		if (Cross_Scaner.detail & (0x1 << i))
+		{
+			lednum++;
+			if (!(Cross_Scaner.detail & (1 << (i + 1))))
+				linenum++; // 先读取亮灯数和引导线数，检测到从1变为0认为一条线
+		}
+	}
+	Cross_Scaner.lineNum = linenum;
+	Cross_Scaner.ledNum = lednum;
+}
+static void UpdateScanerFromGray(volatile SCANER *scaner)
+{
+	scaner->detail_gray = Gray_GetLine();
+	Calculate_Error(scaner);
+}
+
+static void UpdateScanerFromRf(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_ignore, uint8_t track_mode)
+{
+	scaner->detail = ReadLineSensorDetail();
+	Line_Scan(scaner, sensorNum, edge_ignore, track_mode); // 激光循迹获取误差
+}
+
 /*循迹PID计算*/
 void Go_Line(float speed, struct Motors *motor)
 {
@@ -93,81 +147,27 @@ void Go_Line(float speed, struct Motors *motor)
 /*获取模式处理后的循迹值*/
 uint8_t getline_error(void)
 {
-	//get_detail();
-	//Line_Scan(&Scaner, Lamp_Max, scaner_set.EdgeIgnore);
-	//uint16_t data;
-//	if (ScanerMode == RF)
-//	{
-	uint16_t data;
-	data = 0XFFFF;
-	data ^= ((HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_14)) << 15);
-	data ^= ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_5)) << 14);
-	data ^= ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_8)) << 13);
-	data ^= ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_4)) << 12);
-	data ^= ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_7)) << 11);
-	data ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_7)) << 10);
-	data ^= ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6)) << 9);
-	data ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15)) << 8);
-	data ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_5)) << 7);
-	data ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_0)) << 6);
-	data ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_4)) << 5);
-	data ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_3)) << 4);
-	data ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_3)) << 3);
-	data ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2)) << 2);
-	data ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_1)) << 1);
-	data ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14)) << 0); // 不同输出1.相同输出
-	Scaner.detail = data;
-	Line_Scan(&Scaner, Lamp_Max, scaner_set.EdgeIgnore);//激光循迹获取误差
-		
-	//}
-	 if(ScanerMode == Gray)
-	{
-		Scaner.detail_gray = Gray_GetLine();
-		Calculate_Error(&Scaner);
-	}
-
-	//Scaner.detail = data;
-	
-	
+	getline_error_ex(&Scaner,scaner_set.EdgeIgnore, LEFT_RIGHT_LINE);
 	return 0;
 }
 
-/*节点间临时循迹值获取*/
-void Cross_getline(void)
+void getline_error_ex(volatile SCANER *scaner, int8_t edge_ignore, uint8_t track_mode)
 {
-	u8 linenum = 0; // 记录线的数目
-	u8 lednum = 0;
-	uint16_t data = 0XFFFF;
-
-	data ^= ((HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_14)) <<15);
-	data ^= ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_5))	<<14);
-	data ^= ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_8))	<<13);
-	data ^= ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_4))	<<12);
-	data ^= ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_7))	<<11);
-	data ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_7))	<<10);
-	data ^= ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6))	<<9);
-	data ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15)) <<8);
-	data ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_5))	<<7);
-	data ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_0))	<<6);	
-	data ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_4))	<<5);
-	data ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_3))	<<4);
-	data ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_3))	<<3);
-	data ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2))	<<2);
-	data ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_1))	<<1);
-	data ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14))	<<0); //不同输出1.相同输出
-
-	Cross_Scaner.detail = data;
-	for (uint8_t i = 0; i < 16; i++) // 从小车方向从左往右数亮灯数和引导线数
-	{										// linenum用来记录有多少条线，line用来记录第几条线。
-		if (Cross_Scaner.detail & (0x1 << i))
-		{
-			lednum++;
-			if (!(Cross_Scaner.detail & (1 << (i + 1))))
-				linenum++; // 先读取亮灯数和引导线数，检测到从1变为0认为一条线
-		}
+	if (scaner == NULL)
+	{
+		return;
 	}
-	Cross_Scaner.lineNum = linenum;
-	Cross_Scaner.ledNum = lednum;
+
+	if (ScanerMode == RF)
+	{
+		UpdateScanerFromRf(scaner, Lamp_Max, edge_ignore, track_mode);
+		return;
+	}
+
+	if (ScanerMode == Gray)
+	{
+		UpdateScanerFromGray(scaner);
+	}
 }
 
 /*获取各灯值*/
@@ -222,7 +222,7 @@ enum
 	pos_error
 };
 /*循线扫描 - 包括各种模式处理*/
-uint8_t Line_Scan(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_ignore)
+uint8_t Line_Scan(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_ignore, uint8_t track_mode)
 {
 	float error = 0;
 	u8 linenum = 0; 	//线数
@@ -250,7 +250,7 @@ uint8_t Line_Scan(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_
 	}
 
 	/*循迹中心值计算 - error值计算*/
-	float pos = value_calculation(scaner, edge_ignore, sensorNum, &error, &lednum_tmp);
+	float pos = value_calculation(scaner, edge_ignore, sensorNum, track_mode, &error, &lednum_tmp);
 
 	/*位置正确性判断*/
 	if (pos >= 0)
@@ -291,14 +291,14 @@ void printf_byte(uint16_t data)
 /*循迹滤波*/
 /*循迹中心值和位置计算 - 正确返回大于等于0的位置，错误返回负数*/
 #define MAX_LED	4
-float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned char SensorNum, float *Error, u8 *LED_Num_Temp)
+float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned char SensorNum, uint8_t track_mode, float *Error, u8 *LED_Num_Temp)
 {
 	float pos = 0;
 	/*获取需要的循迹值 - 以L_R_open为最高循迹优先级*/
-	if (LEFT_RIGHT_LINE != 0)		//强制偏左/右/居中循迹
+	if (track_mode != TRACK_ALL)		//强制偏左/右/居中循迹
 	{
 		/*左循线*/
-		if (LEFT_RIGHT_LINE == 1)
+		if (track_mode == TRACK_LEFT_EDGE)
 		{
 			for (uint8_t i = edge_ignore; i < SensorNum - edge_ignore; i++)
 			{
@@ -321,7 +321,7 @@ float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned ch
 			}
 		}
 		/*右巡线*/
-		else if (LEFT_RIGHT_LINE == 2)
+		else if (track_mode == TRACK_RIGHT_EDGE)
 		{
 			for (uint8_t i = edge_ignore; i < SensorNum - edge_ignore; i++)
 			{
@@ -343,7 +343,7 @@ float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned ch
 			}
 		}
 		/*居中流水*/
-		else if (LEFT_RIGHT_LINE == 3)
+		else if (track_mode == TRACK_LIUSHUI )           // 流水巡线模式)
 		{
 			float best_location = 0.0f;
 			float temp_location = 0.0f;
@@ -388,87 +388,7 @@ float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned ch
 	}
 	else  //非强制模式，根据节点选择偏左/右/居中循迹
 	{
-		/*左循线 - LEFT_LINE*/
-		if ((nodesr.nowNode.flag & LEFT_LINE) == LEFT_LINE)
-		{
-			for (uint8_t i = edge_ignore; i < SensorNum - edge_ignore; i++)
-			{
-				*LED_Num_Temp += (scaner->detail >> (SensorNum - 1 - i)) & 0X01;
-				*Error += ((scaner->detail >> (SensorNum - 1 - i)) & 0X01) * line_weight[i];
-				if ((scaner->detail >> (SensorNum - 1 - i)) & 0X01)
-					pos += i;
-				if ((scaner->detail >> (SensorNum - i - 1)) & 0X01)				 // 如果是白线
-					if (!((scaner->detail >> ((SensorNum - i - 1) - 1)) & 0x01)) // 下一个灯不是白
-						break;														 // 退出
-			}
-			if ((*LED_Num_Temp > MAX_LED)) // 目标灯数过多  引导线过多
-			{
-				return -1;
-			}
-		}
-		/*右循线 - RIGHT_LINE*/
-		else if ((nodesr.nowNode.flag & RIGHT_LINE) == RIGHT_LINE)
-		{
-			for (uint8_t i = edge_ignore; i < SensorNum - edge_ignore; i++)
-			{
-				*LED_Num_Temp += (scaner->detail >> i) & 0X01;
-				*Error += ((scaner->detail >> i) & 0X01) * line_weight[SensorNum - 1 - i];
-				if ((scaner->detail >> i) & 0X01)
-					pos += SensorNum - 1 - i;
-				if ((scaner->detail >> i) & 0X01)
-					if (!((scaner->detail >> (i + 1)) & 0x01))
-						break;
-			}
-
-			if ((*LED_Num_Temp > MAX_LED)) // 目标灯数过多  引导线过多
-			{
-				return -1;
-			}
-		}
-		/*居中流水 - M_GO*/
-		else if ((nodesr.nowNode.flag & LiuShui) == LiuShui)
-		{
-			float best_location = 0.0f;
-			float temp_location = 0.0f;
-			uint8_t line_led_last = 0;
-			uint8_t len = 0;
-			uint8_t temp_len = 0;
-			for (uint8_t i = edge_ignore; i < SensorNum - edge_ignore; i++)
-			{
-				if ((scaner->detail & (0x1 << i)))
-				{
-					temp_location += i; //
-					temp_len++;
-					if (!(scaner->detail & (1 << (i + 1))))
-					{
-						temp_location /= (float)temp_len; // 获取平均位置
-						if (fabs(temp_location - (((float)(SensorNum - 1)) / 2)) < fabs(best_location - (((float)(SensorNum - 1)) / 2)))
-						{
-							best_location = temp_location;
-							line_led_last = i; // 保存
-							len = temp_len;	   // 保存
-							temp_location = 0;
-							temp_len = 0;
-						}
-					}
-				}
-			}
-			for (uint8_t i = line_led_last - len + 1; i <= line_led_last; i++)
-			{
-				*LED_Num_Temp += (scaner->detail >> i) & 0X01;
-				*Error += ((scaner->detail >> i) & 0X01) * line_weight[SensorNum - 1 - i];
-				if ((scaner->detail >> i) & 0X01)
-					pos += SensorNum - 1 - i;
-			}
-			if ((*LED_Num_Temp > MAX_LED)) // 目标灯数过多  引导线过多
-			{
-				return -1;
-			}
-		}
-
-		/*其他*/
-		else		//全局平均，把范围内所有亮灯都参与计算
-		{
+			//全局平均，把范围内所有亮灯都参与计算
 			if (scaner->ledNum >= 4 && scaner->lineNum >= 2)
 			{
 				edge_ignore = 4;
@@ -484,7 +404,7 @@ float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned ch
 			{
 				return -1;
 			}
-		}
+
 	}
 
 	pos /= (float)(*LED_Num_Temp);

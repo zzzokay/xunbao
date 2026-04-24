@@ -51,8 +51,6 @@ test1\stm32f7xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h
 test1\stm32f7xx_it.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\string.h
 test1\stm32f7xx_it.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdlib.h
 test1\stm32f7xx_it.o: ../Motor/speed_ctrl.h
-test1\stm32f7xx_it.o: ../USMAT/sys.h
-test1\stm32f7xx_it.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdbool.h
 test1\stm32f7xx_it.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\math.h
 test1\stm32f7xx_it.o: ../Application/turn.h
 test1\stm32f7xx_it.o: ../Application/sys.h
@@ -62,3 +60,9 @@ test1\stm32f7xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.
 test1\stm32f7xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h
 test1\stm32f7xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h
 test1\stm32f7xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
+test1\stm32f7xx_it.o: ../Application/chassis_api.h
+test1\stm32f7xx_it.o: ../Task/motor_task.h
+test1\stm32f7xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
+test1\stm32f7xx_it.o: ../USMAT/sys.h
+test1\stm32f7xx_it.o: ../Math/pid.h
+test1\stm32f7xx_it.o: ../Application/turn.h

@@ -55,5 +55,10 @@ test1\encoder.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h
 test1\encoder.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h
 test1\encoder.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
 test1\encoder.o: ../USMAT/sys.h
-test1\encoder.o: ..\Motor\speed_ctrl.h
-test1\encoder.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdbool.h
+test1\encoder.o: ../Application/chassis_api.h
+test1\encoder.o: ../Math/pid.h
+test1\encoder.o: ../Application/turn.h
+test1\encoder.o: ../Application/sys.h
+test1\encoder.o: ../Module/imu.h
+test1\encoder.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
+test1\encoder.o: ../Application/chassis_api.h

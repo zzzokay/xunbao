@@ -35,7 +35,6 @@ void motor_init(void)
 	HAL_TIM_PWM_Start(&htim9,TIM_CHANNEL_1);  //左后
 	HAL_TIM_PWM_Start(&htim9,TIM_CHANNEL_2);
 
-	pid_init();
 }
 
 
@@ -80,45 +79,8 @@ void motor_set_pwm(uint8_t motor, int32_t pid_out)
 			case 2: TIM8->CCR4 = 0; TIM8->CCR3 = ccr;	break;  //左后	L1	
 			case 3: TIM4->CCR3 = 0; TIM4->CCR4 = ccr;	break;  //右前
 			case 4: TIM4->CCR1 = 0; TIM4->CCR2 = ccr;	break; //右后
-
-			
-			default: ; //TODO
+			default: ; 
 		}
 	}
-//	printf("%d\r\n",ccr);
-}
 
-
-void motor_set_pwm_R0(uint8_t motor,  int32_t pid_out)
-{
-	int32_t ccr = 0;
-	
-	if(motor==4)
-	{
-		if (pid_out >= 0)
-		{
-			if (pid_out > MOTOR_PWM_MAX)
-				ccr = MOTOR_PWM_MAX;
-			else
-				ccr = pid_out;
-			
-			 TIM12->CCR1 = 0; TIM12->CCR2 = ccr;	  //右前	R0
-
-
-		}
-		
-		else if (pid_out < 0)
-		{
-			if (pid_out < -MOTOR_PWM_MAX)
-				ccr = MOTOR_PWM_MAX;
-			else
-				ccr = -pid_out;
-			
-				 TIM12->CCR2 = 0; TIM12->CCR1 = ccr;  //右前	R0
-			
-		}
-//	printf("%d\r\n",ccr);
-	
-	
-	}
 }

@@ -7,56 +7,45 @@
 #include "scaner.h"
 #include "imu.h"
 #include "turn.h"
-#include "speed_ctrl.h"
 #include "motor_task.h"
 #include "bsp_linefollower.h"
 #include "math.h"
 #include "bsp_buzzer.h"
-#include "motor_task.h"
 #include "encoder.h"
 #include "uart.h"
 #include "openmv.h"
 #include "motor.h"
-#include "scaner.h"
 #include "task_create.h"
+#include "chassis_api.h"
 
-/******************  ¼ÇÂ¼µØÍ¼×´Ì¬ºÍĞ¡³µ×´Ì¬µÄÈ«¾Ö±äÁ¿  *************************/
-                                           
-struct Map_State map = {0,0};   //point //routine                               
-NODESR nodesr;  	//°üº¬flagÔË×÷ÖĞ¼ä±äÁ¿
-								/*	flag 0Î»£º1±àÂëÆ÷ÇåÁãÇëÇó£¬0ÇåÁãÍê±Ï
-									flag 1Î»£ºÆô¶¯Â·¿ÚÅĞ¶Ï
-									flag 2Î»£ºÊÇ·ñµ½´ïÂ·¿Ú
-									flag 3Î»£ºarriveÀïtempÇåÁã
-									flag 4Î»£ºZÖáÖÃÁã
-									flag 5Î»£ºÂ·Ïß´¦Àí¸´Î» ´òµ½ÃÅ
-									flag 6Î»£ºÃ»ÓĞÃÅ
-									flag 7Î»£ººìµÆ*/
-					// ÒÔ¼°lastnode nownode nextnode Èı¸ö½á¹¹Ìå£¬Ã¿¸ö½á¹¹Ìå°üº¬ÒÔÏÂÄÚÈİ£º
-								/* u8 nodenum;     //½áµãÃû³Æ
-									 u32  flag;	     //½áµã±êÖ¾Î»
-									 float angle;	   //½Ç¶È	
-									 u16	step;		   //Ïß³¤
-									 float speed;	   //Ñ°ÏßËÙ¶È
-									 u8 function;    //½áµãº¯Êı */   
-											
-						
-/******************************************************************************/
-
-
-/******************************  ±êÖ¾Î»  ***************************************/
-
-uint8_t Turn_Flag = 0;//×ªÍä
-uint8_t Change_Route = 0;//¸Ä±äÂ·Ïß
-uint8_t mul2sing = 0, sing2mul = 0;//£¨Â·¿ÚÅĞ¶Ï£©
-uint8_t ErrorTimes[2] = {0};	//ÓÎÁúÅĞ¶¨¼ÆÊıÎ»
+/******************  è®°å½•åœ°å›¾çŠ¶æ€å’Œå°è½¦çŠ¶æ€çš„å…¨å±€å˜é‡  *************************/
+                                            
+struct Map_State map = {0,0};   //point //routine                                
+NODESR nodesr;   	//èŠ‚ç‚¹flagå’Œå„ä¸ªèŠ‚ç‚¹ä¿¡æ¯
+				/*	flag 0ä½ä¸º1è¡¨ç¤ºéœ€è¦è½¬å¼¯0è¡¨ç¤ºç›´è¡Œ
+					flag 1ä½ä¸ºæ˜¯å¦è·¯å¾„åˆ¤æ–­
+					flag 2ä½ä¸ºæ˜¯å¦åˆ°è¾¾èŠ‚ç‚¹
+					flag 3ä½ä¸ºarriveå’Œtempæ ‡å¿—
+					flag 4ä½ä¸ºZè½´æ ¡æ­£
+					flag 5ä½ä¸ºè·¯å¾„è®¡ç®—èµ·ç‚¹æ ‡å¿— 
+					flag 6ä½ä¸ºæœ‰æ²¡æœ‰
+					flag 7ä½ä¸ºè®°å½•*/
+			// åˆ†åˆ«lastnode nownode nextnode ä¸‰ä¸ªç»“æ„ä½“å˜é‡,æ¯ä¸ªç»“æ„ä½“å­˜å‚¨å¯¹åº”èŠ‚ç‚¹æ•°æ®
+			/* u8 nodenum;     //èŠ‚ç‚¹ç¼–å·
+				 u32  flag;     //èŠ‚ç‚¹æ ‡å¿—ä½
+				 float angle;   //è§’åº¦	
+				 u16	step;       //æ­¥é•¿
+				 float speed;   //è¿è¡Œé€Ÿåº¦
+				 u8 function;    //èŠ‚ç‚¹åŠŸèƒ½ */   
+				
 
 /******************************************************************************/
 
 
-uint8_t isAllRoute = 1;    /*ÊÇ·ñÈ«³Ì£¨ÊÖ¶¯ÉèÖÃ£©*/
-u8 route[100] = {B1, N1, P1, N1, B2, N4, N5, N6, P4, N6, N5, N12, 0XFF};  //Æô¶¯Ê±µÄ³õÊ¼Â·Ïß
-/*²âÊÔ*/
+
+uint8_t isAllRoute = 1;    /*æ˜¯å¦å…¨å›¾,é€‰æ‹©è·¯å¾„*/
+u8 route[100] = {B1, N1, P1, N1, B2, N4, N5, N6, P4, N6, N5, N12, 0XFF};  //è°ƒè¯•æ—¶çš„åˆå§‹è·¯å¾„
+/*ç®€å•*/
 //uint8_t isAllRoute = 0;
 //u8 route[100] = {N4,B2,N1,P1,0XFF};
 //u8 route[100] = {B3,N2,P2,0XFF};
@@ -65,707 +54,530 @@ u8 route[100] = {B1, N1, P1, N1, B2, N4, N5, N6, P4, N6, N5, N12, 0XFF};  //Æô¶¯
 //u8 route[100] = {B1, N1, P1, N1, B2, N4, N5, N12 ,0XFF};
  
  
-/***************Öé·å***************/
+/***************ä»»åŠ¡***************/
 //u8 route[100] = {P7,N20,0XFF};
-//u8 route[100] = {B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,0XFF};//³¤²âÊÔ
-/***************µ¶É½***************/
+//u8 route[100] = {B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,0XFF};//ä»»åŠ¡äºŒ
+/***************å‡å±±***************/
 //u8 route[100] = {B6,N20,0XFF};
 
-/***************õÎõÎ°å***************/
+/***************è··è··æ¿***************/
 //u8 route[100] = {B9,N7,P5,N7,B8,N9,C3,N14,0XFF};
-/***************×ªÍäÂ¥Ìİ***************/
+/***************æ—‹è½¬å¹³å°***************/
 // u8 route[100] = {N12,N16,N18,B5,N19,C6,B7,N22,B6,N20,P7,N20,0XFF};
  
- /**************×ªÍäÂ¥Ìİ·´·½Ïò*********/
+ /**************æ—‹è½¬å¹³å°æ³¢åŠ¨æ¿*************/
 // u8 route[100] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,0XFF};
 
-/************************************************************    *µØÍ¼Â·Ïß*    **********************************************************************************************************************************************88 */
-/*D2¡¢D3ºì£¬ÏÎ½ÓÈ¥¿´D4*/
+/************************************************************    *åœ°å›¾è·¯å¾„*    **********************************************************************************************************************************************88 */
+/*D2å¼€D3å…³ï¼Œæš‚æ—¶å»æ‰D4*/
 u8 door1route[100] = {N4, N3, N8, 0XFF};
-/*D2ºì D3ÂÌ*/
+/*D2å¼€ D3å¼€*/
 u8 door2route[100] = {N12, N13, P6, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8,0xFF};
-/*D2ÂÌ*/
+/*D2å¼€*/
 u8 door3_1route[50] = {N13, P6, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8,0xFF};
 	
-/*D2ºì D3ºì D4ÂÌ*/
+/*D2å¼€ D3å¼€ D4å¼€*/
 u8 door4route[100] = {N12, N13, P6, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8, C9, N22, B6, N20, P7, N20, C4, C8, C7, N14, C3, N9, B9, N7, P5, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N8, N3, N4, B3, N2, P2, 0XFF};
-/*D2ºì D3»Æ£¬ÏÎ½ÓÈ¥¿´D5*/
+/*D2å¼€ D3å…³ï¼Œæš‚æ—¶å»æ‰D5*/
 u8 door5route[100] = {N12, N13, P6, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8, C9, N22, B6, N20, P7, N20, C4, C8, C7, N14, C3, N9, B9, N7, P5, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, 0XFF};
-/*D5ÂÌ*/
+/*D5å¼€*/
 u8 door6route[100] = {N4, B3, N2, P2, 0XFF};
-/*D2ºì D3»Æ D5ºì*/
+/*D2å¼€ D3å¼€ D5å¼€*/
 u8 door7route[100] = {N8, N3, N4, B3, N2, P2, 0xFF};
-/*D2»Æ D5ºì D4ÂÌ*/
+/*D2å¼€ D5å¼€ D4å¼€*/
 u8 door8route[100] = {N4, B3, N2, P2, 0XFF};
-/*D2ºì D3ºì D4»Æ D5±ØÂÌ*/
-u8 door9route[100] = {N12, N13, P6, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8, C9, N22, B6, N20, P7, N20, C4, C8, C7, N14, C3, N9, B9, N7, P5, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, N4, B3, N2, P2, 0XFF}; // Ã»È¥P3
-/*D2ºì D3»Æ£¬ÏÎ½ÓÈ¥¿´D5*/
-u8 door10route[100] = {N12, N13, P6, N13, N12, N16, N18, B5, N19, C6, B7, N22, C9, P8, C9, N22, B6, N20, P7, N20, C4, C8, C7, N14, C3, N9, B9, N7, P5, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, 0XFF}; // N3½ØÖÁ£¬Ã»»Ø¼Ò£¬Ã»P3
-/*D2»Æ D5ºì D4ºì*/
+/*D2å¼€ D3å¼€ D4å¼€ D5å¼€å…¨*/
+u8 door9route[100] = {N12, N13, P6, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8, C9, N22, B6, N20, P7, N20, C4, C8, C7, N14, C3, N9, B9, N7, P5, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, N4, B3, N2, P2, 0XFF}; // æ²¡å»P3
+/*D2å¼€ D3å…³ï¼Œæš‚æ—¶å»æ‰D5*/
+u8 door10route[100] = {N12, N13, P6, N13, N12, N16, N18, B5, N19, C6, B7, N22, C9, P8, C9, N22, B6, N20, P7, N20, C4, C8, C7, N14, C3, N9, B9, N7, P5, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, 0XFF}; // N3å‰æ²¡å†™ï¼Œæ²¡P3
+/*D2å¼€ D5å¼€ D4å¼€*/
 u8 door11route[100] = {N5, N4,B3, N2, P2, 0XFF};
-/*D2»Æ*/
+/*D2å¼€*/
 u8 door12route[100] = {N13, P6, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8, C9, N22, B6, N20, P7, N20, C4, C8, C7, N14, C3, N9, B9, N7, P5, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, 0XFF};
 
 	
-/*Æ½Ì¨5ºÍÆ½Ì¨7*/
+/*å¹³å°5åˆ°å¹³å°7*/
 u8 rout_57[50] = {N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9, 0XFF};
-/*Æ½Ì¨5ºÍÆ½Ì¨8*/
+/*å¹³å°5åˆ°å¹³å°8*/
 u8 rout_58[50] = {N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,B6,N20,P7,N20,0XFF};
-/*Æ½Ì¨6ºÍÆ½Ì¨8*/
+/*å¹³å°6åˆ°å¹³å°8*/
 u8 rout_68[50] = {N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20, 0XFF};
-/*Æ½Ì¨6ºÍÆ½Ì¨7*/
+/*å¹³å°6åˆ°å¹³å°7*/
 u8 rout_67[50] = {N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,B6,N22,C9,P8,C9, 0XFF};
 
 /*******************************************************************************************************************************************************************************************************************************************************/
 
  
-/*µØÍ¼³õÊ¼»¯*/
+/*åœ°å›¾åˆå§‹åŒ–*/
 void mapInit()
 {
 	map.routetime = 0;
 	map.point = 0;
 	nodesr.flag = 0;
-	// /***************²âÊÔ***************/
+	// /***************ä»»åŠ¡***************/
 	
-//	 nodesr.lastNode.nodenum = N10;
-//	 nodesr.nextNode.nodenum = B9;
-//   nodesr.nowNode = Node[getNextConnectNode(N10, N9)];//õÎõÎ°å
+//	nodesr.lastNode.nodenum = N10;
+//	nodesr.nextNode.nodenum = B9;
+//  nodesr.nowNode = Node[getNextConnectNode(N10, N9)];//è··è··æ¿
 	
-//	 nodesr.lastNode.nodenum = C9;
-//	 nodesr.nextNode.nodenum = B6;	
-//	 nodesr.nowNode = Node[getNextConnectNode(C9, N22)];//³¤Öé·å
+//	nodesr.lastNode.nodenum = C9;
+//	nodesr.nextNode.nodenum = B6; 	
+//	nodesr.nowNode = Node[getNextConnectNode(C9, N22)];//ä»»åŠ¡äºŒ
 	
 	
 	//nodesr.lastNode = Node[getNextConnectNode(N6, P4)];
 //	nodesr.nowNode = Node[getNextConnectNode(N5, N4)];
 	
 	
-//	nodesr.nowNode = Node[getNextConnectNode(C4, N20)];//Öé·å
-	//nodesr.nowNode = Node[getNextConnectNode( B7, N22)];//µ¶É½
-//	 nodesr.nowNode = Node[getNextConnectNode(N10, N9)];//õÎõÎ°å
-//	nodesr.nowNode = Node[getNextConnectNode(P8, C9)];//×ªÍäÂ¥Ìİ·´·½Ïò	
-	/***************³ö¼Ò***************/
-	nodesr.nowNode.nodenum = N2;        //ÆğÊ¼(Ä¿±ê)   		//N2
-	nodesr.nowNode.angle = 0;           //ÆğÊ¼½Ç¶È   	//0
-	nodesr.nowNode.function = NONE;        //ÆğÊ¼º¯Êı   	//1
+//	nodesr.nowNode = Node[getNextConnectNode(C4, N20)];//ä»»åŠ¡
+	//nodesr.nowNode = Node[getNextConnectNode( B7, N22)];//å‡å±±
+//	nodesr.nowNode = Node[getNextConnectNode(N10, N9)];//è··è··æ¿
+//	nodesr.nowNode = Node[getNextConnectNode(P8, C9)];//æ—‹è½¬å¹³å°æ³¢åŠ¨æ¿	
+	/***************ç®€å•***************/
+	nodesr.nowNode.nodenum = N2;        //èµ·ç‚¹(ç»ˆç‚¹)    		//N2
+	nodesr.nowNode.angle = 0;           //èµ·å§‹è§’åº¦    	//0
+	nodesr.nowNode.function = NONE;        //èµ·å§‹åŠŸèƒ½    	//1
 	nodesr.nowNode.speed = SPEED1;
-	nodesr.nowNode.step= 10;            //³¤¶È
+	nodesr.nowNode.step= 10;            //æ­¥é•¿
 	nodesr.nowNode.flag = CLEFT|RIGHT_LINE;
 	nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point++])];
 }
 
-/*µÚ¶ş´Î³ö·¢³õÊ¼»¯*/
+/*ç¬¬äºŒè½®ç«èµ›åˆå§‹åŒ–*/
 void mapInit1(void)
 {
 	map.point = 0;
 	nodesr.flag = 0;
-	nodesr.nowNode.nodenum = N2;				//ÆğÊ¼µã   		
-	nodesr.nowNode.angle = 0;					  //ÆğÊ¼½Ç¶È   	
-	nodesr.nowNode.function = NONE;				//ÆğÊ¼º¯Êı   	
-	nodesr.nowNode.speed = SPEED0;				
-	nodesr.nowNode.step= 2;					                   
-	nodesr.nowNode.flag = CLEFT|RIGHT_LINE;		
+	nodesr.nowNode.nodenum = N2;                //èµ·å§‹ç‚¹    		
+	nodesr.nowNode.angle = 0;                      //èµ·å§‹è§’åº¦    	
+	nodesr.nowNode.function = NONE;                //èµ·å§‹åŠŸèƒ½    	
+	nodesr.nowNode.speed = SPEED0;                
+	nodesr.nowNode.step= 2;                           
+	nodesr.nowNode.flag = CLEFT|RIGHT_LINE;        
 }
 	
 /*
- * »ñÈ¡´Óµ±Ç°½Úµãµ½Ä¿±ê½ÚµãµÄÁ¬½Ó¹ØÏµÔÚNodeÊı×éÖĞµÄË÷Òı
+ * è·å–ä»å½“å‰èŠ‚ç‚¹åˆ°ç›®æ ‡èŠ‚ç‚¹çš„è¿æ¥å…³ç³»åœ¨Nodeæ•°ç»„ä¸­çš„ä¸‹æ ‡
  * 
- * ²ÎÊıËµÃ÷£º
- * - nownode£ºµ±Ç°Ä¿±ê½Úµã±àºÅ
- * - nextnode£ºÏÂÒ»¸öÄ¿±ê½Úµã±àºÅ
- * ¹¤×÷Ô­Àí£º
- * 1. ´ÓAddressÊı×é»ñÈ¡µ±Ç°½ÚµãÁ¬½Ó¹ØÏµµÄÆğÊ¼Ë÷Òı
- * 2. ´ÓConnectionNumÊı×é»ñÈ¡µ±Ç°½ÚµãµÄÏàÁÚ½ÚµãÊıÁ¿
- * 3. ±éÀúÕÒµ½²¢·µ»ØÆäË÷Òı
+ * å‡½æ•°è¯´æ˜
+ * - nownodeï¼šå½“å‰ç›®æ ‡èŠ‚ç‚¹ç¼–å·
+ * - nextnodeï¼šä¸‹ä¸€ä¸ªç›®æ ‡èŠ‚ç‚¹ç¼–å·
+ * å®ç°åŸç†
+ * 1. ä»Addressæ•°ç»„è·å–å½“å‰èŠ‚ç‚¹çš„è¿æ¥å…³ç³»èµ·å§‹åœ°å€
+ * 2. ä»ConnectionNumæ•°ç»„è·å–å½“å‰èŠ‚ç‚¹çš„è¿æ¥èŠ‚ç‚¹æ•°é‡
+ * 3. å¾ªç¯æŸ¥æ‰¾ç›®æ ‡è¿æ¥èŠ‚ç‚¹
  */
 u8 getNextConnectNode(u8 nownode,u8 nextnode) 
 {
-	unsigned char rest = ConnectionNum[nownode];	//Õâ¸ö½áµãÏàÁÚµÄ½áµãÊı
-	unsigned char addr = Address[nownode];			//µÃµ½½áµãµÄaddr
+	unsigned char rest = ConnectionNum[nownode];	//è·å–å½“å‰èŠ‚ç‚¹çš„è¿æ¥æ•°
+	unsigned char addr = Address[nownode];		//å¾—åˆ°é¦–åœ°å€
 	int i = 0;
 	for (i = 0; i < rest; i++) 
 	{
-		if(Node[addr].nodenum == nextnode)			//·µ»Ø½áµãµØÖ·	
+		if(Node[addr].nodenum == nextnode)		//è¿”å›ç›®æ ‡åœ°å€	
 			return addr;
 		addr++;
 	}
 	return 0;
 }
 
-	/**-------------------------------------------------Crossº¯Êı - »úÆ÷ÈËµ¼º½ºËĞÄº¯Êı---------------------------------------------------------------------------------------------------------------------------
- * 
- * 
- * ¹¦ÄÜ£º
- * - ¿ØÖÆ»úÆ÷ÈË°´ÕÕrouteÊı×é¶¨ÒåµÄÂ·ÏßĞĞÊ»
- * - ´¦Àí½Úµã¼äµÄÑ­¼£¡¢×ªÍä¡¢ËÙ¶È¿ØÖÆµÈÂß¼­
- * - Ö´ĞĞ½ÚµãµÄÌØÊâ¹¦ÄÜ£¨ÈçÅÀÆÂ¡¢¹ıÇÅ¡¢´òÃÅµÈ£©
- * - ¹ÜÀíÅÜÍ¼×´Ì¬£¬Ö§³Ö¶à´ÎÅÜÍ¼
- * 
- * ¹¤×÷Á÷³Ì£º
- * 1. ³õÊ¼»¯Â·Ïß£¨map.point == 0Ê±£©
- * 2. ½ÚµãÇ°¶ÎÑ­¼£´¦Àí£¨Near2end == 0£©
- * 3. ½Úµãºó¶Ë´¦Àí£¨Near2end == 1£©
- * 4. Â·¿Ú´¦ÀíÓë½Úµã¸üĞÂ
- * 5. ´¦ÀíÌØÊâÇé¿ö
 
- * ×¢Òâ£º
- * routeÀïÃæ´æµÄÊÇ½ÚµãÃû£¬Node´æµÄ²ÅÊÇ½á¹¹Ìå£¬¸ønextnode¸³ÖµÒªÓÃµ½²éÕÒÏÂ±êº¯ÊıgetNextConnectNode£¨£©
- * Ã¿´ÎÂ·³Ì¶¼Ö¸µÄÊÇ½ÚµãÖ®¼äµÄÂ·³Ì£¨²»ÊÇÈ«³Ì£©
- * Â·¿Ú£ºÃ¿¶ÎÂ·³ÌÖÕµã
- * nodesr.nowNodeÊÇĞ¡³µÕâÒ»Ğ¡¶ÎÂ·³ÌµÄÖÕµã£¬Ğ¡³µÊ¼ÖÕÔÚnowNodeºÍlastNodeÖ®¼ä¡£
- * µ±Ğ¡³µÅöµ½nowNodeÊ±£¬nowNode±äÎªlastnode£¬nextnode±äÎªnowNode¡£
- * Ç°70%µÄÖ÷ÒªÈÎÎñ¶¼ÊÇÍ¨¹ıÈ«¾Ö±äÁ¿¿ØÖÆµç»úÈÎÎñÑ­¼£
- * ×ß¹ı70%ºó»½ĞÑ½Úµã¼ì²éÈÎÎñ£¬¼ì²éÈÎÎñ½«Â·¿Ú±êÖ¾Î»ÖÃ1£¬»Øµ½Crossº¯Êı¼ÌĞøÖ´ĞĞ
- * Çø·Önodesr.flagºÍnodesr.nowNode.flag
- * nodesr.flag£º¼ÇÂ¼Ğ¡³µµ±Ç°×´Ì¬
- * nodesr.nowNode.flag£ºµØÍ¼ÊÂÏÈĞ´ºÃµÄ±êÖ¾£¬ÓÃÓÚÖ¸µ¼Ğ¡³µĞĞÎª
 
- * ¹Ø¼ü×´Ì¬±äÁ¿£º
- * - map.point£ºÂ·ÏßÊı×éµÄµ±Ç°Ë÷Òı
- * - map.routetime£ºÅÜÍ¼´ÎÊı
- * - nodesr£º°üº¬µ±Ç°¡¢ÉÏÒ»¸öºÍÏÂÒ»¸ö½ÚµãĞÅÏ¢
+/* è·å–å¯¹åº”èŠ‚ç‚¹çš„åŸå§‹è½¬å¼¯å‰çš„å‰è¿›è·ç¦»åˆ¤æ–­ */
+static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
+{
+	if (last == P8 && now == C9 && next == N22) return 28.0f;
+	if (last == S1 && now == N3 && next == P3) return 15.0f;
+	if (last == C8 && now == C7 && next == N14) return 20.0f;
+	if (last == C9 && now == N22 && next == B6) return 20.0f;
+	if (last == B3 && now == N2 && next == P2) return 30.0f;
+	if (last == B9 && now == N7 && next == P5) return 18.0f;
+	if (last == P5 && now == N7 && next == B8) return 25.0f;
+	if (last == P7 && now == N20 && next == C4) return 30.0f;
+	if (last == N8 && now == N5 && next == N4) return 30.0f;
+	if (last == N8 && now == N3 && next == P3) return 15.0f;
+	if (last == N8 && now == N3 && next == N4) return 20.0f;
+	if (last == N9 && now == N10 && next == N8) return 26.0f;
+	if (last == N20 && now == C4 && next == C8) return 25.0f;
+	if (last == C3 && now == N9 && next == B9) return 45.0f;
+	if (now == N20 && next == P7) return 30.0f;
+	if (last == N10 && now == N9 && next == B9) return 40.0f;
+	if (last == B8 && now == N9 && next == N10) return 25.0f;
+	return 20.0f;
+}
+
+/* è·å–å¯¹åº”èŠ‚ç‚¹çš„é™€èºä»ªä¸åœè½¦è½¬å¼¯å‰çš„å‰è¿›è·ç¦»åˆ¤æ–­ */
+static float GetForwardDistanceBeforeGyroTurn(u8 last, u8 now, u8 next)
+{
+	if ((last == B2 && now == N4 && next == N5) ||
+		(last == B6 && now == N20 && next == C4) ||
+		(last == C4 && now == N20 && next == B6) ||
+		(last == B2 && now == N1 && next == P1)) return 9.0f;
+	if (last == B3 && now == N2 && next == P2) return 15.0f;
+	if (last == P3 && now == N3 && next == N8) return 5.0f;
+	if (last == P8 && now == C9 && next == N22) return 3.0f;
+	if (last == S1 && now == N3 && next == N8) return 8.0f;
+	if (last == N3 && now == N4 && next == B3) return 15.0f;
+	if (last == N5 && now == N12 && next == N13) return 3.0f;
+	if (last == N5 && now == N6 && next == S2) return 12.0f;
+	if (last == N8 && now == N12 && next == N13) return 4.0f;
+	if (last == N8 && now == N3 && next == P3) return 20.0f;
+	if (last == N8 && now == N3 && next == S1) return 30.0f;
+	if (last == N9 && now == N10 && next == N8) return 4.0f;
+	if (last == N10 && now == N3 && next == S1) return 4.0f;
+	if (last == N15 && now == N10 && next == N8) return 5.0f;
+	if (last == C7 && now == C8 && next == C4) return 15.0f;
+	return 0.0f; // é»˜è®¤ä¸å‰è¿›ï¼Œèµ°åŸé€»è¾‘æœªä¿®æ”¹
+}
+
+/* è·å–å¯¹åº”èŠ‚ç‚¹çš„ç‰¹å®šç›´çº¿è·¯å¾„åŠ é€Ÿåˆ¤æ–­ */
+static void Check_And_Apply_SpeedUp(void)
+{
+	if ((nodesr.lastNode.nodenum == N4 && nodesr.nowNode.nodenum == N5 && nodesr.nextNode.nodenum == N6) ||
+		(nodesr.lastNode.nodenum == N5 && nodesr.nowNode.nodenum == N6 && nodesr.nextNode.nodenum == P4) ||
+		(nodesr.lastNode.nodenum == N5 && nodesr.nowNode.nodenum == N4 && nodesr.nextNode.nodenum == N3) ||
+		(nodesr.lastNode.nodenum == P3 && nodesr.nowNode.nodenum == N3 && nodesr.nextNode.nodenum == N4))
+	{	
+		nodesr.nowNode.speed = SPEED4;
+		Chassis_SetTargetSpeed(nodesr.nowNode.speed);
+	}
+}
+
+/* æ— éœ€è½¬å¼¯æ—¶çš„ç‰¹ä¾‹ç›´è¡Œå¤„ç† */
+static void Handle_NoTurn_StraightPath(void)
+{
+	if ((nodesr.nowNode.nodenum == N3 && nodesr.nextNode.nodenum == P3) ||
+		(nodesr.nowNode.nodenum == N4 && nodesr.nextNode.nodenum == N3) ||
+		(nodesr.nowNode.nodenum == N4 && nodesr.nextNode.nodenum == N5))
+	{
+		Chassis_DriveDistance_Blocking(is_Gyro, 20.0f, nodesr.nextNode.speed, getAngleZ(), 0);
+	}
+	else if (nodesr.nowNode.nodenum == N13 && nodesr.nextNode.nodenum == P6) 
+	{
+		Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodesr.nextNode.speed, 0.0f, 6);
+	}
+	else if (nodesr.nowNode.nodenum == N1 && nodesr.nextNode.nodenum == P1)
+	{
+		Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodesr.nextNode.speed, 0.0f, 6);
+	}
+	else if ((nodesr.lastNode.nodenum == P3 && nodesr.nowNode.nodenum == N3 && nodesr.nextNode.nodenum == N4)||
+			(nodesr.lastNode.nodenum == P4 && nodesr.nowNode.nodenum == N6 && nodesr.nextNode.nodenum == N5))
+	{
+		Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodesr.nextNode.speed, 0.0f, 7);
+	}
+	else if ((nodesr.nowNode.nodenum == N13 && nodesr.nextNode.nodenum == N12)||(nodesr.nowNode.nodenum == N12 && nodesr.nextNode.nodenum == N13))
+	{
+		Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodesr.nextNode.speed, 0.0f, 7);
+	}
+	else if ((nodesr.nowNode.nodenum == P6 && nodesr.nextNode.nodenum == N13)||(nodesr.nowNode.nodenum == N13 && nodesr.nextNode.nodenum == P6))
+	{
+		Chassis_DriveDistance_Blocking(is_Line, 25.0f, nodesr.nextNode.speed, 0.0f, 7);
+	}
+	else
+	{
+		Chassis_DriveDistance_Blocking(is_Line, 10.0f, nodesr.nextNode.speed, 0.0f, 7);
+	}
+}
+
+
+
+	/**-------------------------------------------------Crosså‡½æ•° - æ•´ä¸ªæµç¨‹çš„æ ¸å¿ƒ---------------------------------------------------------------------------------------------------------------------------
+ * 
+ * 
+ * åŠŸèƒ½ï¼š
+ * - è§£æè·¯å¾„æ•°ç»„routeå¹¶æ‰§è¡Œç›¸åº”çš„è·¯å¾„åŠ¨ä½œ
+ * - å¤„ç†èŠ‚ç‚¹çš„å·¡çº¿ã€è½¬å¼¯ã€é€Ÿåº¦åˆ‡æ¢ç­‰é€»è¾‘
+ * - æ‰§è¡ŒèŠ‚ç‚¹çš„ç‰¹æ®ŠåŠŸèƒ½ï¼ˆå¦‚çˆ¬å¡ã€è¿‡æ¡¥ç­‰ï¼‰
+ * - ç®¡ç†åœ°å›¾çŠ¶æ€å’Œæ”¯æŒå¤šè½®ç«èµ›
+ * 
+ * æ‰§è¡Œæµç¨‹ï¼š
+ * 1. åˆå§‹åŒ–è·¯å¾„ï¼ˆmap.point == 0æ—¶ï¼‰
+ * 2. èŠ‚ç‚¹å‰åŠæ®µå¤„ç†ï¼ˆis_near_end == 0æ—¶ï¼‰
+ * 3. èŠ‚ç‚¹ååŠæ®µå¤„ç†ï¼ˆis_near_end == 1æ—¶ï¼‰
+ * 4. è·¯å¾„ç‚¹åˆ‡æ¢èŠ‚ç‚¹å¤„ç†
+ * 5. ç‰¹æ®ŠåŠŸèƒ½å¤„ç†
+
+ * æ³¨æ„ï¼š
+ * routeæ•°ç»„å­˜å‚¨çš„æ˜¯èŠ‚ç‚¹ç¼–å·ï¼ŒNodeæ•°ç»„æ˜¯ç»“æ„ä½“æ•°ç»„ï¼Œå–nextnodeçš„å€¼è¦ç”¨åˆ°æ•°ç»„ä¸‹æ ‡å‡½æ•°getNextConnectNode
+ * æ¯æ®µè·¯å¾„éƒ½æŒ‡çš„æ˜¯ä¸¤ä¸ªèŠ‚ç‚¹ä¹‹é—´çš„è·¯å¾„
+ * nodesr.nowNodeæ˜¯å°è½¦è¿™ä¸€å°æ®µè·¯å¾„çš„ç»ˆç‚¹ï¼ŒlastNodeæ˜¯èµ·ç‚¹ï¼ŒnextNodeæ˜¯ä¸‹ä¸€ä¸ªè·¯å¾„çš„ç»ˆç‚¹
+ * å½“å°è½¦åˆ°è¾¾nowNodeæ—¶ï¼ŒnowNodeæˆä¸ºlastnodeï¼ŒnextNodeæˆä¸ºnowNodeã€‚
+ * å‰70%è·¯å¾„è¦è¿›è¡Œå·¡çº¿
+ * è¶…è¿‡70%æ—¶è§¦å‘èŠ‚ç‚¹ç»ˆç‚¹æ£€æŸ¥
+ * éœ€è¦åŒºåˆ†nodesr.flagå’Œnodesr.nowNode.flag
+ * nodesr.flagè®°å½•å°è½¦å½“å‰çŠ¶æ€
+ * nodesr.nowNode.flagæ˜¯äº‹å…ˆåœ°å›¾æ–‡ä»¶å†™å…¥çš„æ ‡å¿—ï¼Œç”¨äºæŒ‡å¯¼å°è½¦è¡Œä¸º
+
+ * å…³é”®çŠ¶æ€å˜é‡ï¼š
+ * - map.pointï¼šè·¯å¾„æ•°ç»„çš„å½“å‰ç´¢å¼•
+ * - map.routetimeï¼šåœ°å›¾è¿è¡Œæ¬¡æ•°
+ * - nodesrï¼šåŒ…å«å½“å‰ã€ä¸Šä¸€ä¸ªã€ä¸‹ä¸€ä¸ªèŠ‚ç‚¹çš„ä¿¡æ¯
  */
 void Cross(void)
 {
-	static uint8_t half_times = 0;		   //ÊÇ·ñÍê³É°ë³Ì
-	static uint8_t Near2end = 0;		  //ÊÇ·ñ¿¿½ü½áÎ²ÅÜÍê70%   £¨ÏÖÔÚ0´ú±íÃ»ÅÜÍê70%£©
-	static uint8_t select_PID_Para = 0;//ÊÇ·ñÑ¡ÔñÁËPID²ÎÊı
+	static uint8_t route_state = 0;           //æ˜¯å¦è¿‡åŠç¨‹
+	static uint8_t is_near_end = 0;          //æ˜¯å¦æ¥è¿‘ç»ˆç‚¹è¶…è¿‡70%   é»˜è®¤ä¸º0è¡¨ç¤ºæ²¡è¶…è¿‡70%
 
-	/*Î»ÓÚÆğµã´¦Àí - Â·Ïß¿ªÊ¼Ê±µÄ³õÊ¼»¯*/
-	 /***************Ö´ĞĞ²âÊÔÂ·Ïß£¨µ÷ÊÔÊ±Ê¹ÓÃ£©******************/
+	/*åæ ‡è®¡ç®—å¤„ç† - è·¯å¾„å¼€å§‹æ—¶çš„åˆå§‹åŒ–*/
+	 /***************æ‰§è¡Œç®€å•è·¯å¾„ï¼Œè°ƒè¯•æ—¶ä½¿ç”¨******************/
 	if(map.point == 0)
-	{  		 	
+	{	   	
 		if (isAllRoute == 0) 
-			motor_all.Cspeed = nodesr.nowNode.speed; //²âÊÔÂ·ÏßÊ±£¬ËÙ¶ÈÎªÉèÖÃËÙ¶È	
+			Chassis_SetTargetSpeed(nodesr.nowNode.speed); // è®¾å®šåˆå§‹é€Ÿåº¦	
 	}
- 	/**********************************************************/
-	
-	
-	/*½ÚµãÇ°¶ÎÑ­¼£´¦Àí - Ö÷ÒªÊÇÑ­¼£ĞĞÊ»Âß¼­*/
-	if(Near2end == 0)
-	{
-		//ÌØÊâ½áµãÉèÖÃËÙÂÊ£¨³¤Ö±Ïß£¬Ç°½øËÄ£¡£©
-		if ((nodesr.lastNode.nodenum == N4 && nodesr.nowNode.nodenum == N5 && nodesr.nextNode.nodenum == N6) ||
-			(nodesr.lastNode.nodenum == N5 && nodesr.nowNode.nodenum == N6 && nodesr.nextNode.nodenum == P4) ||
-			(nodesr.lastNode.nodenum == N5 && nodesr.nowNode.nodenum == N4 && nodesr.nextNode.nodenum == N3) ||
-			(nodesr.lastNode.nodenum == P3 && nodesr.nowNode.nodenum == N3 && nodesr.nextNode.nodenum == N4))
-			{	
-				nodesr.nowNode.speed = SPEED4;
-				motor_all.Cspeed = nodesr.nowNode.speed;
-			}
-		 /*¸ù¾İËÙ¶È¸ø²»Í¬µÄPID²ÎÊı*/	 
-		 if(select_PID_Para == 0)
-		 {
-		 		select_speed(); 
-		 		select_PID_Para =1;
-		 }
-		//Ñ­¼£
-		pid_mode_switch(is_Line);
-		 		
-		 /*Ç°¶ÎÂ·³Ì´¦Àí - »¹Ã»×ßÍê50%Â·³Ì*/ 
-					
-		    if(fabsf(motor_all.Distance) < 0.5f*nodesr.nowNode.step && half_times == 0)
-			{	
-				//Èç¹û½Ç¶È±ä»¯²¢ÅÅ³ıÌØÊâÇé¿ö	
-				if (nodesr.nowNode.angle != nodesr.lastNode.angle && nodesr.nowNode.nodenum != C4 && nodesr.nowNode.nodenum != P8)   //Èç¹û½Ç¶È±ä»¯²¢ÅÅ³ıÌØÊâÇé¿ö
-				{			
-					Cross_getline();       //»ñÈ¡Ñ­¼£´«¸ĞÆ÷×´Ì¬£¬¸Ãº¯Êı»áÌî³ä Cross_Scaner ½á¹¹Ìå
-					
-					if(ErrorTimes[1]==0)        
-					{
-						motor_all.Cspeed = nodesr.nowNode.speed / 1.5f;  //Ò»¿ªÊ¼ÏÈÈÃËÙ¶È±äĞ¡Ò»µã
-						if(Cross_Scaner.detail & 0xFC3F) //Èç¹ûÆ«ÒÆ¹ı´ó
-						{
-							ErrorTimes[0]++; //±ê¼Ç£¬ÓÃÓÚ¸ü¸ÄPID²ÎÊı
-						}
-						else //³µÉí»ØÕıºó¼Ó5ÂíÉÏÊ¹ErrorTimes[0] >= 10»Ö¸´Ô­ËÙ¶È
-						{
-							ErrorTimes[0]+=5;
-						}
-						if(ErrorTimes[0] >= 10)
-						{
-							ErrorTimes[0] = 0;
-							ErrorTimes[1] = 1;
-							motor_all.Cspeed = nodesr.nowNode.speed;
-						}
-					}
-					if(ErrorTimes[0])//Èç¹ûÓÎÁú£¬Í¨¹ıĞŞ¸Ä PID ²ÎÊıÀ´¿ìËÙÒÖÖÆ¶¶¶¯¡¢ÎÈ¶¨³µÉí
-					{
-						line_pid_param.kp = 12;
-						line_pid_param.ki = 0;
-						line_pid_param.kd = 200;//200
-					}												
-			  }
-			}			
-			        
-			/*×ß¹ı50%Â·³Ì£¬µã¼äÑ­¼£Ä£Ê½ÇĞ»»*/
-			if(fabsf(motor_all.Distance) >= 0.5f*nodesr.nowNode.step && half_times == 0)
-			{
-						if((nodesr.nowNode.flag & Temp_L) == Temp_L)
-						{
-							LEFT_RIGHT_LINE = 1;
-						}
-						else if((nodesr.nowNode.flag & Temp_R) == Temp_R)
-						{
-							LEFT_RIGHT_LINE = 2;
-						}
-						else if((nodesr.nowNode.flag & Temp_LiuShui) == Temp_LiuShui)
-						{
-							LEFT_RIGHT_LINE = 3;
-						}
-						half_times = 1;
-			}
-			/*½Úµã¼äºó¶Î´¦Àí - ×ßÍê70%Â·³Ì*/
-			else if(fabsf(motor_all.Distance) >= 0.7f*nodesr.nowNode.step )
-			{
-						Near2end = 1;
+  	/**********************************************************/
 
-						if ((fabs(need2turn(getAngleZ(), nodesr.nextNode.angle)) < 10) || (fabs(need2turn(nodesr.nowNode.angle, nodesr.nextNode.angle)) < 10) || (nodesr.nowNode.flag & NOTURN) == NOTURN)
-							motor_all.Cspeed = nodesr.nowNode.speed;	//Èç¹û½Ç¶È½ÏĞ¡²»ÓÃ¼õËÙ
-						else   //¼õËÙ
-						{
-							/*·µ»ØµÍËÙPID²ÎÊı*/
-							line_pid_param.kp = 12;
-							line_pid_param.ki = 0;
-							line_pid_param.kd = 400;
-							motor_all.Cspeed = Gyro_Speed;//25
-						}
-						
-						if(nodesr.lastNode.nodenum == C7 && nodesr.nowNode.nodenum == N14 && nodesr.nextNode.nodenum == C3)   //ÌØÊâ½áµãËÙ¶ÈÑ¡Ôñ
-							motor_all.Cspeed = SPEED1;
-						
-						/*¹éÁãÓÎÁú±£»¤ºÍËÙ¶ÈÑ¡Ôñ*/
-						ErrorTimes[0] = ErrorTimes[1] = 0;
-						select_PID_Para = 0;
-			}
+	/*å‰åŠæ®µ - æ‰§è¡Œå·¡çº¿*/
+	if(is_near_end == 0)
+	{		
+			if(route_state == 0)//è·¯å¾„å¼€å§‹
+			{		
+					//æ¸…é›¶é‡Œç¨‹
+					Chassis_ClearMileage();
+					 
+					//å¯»è¿¹ä¸­å¿ƒç›®æ ‡å€¼
+					if(nodesr.nowNode.nodenum == N9 && nodesr.nextNode.nodenum == N10)
+						Chassis_SetCatchSensorNum(line_weight[7]);  
+					else
+						Chassis_SetCatchSensorNum(0);
 
+					//å¿½ç•¥è¾¹ç¼˜
+					Chassis_SetEdgeIgnore(0);
+				
+					//è®¾ç½®å¯»çº¿å®é™…å€¼æ–¹å¼
+					if((nodesr.nowNode.flag & LEFT_LINE) == LEFT_LINE){	
+						Chassis_SetTrackMode(TRACK_LEFT_EDGE);}
+
+					else if((nodesr.nowNode.flag & RIGHT_LINE) == RIGHT_LINE){
+						Chassis_SetTrackMode(TRACK_RIGHT_EDGE);}
+
+					else if((nodesr.nowNode.flag & LiuShui) == LiuShui){
+						Chassis_SetTrackMode(TRACK_LIUSHUI);}
+
+					else{
+						Chassis_SetTrackMode(TRACK_ALL);}
+					route_state=1;
+
+			}		
+		 /*å‰æ–¹è·¯å¾„åˆ¤æ–­ - æœªè¶…è¿‡50%è·¯å¾„*/ 				
+		    if(fabsf(Chassis_GetMileage()) < 0.5f * nodesr.nowNode.step && route_state == 1)
+			{	
+
+					//è®¾ç½®å½“å‰èŠ‚ç‚¹çš„ç›®æ ‡é€Ÿåº¦
+					Chassis_SetTargetSpeed(nodesr.nowNode.speed);
+
+					//æ£€æµ‹å¹¶åº”ç”¨ç›´çº¿è·¯å¾„åŠ é€Ÿï¼ˆç‰¹å®šé•¿ç›´çº¿åŠ é€Ÿï¼‰
+					Check_And_Apply_SpeedUp();
+
+					//å·¡çº¿
+					Chassis_SetMode(is_Line);	
+					// é˜²æ¸¸é¾™ç®—æ³•å·²ç§»è‡³åº•ç›˜API
+					Chassis_EnableAntiSnake(); // æ¿€æ´»æ¸¸é¾™é˜²æŠ¤æ ‡å¿—
+
+					route_state = 2; // æ ‡è®°å·²è¿‡åŠç¨‹ï¼Œç¡®ä¿è¯¥å¤„ç†åªæ‰§è¡Œä¸€æ¬¡
+			}		        
 			
+			/*è¿‡åŠ50%è·¯å¾„ï¼Œæ‰§è¡Œå·¡çº¿æ¨¡å¼åˆ‡æ¢*/
+			if(fabsf(Chassis_GetMileage()) >= 0.5f*nodesr.nowNode.step && route_state == 2)
+			{
+					if((nodesr.nowNode.flag & Temp_L) == Temp_L)
+					{
+						Chassis_SetTrackMode(TRACK_LEFT_EDGE);
+					}
+					else if((nodesr.nowNode.flag & Temp_R) == Temp_R)
+					{
+						Chassis_SetTrackMode(TRACK_RIGHT_EDGE);
+					}
+					else if((nodesr.nowNode.flag & Temp_LiuShui) == Temp_LiuShui)
+					{
+						Chassis_SetTrackMode(TRACK_LIUSHUI);
+					}
+					route_state = 3; // æ ‡è®°å·²å®Œæˆå·¡çº¿æ¨¡å¼åˆ‡æ¢ï¼Œç¡®ä¿è¯¥å¤„ç†åªæ‰§è¡Œä¸€æ¬¡
+			}
+			/*èŠ‚ç‚¹ååŠæ®µ - è¶…è¿‡70%è·¯å¾„*/
+			if(fabsf(Chassis_GetMileage()) >= 0.7f*nodesr.nowNode.step && route_state == 2 )
+			{
+					
+					if ((fabsf(need2turn(getAngleZ(), nodesr.nextNode.angle)) < 10.0f) || (fabsf(need2turn(nodesr.nowNode.angle, nodesr.nextNode.angle)) < 10.0f) || (nodesr.nowNode.flag & NOTURN) == NOTURN)
+					{}//è§’åº¦å·®å°ï¼Œä¿æŒåŸé€Ÿ	
+
+					//å¤§è§’åº¦
+					else  {Chassis_SetTargetSpeed(Gyro_Speed);}//25ä½é€Ÿè½¬å¼¯é€Ÿåº¦
+					
+					//ç‰¹æ®Šé€Ÿåº¦é€‰æ‹©
+					if(nodesr.lastNode.nodenum == C7 && nodesr.nowNode.nodenum == N14 && nodesr.nextNode.nodenum == C3)   
+					{Chassis_SetTargetSpeed(SPEED1);}	
+					
+					is_near_end = 1;
+			}
+
+		
 	}
-	/*Â·Ïß½áÎ²´¦Àí*/
-	else if(Near2end == 1)
-	{			// Ö´ĞĞµ±Ç°½Úµã¹¦ÄÜ£¨ÈçÅÀÆÂ¡¢¹ıÇÅ¡¢´òÃÅµÈ£©,Ö´ĞĞÍê»á¸ønodesr.flag|0x40
-				map_function(nodesr.nowNode.function);
+	/*è·¯å¾„ç»ˆç‚¹å¤„ç†*/
+	else if(is_near_end == 1)
+	{ 		
+			// æ‰§è¡Œå½“å‰èŠ‚ç‚¹åŠŸèƒ½ï¼Œå¦‚çˆ¬å¡ã€è¿‡æ¡¥ç­‰,æ‰§è¡Œå®Œånodesr.flag|0x40ï¼ˆè·³è¿‡åˆ°è¾¾æ£€æŸ¥ï¼‰
+			map_function(nodesr.nowNode.function);
+			
+			/*å¦‚æœè¿˜æ²¡åˆ°è¾¾*/
+			if((nodesr.flag&0x04)!=0x04 && (nodesr.flag&0x80)!=0x80 && (nodesr.flag&0x20)!=0x20)
+			{
+				/*å‘é€é€šçŸ¥ç»™ä»»åŠ¡åˆ¤æ–­æ˜¯å¦åˆ°è¾¾è·¯å¾„ç‚¹*/
+					xTaskNotifyGive(xHandle_ArriveDetect);
 				
-				/*ÅĞ¶ÏÂ·¿Ú - »¹Ã»µ½Â·¿ÚÇÒ²»ÊÇÈ«°×Ò²²»ÊÇ¶àÌõ±äÒ»Ìõ*/
-				if((nodesr.flag&0x04)!=0x04 && (nodesr.flag&0x80)!=0x80 && (nodesr.flag&0x20)!=0x20)
-				{
-					/*»½ĞÑµ½´ï¼ì²âÈÎÎñ£¬È·ÈÏÊÇ·ñµ½´ïÂ·¿Ú*/
-				   xTaskNotifyGive(xHandle_ArriveDetect);
-				
-					// ×èÈû×Ô¼º£¬µÈ´ıÈÎÎñÍê³Éºó»½ĞÑ
+					// é˜»å¡è‡ªå·±ç­‰å¾…ä»»åŠ¡å®Œæˆä¿¡å·
 					ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 					
-					// »Ø¼ÒÉÏÆÂÇ°¼õËÙ
+					// å›å®¶ä¸Šå¡å‰å‡é€Ÿ
 					if(nodesr.nowNode.nodenum == N2 && nodesr.nextNode.nodenum == P2)
-						Motor_Control(is_Line,nodesr.nowNode.speed*0.9f,nodesr.nowNode.speed*0.9f,0);
-				}		
-	}
-				
-	/*³µÁ¾Î»ÖÃĞ£×¼,×ªÍä´¦ÀíÓë½Úµã¸üĞÂ - µ±µ½´ïÂ·¿ÚÊ±Ö´ĞĞ*/
+					{Chassis_SetTargetSpeed(nodesr.nowNode.speed*0.9f);}
+			}	
+			is_near_end = 0; 
+			route_state = 0; 
+			
+	}			
+	/*åæ ‡è®¡ç®—å¤„ç†,è½¬å¼¯å®Œæˆåˆ‡æ¢èŠ‚ç‚¹ - è·¯å¾„ç‚¹æ—¶æ‰§è¡Œ*/
 	if((nodesr.flag&0x04)==0x04)
 	{
-		nodesr.flag&=~0x04;//	Çå³ıµ½´ïÂ·¿Ú±êÖ¾£¬È·±£Õâ¶ÎÂß¼­Ö»Ö´ĞĞÒ»´Î
+		nodesr.flag&=~0x04;//	æ¸…é™¤è·¯å¾„ç‚¹æ ‡å¿—ï¼Œç¡®ä¿è¯¥å¤„ç†åªæ‰§è¡Œä¸€æ¬¡
 
-		/*²»ÊÇÂ·ÏßÄ©¶Ë - 0xFF±íÊ¾Â·Ïß½áÊø£¬Ö»ÓĞ²»ÊÇÂ·ÏßÄ©¶ËÊ±²ÅÖ´ĞĞºóĞøÂß¼­*/
-		if(route[map.point-1] != 0xFF)// route[map.point-1]=>nodesr.nextNode
+		//èŠ‚ç‚¹åˆ·æ–°è¡”æ¥å¤„ç†
+		if(route[map.point-1] != 0xFF)// route[map.point-1]=>nodesr.nextNode	/*åˆ¤æ–­è·¯å¾„ç»ˆç‚¹ - 0xFFè¡¨ç¤ºè·¯å¾„ç»“æŸï¼Œåªæœ‰æ‰§è¡Œå®Œè·¯å¾„ç»ˆç‚¹æ—¶æ‰æ‰§è¡Œè¯¥å¤„ç†*/
 		{ 
-			// ²»ĞèÒª×ªÍäµÄÇé¿ö£¬Ö±½Ó¸üĞÂ½Úµã
-			if ((fabs(need2turn(getAngleZ(),nodesr.nextNode.angle))<10) ||//µ±Ç°½Ç¶ÈÓëÄ¿±ê½Ç¶È²îĞ¡ÓÚ10¡ã
-				(fabs(need2turn(nodesr.nowNode.angle,nodesr.nextNode.angle))<10)//½Ç¶È²îĞ¡ÓÚ10¡ã 
-				||(nodesr.nowNode.flag&NOTURN)==NOTURN//µ±Ç°½Úµã±êÖ¾Î»²»ĞèÒª×ª
-				||(nodesr.nowNode.nodenum==S1)//µ±Ç°ÌØÊâ½ÚµãS1S2
+			// æ— éœ€è½¬å¼¯ï¼Œç›´æ¥è¿›å…¥ä¸‹èŠ‚ç‚¹
+			if ((fabsf(need2turn(getAngleZ(),nodesr.nextNode.angle))<10.0f) ||//å½“å‰è§’åº¦ä¸ç›®æ ‡è§’åº¦å·®å°äº10åº¦
+				(fabsf(need2turn(nodesr.nowNode.angle,nodesr.nextNode.angle))<10.0f)//è§’åº¦å·®å°äº10åº¦ 
+				||(nodesr.nowNode.flag&NOTURN)==NOTURN//å½“å‰èŠ‚ç‚¹æ ‡å¿—ä½æ— éœ€è½¬å¼¯
+				||(nodesr.nowNode.nodenum==S1)//å½“å‰ä¸ºç‰¹æ®ŠèŠ‚ç‚¹S1S2
 				||(nodesr.nowNode.nodenum==S2)
-				||(route[map.point-3]==S3)//Ç°3¸ö½ÚµãÊÇÌØÊâ½Úµã£¨S3¡¢S4¡¢S5£©
+				||(route[map.point-3]==S3)//å‰3ä¸ªèŠ‚ç‚¹ä¸ºç‰¹æ®ŠèŠ‚ç‚¹ï¼ˆS3ã€S4ã€S5ç­‰ï¼‰
 				||(route[map.point-3]==S4)
 				||(route[map.point-3]==S5)
 				||(isStage == 1))
 			{		
-			
-				if ((nodesr.nowNode.nodenum == N3 && nodesr.nextNode.nodenum == P3) ||
-					(nodesr.nowNode.nodenum == N4 && nodesr.nextNode.nodenum == N3) ||
-					(nodesr.nowNode.nodenum == N4 && nodesr.nextNode.nodenum == N5))
-				{
-					// Ê¹ÓÃÍÓÂİÒÇÄ£Ê½ĞĞÊ»Ò»¶Î¾àÀë
-					Motor_Control(is_Gyro, nodesr.nextNode.speed, nodesr.nextNode.speed, getAngleZ());
-					Want2Go(20);  // Ç°½ø20¸öµ¥Î»¾àÀë
-					// ÇĞ»ØÑ­¼£Ä£Ê½¼ÌĞøĞĞÊ»
-					Motor_Control(is_Line, nodesr.nextNode.speed, nodesr.nextNode.speed, 0);
-				}
-				else if (nodesr.nowNode.nodenum == N13 && nodesr.nextNode.nodenum == P6) 
-				{
-					scaner_set.EdgeIgnore = 6;//ºöÂÔ6¸ö±ßÔµ
-					Want2Go(20);//Ç°½ø20¸öµ¥Î»¾àÀë/
-					scaner_set.EdgeIgnore = 0;
-				}
-				else if (nodesr.nowNode.nodenum == N1 && nodesr.nextNode.nodenum == P1)
-				{
-					scaner_set.EdgeIgnore = 6;//ºöÂÔ6¸ö±ßÔµ
-					Want2Go(20);//20
-					scaner_set.EdgeIgnore = 0;
-				}
-				else if ((nodesr.lastNode.nodenum == P3 && nodesr.nowNode.nodenum == N3 && nodesr.nextNode.nodenum == N4)||
-					 (nodesr.lastNode.nodenum == P4 && nodesr.nowNode.nodenum == N6 && nodesr.nextNode.nodenum == N5))
-				{
-					scaner_set.EdgeIgnore = 7;
-					Want2Go(20);
-					scaner_set.EdgeIgnore = 0;
-				}
-				else if ((nodesr.nowNode.nodenum == N13 && nodesr.nextNode.nodenum == N12)||(nodesr.nowNode.nodenum == N12 && nodesr.nextNode.nodenum == N13))
-				{
-					scaner_set.EdgeIgnore = 7;
-					Want2Go(20);
-					scaner_set.EdgeIgnore = 0;
-				}
-				else if ((nodesr.nowNode.nodenum == P6 && nodesr.nextNode.nodenum == N13)||(nodesr.nowNode.nodenum == N13 && nodesr.nextNode.nodenum == P6))
-				{
-					scaner_set.EdgeIgnore = 7;
-					Want2Go(25);
-					scaner_set.EdgeIgnore = 0;
-				}
-				else
-				{
-					scaner_set.EdgeIgnore = 7;
-					Want2Go(10);
-					scaner_set.EdgeIgnore = 0;
-				}
+				Handle_NoTurn_StraightPath();
 			}
 			
-			/*ĞèÒª×ªÍäµÄÇé¿ö - ¸ù¾İ½Úµã±êÖ¾Î»Ñ¡Ôñ²»Í¬×ªÍä·½Ê½*/
+			/*éœ€è¦è½¬å¼¯å¤„ç† - æ ¹æ®èŠ‚ç‚¹æ ‡å¿—ä½é€‰æ‹©ä¸åŒè½¬å¼¯æ–¹å¼*/
 			else
 			{	
-				//×óÑ­¼£¼Ó´ókpµÄ×ªÍä£¬ÊÊÓÃÓÚĞ¡½Ç¶È
+				//å·¦å·¡çº¿åŠ å¼ºkpçš„è½¬å¼¯ï¼Œé€‚ç”¨äºå°è§’åº¦
 				if(nodesr.nowNode.flag&L_follow)			
 				{
-					float original_line_pid = line_pid_param.kp;
-					float max = line_pid_param.outputMax;
-					line_pid_param.kp = 70;   //´ó·ùÔö´ó±ÈÀıÏµÊı£¬Ìá¸ß¶ÔÆ«²îµÄÏìÓ¦ËÙ¶È
-					line_pid_param.ki = 0;
-					line_pid_param.kd = 5;
-					line_pid_param.outputMax = 0.75f*motor_all.Cspeed;//²îËÙ²»ÄÜÌ«´ó
-					nodesr.nowNode.flag|=LEFT_LINE;//×÷ÓÃ £ºÔÚÑ­¼£¹ı³ÌÖĞ£¬´Ó×ó²à¿ªÊ¼Ñ­¼££¬ºöÂÔÓÒ²à°×Ïß¸ÉÈÅ
-					angle.AngleG = nodesr.nextNode.angle;
-					while(fabs(need2turn(angle.AngleG,getAngleZ()))>4)
-					{
-						vTaskDelay(2);
-						getline_error();
-						if(Scaner.lineNum==1&&((Scaner.detail&0x3C0)!=0)&&(fabsf(need2turn(angle.AngleG,getAngleZ())) < fabsf(need2turn(angle.AngleG,nodesr.nowNode.angle))*0.25f))
-							break;
-					}
-					nodesr.nowNode.flag&=(~LEFT_LINE);		//È¡Ïû×óÑ­¼£±êÖ¾Î»
-					line_pid_param.kp = original_line_pid;  //»Ö¸´Õı³£
-					line_pid_param.outputMax =  max;
+						Chassis_Turn_By_LeftLine_Blocking(nodesr.nextNode.angle, nodesr.nowNode.angle ,0.75f * nodesr.nowNode.speed); // è½¬å¼¯åç»§ç»­å·¦å·¡çº¿ï¼Œè¿‡å¼¯åå¯èƒ½ä¼šæœ‰ä¸€æ®µåå·®ï¼Œç»§ç»­å·¦å·¡çº¿å¯ä»¥æ›´å¿«å›æ­£
+						
 				}
-				//ÓÒÑ­¼£¼Ó´ókpµÄ×ªÍä£¬ÊÊÓÃÓÚĞ¡½Ç¶È
-				else if(nodesr.nowNode.flag&R_follow)		
+				//å³å·¡çº¿åŠ å¼ºkpçš„è½¬å¼¯ï¼Œé€‚ç”¨äºå°è§’åº¦
+				else if(nodesr.nowNode.flag&R_follow)			
 				{
-					float original_line_pid = line_pid_param.kp;
-					float max = line_pid_param.outputMax;
-					float num=motor_all.Distance;
-					line_pid_param.kp = 70;
-					line_pid_param.ki = 0;
-					line_pid_param.kd = 5;
-					line_pid_param.outputMax = 0.75f*motor_all.Cspeed;
-					nodesr.nowNode.flag|=RIGHT_LINE;
-					angle.AngleG = nodesr.nextNode.angle;
-					while(fabs(need2turn(angle.AngleG,getAngleZ()))>4)
-					{
-						vTaskDelay(2);
-						getline_error();
-						if(Scaner.lineNum==1&&((Scaner.detail&0x3C0)!=0)&&(fabsf(need2turn(angle.AngleG,getAngleZ()))<fabs(need2turn(angle.AngleG,nodesr.nowNode.angle))*0.25f))
-						{  
-							break;
-						}
-					}
-					nodesr.nowNode.flag&=(~RIGHT_LINE);		//È¡ÏûÓÒÑ­¼£±êÖ¾Î»
-					line_pid_param.kp = original_line_pid;  //»Ö¸´Õı³£
-					line_pid_param.outputMax =  max;
+						Chassis_Turn_By_RightLine_Blocking(nodesr.nextNode.angle, nodesr.nowNode.angle, 0.75f * nodesr.nowNode.speed);
+						
 				}
-				/*Ô­µØ×ª £¨×óÓÒÂÖ·´Ïò£©- µ±ĞèÒª´ó½Ç¶È×ªÍä*/	
-				else if((nodesr.nowNode.flag&STOPTURN) || (fabsf(need2turn(nodesr.nowNode.angle,nodesr.nextNode.angle))>90))
+				/*åŸç‚¹è½¬ åœè½¦è½¬å¼¯- é€‚ç”¨äºå¤§è§’åº¦è½¬å¼¯*/	
+				else if((nodesr.nowNode.flag&STOPTURN) || (fabsf(need2turn(nodesr.nowNode.angle,nodesr.nextNode.angle))>90.0f))
 				{
 						
-						// Ô­µØ×ªĞèÒªÏÈÍùÇ°×ßÒ»¶Î£¬±£Ö¤³µÔÚ½ÚµãÉÏÔÙ×ª
-						motor_all.Gspeed = Stop_T_Speed;
-						angle.AngleG = getAngleZ();
-						pid_mode_switch(is_Gyro);//ÇĞ»»µ½ÍÓÂİÒÇÄ£Ê½
-						if (nodesr.lastNode.nodenum == P8 && nodesr.nowNode.nodenum == C9 && nodesr.nextNode.nodenum == N22)
-							Want2Go(28);
-						else if (nodesr.lastNode.nodenum == S1 && nodesr.nowNode.nodenum == N3 && nodesr.nextNode.nodenum == P3)
-							Want2Go(15);
-						else if (nodesr.lastNode.nodenum == C8 && nodesr.nowNode.nodenum == C7 && nodesr.nextNode.nodenum == N14)
-							Want2Go(20);
-						else if (nodesr.lastNode.nodenum == C9 && nodesr.nowNode.nodenum == N22 && nodesr.nextNode.nodenum == B6)
-							Want2Go(20);
-						else if (nodesr.lastNode.nodenum == B3 && nodesr.nowNode.nodenum == N2 && nodesr.nextNode.nodenum == P2)
-							Want2Go(30);
-						else if (nodesr.lastNode.nodenum == B9 && nodesr.nowNode.nodenum == N7 && nodesr.nextNode.nodenum == P5)
-							Want2Go(18);
-						else if (nodesr.lastNode.nodenum == P5 && nodesr.nowNode.nodenum == N7 && nodesr.nextNode.nodenum == B8)
-							Want2Go(25);
-						else if (nodesr.lastNode.nodenum == P7 && nodesr.nowNode.nodenum == N20 && nodesr.nextNode.nodenum == C4)
-							Want2Go(30);
-						else if (nodesr.lastNode.nodenum == N8 && nodesr.nowNode.nodenum == N5 && nodesr.nextNode.nodenum == N4)
-							Want2Go(30);
-						else if (nodesr.lastNode.nodenum == N8 && nodesr.nowNode.nodenum == N3 && nodesr.nextNode.nodenum == P3)
-							Want2Go(15);
-						else if (nodesr.lastNode.nodenum == N8 && nodesr.nowNode.nodenum == N3 && nodesr.nextNode.nodenum == N4)
-							Want2Go(20);
-						else if (nodesr.lastNode.nodenum == N9 && nodesr.nowNode.nodenum == N10 && nodesr.nextNode.nodenum == N8)
-							Want2Go(26);
-						else if (nodesr.lastNode.nodenum == N20 && nodesr.nowNode.nodenum == C4 && nodesr.nextNode.nodenum == C8)
-							Want2Go(25);
-						else if (nodesr.lastNode.nodenum == C3 && nodesr.nowNode.nodenum == N9 && nodesr.nextNode.nodenum == B9)
-							Want2Go(45);
-						else if (nodesr.nowNode.nodenum == N20 && nodesr.nextNode.nodenum == P7)
-							Want2Go(30);
-						else if (nodesr.lastNode.nodenum == N10 &&nodesr.nowNode.nodenum == N9 && nodesr.nextNode.nodenum == B9)
-							Want2Go(40);
-						else if (nodesr.lastNode.nodenum == B8 &&nodesr.nowNode.nodenum == N9 && nodesr.nextNode.nodenum == N10)
-							Want2Go(25);
-						else
-							Want2Go(20);
-						
-						CarBrake();//É²³µ
-						vTaskDelay(100);//100ms
-						
-						struct PID_param origin_param = gyroT_pid_param;
-						char oriGmax = motor_all.GyroT_speedMax;
+						// å‰è¿›ä¸€æ®µè·ç¦»ï¼Œç¡®ä¿åœ¨èŠ‚ç‚¹å¤„è½¬å¼¯
+						float forwardDist =GetForwardDistanceBeforeTurn(nodesr.lastNode.nodenum, nodesr.nowNode.nodenum, nodesr.nextNode.nodenum);	
+						Chassis_DriveDistance_Blocking(is_Gyro, forwardDist, Stop_T_Speed, getAngleZ(), 0); 	
 
+						Chassis_Brake();//æ€¥åˆ¹
+						
 						if(nodesr.lastNode.nodenum == B3 && nodesr.nowNode.nodenum == N2 && nodesr.nextNode.nodenum == P2)
 						{
-							gyroT_pid_param.kp = 2.0; // 1.8
-							gyroT_pid_param.ki = 0;
-							gyroT_pid_param.kd = 20.0;
-							motor_all.GyroG_speedMax = 9;
-						}		
+							Chassis_OverrideTurnPid(2.0f, 0.0f, 20.0f, 9.0f);
+						}
 						else
 						{
-							motor_all.GyroT_speedMax = 20;
-							gyroT_pid_param.kp = 6.5f; // 5.0f
-							gyroT_pid_param.ki = 0;	   // 0
-							gyroT_pid_param.kd = 70;
+							Chassis_OverrideTurnPid(6.5f, 0.0f, 70.0f, 20.0f);
 						}
 
-						angle.AngleT = nodesr.nextNode.angle;
-						pid_mode_switch(is_Turn);//ÕâÀï²Å¿ªÊ¼×ªÍä
-						while(fabs(need2turn(angle.AngleT,getAngleZ()))>2)
-						{
-							vTaskDelay(2);
-							Cross_getline();
-							if(Cross_Scaner.lineNum==1&&((Cross_Scaner.detail&0x180)!=0)&&(fabs(need2turn(angle.AngleT,getAngleZ()))<fabs(need2turn(angle.AngleT,nodesr.nowNode.angle))*0.15f))
-								break;
-						}
 
-						motor_all.GyroT_speedMax = oriGmax;
-						gyroT_pid_param = origin_param;
-				}
-				/*ÍÓÂİÒÇ²îËÙ×ªÍä- ÊÊÓÃÓÚÖĞĞ¡½Ç¶È×ªÍä*/
+						Chassis_Turn_By_StopGyro_Blocking(nodesr.nextNode.angle, nodesr.nowNode.angle); // è½¬åˆ°ç›®æ ‡è§’åº¦åå¯èƒ½æœ‰ä¸€æ®µåå·®ï¼Œç»§ç»­é™€èºè½¬å¯ä»¥æ›´å¿«å›æ­£
+
+						Chassis_RestoreTurnPid();
+					}
+				/*é™€èºä»ªä¸åœè½¦è½¬å¼¯- é€‚ç”¨äºä¸­å°è§’åº¦è½¬å¼¯*/
 				else
 				{
-						/*²ÎÊıµ÷Õû*/
-						struct PID_param origin_parm=gyroG_pid_param;
-						float origin_speedMax = motor_all.GyroG_speedMax;
 						
-						gyroG_pid_param.kp = 12;//9
-						gyroG_pid_param.ki = 0;
-						gyroG_pid_param.kd = 180;//140
-						if (need2turn(nodesr.nowNode.angle, nodesr.nextNode.angle) > 0) //×ó×ª
-							motor_all.GyroG_speedMax = 30; //39
-						else
-							motor_all.GyroG_speedMax = 39;
+						float forwardDist = GetForwardDistanceBeforeGyroTurn(nodesr.lastNode.nodenum, nodesr.nowNode.nodenum, nodesr.nextNode.nodenum);
 						
-				
-						mpuZreset(get_latest_yaw(), nodesr.nowNode.angle);
+						Chassis_DriveDistance_Blocking(is_Gyro, forwardDist, Gyro_Speed, getAngleZ(), 0); // å‰è¿›ä¸€æ®µè·ç¦»ï¼Œç¡®ä¿åœ¨èŠ‚ç‚¹å¤„è½¬å¼¯	
 
+						Chassis_Turn_By_Gyro_Blocking(nodesr.nextNode.angle, nodesr.nowNode.angle);
 
-						/*Ç°½øÒ»¶Î¾àÀë*/
-						Motor_Control(is_Gyro, Gyro_Speed, Gyro_Speed, nodesr.nowNode.angle);
-
-						if ((nodesr.lastNode.nodenum == B2 && nodesr.nowNode.nodenum == N4 && nodesr.nextNode.nodenum == N5) ||
-							(nodesr.lastNode.nodenum == B6 && nodesr.nowNode.nodenum == N20 && nodesr.nextNode.nodenum == C4) ||
-						    (nodesr.lastNode.nodenum == C4 && nodesr.nowNode.nodenum == N20 && nodesr.nextNode.nodenum == B6) ||
-							(nodesr.lastNode.nodenum == B2 && nodesr.nowNode.nodenum == N1 && nodesr.nextNode.nodenum == P1))
-							Want2Go(9);
-						else if (nodesr.lastNode.nodenum == B3 && nodesr.nowNode.nodenum == N2 && nodesr.nextNode.nodenum == P2)
-							Want2Go(15);
-						else if (nodesr.lastNode.nodenum == P3 && nodesr.nowNode.nodenum == N3 && nodesr.nextNode.nodenum == N8)
-							Want2Go(5);
-						else if (nodesr.lastNode.nodenum == P8 && nodesr.nowNode.nodenum == C9 && nodesr.nextNode.nodenum == N22)
-							Want2Go(3);
-						else if (nodesr.lastNode.nodenum == S1 && nodesr.nowNode.nodenum == N3 && nodesr.nextNode.nodenum == N8)
-							Want2Go(8);
-						else if (nodesr.lastNode.nodenum == N3 && nodesr.nowNode.nodenum == N4 && nodesr.nextNode.nodenum == B3)
-							Want2Go(15);
-						else if (nodesr.lastNode.nodenum == N5 && nodesr.nowNode.nodenum == N12 && nodesr.nextNode.nodenum == N13)
-							Want2Go(3);
-						else if (nodesr.lastNode.nodenum == N5 && nodesr.nowNode.nodenum == N6 && nodesr.nextNode.nodenum == S2)
-							Want2Go(12);
-						else if (nodesr.lastNode.nodenum == N8 && nodesr.nowNode.nodenum == N12 && nodesr.nextNode.nodenum == N13)
-							Want2Go(4);
-						else if (nodesr.lastNode.nodenum == N8 && nodesr.nowNode.nodenum == N3 && nodesr.nextNode.nodenum == P3)
-							Want2Go(20);
-						else if (nodesr.lastNode.nodenum == N8 && nodesr.nowNode.nodenum == N3 && nodesr.nextNode.nodenum == S1)
-							Want2Go(30);
-						else if (nodesr.lastNode.nodenum == N9 && nodesr.nowNode.nodenum == N10 && nodesr.nextNode.nodenum == N8)
-							Want2Go(4);
-						else if (nodesr.lastNode.nodenum == N10 && nodesr.nowNode.nodenum == N3 && nodesr.nextNode.nodenum == S1)
-							Want2Go(4);
-						else if (nodesr.lastNode.nodenum == N15 && nodesr.nowNode.nodenum == N10 && nodesr.nextNode.nodenum == N8)
-							Want2Go(5);
-						else if (nodesr.lastNode.nodenum == C7 && nodesr.nowNode.nodenum == C8 && nodesr.nextNode.nodenum == C4)
-							Want2Go(15);
-						
-						//¼ÆËãAngleGµÄÒâÒå£º²»¹Üµ±Ç°getAngleZ()ÄÜ²»ÄÜºÍnodesr.nowNode.angleÖØºÏ£¬Ö±½Ó×ªÏà¶Ô½Ç¶È
-						angle.AngleG = getAngleZ() + need2turn(nodesr.nowNode.angle, nodesr.nextNode.angle);
-						if(angle.AngleG>180)
-							angle.AngleG -= 360;
-						else if(angle.AngleG<=-180)
-							angle.AngleG += 360;
-						while(fabsf(need2turn(getAngleZ(),angle.AngleG)) > 4)
-						{
-							vTaskDelay(2);
-							Cross_getline();
-							if(Cross_Scaner.lineNum == 1 && (Cross_Scaner.detail&0x3C0) && (fabs(need2turn(angle.AngleG,getAngleZ()))<fabs(need2turn(angle.AngleG,nodesr.nowNode.angle))*0.1f))
-								break;
-						}
-
-						gyroG_pid = (struct P_pid_obj){0,0,0,0,0,0,0};
-						gyroG_pid_param=origin_parm;
-						motor_all.GyroG_speedMax=origin_speedMax;
-				}
+					}
 				
 			}
 
-			/*×ªÍêºó½øÈëÑ­¼£Ä£Ê½£¬¸üĞÂ½áµã£¬Çå¿Õ±àÂëÆ÷Öµ*/
-				// »Ö¸´½ÚµãÇ°¶Î´¦ÀíÄ£Ê½
-				Near2end=0;
+			/*è½¬å¼¯å®Œæˆåˆ‡æ¢å·¡çº¿æ¨¡å¼ï¼Œè¿›å…¥ä¸‹èŠ‚ç‚¹ï¼Œæ¸…é™¤ç›¸å…³å€¼*/
 				isStage = 0;
-				motor_all.CDOWNincrement = 0.6;  // ÉèÖÃËÙ¶ÈÏÂ½µÔöÁ¿
-				half_times = 0;  // ÖØÖÃ°ë³Ì±êÖ¾
-				buzzer_off();  // ¹Ø±Õ·äÃùÆ÷
-				
-				// ÇĞ»»»ØÑ­¼£Ä£Ê½£¬×¼±¸ÏÂÒ»¶ÎĞĞÊ»
-				pid_mode_switch(is_Line);
-				
-				// ¸üĞÂ½Úµã¹ØÏµ£º
-
+				buzzer_off();  // å…³é—­èœ‚é¸£å™¨
+							
+				// åˆ‡æ¢èŠ‚ç‚¹å…³ç³»
 				nodesr.lastNode = nodesr.nowNode;
 				nodesr.nowNode = nodesr.nextNode;
-				motor_all.Cspeed = nodesr.nowNode.speed;  // ÉèÖÃĞÂµÄËÙ¶È
 				nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point++])];
-				
-				// ÌØ¶¨½Úµã×éºÏµÄÌØÊâÉèÖÃ
-				if(nodesr.nowNode.nodenum == N9 && nodesr.nextNode.nodenum == N10)
-					scaner_set.CatchsensorNum = line_weight[7];  // ÉèÖÃÏßÈ¨ÖØ
-				else
-					scaner_set.CatchsensorNum = 0;
-				
-				// ÖØÖÃ¸÷ÖÖ±êÖ¾Î»ºÍ¼ÆÊıÆ÷£¬×¼±¸ÏÂÒ»¶ÎĞĞÊ»
-				scaner_set.EdgeIgnore = 0;
-				encoder_clear();  // Çå¿Õ±àÂëÆ÷Öµ
-				LEFT_RIGHT_LINE = 0;  // ÖØÖÃÑ­¼£Ä£Ê½
-				mul2sing = 0;
-				sing2mul = 0;
-				nodesr.flag&=~0x04;  // Çå³ıµ½´ïÂ·¿Ú±êÖ¾
+			
+				nodesr.flag&=~0x04;  // æ¸…é™¤è·¯å¾„ç‚¹æ ‡å¿—
 			}
 		else if(route[map.point-1] == 0xFF)// route[map.point-1]=>nodesr.nextNode
 		{	
-			// Í£Ö¹Ğ¡³µ£¬ÖØÖÃ¸÷ÖÖ×´Ì¬
-			motor_all.Cspeed = 0;
-			motor_all.Gspeed = 0;
-			LEFT_RIGHT_LINE = 0;
-			CarBrake();  // É²³µ
+			// åœæ­¢å°è½¦å¹¶è®¾ç½®ç›¸å…³çŠ¶æ€
+			Chassis_SetTargetSpeed(0);
+			Chassis_Brake();  // æ€¥åˆ¹
 			vTaskDelay(2);
-			Near2end=0;  // ÖØÖÃ±êÖ¾Î»
-			map.routetime += 1;  // ÅÜÍ¼´ÎÊı¼Ó1
+			map.routetime += 1;  // åœ°å›¾è¿è¡Œæ¬¡æ•°+1	
 		}
 	}	
-		
-	/*¿´µ½ºìµÆµÄ´¦Àí - ÌØÊâÇé¿ö´¦Àí*/
+	
+	/*çœ‹åˆ°çº¢ç¯*/
 	if(nodesr.flag&0x20)
-	{		
-		scaner_set.CatchsensorNum = 0;  // ÖØÖÃ´«¸ĞÆ÷²¶»ñÊıÁ¿
-		Near2end=0;  // ÇĞ»»»Ø½ÚµãÇ°¶Î´¦ÀíÄ£Ê½
-		
-		// ¸üĞÂ½Úµã¹ØÏµ£¬Ìø¹ıµ±Ç°ºìµÆ½Úµã
-		nodesr.lastNode = nodesr.nowNode;
-		nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point++])];  // »ñÈ¡ĞÂµÄÏÂÒ»¸ö½Úµã
-		
-		nodesr.flag&=~0x20;  // Çå³ıºìµÆ±êÖ¾
-		motor_all.Cspeed = SPEED25;  // ÉèÖÃĞÂµÄËÙ¶È
-		pid_mode_switch(is_Line);  // ÇĞ»»»ØÑ­¼£Ä£Ê½
-	}
-
-	/*¿´µ½·ÇºìµÆµÄ´¦Àí - ÌØÊâÇé¿ö´¦Àí*/
-	if(nodesr.flag&0x80)  // Èç¹û´òµ½ÃÅÊÇ¿ª×ÅµÄ
 	{
-		scaner_set.CatchsensorNum = 0;  // ÖØÖÃ´«¸ĞÆ÷²¶»ñÊıÁ¿
-		Near2end=0;  // ÇĞ»»»Ø½ÚµãÇ°¶Î´¦ÀíÄ£Ê½
 		
-		// »ñÈ¡ĞÂµÄÏÂÒ»¸ö½Úµã
-		nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point++])];
-		
-		nodesr.flag&=~0x80;  // Çå³ı·ÇºìµÆ±êÖ¾
-		encoder_clear();  // Çå¿Õ±àÂëÆ÷Öµ
-		motor_all.Cspeed = SPEED3;  // ÉèÖÃĞÂµÄËÙ¶È
-		pid_mode_switch(is_Line);  // ÇĞ»»»ØÑ­¼£Ä£Ê½
+		// åˆ‡æ¢èŠ‚ç‚¹å…³ç³»ï¼Œè¿›å…¥ä¸‹ä¸€ä¸ªå¹³å°èŠ‚ç‚¹
+		nodesr.lastNode = nodesr.nowNode;
+		nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point++])];  // è·å–æ–°çš„ä¸‹ä¸€ä¸ªèŠ‚ç‚¹	
+
+		nodesr.flag&=~0x20;  // æ¸…é™¤æ—‹è½¬å¹³å°æ ‡å¿—
+	}
+
+	/*çœ‹åˆ°éçº¢ç¯*/
+	if(nodesr.flag&0x80)  // æ£€æµ‹åˆ°æ ‡å¿—
+	{		
+		// è·å–æ–°çš„ä¸‹ä¸€ä¸ªèŠ‚ç‚¹
+		nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point++])];	//ç–‘é—®ï¼šä¸ºä»€ä¹ˆè¿™é‡Œä¸æ›´æ–°lastNodeå’ŒnowNodeï¼Ÿ
+
+		nodesr.flag&=~0x80;  // æ¸…é™¤æ ‡å¿—
 	}
 }
 
-void select_speed(void)
-{
-	switch ((int)nodesr.nowNode.speed) 
-		{
-		case SPEED4:
-			line_pid_param.kp = 4.0;//5.0
-			line_pid_param.ki = 0;//0
-			line_pid_param.kd = 300;//260
-			break;		
-		case SPEED3:
-			line_pid_param.kp = 7;//8.0
-			line_pid_param.ki = 0;//0
-			line_pid_param.kd = 300;//300
-			break;
-			
-		case SPEED2:
-			line_pid_param.kp = 7.0;//8.0
-			line_pid_param.ki = 0.008;//0.008
-			line_pid_param.kd = 400;//400
-			break;		
-		case SPEED0:
-		case SPEED1:
-			line_pid_param.kp = 7.0;//6.0
-			line_pid_param.ki = 0;//0
-			line_pid_param.kd = 350;//300
-			break;
-		default:
-			break;
-	  }
-}
-/*º¯ÊıÑ¡Ôñ*/
+
+/*åŠŸèƒ½é€‰æ‹©*/
 void map_function(u8 fun)
 {
 	switch(fun)
 	{
 		case 0:break;
-		case 1:break;												                            //Ñ°Ïß
-		case UpStage    : Stage();					  						break;			//Æ½Ì¨
-		case Bridge  	: Barrier_Bridge();									break;			//³¤ÇÅ
-		case Hill	    : Barrier_Hill();									break;			//Â¥Ìİ
-		case SM         : Sword_Mountain();									break;			//µ¶É½
-		case View	    : view();					   						break;			//¾°µã ºó×ª
-		case View1      : view1();					  						break;			//¾°µã Ö±ÍË
-		case BACK       : back();					  					    break; 
-		case BSoutPole	: South_Pole();			         					break;			//ÄÏ¼«
-		case QQB	    : QQB_1();					         				break;			//õÎõÎ°å
-		case BLBS       : Barrier_WavedPlate(87);	   						break;			//¶Ì¼õËÙ°å ËÙ¶È£¬³¤¶È 80//85
-		case BLBL	    : Barrier_WavedPlate(160);	 						break;			//³¤¼õËÙ°å ËÙ¶È£¬³¤¶È	//180
-		case DOOR	    : door();					                  		break;			//´òÃÅ
-		case BHM        : Barrier_HighMountain(Mount_Speed);				break;	    //ÉÏÖé·å
-		//case IGNORE       :ignore_node(); 			break;  		          //ºöÂÔ¸Ã½Úµã
-		case UNDER      : undermou();			                			break;
-		//case Special_node :Special_Node();			break;
-		case UpStageP2	: Stage_P2();				               			break;
-		default:									                        break;		
+		case 1:break;							                            //å¯»æ‰¾
+		case UpStage    : Stage();			   					break;			//å¹³å°
+		case Bridge   	: Barrier_Bridge();					break;			//è¿‡æ¡¥
+		case Hill	    : Barrier_Hill();					break;			//å±±åœ°
+		case SM         : Sword_Mountain();					break;			//å‡å±±
+		case View	    : view();		    				break;			//è§‚æœ› æ—‹è½¬
+		case View1      : view1();		   				break;			//è§‚æœ› ç›´è¡Œ
+		case BACK       : back();		   			    break; 
+		case BSoutPole	: South_Pole();	          		break;			//å—æ
+		case QQB	    : QQB_1();	          		break;			//è··è··æ¿
+		case BLBS       : Barrier_WavedPlate(87);	    		break;			//è“æ³¢åŠ¨æ¿ é€Ÿåº¦ï¼šè°ƒè¯• 80//85
+		case BLBL	    : Barrier_WavedPlate(160);	  		break;			//çº¢æ³¢åŠ¨æ¿ é€Ÿåº¦ï¼šè°ƒè¯•	//180
+		case DOOR	    : door();		                   	break;			//å¼€é—¨
+		case BHM        : Barrier_HighMountain(Mount_Speed);		break;    //é«˜å±±
+		//case IGNORE       :ignore_node(); 	break;   	          //å¿½ç•¥è¯¥èŠ‚ç‚¹
+		case UNDER      : undermou();	                 	break;
+		//case Special_node :Special_Node();	break;
+		case UpStageP2	: Stage_P2();	                	break;
+		default:				                        break;		
 	}
 }

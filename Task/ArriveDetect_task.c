@@ -5,6 +5,8 @@
 #include "imu.h"
 #include "turn.h"
 #include "stdio.h"
+
+uint8_t  mul2sing = 0 ,sing2mul = 0;
 void arrive_detect_task(void *pvParameters)
 {
 	 while (1)
@@ -38,7 +40,7 @@ void arrive_detect_task(void *pvParameters)
         // 通知 main_task 可以继续
         xTaskNotifyGive(main_handler); // 或者你也可以保留一个 main_task 的句柄
 
-        // vTaskSuspend(NULL); // 也可以在此挂起自己，由主任务再唤醒（可选）
+
     }
 	
 }

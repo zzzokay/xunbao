@@ -106,8 +106,6 @@ virtualFolder:
         - path: ../Motor/motor.h
         - path: ../Motor/Encoder.c
         - path: ../Motor/Encoder.h
-        - path: ../Motor/speed_ctrl.c
-        - path: ../Motor/speed_ctrl.h
       folders: []
     - name: Task
       files:
@@ -187,6 +185,7 @@ targets:
       libList: []
     excludeList:
       - <virtual_root>/Application/User/command.c
+      - <virtual_root>/Motor/speed_ctrl.c
     settings: {}
     toolchain: AC5
     toolchainConfigMap:
