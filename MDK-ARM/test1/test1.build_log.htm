@@ -27,20 +27,16 @@ Project File Date:  04/22/2026
 <h2>Output:</h2>
 *** Using Compiler 'V5.06 update 7 (build 960)', folder: 'D:\KEIL5\Core\ARM\version5\Bin'
 Build target 'test1'
-compiling chassis_api.c...
+compiling usart.c...
 ../Task/motor_task.h(26): warning:  #375-D: declaration requires a typedef name
   };
-..\Application\turn.h(17): warning:  #231-D: declaration is not visible outside of function
-  uint8_t Go_Angle(float angle_want, float speed, struct Motors *motor);
-..\Application\chassis_api.c(586): warning:  #223-D: function "buzzer_on" declared implicitly
-  	buzzer_on();
-..\Application\chassis_api.c(592): warning:  #1-D: last line of file ends without a newline
-  }
-..\Application\chassis_api.c: 4 warnings, 0 errors
+../Module/Rec_usart.h(34): warning:  #1295-D: Deprecated declaration get_PIDdata - give arg types
+  void get_PIDdata();
+../Core/Src/usart.c: 2 warnings, 0 errors
 linking...
-Program Size: Code=37604 RO-data=804 RW-data=388 ZI-data=20972  
+Program Size: Code=41028 RO-data=804 RW-data=388 ZI-data=20972  
 FromELF: creating hex file...
-"test1\test1.axf" - 0 Error(s), 4 Warning(s).
+"test1\test1.axf" - 0 Error(s), 2 Warning(s).
 
 <h2>Software Packages used:</h2>
 
@@ -63,7 +59,7 @@ Package Vendor: Keil
 
    * Component: ARM::CMSIS:CORE:5.6.0
       Include file:  CMSIS/Core/Include/tz_context.h
-Build Time Elapsed:  00:00:06
+Build Time Elapsed:  00:00:08
 </pre>
 </body>
 </html>

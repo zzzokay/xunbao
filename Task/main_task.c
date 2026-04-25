@@ -22,6 +22,7 @@
 #include "K210.h"
 #include "scaner.h"
 #include "motor.h"
+#include "chassis_api.h"
 
 /*Ö÷ÈÎÎñ*/
 void main_task(void *pvParameters)
@@ -55,9 +56,10 @@ void main_task(void *pvParameters)
 		
  		if(test_flag)
  		{
- 			motor_all.Cincrement = 0.1;
- 			pid_mode_switch(is_Line);
- 			MOTOR_PWM_MAX = 7000;
+			Chassis_DriveDistance_Blocking(is_Line,20,20,0,0);
+			Chassis_SetTargetSpeed(0);
+			vTaskDelay(500);
+			Chassis_Brake();
  			test_flag=0;
 
 		}			

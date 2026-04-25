@@ -63,13 +63,13 @@ void incremental_PID(struct I_pid_obj *motor, struct PID_param *pid)
 	motor->output += pid->kp * proportion + pid->ki * integral + pid->kd * differential;
 
 	// Êä³öÏŞ·ù
-	if (motor->output >4000)
+	if (motor->output > MOTOR_PWM_MAX)
 	{
-		motor->output = 4000;
+		motor->output = MOTOR_PWM_MAX;
 	}
-	else if (motor->output < -4000)
+	else if (motor->output < -MOTOR_PWM_MAX)
 	{
-		motor->output = -4000;
+		motor->output = -MOTOR_PWM_MAX;
 	}
 
 	motor->last2_bias = motor->last_bias;

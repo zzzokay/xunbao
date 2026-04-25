@@ -34,7 +34,7 @@ void Cross_getline(void);
 uint8_t Line_Scan(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_ignore, uint8_t track_mode);
 void actions(uint8_t action);
 uint8_t getline_error(void);
-void getline_error_ex(volatile SCANER *scaner, int8_t edge_ignore, uint8_t track_mode);
+void getline_error_ex(volatile SCANER *scaner, uint8_t scaner_mode, int8_t edge_ignore, uint8_t track_mode);
 // void MODE_Switch(int8_t MODE_need);
 void printf_byte(uint16_t data);
 float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned char SensorNum, uint8_t track_mode, float *Error, u8 *LED_Num_Temp);

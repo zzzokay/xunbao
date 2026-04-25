@@ -49,18 +49,24 @@ void Chassis_Init(void)
 
     motor_all.Lspeed = 0;   
 	motor_all.Rspeed = 0;
+    motor_all.Cspeed = 0;
+    //motor_all.Cspeed = 50;
+    motor_all.Gspeed = 0;
 	motor_all.encoder_avg = 0;
 	motor_all.GyroG_speedMax = 100;	// 自平衡左右偏差最大值10000
 	motor_all.GyroT_speedMax = 25;  	// 自转最大速度34//--->5760 //35
-	motor_all.Cincrement = 0.9;	   	// 循迹加速度 0.3
-	motor_all.CDOWNincrement = 0.75;	//循迹减速0.5
-	motor_all.Gincrement = 0.6;	   	// 非循迹加速度0.5
-	motor_all.GDOWNincrement=0.7;
+	motor_all.Cincrement = 0.5;	   	// 循迹加速度 0.5
+	motor_all.CDOWNincrement = 0.5;	//循迹减速0.5
+    motor_all.Gincrement = 0.5;	   	// 非循迹加速度0.5
+    motor_all.GDOWNincrement=0.5;	// 非循迹减速0.5
+
 
     TC_speed = 0;
+    //TC_speed = 50;
     TG_speed = 0;
-    PIDMode = is_No;
+    //PIDMode = is_No;
     LEFT_RIGHT_LINE = 0;
+    MOTOR_PWM_MAX = 5000;
 
     motor_init();
     pid_init();
@@ -125,19 +131,19 @@ void Chassis_SetTrackMode(LineTrackMode_e mode)
     switch (mode)
     {
         case TRACK_ALL:
-            LEFT_RIGHT_LINE = 0;//默认模式（没有主动区分）
+            LEFT_RIGHT_LINE = TRACK_ALL;//默认模式（没有主动区分）
             break;
         case TRACK_LEFT_EDGE:
-            LEFT_RIGHT_LINE = 1;//左边缘跟踪（忽略右侧）
+            LEFT_RIGHT_LINE = TRACK_LEFT_EDGE;//左边缘跟踪（忽略右侧）
             break;
         case TRACK_RIGHT_EDGE:
-            LEFT_RIGHT_LINE = 2;//右边缘跟踪（忽略左侧）
+            LEFT_RIGHT_LINE = TRACK_RIGHT_EDGE;//右边缘跟踪（忽略左侧）
             break;
         case TRACK_LIUSHUI:
-            LEFT_RIGHT_LINE = 3;//中心跟踪
+            LEFT_RIGHT_LINE = TRACK_LIUSHUI;//中心跟踪
             break;
         default:
-            LEFT_RIGHT_LINE = 0;
+            LEFT_RIGHT_LINE = TRACK_ALL;
             break;
     }
 }
@@ -214,7 +220,8 @@ void Chassis_EnableAntiSnake(void)
 
 void Chassis_Brake(void)//更安全的急刹
 {
-    Chassis_SetTargetSpeed(0); 
+    Chassis_SetTargetSpeed(0);
+    vTaskDelay(100);//100ms
     chassis.PID_mode = is_Free;
     CarBrake(); // 调用原有的底层急刹
     vTaskDelay(100);//100ms

@@ -1,7 +1,6 @@
 /**
  * =============================================================================
  * 循迹系统 - scaner.c
- * =============================================================================
  * 
  * 【调用关系】
  *  ┌─────────────────────────────────────────────────
@@ -99,7 +98,7 @@ void Cross_getline(void)
 		if (Cross_Scaner.detail & (0x1 << i))
 		{
 			lednum++;
-			if (!(Cross_Scaner.detail & (1 << (i + 1))))
+			if (i == 15 || !(Cross_Scaner.detail & (1 << (i + 1))))
 				linenum++; // 先读取亮灯数和引导线数，检测到从1变为0认为一条线
 		}
 	}
@@ -147,24 +146,24 @@ void Go_Line(float speed, struct Motors *motor)
 /*获取模式处理后的循迹值*/
 uint8_t getline_error(void)
 {
-	getline_error_ex(&Scaner,scaner_set.EdgeIgnore, LEFT_RIGHT_LINE);
+	getline_error_ex(&Scaner,ScanerMode, scaner_set.EdgeIgnore, LEFT_RIGHT_LINE);
 	return 0;
 }
 
-void getline_error_ex(volatile SCANER *scaner, int8_t edge_ignore, uint8_t track_mode)
+void getline_error_ex(volatile SCANER *scaner, uint8_t scaner_mode, int8_t edge_ignore, uint8_t track_mode)
 {
 	if (scaner == NULL)
 	{
 		return;
 	}
 
-	if (ScanerMode == RF)
+	if (scaner_mode == RF)
 	{
 		UpdateScanerFromRf(scaner, Lamp_Max, edge_ignore, track_mode);
 		return;
 	}
 
-	if (ScanerMode == Gray)
+	if (scaner_mode == Gray)
 	{
 		UpdateScanerFromGray(scaner);
 	}
@@ -309,7 +308,7 @@ float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned ch
 				/*如果是白线*/
 				if ((scaner->detail >> (SensorNum - i - 1)) & 0X01)
 				{
-					if (!((scaner->detail >> ((SensorNum - i - 1) - 1)) & 0x01)) // 下一个灯不是白
+					if (i == SensorNum - 1 || !((scaner->detail >> ((SensorNum - i - 1) - 1)) & 0x01)) // 下一个灯不是白
 					{
 						break; // 退出			//目的 取第一段连续亮灯
 					}
@@ -331,7 +330,7 @@ float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned ch
 					pos += SensorNum - 1 - i;
 				if ((scaner->detail >> i) & 0X01)
 				{
-					if (!((scaner->detail >> (i + 1)) & 0x01))
+					if (i == SensorNum - 1 || !((scaner->detail >> (i + 1)) & 0x01))
 					{
 						break;
 					}
@@ -343,7 +342,7 @@ float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned ch
 			}
 		}
 		/*居中流水*/
-		else if (track_mode == TRACK_LIUSHUI )           // 流水巡线模式)
+		else if (track_mode == TRACK_LIUSHUI )           // 流水巡线模式
 		{
 			float best_location = 0.0f;
 			float temp_location = 0.0f;
@@ -357,7 +356,7 @@ float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned ch
 				{
 					temp_location += i;
 					temp_len++;
-					if (!(scaner->detail & (1 << (i + 1))))//找一段连续的亮灯
+					if (i == SensorNum - 1 || !(scaner->detail & (1 << (i + 1))))//找一段连续的亮灯
 					{
 						temp_location /= (float)temp_len; // 获取平均位置
 						
@@ -601,6 +600,7 @@ float Get_scaner_error(void)
 /*粗略检测 - 判断该循迹值是否可用，可用返回1，不可用返回0*/
 uint8_t error_detect_one(u8 LED_Num, u8 Line_Num)
 {
+	
 	// 多灯 多线 无灯 灯数/线数 >=4						            LED_Num / Line_Num >= 4表示 平均每条线占太多灯
 	if (LED_Num >= 10 || Line_Num >= 4 || LED_Num == 0 || LED_Num / Line_Num >= 4)
 	{
