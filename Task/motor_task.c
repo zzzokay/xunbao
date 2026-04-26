@@ -94,6 +94,7 @@ void motor_task(void *pvParameters)
 		/*陀螺仪模式*/ ///printf("Gyro:%.2f LSP:%.2f RSP:%.2f L0:%.2f L1:%.2f R0:%.2f R1:%.2f\r\n", imu.yaw,motor_all.Lspeed,motor_all.Rspeed,motor_L0.output,motor_L1.output,motor_R0.output,motor_R1.output);
 		/*巡线值*/ ///printf_byte(Scaner.detail);
 		/*左速度和右速度*/printf("Lspeed:%.2f Rspeed:%.2f\r\n", motor_all.Lspeed, motor_all.Rspeed);
+		printf("Cspeed:%.2f Gspeed:%.2f\r\n", motor_all.Cspeed, motor_all.Gspeed);
 		/*当前角度信息*/// printf("yaw:%.2f\troll:%.2f\tpitch:%.2f\tbasic:%.2f\r\n", imu.yaw, imu.roll, imu.pitch, basic_p);
 		/*当前目的节点*/ //printf("%d\r\n",nodesr.nowNode.nodenum);
 		/*巡线错误*/ //printf("前%d 左%d 右%d\r\n", Infrared_ahead, infrared.head_left, infrared.head_right);

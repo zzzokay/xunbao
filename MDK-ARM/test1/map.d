@@ -4,7 +4,7 @@ test1\map.o: ..\Application\sys.h
 test1\map.o: ../Drivers/CMSIS/Device/ST/STM32F7xx/Include/stm32f7xx.h
 test1\map.o: ../Drivers/CMSIS/Device/ST/STM32F7xx/Include/stm32f750xx.h
 test1\map.o: ../Drivers/CMSIS/Include/core_cm7.h
-test1\map.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdint.h
+test1\map.o: C:\keil\ARM\ARMCC\Bin\..\include\stdint.h
 test1\map.o: ../Drivers/CMSIS/Include/cmsis_version.h
 test1\map.o: ../Drivers/CMSIS/Include/cmsis_compiler.h
 test1\map.o: ../Drivers/CMSIS/Include/cmsis_armcc.h
@@ -16,7 +16,7 @@ test1\map.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_rcc.h
 test1\map.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_def.h
 test1\map.o: ../Drivers/CMSIS/Device/ST/STM32F7xx/Include/stm32f7xx.h
 test1\map.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h
-test1\map.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stddef.h
+test1\map.o: C:\keil\ARM\ARMCC\Bin\..\include\stddef.h
 test1\map.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_rcc_ex.h
 test1\map.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_exti.h
 test1\map.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_gpio.h
@@ -68,13 +68,13 @@ test1\map.o: ../Module/imu.h
 test1\map.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\map.o: ..\Application\chassis_api.h
 test1\map.o: ../Module/bsp_linefollower.h
-test1\map.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\math.h
+test1\map.o: C:\keil\ARM\ARMCC\Bin\..\include\math.h
 test1\map.o: ../Module/bsp_buzzer.h
 test1\map.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\map.o: ../Motor/encoder.h
 test1\map.o: ../Core/Inc/tim.h
 test1\map.o: ../USMAT/uart.h
-test1\map.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h
+test1\map.o: C:\keil\ARM\ARMCC\Bin\..\include\stdio.h
 test1\map.o: ../Module/openmv.h
 test1\map.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\map.o: ../Motor/motor.h

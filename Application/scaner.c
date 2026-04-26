@@ -118,7 +118,7 @@ static void UpdateScanerFromRf(volatile SCANER *scaner, unsigned char sensorNum,
 }
 
 /*—≠º£PIDº∆À„*/
-void Go_Line(float speed, struct Motors *motor)
+void Go_Line(float speed, volatile struct Motors *motor)
 {
 	if(isFilter && ScanerMode == RF)
 	{

@@ -87,10 +87,6 @@ void Chassis_SetGyroAngle_Go(float angle);
  */
 void Chassis_SetGyroAngle_Turn(float angle);
 
-/**
- * @brief 进入陀螺仪定角直行模式并设定速度和角度
- */
-void Chassis_DriveGyro(float speed, float angle);
 
 /**
  * @brief 统一的底盘运动控制入口

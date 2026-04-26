@@ -1,9 +1,9 @@
 test1\cmsis_os.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.c
-test1\cmsis_os.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\string.h
+test1\cmsis_os.o: C:\keil\ARM\ARMCC\Bin\..\include\string.h
 test1\cmsis_os.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\cmsis_os.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
-test1\cmsis_os.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stddef.h
-test1\cmsis_os.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdint.h
+test1\cmsis_os.o: C:\keil\ARM\ARMCC\Bin\..\include\stddef.h
+test1\cmsis_os.o: C:\keil\ARM\ARMCC\Bin\..\include\stdint.h
 test1\cmsis_os.o: ../Core/Inc/FreeRTOSConfig.h
 test1\cmsis_os.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
 test1\cmsis_os.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h

@@ -29,9 +29,9 @@ void main_task(void *pvParameters)
 {
 	portTickType xLastWakeTime;
 	xLastWakeTime = xTaskGetTickCount();   //获取系统节拍、
-//	zhunbei(); // 启动流程//注意有挡板 会卡在这
+	zhunbei(); // 启动流程//注意有挡板 会卡在这
 	encoder_clear(); // 路程记录清零
-//	Motor_Control(is_Line, SPEED0, SPEED0, 0);
+	Motor_Control(is_Line, SPEED0, SPEED0, 0);
 	
 	
 	uint8_t test_flag =1;
@@ -56,15 +56,57 @@ void main_task(void *pvParameters)
 		
  		if(test_flag)
  		{
-			Chassis_DriveDistance_Blocking(is_Line,20,20,0,0);
-			Chassis_SetTargetSpeed(0);
-			vTaskDelay(500);
-			Chassis_Brake();
- 			test_flag=0;
+			//vTaskDelay(100);
 
+			////直线循迹
+			// Chassis_DriveDistance_Blocking(is_Line,20,20,0,0);
+			// Chassis_SetTargetSpeed(SPEED0);
+			// vTaskDelay(500);
+			// Chassis_Brake();
+ 			
+
+			////偏左循迹
+			// Chassis_SetTrackMode(TRACK_LEFT_EDGE);
+			// Chassis_DriveDistance_Blocking(is_Line,50,25,0,0);
+			// Chassis_Brake();
+			
+			
+			////偏右循迹
+			// Chassis_SetTrackMode(TRACK_RIGHT_EDGE);
+			// Chassis_DriveDistance_Blocking(is_Line,50,25,0,0);
+			// Chassis_Brake();
+		
+
+			////流水循迹
+			// Chassis_SetTrackMode(TRACK_LIUSHUI);
+			// Chassis_DriveDistance_Blocking(is_Line,50,25,0,0);
+			// Chassis_Brake();
+		
+			
+			////固定角度直行
+			//Chassis_DriveDistance_Blocking(is_Gyro,100,20,getAngleZ(),0);
+			// Chassis_SetMode(is_Gyro);
+			// Chassis_SetGyroAngle_Go(getAngleZ());
+			// Chassis_SetTargetSpeed(25);
+			// vTaskDelay(5000);
+			// Chassis_Brake();
+
+
+			////固定角度转弯			 
+			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+90, getAngleZ());
+			
+			
+			////循迹转向
+			//Chassis_SetMode(is_Gyro);
+			//Chassis_SetTargetSpeed(15);
+			//Chassis_Turn_By_Gyro_Blocking(getAngleZ()+90, getAngleZ());
+			//Chassis_Brake();
+			
+			test_flag=0;
 		}			
+		
 //		/*节点间处理*/
-//		Cross();
+		//Cross();
 //		
 //		/*二轮结束处理*/
 //		if(map.routetime==3)

@@ -92,32 +92,32 @@ void Chassis_SetTargetSpeed(float speed)
     {
         motor_all.Cspeed = chassis.target_speed;
         switch (chassis.target_speed) 
-		{
-		case SPEED4:
-			line_pid_param.kp = 4.0;//5.0
-			line_pid_param.ki = 0;//0
-			line_pid_param.kd = 300;//260
-			break;		
-		case SPEED3:
-			line_pid_param.kp = 7;//8.0
-			line_pid_param.ki = 0;//0
-			line_pid_param.kd = 300;//300
-			break;
-			
-		case SPEED2:
-			line_pid_param.kp = 7.0;//8.0
-			line_pid_param.ki = 0.008;//0.008
-			line_pid_param.kd = 400;//400
-			break;		
-		case SPEED0:
-		case SPEED1:
-			line_pid_param.kp = 7.0;//6.0
-			line_pid_param.ki = 0;//0
-			line_pid_param.kd = 350;//300
-			break;
-		default:
-			break;
-	  }
+			{
+				case SPEED4:
+					line_pid_param.kp = 4.0;//5.0
+					line_pid_param.ki = 0;//0
+					line_pid_param.kd = 300;//260
+					break;		
+				case SPEED3:
+					line_pid_param.kp = 7;//8.0
+					line_pid_param.ki = 0;//0
+					line_pid_param.kd = 300;//300
+					break;
+					
+				case SPEED2:
+					line_pid_param.kp = 7.0;//8.0
+					line_pid_param.ki = 0.008;//0.008
+					line_pid_param.kd = 400;//400
+					break;		
+				case SPEED0:
+				case SPEED1:
+					line_pid_param.kp = 7.0;//6.0
+					line_pid_param.ki = 0;//0
+					line_pid_param.kd = 350;//300
+					break;
+				default:
+					break;
+			}
     }
     else if (PIDMode == is_Gyro)
     {
@@ -388,10 +388,10 @@ void Chassis_Turn_By_RightLine_Blocking(float target_angle, float current_angle,
     Chassis_RestoreLinePid();
 
 }
-
+//用之前先停车
 void Chassis_Turn_By_StopGyro_Blocking(float target_angle, float current_angle)
 {
-
+		
     Chassis_SetGyroAngle_Turn(target_angle);
 
     Chassis_SetMode(is_Turn);//进入转弯模式			
@@ -403,9 +403,9 @@ void Chassis_Turn_By_StopGyro_Blocking(float target_angle, float current_angle)
 void Chassis_Turn_By_Gyro_Blocking(float target_angle, float current_angle)
 {
    
-    Chassis_OverrideGyroPid(12.0f, 0.0f, 180.0f, need2turn(current_angle, target_angle) > 0 ? 30.0f : 39.0f); //左转还是右转
+    Chassis_OverrideGyroPid(12.0f, 0.0f, 180.0f, need2turn(target_angle, current_angle) > 0 ? 30.0f : 39.0f); //左转还是右转
     //直接转相对角度
-    float target_g = getAngleZ() + need2turn(target_angle, current_angle);
+    float target_g = getAngleZ() + need2turn(current_angle, target_angle);
     if(target_g > 180.0f)
         target_g -= 360.0f;
     else if(target_g <= -180.0f)
@@ -501,6 +501,7 @@ void pid_mode_switch(uint8_t target_mode)
     if(PIDMode == is_Turn)
     {
         gyroT_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0};  // 清零转弯PID
+				
     }
 	switch (target_mode)
 	{

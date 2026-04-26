@@ -44,7 +44,9 @@ NODESR nodesr;   	//节点flag和各个节点信息
 
 
 uint8_t isAllRoute = 1;    /*是否全图,选择路径*/
-u8 route[100] = {B1, N1, P1, N1, B2, N4, N5, N6, P4, N6, N5, N12, 0XFF};  //调试时的初始路径
+//u8 route[100] = {B1, N1, P1, N1, B2, N4, N5, N6, P4, N6, N5, N12, 0XFF};  //调试时的初始路径
+u8 route[100] = {B1, N1, P1, 0XFF};  //调试时的初始路径
+
 /*简单*/
 //uint8_t isAllRoute = 0;
 //u8 route[100] = {N4,B2,N1,P1,0XFF};

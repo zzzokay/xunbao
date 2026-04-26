@@ -273,7 +273,7 @@ void Turn_Angle360(void)
 }
 
 /*×ÔÆ½ºâ×ß*/
-uint8_t Go_Angle(float angle_want, float speed, struct Motors *motor)
+uint8_t Go_Angle(float angle_want, float speed,volatile struct Motors *motor)
 {
 	float GGspeed, now_angle;
 	

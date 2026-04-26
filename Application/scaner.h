@@ -28,7 +28,7 @@ extern volatile SCANER Scaner;
 extern float line_weight[16];
 extern const float line_weight_default[16];
 extern const float lineG_weight_default[8];
-void Go_Line(float speed, struct Motors *motor);
+void Go_Line(float speed,volatile struct Motors *motor);
 void get_detail(void);
 void Cross_getline(void);
 uint8_t Line_Scan(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_ignore, uint8_t track_mode);
