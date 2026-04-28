@@ -5,9 +5,9 @@
 
 struct I_pid_obj {
 	float output;
-	int bias;
-	int last_bias;
-	int last2_bias;
+	float bias;
+	float last_bias;
+	float last2_bias;
 	float measure;
 	float target;
 };
@@ -22,8 +22,8 @@ struct P_pid_obj {
 	float target;
 };
 
-//differential_filterK: 微分项滤波系数，取值范围(0,1]
-//系数越小滤波效应越大，当系数为1时不进行滤波
+//differential_filterK: 微锟斤拷锟斤拷锟剿诧拷系锟斤拷锟斤拷取值锟斤拷围(0,1]
+//系锟斤拷越小锟剿诧拷效应越锟襟，碉拷系锟斤拷为1时锟斤拷锟斤拷锟斤拷锟剿诧拷
 struct PID_param {
 	float kp;
 	float ki;
@@ -47,7 +47,7 @@ extern struct PID_param lineG_pid_param;
 extern struct P_pid_obj gyroT_pid, gyroG_pid;
 extern struct PID_param gyroT_pid_param, gyroG_pid_param;
 
-extern struct P_pid_obj GyroP_pid ;//漂移
+extern struct P_pid_obj GyroP_pid ;//漂锟斤拷
 extern struct PID_param GyroP_pid_param;
 void incremental_PID (struct I_pid_obj *motor, struct PID_param *pid);
 float positional_PID (struct P_pid_obj *obj, struct PID_param *pid);

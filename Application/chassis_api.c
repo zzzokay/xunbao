@@ -62,9 +62,8 @@ void Chassis_Init(void)
 
 
     TC_speed = 0;
-    //TC_speed = 50;
     TG_speed = 0;
-    //PIDMode = is_No;
+    PIDMode = is_No;
     LEFT_RIGHT_LINE = 0;
     MOTOR_PWM_MAX = 5000;
 

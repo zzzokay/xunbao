@@ -31,6 +31,8 @@ virtualFolder:
         - path: ../Application/turn.h
         - path: ../Application/command.c
         - path: ../Application/command.h
+        - path: ../Application/chassis_api.c
+        - path: ../Application/chassis_api.h
       folders:
         - name: MDK-ARM
           files:

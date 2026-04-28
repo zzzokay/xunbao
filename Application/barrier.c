@@ -750,7 +750,7 @@ void Barrier_HighMountain(float speed)
 //		if(Cross_Scaner.ledNum >= 14)//6
 //			break;
 	}
-	angle.AngleG = sum_angle/add_time;
+	if(add_time > 0) angle.AngleG = sum_angle/add_time;
 	add_time = 0 ;
 	get_angle = 0;
 	sum_angle = 0;
@@ -810,7 +810,7 @@ void Barrier_HighMountain(float speed)
 			getZ = 1;
 		}
 	}
-	angle.AngleG = sum_angle/add_time;
+	if(add_time > 0) angle.AngleG = sum_angle/add_time;
 	add_time = 0 ;
 	get_angle = 0;
 	sum_angle = 0;
@@ -1029,7 +1029,7 @@ void Barrier_Down_HighMountain(float speed)
 			break;
 		vTaskDelay(2);
 	}
-	sum_angle = sum_angle/add_time;
+	if(add_time > 0) sum_angle = sum_angle/add_time;
 	angle.AngleG = sum_angle;
 	add_time = 0 ;
 	get_angle = 0;
@@ -1226,7 +1226,7 @@ void South_Pole(void)
 	Robot_Work(BODY, UP);
 	encoder_clear();
 	buzzer_on();
-	getZ == 0;
+	getZ = 0;
 	num = motor_all.Distance;
 	add_time = 0 ;
 	get_angle = 0;

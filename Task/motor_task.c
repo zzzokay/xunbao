@@ -21,7 +21,6 @@
 #include "encoder.h"
 #include "motor.h"
 #include "uart.h"
-#include "speed_ctrl.h"
 #include "pid.h"
 #include "turn.h"
 #include "scaner.h"
@@ -46,6 +45,7 @@ volatile uint8_t PIDMode;         // 当前PID模式
 uint8_t Nosmall = 1;
 int MOTOR_PWM_MAX = 9800;         // 最大PWM设定值
 uint8_t open_qiang_jiao = 0;      // 墙角模式标志
+extern volatile uint8_t LEFT_RIGHT_LINE
 
 
 /*主控制任务主体*/
