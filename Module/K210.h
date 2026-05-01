@@ -10,7 +10,7 @@
 extern uint8_t K210_Rece;
 extern uint8_t Clue_Num;
 
-//ÇĞ»»³É¹¦±êÖ¾Î»
+//åˆ‡æ¢æˆåŠŸæ ‡å¿—ä½
 extern uint8_t open_QR_mode_sign;
 extern uint8_t open_OCR_mode_sign;
 extern uint8_t open_COLOR_L_mode_sign;

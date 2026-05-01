@@ -32,21 +32,21 @@
 #define View_BACK_SPEED -20
 #define IMPACT_SPEED 16
 #define QQB_Speed 9
-#define LiuShuiRate_Default	1.6				//Ä¬ÈÏÁ÷Ë®±¶ÂÊ
-#define LiuShuiRate_UM		2.1			//Öé·åÁ÷Ë®±¶ÂÊ//1.82
-#define LiuShuiRate_USP		1.65			//ÄÏ¼«Á÷Ë®±¶ÂÊ //1.3 //1.65
-#define LiuShuiRate_UB		1.9				//³¤ÇÅÁ÷Ë®±¶ÂÊ //1.6
-#define LiuShuiRate_ST		2.0				//Æ½Ì¨Á÷Ë®±¶ÂÊ
-#define LiuShuiRate_BG		1.8				//³ö·¢Á÷Ë®±¶ÂÊ
+#define LiuShuiRate_Default	1.6				//é»˜è®¤æµæ°´å€ç‡
+#define LiuShuiRate_UM		2.1			//ç å³°æµæ°´å€ç‡//1.82
+#define LiuShuiRate_USP		1.65			//å—ææµæ°´å€ç‡ //1.3 //1.65
+#define LiuShuiRate_UB		1.9				//é•¿æ¡¥æµæ°´å€ç‡ //1.6
+#define LiuShuiRate_ST		2.0				//å¹³å°æµæ°´å€ç‡
+#define LiuShuiRate_BG		1.8				//å‡ºå‘æµæ°´å€ç‡
 
 uint8_t WavePlateLeft_Flag = 0;
 uint8_t WavePlateRight_Flag = 0;
-uint8_t color_flag[5] = {0, 0, 0, 0, 0}; // 0:D2¡¢1:D3¡¢2:D4¡¢3:D5¡¢4:D1
+uint8_t color_flag[5] = {0, 0, 0, 0, 0}; // 0:D2ã€1:D3ã€2:D4ã€3:D5ã€4:D1
 uint8_t isStage = 0;
-uint8_t treasure = 0;				 // ±¦²Ø
-uint8_t value;							 // openmv½Ó¿Ú
-uint8_t DownLiuShui = 0;				 // Á÷Ë®ÏÂÆÂ±êÖ¾Î»
-float 	LiuShuiRate = LiuShuiRate_Default; // Á÷Ë®ÏÂÆÂÇ°ÂÖËÙ¶È±¶ÂÊ
+uint8_t treasure = 0;				 // å®è—
+uint8_t value;							 // openmvæ¥å£
+uint8_t DownLiuShui = 0;				 // æµæ°´ä¸‹å¡æ ‡å¿—ä½
+float 	LiuShuiRate = LiuShuiRate_Default; // æµæ°´ä¸‹å¡å‰è½®é€Ÿåº¦å€ç‡
 uint8_t special_arrive = 0;
 
 uint16_t QR_code = 0;
@@ -61,10 +61,10 @@ uint8_t get_b = 0;
 
 
 
-/*Æ½Ì¨ - ²»°üÀ¨P2*/
+/*å¹³å° - ä¸åŒ…æ‹¬P2*/
 void Stage(void)
 {
-	/*²ÎÊıµ÷Õû*/
+	/*å‚æ•°è°ƒæ•´*/
 	isStage = 1;
 	struct PID_param origin_param1 = gyroG_pid_param;
 	struct PID_param origin_param2 = line_pid_param;
@@ -98,9 +98,9 @@ void Stage(void)
 //		line_pid_param.kd = 260;
 //	}
 	
-	/*ÉèÖÃÆğÊ¼Ä£Ê½ËÙ¶È*/
+	/*è®¾ç½®èµ·å§‹æ¨¡å¼é€Ÿåº¦*/
 	encoder_clear();
-//	//¸Ä³É»Ò¶ÈÑ­¼£
+//	//æ”¹æˆç°åº¦å¾ªè¿¹
 	if(nodesr.nowNode.nodenum == P1||nodesr.nowNode.nodenum == P5)
 		{
 			line_pid_param.kp = 30.0;//50.0
@@ -117,7 +117,7 @@ void Stage(void)
 		Motor_Control(is_Line,UpStage_Speed-5,UpStage_Speed-5,0);//UpStage_Speed-5
 	}
 	scaner_set.EdgeIgnore = 2;//3
-//	Cross_getline();
+//	Cross_getline(&Cross_Scaner);
 //	if ((Cross_Scaner.detail & 0x180) == 0x180)
 //		mpuZreset(imu.yaw, getAngleZ());
 
@@ -127,7 +127,7 @@ void Stage(void)
 
 	while (imu.pitch < (basic_p + 8))
 	{
-		Cross_getline();
+		Cross_getline(&Cross_Scaner);
 		if (((nodesr.nowNode.nodenum == P1||nodesr.nowNode.nodenum == P5)&&(Scaner.detail_gray & 0x18))||((Cross_Scaner.detail & 0x180) == 0x180))
 		{
 			mpuZreset(get_latest_yaw(), getAngleZ());
@@ -137,10 +137,10 @@ void Stage(void)
 		}
 		vTaskDelay(2);
 	}
-/*********************¸Ä****************************/
+/*********************æ”¹****************************/
 //	while (imu.pitch < (basic_p + 8))
 //	{
-//		Cross_getline();
+//		Cross_getline(&Cross_Scaner);
 //		if ((Cross_Scaner.detail & 0x180) == 0x180)
 //		{
 //			mpuZreset(get_latest_yaw(), getAngleZ());
@@ -154,7 +154,7 @@ void Stage(void)
 //			//CarBrake();
 //			motor_all.Cspeed = UpStage_Speed-15;
 //			vTaskDelay(70);
-//				/*Ñ­¼£½ÃÕı*/
+//				/*å¾ªè¿¹çŸ«æ­£*/
 //			gyroG_pid_param.kp = 1.5;//8
 //			gyroG_pid_param.ki = 0.004;
 //			gyroG_pid_param.kd = 20;
@@ -167,7 +167,7 @@ void Stage(void)
 //			while (fabs(need2turn(getAngleZ(), angle.AngleG)) > 5 )
 //			{
 //				break_time++;
-//				Cross_getline();
+//				Cross_getline(&Cross_Scaner);
 //				if ((Cross_Scaner.detail & 0x180) == 0x180) 
 //				{
 //					mpuZreset(get_latest_yaw(), getAngleZ());
@@ -183,7 +183,7 @@ void Stage(void)
 //				}
 //				vTaskDelay(2);
 //			}
-//			//Ô­À´²ÎÊı
+//			//åŸæ¥å‚æ•°
 //			gyroG_pid_param.kp = 3.5;	//4.5
 //			gyroG_pid_param.ki = 0;
 //			gyroG_pid_param.kd = 30;
@@ -213,7 +213,7 @@ void Stage(void)
 
 	while (1)
 	{
-		Cross_getline();
+		Cross_getline(&Cross_Scaner);
 
 		if (Cross_Scaner.ledNum > 5 || Cross_Scaner.lineNum >= 2)
 		{
@@ -227,14 +227,14 @@ void Stage(void)
 	scaner_set.EdgeIgnore = 0;
 	line_pid_param = origin_param2;
 	buzzer_on();
-	/*ÉèÖÃ×ÔÆ½ºâËÙ¶È*/
-	Robot_Work(BODY, UP); 	// ÈËÕ¾ÆğÀ´
+	/*è®¾ç½®è‡ªå¹³è¡¡é€Ÿåº¦*/
+	Robot_Work(BODY, UP); 	// äººç«™èµ·æ¥
 
-	/*ÉèÖÃ×ÔÆ½ºâËÙ¶È*/	
+	/*è®¾ç½®è‡ªå¹³è¡¡é€Ÿåº¦*/	
 	Motor_Control(is_Gyro,GoStage_Speed,GoStage_Speed,angle.AngleG);
 	encoder_clear();
 	
-	/*¼ì²âµ²°å*/
+	/*æ£€æµ‹æŒ¡æ¿*/
 	while (Infrared_ahead == 0)
 		vTaskDelay(5);
 	
@@ -250,21 +250,21 @@ void Stage(void)
 	K210_Rece = 0;
 	open_OCR_mode();
 	CarBrake();
-	ScanerMode_Switch(RF);//ÇĞ»Ø¼¤¹âÑ­¼£
+	ScanerMode_Switch(RF);//åˆ‡å›æ¿€å…‰å¾ªè¿¹
 	vTaskDelay(500);
-	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); 		//ÍÓÂİÒÇĞ£Õı
-	back_angle = getAngleZ();//×ªÉíºóµÄÄ¿±ê½Ç¶È
+	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); 		//é™€èºä»ªæ ¡æ­£
+	back_angle = getAngleZ();//è½¬èº«åçš„ç›®æ ‡è§’åº¦
 
-//	mpuZreset(imu.yaw, nodesr.nowNode.angle); 		//ÍÓÂİÒÇĞ£Õı
+//	mpuZreset(imu.yaw, nodesr.nowNode.angle); 		//é™€èºä»ªæ ¡æ­£
 
-	/*ºóÍËÒ»¶Î¾àÀë*/
+	/*åé€€ä¸€æ®µè·ç¦»*/
 	Motor_Control(is_Free,-1500,-1500,0);
 	Want2Go(1);//3
 	encoder_clear();
 	CarBrake();
 	vTaskDelay(100);
 
-	/*Æ½Ì¨¶¯×÷*/
+	/*å¹³å°åŠ¨ä½œ*/
 	switch (nodesr.nowNode.nodenum)
 	{
 	case P1:	//2
@@ -289,18 +289,18 @@ void Stage(void)
 	vTaskDelay(500);
 	
 	
-		/*É¨Ãè¶şÎ¬Âë»ñÈ¡Æ½Ì¨ÒÔ¼°ÏßË÷µã*/
+		/*æ‰«æäºŒç»´ç è·å–å¹³å°ä»¥åŠçº¿ç´¢ç‚¹*/
 //	if(treasure == 0 &&nodesr.nowNode.nodenum != P1)
 	if(treasure == 0 &&(nodesr.nowNode.nodenum == P5 ||nodesr.nowNode.nodenum == P6 ||nodesr.nowNode.nodenum == P7 ||nodesr.nowNode.nodenum == P8))
 		WaitFor_OCR();
 	
 	if(nodesr.nowNode.nodenum == P1 && get_cude == 0)
 	{
-		open_QR_mode();//ÇĞ»»ÖÁ¶şÎ¬ÂëÊ¶±ğÄ£Ê½
+		open_QR_mode();//åˆ‡æ¢è‡³äºŒç»´ç è¯†åˆ«æ¨¡å¼
 		WaitFor_QR();
-		update_route_for_stage34();//Ñ¡ÔñÈ¥ËÄºÅÆ½Ì¨»¹ÊÇÈıºÅÆ½Ì¨
+		update_route_for_stage34();//é€‰æ‹©å»å››å·å¹³å°è¿˜æ˜¯ä¸‰å·å¹³å°
 	}
-///*É¨Ãè¶şÎ¬Âë»ñÈ¡Æ½Ì¨ÒÔ¼°ÏßË÷µã*/
+///*æ‰«æäºŒç»´ç è·å–å¹³å°ä»¥åŠçº¿ç´¢ç‚¹*/
 //	if(treasure == 0 &&nodesr.nowNode.nodenum != P1&&map.routetime==0)
 //		WaitFor_OCR();
 //	
@@ -308,7 +308,7 @@ void Stage(void)
 //		WaitFor_QR();
 	
 	
-	/*×ªÉí*/
+	/*è½¬èº«*/
 	Turn_Angle_Relative(179);
 	while (fabs(angle.AngleT - getAngleZ()) > 2)
 		vTaskDelay(2);
@@ -316,8 +316,8 @@ void Stage(void)
 	CarBrake();
 	vTaskDelay(100);
 
-	/*·¢ÏÖ±¦²ØÁ÷³Ì*/
-	//±¦ÎïÖ»ÔÚ2µ½6ºÅÆ½Ì¨
+	/*å‘ç°å®è—æµç¨‹*/
+	//å®ç‰©åªåœ¨2åˆ°6å·å¹³å°
 	if ((nodesr.nowNode.nodenum == P1 && treasure == 2)||
 		(nodesr.nowNode.nodenum == P3 && treasure == 3) ||
 		(nodesr.nowNode.nodenum == P4 && treasure == 4) ||
@@ -344,7 +344,7 @@ void Stage(void)
 
 	motor_pid_clear();
 	
-	/*ÏÂÆ½Ì¨*/
+	/*ä¸‹å¹³å°*/
 //	line_pid_param.kp = 20;
 //	line_pid_param.ki = 0;
 //	line_pid_param.kd = 300;
@@ -371,30 +371,30 @@ void Stage(void)
 		vTaskDelay(2);
 	LiuShuiRate = LiuShuiRate_Default;
 	DownLiuShui = 0;
-	/*ÏÂÍêÆ½Ì¨*/
-	//Want2Go(30);//Ò»Ö±Ñ²Ïß£¬ÏÂÆ½Ì¨µÄ¹Ì¶¨¾àÀë	
+	/*ä¸‹å®Œå¹³å°*/
+	//Want2Go(30);//ä¸€ç›´å·¡çº¿ï¼Œä¸‹å¹³å°çš„å›ºå®šè·ç¦»	
 	encoder_clear();
 	Motor_Control(is_Line, Rubbish_Speed, Rubbish_Speed, 0);
 	if(nodesr.nowNode.nodenum==P5)
 		Want2Go(2);
 	else
 		Want2Go(10);																																																																																																																																																																																																																																																																																																																																																																																																							
-	Robot_Work(BODY,DOWN);		 		// ÈËÌÉÏÂ
+	Robot_Work(BODY,DOWN);		 		// äººèººä¸‹
 	line_pid_param = origin_param2;
-	nodesr.nowNode.function = 0;		// Çå³ıÕÏ°­±êÖ¾
-	nodesr.flag |= 0x04;		 		// µ½´ïÂ·¿Ú
+	nodesr.nowNode.function = 0;		// æ¸…é™¤éšœç¢æ ‡å¿—
+	nodesr.flag |= 0x04;		 		// åˆ°è¾¾è·¯å£
 }
 
-/*Æ½Ì¨ - P2*/
+/*å¹³å° - P2*/
 void Stage_P2()
 {
-	/*²ÎÊıµ÷Õû*/
+	/*å‚æ•°è°ƒæ•´*/
 	isStage = 1;
-	static uint8_t Backtimes = 0; // »ØÀ´´ÎÊı - Îª1Ê±´ú±íµÚ¶şÂÖ»Ø¼Ò
+	static uint8_t Backtimes = 0; // å›æ¥æ¬¡æ•° - ä¸º1æ—¶ä»£è¡¨ç¬¬äºŒè½®å›å®¶
 	struct PID_param origin_param1 = gyroG_pid_param;
 	
 	struct PID_param origin_param2 = line_pid_param;
-	/*ÉèÖÃÆğÊ¼Ä£Ê½ËÙ¶È*/
+	/*è®¾ç½®èµ·å§‹æ¨¡å¼é€Ÿåº¦*/
 	encoder_clear();
 	/////////
 //	line_pid_param.kp = 30.0;//50.0
@@ -410,12 +410,12 @@ void Stage_P2()
 	
 	Motor_Control(is_Line, UpStage_Speed-7, UpStage_Speed-7, 0);
 
-	/*Ñ°ÕÒºÏÊÊµÄÉÏÆÂ½Ç¶È*/
+	/*å¯»æ‰¾åˆé€‚çš„ä¸Šå¡è§’åº¦*/
 	float tempAngle = -1;
 	scaner_set.EdgeIgnore = 2;//4
 	while (Scaner.ledNum < 8)
 	{
-		Cross_getline();
+		Cross_getline(&Cross_Scaner);
 		if( ((Scaner.detail_gray & 0x18)||((Cross_Scaner.detail & 0x180) == 0x180)) && Cross_Scaner.ledNum < 5)
 			tempAngle = getAngleZ();
 		vTaskDelay(2);
@@ -423,23 +423,23 @@ void Stage_P2()
 	if(tempAngle == -1)
 		tempAngle = getAngleZ();
 
-	/*ÉèÖÃ×ÔÆ½ºâËÙ¶È*/
+	/*è®¾ç½®è‡ªå¹³è¡¡é€Ÿåº¦*/
 	Motor_Control(is_Gyro, GoStage_Speed, GoStage_Speed, tempAngle);
-	Robot_Work(BODY, UP);														// ÈËÕ¾ÆğÀ´
+	Robot_Work(BODY, UP);														// äººç«™èµ·æ¥
 
-	/*µ½Æ½Ì¨ÉÏ*/
+	/*åˆ°å¹³å°ä¸Š*/
 	encoder_clear();
 	Want2Go(75);//60
 
-	/*É²³µ*/
+	/*åˆ¹è½¦*/
 	CarBrake();
 	vTaskDelay(200);
 
-	/*ÈôÎªµÚ¶şÂÖ»Ø¼Ò*/
+	/*è‹¥ä¸ºç¬¬äºŒè½®å›å®¶*/
 	if(Backtimes == 1)
 		while(1);
 	
-	/*×ªÉí*/
+	/*è½¬èº«*/
 	Turn_Angle_Relative(179);
 	while (fabsf(need2turn(angle.AngleT, getAngleZ())) > 2) // 7
 		vTaskDelay(2);
@@ -450,11 +450,11 @@ void Stage_P2()
 	encoder_clear();
 	motor_all.Cspeed = 0;
 	motor_pid_clear();
-	nodesr.nowNode.function = 0; // Çå³ıÕÏ°­±êÖ¾
-	nodesr.flag |= 0x04;		 // µ½´ïÂ·¿Ú
+	nodesr.nowNode.function = 0; // æ¸…é™¤éšœç¢æ ‡å¿—
+	nodesr.flag |= 0x04;		 // åˆ°è¾¾è·¯å£
 }
 
-/*³¤ÇÅ*/
+/*é•¿æ¡¥*/
 void Barrier_Bridge(void)
 {
 	float num = 0;
@@ -474,13 +474,13 @@ void Barrier_Bridge(void)
 		vTaskDelay(2);
 	}
 
-	/*×¼±¸ÉÏÇÅ*/
+	/*å‡†å¤‡ä¸Šæ¡¥*/
 	encoder_clear();
 	Motor_Control(is_Gyro, GoStage_Speed, GoStage_Speed, getAngleZ());
 	while (imu.pitch < Up_pitch)
 		vTaskDelay(2);
 	
-	/*ÉÏÇÅÖĞ*/
+	/*ä¸Šæ¡¥ä¸­*/
 	infrare_open = 1;
 	now_angle = angle.AngleG; 
 	while (imu.pitch > After_up)
@@ -507,7 +507,7 @@ void Barrier_Bridge(void)
 	}
 	encoder_clear(); 
 
-	/*µ½ÇÅÖĞ*/
+	/*åˆ°æ¡¥ä¸­*/
 	num = motor_all.Distance;
 	motor_all.Gspeed = Bridge_Speed-10;
 	while (imu.pitch > basic_p - 5)
@@ -529,7 +529,7 @@ void Barrier_Bridge(void)
 	angle.AngleG = now_angle;
 	while(imu.pitch > basic_p - 15)
 		vTaskDelay(2);
-	/*¼ì²âµ½ÔÚÏÂÆÂ*/
+	/*æ£€æµ‹åˆ°åœ¨ä¸‹å¡*/
 	gyroG_pid_param = origin_param1;
 	LiuShuiRate = LiuShuiRate_UB;
 	DownLiuShui = 1;
@@ -550,10 +550,10 @@ void Barrier_Bridge(void)
 	motor_all.Distance = 0;
 	motor_all.encoder_avg = 0;
 	nodesr.nowNode.function = 0;
-	nodesr.flag |= 0X04; // µ½´ïÂ·¿Ú
+	nodesr.flag |= 0X04; // åˆ°è¾¾è·¯å£
 }
 
-/*Â¥Ìİ*/
+/*æ¥¼æ¢¯*/
 void Barrier_Hill(void)
 {
 	struct PID_param origin_param1 = line_pid_param;
@@ -565,7 +565,7 @@ void Barrier_Hill(void)
 		break_times++;
 		if(break_times > 1000)
 			break;
-		Cross_getline();
+		Cross_getline(&Cross_Scaner);
 		if ((Cross_Scaner.detail & 0X180) == 0X180)
 			mpuZreset(get_latest_yaw(), nodesr.nowNode.angle);
 		vTaskDelay(2);
@@ -576,38 +576,38 @@ void Barrier_Hill(void)
 	line_pid_param.kd = 0;
 	scaner_set.EdgeIgnore = 3;
 	Motor_Control(is_Line, 12, 12, 0);
-	/*Æ½µØ*/
+	/*å¹³åœ°*/
 	while (imu.pitch < basic_p + 8)
 	{
 		//CGChange(GoStage_Speed);
 		
 		vTaskDelay(2);
 	}
-	/*Æ½µØ->ÉÏÆ½Ì¨*/
+	/*å¹³åœ°->ä¸Šå¹³å°*/
 	buzzer_on();
 	while (imu.pitch > basic_p - 8)
 	{
 //		CGChange(GoStage_Speed);
 		vTaskDelay(2);
 	}
-	/*ÏÂÆ½Ì¨*/
+	/*ä¸‹å¹³å°*/
 	while (imu.pitch < basic_p - 5)
 	{
 //		CGChange(GoStage_Speed);
 		vTaskDelay(2);
 	}
-	/*ÏÂÍêÆ½Ì¨µ½Æ½µØ*/
+	/*ä¸‹å®Œå¹³å°åˆ°å¹³åœ°*/
 	buzzer_off();
 	scaner_set.EdgeIgnore = 0;
 	Motor_Control(is_Line, Rubbish_Speed+6, Rubbish_Speed+6, 0);
-	Want2Go(10);					// ÍùÇ°×ßÒ»µã·ÀÖ¹µ¯ÉäÆğ²½
+	Want2Go(10);					// å¾€å‰èµ°ä¸€ç‚¹é˜²æ­¢å¼¹å°„èµ·æ­¥
 	encoder_clear();
-	nodesr.nowNode.function = 0; 	// Çå³ıÕÏ°­±êÖ¾
+	nodesr.nowNode.function = 0; 	// æ¸…é™¤éšœç¢æ ‡å¿—
 	line_pid_param = origin_param1;
-	nodesr.flag |= 0x04;		 	// µ½´ïÂ·¿Ú
+	nodesr.flag |= 0x04;		 	// åˆ°è¾¾è·¯å£
 }
 
-/*µ¶É½*/
+/*åˆ€å±±*/
 void Sword_Mountain(void)
 {
 	float num;
@@ -627,20 +627,20 @@ void Sword_Mountain(void)
 	
 	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle);
 	
-	scaner_set.EdgeIgnore = 5;//ÊÔÊÔ¿´ÄÜ²»ÄÜºöÂÔºìÏß
+	scaner_set.EdgeIgnore = 5;//è¯•è¯•çœ‹èƒ½ä¸èƒ½å¿½ç•¥çº¢çº¿
 
-	Cross_getline();
+	Cross_getline(&Cross_Scaner);
 	buzzer_on();
 	while (Cross_Scaner.ledNum <= 3)
 	{
-		Cross_getline();
+		Cross_getline(&Cross_Scaner);
 		if((Cross_Scaner.detail & 0X180) == 0X180)
 		{
 			//mpuZreset(imu.yaw, nodesr.nowNode.angle);		
-		/*****************¸Ä*****************/
-			//ÔÙ½øĞĞÒ»´ÎÈ·ÈÏ
+		/*****************æ”¹*****************/
+			//å†è¿›è¡Œä¸€æ¬¡ç¡®è®¤
 			vTaskDelay(2);
-			Cross_getline();
+			Cross_getline(&Cross_Scaner);
 			if((Cross_Scaner.detail & 0X180) == 0X180)
 			{
 				angle.AngleG = getAngleZ();
@@ -648,7 +648,7 @@ void Sword_Mountain(void)
 				getZ = 1;
 
 			}
-		/*****************¸Ä*****************/			
+		/*****************æ”¹*****************/			
 //			angle.AngleG = getAngleZ();
 //			getZ = 1;
 		}
@@ -669,17 +669,17 @@ void Sword_Mountain(void)
 	motor_all.Gspeed = Gyro_Speed - 3;
 	pid_mode_switch(is_Gyro);
 	num = motor_all.Distance;
-	while (imu.pitch < After_up) 		// ³öÑ­»·ÉÏµ¶É½
+	while (imu.pitch < After_up) 		// å‡ºå¾ªç¯ä¸Šåˆ€å±±
 	{
 		vTaskDelay(2);
 		if (fabsf(motor_all.Distance - num) > 30)
 			break;
 	}
-	scaner_set.EdgeIgnore = 0;//ĞŞ¸Ä»ØÔ­À´ºöÂÔµÄµÆ
+	scaner_set.EdgeIgnore = 0;//ä¿®æ”¹å›åŸæ¥å¿½ç•¥çš„ç¯
 	
 	encoder_clear();
 	num = motor_all.Distance;
-	while (imu.pitch > After_down+2) 	// ³öÑ­»·ÏÂµ¶É½
+	while (imu.pitch > After_down+2) 	// å‡ºå¾ªç¯ä¸‹åˆ€å±±
 	{
 		vTaskDelay(2);
 		if (fabsf(motor_all.Distance - num) > 80)
@@ -689,11 +689,11 @@ void Sword_Mountain(void)
 //	buzzer_off();
 	line_pid_param = origin_param;
 	gyroG_pid_param = origin_param1;
-	nodesr.nowNode.function = 0; 		// Çå³ıÕÏ°­±êÖ¾
-	nodesr.flag |= 0x04;		 		// µ½´ïÂ·¿Ú
+	nodesr.nowNode.function = 0; 		// æ¸…é™¤éšœç¢æ ‡å¿—
+	nodesr.flag |= 0x04;		 		// åˆ°è¾¾è·¯å£
 }
 
-/*ÉÏÖé·å - ÒÑ½ÓÏÂÖé·å*/
+/*ä¸Šç å³° - å·²æ¥ä¸‹ç å³°*/
 void Barrier_HighMountain(float speed)
 {
 	float num = 0;
@@ -714,14 +714,14 @@ void Barrier_HighMountain(float speed)
 	line_pid_param.kd = 400;//25
 	scaner_set.EdgeIgnore = 3;
 	Motor_Control(is_Line, Mount_Speed-6, Mount_Speed-6, 0);//Mount_Speed-3, Mount_Speed-3
-	/*ÉÏÆÂÇ°*/
+	/*ä¸Šå¡å‰*/
 	while ((Scaner.ledNum < 3 && Scaner.ledNum > 0) || Scaner.lineNum == 1)
 	{
 		if ((Scaner.detail & 0X180) == 0X180)
-			mpuZreset(get_latest_yaw(), nodesr.nowNode.angle);		//×ßÖ±ÁË¾Í½ÃÕı
+			mpuZreset(get_latest_yaw(), nodesr.nowNode.angle);		//èµ°ç›´äº†å°±çŸ«æ­£
 	}
 	
-	/*ÉÏÆÂ*/
+	/*ä¸Šå¡*/
 	//Motor_Control(is_Gyro, Mount_Speed, Mount_Speed, nodesr.nowNode.angle);
 	//Motor_Control(is_Line, Mount_Speed, Mount_Speed, 0);
 	encoder_clear();
@@ -737,7 +737,7 @@ void Barrier_HighMountain(float speed)
 	while(Cross_Scaner.ledNum != 0)	/*80*///fabsf(motor_all.Distance - num) < 90
 	{
 		vTaskDelay(2);
-		Cross_getline();
+		Cross_getline(&Cross_Scaner);
 		if((Scaner.detail & 0X180) == 0X180)
 		{
 			
@@ -757,7 +757,7 @@ void Barrier_HighMountain(float speed)
 //	while(Scaner.ledNum < 10)	/*80*/
 //	{
 //		vTaskDelay(2);
-//		Cross_getline();
+//		Cross_getline(&Cross_Scaner);
 //		buzzer_on();
 //		if((Scaner.detail & 0X180) == 0X180)
 //		{
@@ -776,7 +776,7 @@ void Barrier_HighMountain(float speed)
 	Motor_Control(is_Gyro, Mount_Speed-5, Mount_Speed-5, angle.AngleG);//Mount_Speed-9, Mount_Speed-9
 	while (imu.pitch > After_up)
 		vTaskDelay(2);
-	/*ÉÏÍêÆÂµ½Æ½Ì¨*/
+	/*ä¸Šå®Œå¡åˆ°å¹³å°*/
 	do
 	{
 		vTaskDelay(2);
@@ -790,7 +790,7 @@ void Barrier_HighMountain(float speed)
 	// while (imu.pitch < Up_pitch)
 	// 	vTaskDelay(2);
 
-	/*ÉÏÆÂ*/
+	/*ä¸Šå¡*/
 	buzzer_on();
 	Robot_Work(BODY, UP);
 	scaner_set.EdgeIgnore = 3;
@@ -820,7 +820,7 @@ void Barrier_HighMountain(float speed)
 	scaner_set.EdgeIgnore = 0;
 	buzzer_off();
 
-	/*ÉÏÍêÆÂ,×²µ²°å*/
+	/*ä¸Šå®Œå¡,æ’æŒ¡æ¿*/
 	Motor_Control(is_Gyro, 10, 10, angle.AngleG);
 	send_play_specified_command(14);
 	while (Infrared_ahead == 0)
@@ -837,18 +837,18 @@ void Barrier_HighMountain(float speed)
 	open_OCR_mode();
 	CarBrake();
 	vTaskDelay(250);
-	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); // ÍÓÂİÒÇĞ£Õı
+	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); // é™€èºä»ªæ ¡æ­£
 	//Arrived_Stage();
-		//»ñÈ¡±¦ÎïÏßË÷B
+		//è·å–å®ç‰©çº¿ç´¢B
 	if(treasure == 0 && map.routetime==0)
 		WaitFor_OCR();
 	
-	//Èç¹û±¦ÎïÏßË÷BÔÚÆ½Ì¨8,ÒÑ¾­ÄÃÍêËùÓĞÏßË÷ÖØĞÂ¹æ»®Â·Ïß
+	//å¦‚æœå®ç‰©çº¿ç´¢Båœ¨å¹³å°8,å·²ç»æ‹¿å®Œæ‰€æœ‰çº¿ç´¢é‡æ–°è§„åˆ’è·¯çº¿
 	if(map.routetime == 0&&map.routetime==0)
 		update_rout_by_treasure_8();
 	
 	
-	/*ºóÍË*/
+	/*åé€€*/
 	encoder_clear();
 	Motor_Control(is_Free,-2000,-2000,0);
 	Want2Go(5.5);
@@ -856,11 +856,11 @@ void Barrier_HighMountain(float speed)
 	CarBrake();
 	Arrived_Stage();
 	vTaskDelay(800);
-	//»ñÈ¡±¦ÎïÏßË÷B
+	//è·å–å®ç‰©çº¿ç´¢B
 //	if(treasure == 0 && map.routetime==0)
 //		WaitFor_OCR();
 //	
-//	//Èç¹û±¦ÎïÏßË÷BÔÚÆ½Ì¨8,ÒÑ¾­ÄÃÍêËùÓĞÏßË÷ÖØĞÂ¹æ»®Â·Ïß
+//	//å¦‚æœå®ç‰©çº¿ç´¢Båœ¨å¹³å°8,å·²ç»æ‹¿å®Œæ‰€æœ‰çº¿ç´¢é‡æ–°è§„åˆ’è·¯çº¿
 //	if(map.routetime == 0&&map.routetime==0)
 //		update_rout_by_treasure_8();
 	
@@ -878,15 +878,15 @@ void Barrier_HighMountain(float speed)
   
 
 
-	/*×ª180¡ã*/
-	Turn_Angle_Relative(170);//179µ÷ÊÔ½Ç¶È
+	/*è½¬180Â°*/
+	Turn_Angle_Relative(170);//179è°ƒè¯•è§’åº¦
 	while (fabs(angle.AngleT - getAngleZ()) > 2)
 		vTaskDelay(2);
 
 //	Turn_Angle_Relative(5);
 //	while (fabs(angle.AngleT - getAngleZ()) > 2)
 //		vTaskDelay(2);
-	/*±¦²Ø*/
+	/*å®è—*/
 //	if (treasure[2] == 8)
 //	{
 //		Robot_Work(LARM, UP);
@@ -901,18 +901,18 @@ void Barrier_HighMountain(float speed)
 	gyroG_pid_param = origin_param1;
 	motor_all.GyroT_speedMax = origin_turnM;
 	line_pid_param = origin_line;
-	nodesr.nowNode.function = 0; // Çå³ıÕÏ°­±êÖ¾
-	nodesr.flag |= 0x04;		 // µ½´ïÂ·¿Ú
+	nodesr.nowNode.function = 0; // æ¸…é™¤éšœç¢æ ‡å¿—
+	nodesr.flag |= 0x04;		 // åˆ°è¾¾è·¯å£
 }
 
-/*ÏÂÖé·å*/
+/*ä¸‹ç å³°*/
 void Barrier_Down_HighMountain(float speed)
 {
-	/*µôÍ·Ö®ºóÍÓÂİÒÇ×ÔÆ½ºâ*/
+	/*æ‰å¤´ä¹‹åé™€èºä»ªè‡ªå¹³è¡¡*/
 	Motor_Control(is_Gyro, Old_M_Speed, Old_M_Speed, getAngleZ());
 	Robot_Work(BODY, DOWN);
 
-	/*É¨ºìÏßÅĞ¶ÏÊÇ·ñÏÂÆÂ*/
+	/*æ‰«çº¢çº¿åˆ¤æ–­æ˜¯å¦ä¸‹å¡*/
 	do
 	{
 		vTaskDelay(2);
@@ -924,7 +924,7 @@ void Barrier_Down_HighMountain(float speed)
 		getline_error();
 	} while (Scaner.ledNum >= 4);
 
-	/*Ç°½øÒ»Ğ¡¶Î*/
+	/*å‰è¿›ä¸€å°æ®µ*/
 	encoder_clear();
 	struct PID_param origin_param = line_pid_param;
 	line_pid_param.kp = 35;
@@ -934,7 +934,7 @@ void Barrier_Down_HighMountain(float speed)
 	Want2Go(25);//35
 	
 	
-	/*ÇĞ»»Ñ­¼££¬¿ªÊ¼ÏÂÆÂ*/
+	/*åˆ‡æ¢å¾ªè¿¹ï¼Œå¼€å§‹ä¸‹å¡*/
 	line_pid_param.kp = 27;//24
 	line_pid_param.ki = 0;
 	line_pid_param.kd = 400;//400
@@ -976,7 +976,7 @@ void Barrier_Down_HighMountain(float speed)
 		vTaskDelay(2);
 	encoder_clear();
 
-	/*ÏÂµÚ¶ş¸öÆÂ*/
+	/*ä¸‹ç¬¬äºŒä¸ªå¡*/
 	do
 	{
 		vTaskDelay(2);
@@ -989,7 +989,7 @@ void Barrier_Down_HighMountain(float speed)
 		getline_error();
 	} while (Scaner.ledNum >= 4);
 	motor_all.Gspeed = Old_M_Speed;
-	/*Ç°½øÒ»Ğ¡¶Î*/
+	/*å‰è¿›ä¸€å°æ®µ*/
 	encoder_clear();
 	//Want2Go(5);
 	line_pid_param.kp = 35;
@@ -998,7 +998,7 @@ void Barrier_Down_HighMountain(float speed)
 	Motor_Control(is_Line, Old_M_Speed, Old_M_Speed, 0);
 	Want2Go(15);//35
 
-	/*ÇĞ»»Ñ­¼££¬¿ªÊ¼ÏÂÆÂ*/
+	/*åˆ‡æ¢å¾ªè¿¹ï¼Œå¼€å§‹ä¸‹å¡*/
 	line_pid_param.kp = 24;//12
 	line_pid_param.ki = 0;
 	line_pid_param.kd = 400;
@@ -1047,13 +1047,13 @@ void Barrier_Down_HighMountain(float speed)
 	line_pid_param = origin_param;
 }
 
-/*³¤Ö±Á¢¾°µã*/
+/*é•¿ç›´ç«‹æ™¯ç‚¹*/
 void view(void)
 {
 	motor_all.Cspeed = Low_Speed;
 	float origin_c = motor_all.Cincrement;
 
-	while (Infrared_ahead == 0) // ×²µ²°å
+	while (Infrared_ahead == 0) // æ’æŒ¡æ¿
 		vTaskDelay(5);
 	
 	Want2Go(10);
@@ -1062,7 +1062,7 @@ void view(void)
 	CarBrake();
 	vTaskDelay(100);
 	
-	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle);  //ÍÓÂİÒÇĞ£Õı
+	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle);  //é™€èºä»ªæ ¡æ­£
 	encoder_clear();
 	Motor_Control(is_Free,-2000,-2000,0);
 	Want2Go(7.5);
@@ -1081,15 +1081,15 @@ void view(void)
 		
 	nodesr.nowNode.function = NONE;
 	motor_all.Cincrement = origin_c;
-	nodesr.flag |= 0x04; // µ½´ïÂ·¿Ú
+	nodesr.flag |= 0x04; // åˆ°è¾¾è·¯å£
 }
 
-/*¶ÌÖ±Á¢¾°µã*/
+/*çŸ­ç›´ç«‹æ™¯ç‚¹*/
 void view1()
 {
 	motor_all.Cspeed = Gyro_Speed;
 
-	/*×²µ²°å*/
+	/*æ’æŒ¡æ¿*/
 	while (Infrared_ahead == 0)
 		vTaskDelay(5);
 	Want2Go(10);
@@ -1098,13 +1098,13 @@ void view1()
 	vTaskDelay(200);
 
 	nodesr.nowNode.function = 0;
-	nodesr.flag |= 0x04; // µ½´ïÂ·¿Ú
+	nodesr.flag |= 0x04; // åˆ°è¾¾è·¯å£
 }
 
-/*ÍË¶ÌÖ±Á¢¾°µã - ºìÍâ¼ì²â*/
+/*é€€çŸ­ç›´ç«‹æ™¯ç‚¹ - çº¢å¤–æ£€æµ‹*/
 void back(void)
 {
-	/*ºóÍËÒ»¶Î¾àÀë*/
+	/*åé€€ä¸€æ®µè·ç¦»*/
 	Motor_Control(is_Free, -2000, -2000, 0);
 	if(nodesr.lastNode.nodenum == S5)
 		Want2Go(20);
@@ -1125,20 +1125,20 @@ void back(void)
 	Motor_Control(is_Line, 28, 28, 0);
 
 	nodesr.nowNode.function = 0;
-	nodesr.flag |= 0x04; // µ½´ïÂ·¿Ú
+	nodesr.flag |= 0x04; // åˆ°è¾¾è·¯å£
 }
 
-/*²¨ÀË°å*/
+/*æ³¢æµªæ¿*/
 void Barrier_WavedPlate(float lenght)
 {
 	struct PID_param origin_param1 = gyroG_pid_param;
 	struct PID_param origin_param = line_pid_param;
 	
-	/*½ø°åÇ°*/
+	/*è¿›æ¿å‰*/
 	Motor_Control(is_Line, Low_Speed, Low_Speed, 0);
 	while (Scaner.ledNum <= 4 || Scaner.lineNum == 1)
 	{
-		Cross_getline();
+		Cross_getline(&Cross_Scaner);
 		if((Cross_Scaner.detail & 0x180) == 0x180)
 			mpuZreset(get_latest_yaw(),nodesr.nowNode.angle);
 		vTaskDelay(2);
@@ -1146,10 +1146,10 @@ void Barrier_WavedPlate(float lenght)
 	line_pid_param.kp = 35; // 23.5
 	line_pid_param.ki = 0;	// 0.004
 	line_pid_param.kd = 0;
-	/*½ø°å*/
+	/*è¿›æ¿*/
 	float num = 0;
 	
-	/*¾ÉÑ­¼£²ÎÊı*/
+	/*æ—§å¾ªè¿¹å‚æ•°*/
 	Motor_Control(is_Line, BL_Speed+2, BL_Speed+2, 0);
 	num = motor_all.Distance;
 	scaner_set.EdgeIgnore = 3;
@@ -1160,7 +1160,7 @@ void Barrier_WavedPlate(float lenght)
 		CGChange(BL_Speed);
 	}
 
-	/*³ö°å*/
+	/*å‡ºæ¿*/
 	WavePlateLeft_Flag = 0;
 	WavePlateRight_Flag = 0;
 	scaner_set.EdgeIgnore = 0;
@@ -1168,10 +1168,10 @@ void Barrier_WavedPlate(float lenght)
 	nodesr.nowNode.function = 0;
 	buzzer_off();
 	gyroG_pid_param = origin_param1;
-	nodesr.flag |= 0x04; // µ½´ïÂ·¿Ú
+	nodesr.flag |= 0x04; // åˆ°è¾¾è·¯å£
 }
 
-/*ÄÏ¼«*/
+/*å—æ*/
 void South_Pole(void)
 {
 	float num = 0;
@@ -1190,7 +1190,7 @@ void South_Pole(void)
 	gyroG_pid_param.kd = 0.5;
 	
 	
-	/*µÈ´ıÊ¶±ğµ½ÆÂ*/
+	/*ç­‰å¾…è¯†åˆ«åˆ°å¡*/
 	encoder_clear();
 	num = motor_all.Distance;
 	while (fabsf(motor_all.Distance - num) < 150)//80
@@ -1212,7 +1212,7 @@ void South_Pole(void)
 	line_pid_param.kd = 400;//25
 	
 	encoder_clear();	
-	/*µÈ´ı¿ªÊ¼ÉÏÆÂ*/
+	/*ç­‰å¾…å¼€å§‹ä¸Šå¡*/
 	Motor_Control(is_Gyro, Low_Speed, Low_Speed, angle.AngleG);
 	num = motor_all.Distance;
 	while (fabsf(motor_all.Distance - num) < 40)
@@ -1221,7 +1221,7 @@ void South_Pole(void)
 			break;
 		vTaskDelay(2);
 	}
-	/*¿ªÊ¼ÉÏÆÂ*/
+	/*å¼€å§‹ä¸Šå¡*/
 	Motor_Control(is_Line, Mount_Speed-7, Mount_Speed-7, 0);
 	Robot_Work(BODY, UP);
 	encoder_clear();
@@ -1250,7 +1250,7 @@ void South_Pole(void)
 //	get_angle = 0;
 //	sum_angle = 0;
 	
-	/*ÉÏÆÂ½áÊø*/
+	/*ä¸Šå¡ç»“æŸ*/
 	buzzer_off();
 	if(getZ == 0)
 		angle.AngleG = nodesr.nowNode.angle;
@@ -1260,7 +1260,7 @@ void South_Pole(void)
 	gyroG_pid_param.kd = 0;
 	Motor_Control(is_Gyro, IMPACT_SPEED-5, IMPACT_SPEED-5, angle.AngleG);
 
-	/*×²µ²°å*/
+	/*æ’æŒ¡æ¿*/
 	while (Infrared_ahead == 0)
 		vTaskDelay(5);
 	Want2Go(17);
@@ -1272,11 +1272,11 @@ void South_Pole(void)
 	open_OCR_mode();
 	CarBrake();
 	vTaskDelay(200);
-	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); // ÍÓÂİÒÇĞ£Õı
+	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); // é™€èºä»ªæ ¡æ­£
 	//Arrived_Stage();
 
 	
-	/*ºóÍËÒ»¶Î¾àÀë*/
+	/*åé€€ä¸€æ®µè·ç¦»*/
 	num = motor_all.Distance;
 	Motor_Control(is_Free, -2000, -2000, 0);
 	while (fabsf(motor_all.Distance - num) < 4.5) //5.0f
@@ -1287,25 +1287,25 @@ void South_Pole(void)
 	Arrived_Stage();
 	//vTaskDelay(500);
 	
-	/*É¨Ãè¶şÎ¬Âë»ñÈ¡Æ½Ì¨ÒÔ¼°ÏßË÷µã*/
-		//»ñÈ¡±¦ÎïÏßË÷B£¬ÈôÒÑÖªÏßË÷Ôò²»¿ª
+	/*æ‰«æäºŒç»´ç è·å–å¹³å°ä»¥åŠçº¿ç´¢ç‚¹*/
+		//è·å–å®ç‰©çº¿ç´¢Bï¼Œè‹¥å·²çŸ¥çº¿ç´¢åˆ™ä¸å¼€
 	if(treasure == 0 &&map.routetime==0)
 		WaitFor_OCR();
 	
-	//Èç¹û±¦ÎïÏßË÷BÔÚÆ½Ì¨7,ÒÑ¾­ÄÃÍêËùÓĞÏßË÷ÖØĞÂ¹æ»®Â·Ïß
+	//å¦‚æœå®ç‰©çº¿ç´¢Båœ¨å¹³å°7,å·²ç»æ‹¿å®Œæ‰€æœ‰çº¿ç´¢é‡æ–°è§„åˆ’è·¯çº¿
 	if(map.routetime == 0&&map.routetime==0)
 	{
 		//buzzer_off();
 		update_rout_by_treasure_7();
 	}
 	
-	/*180¡ã×ª*/
+	/*180Â°è½¬*/
 	Turn_Angle_Relative(179);
 	while (fabs(angle.AngleT - getAngleZ()) > 2)
 		vTaskDelay(5);
 	motor_pid_clear();
 
-//	/*±¦²Ø*/
+//	/*å®è—*/
 //	if (treasure[2] == 7)
 //	{
 //		Robot_Work(LARM, UP);
@@ -1316,7 +1316,7 @@ void South_Pole(void)
 //		Robot_Work(RARM, DOWN);
 //	}
 
-	/*¿ªÊ¼ÏÂÆÂ*/
+	/*å¼€å§‹ä¸‹å¡*/
 	buzzer_on();
 	Robot_Work(BODY, DOWN);
 	Motor_Control(is_Gyro, Rubbish_Speed - 5, Rubbish_Speed - 5, 0);
@@ -1335,32 +1335,32 @@ void South_Pole(void)
 	line_pid_param.ki = 0;
 	line_pid_param.kd = 1.5;
 	Motor_Control(is_Line, Old_M_Speed, Old_M_Speed, 0);
-	/*Ç°½øÒ»Ğ¡¶Î*/
+	/*å‰è¿›ä¸€å°æ®µ*/
 	encoder_clear();
 	Want2Go(40);
 
-	/*ÇĞ»»Ñ­¼££¬¿ªÊ¼ÏÂÆÂ*/
+	/*åˆ‡æ¢å¾ªè¿¹ï¼Œå¼€å§‹ä¸‹å¡*/
 	line_pid_param.kp = 12*2;
 	line_pid_param.ki = 0;
 	line_pid_param.kd = 400;
 	Motor_Control(is_Line, UnderMou_Speed, UnderMou_Speed, 0);
 	while (imu.pitch < After_down)
 		vTaskDelay(2);
-	/*ÏÂÆÂ½áÊø*/
+	/*ä¸‹å¡ç»“æŸ*/
 
 	buzzer_off();
 	line_pid_param = origin_param;
 	gyroG_pid_param = origin_param1;
 	motor_all.GyroT_speedMax = origin_turnM;
 	nodesr.nowNode.function = 0;
-	nodesr.flag |= 0x04; // µ½´ïÂ·¿Ú
+	nodesr.flag |= 0x04; // åˆ°è¾¾è·¯å£
 }
 
 
 void update_rout_by_treasure_7(void)
 {
 	//map.point = 1;
-	if(treasure != 0&&color_flag[0] == Green)//D2ÂÌµÆ
+	if(treasure != 0&&color_flag[0] == Green)//D2ç»¿ç¯
 	{
 		switch (treasure)
 		{
@@ -1415,7 +1415,7 @@ void update_rout_by_treasure_7(void)
                 break;	
 		}
 	}
-	if(treasure != 0&&color_flag[1] == Green)//D3ÂÌµÆ
+	if(treasure != 0&&color_flag[1] == Green)//D3ç»¿ç¯
 	{
 		switch (treasure)
 		{
@@ -1469,7 +1469,7 @@ void update_rout_by_treasure_7(void)
                 break;	
 	     }
     }
-	if(treasure != 0&&color_flag[2] == Green)//D4ÂÌµÆ
+	if(treasure != 0&&color_flag[2] == Green)//D4ç»¿ç¯
 	{
 		switch (treasure)
 		{
@@ -1523,7 +1523,7 @@ void update_rout_by_treasure_7(void)
                 break;	
 	    }
 	}
-	if(treasure != 0&&((color_flag[0] == Yellow)||(color_flag[1] == Yellow)))//D2D3»ÆµÆ
+	if(treasure != 0&&((color_flag[0] == Yellow)||(color_flag[1] == Yellow)))//D2D3é»„ç¯
 	{
 		switch (treasure)
 		{
@@ -1577,7 +1577,7 @@ void update_rout_by_treasure_7(void)
                 break;	
 	    }
 	}
-	if(treasure != 0&&color_flag[2] == Yellow)//D4»ÆµÆD5±ØÂÌµÆ
+	if(treasure != 0&&color_flag[2] == Yellow)//D4é»„ç¯D5å¿…ç»¿ç¯
 	{
 		switch (treasure)
 		{
@@ -1635,7 +1635,7 @@ void update_rout_by_treasure_7(void)
 }
 void update_rout_by_treasure_8(void)
 {
-	if(treasure != 0&&color_flag[0] == Green)//D2ÂÌµÆ
+	if(treasure != 0&&color_flag[0] == Green)//D2ç»¿ç¯
 	{
 		switch (treasure)
 		{
@@ -1689,7 +1689,7 @@ void update_rout_by_treasure_8(void)
                 break;	
 		}
 	}
-	if(treasure != 0&&color_flag[1] == Green)//D3ÂÌµÆ
+	if(treasure != 0&&color_flag[1] == Green)//D3ç»¿ç¯
 	{
 		switch (treasure)
 		{
@@ -1743,7 +1743,7 @@ void update_rout_by_treasure_8(void)
                 break;	
 	     }
     }
-	if(treasure != 0&&color_flag[2] == Green)//D4ÂÌµÆ
+	if(treasure != 0&&color_flag[2] == Green)//D4ç»¿ç¯
 	{
 		switch (treasure)
 		{
@@ -1797,7 +1797,7 @@ void update_rout_by_treasure_8(void)
                 break;	
 	    }
 	}
-	if(treasure != 0&&((color_flag[0] == Yellow)||(color_flag[1] == Yellow)))//D2D3»ÆµÆ
+	if(treasure != 0&&((color_flag[0] == Yellow)||(color_flag[1] == Yellow)))//D2D3é»„ç¯
 	{
 		switch (treasure)
 		{
@@ -1851,7 +1851,7 @@ void update_rout_by_treasure_8(void)
                 break;	
 	    }
 	}
-	if(treasure != 0&&color_flag[2] == Yellow)//D4»ÆµÆD5±ØÂÌµÆ
+	if(treasure != 0&&color_flag[2] == Yellow)//D4é»„ç¯D5å¿…ç»¿ç¯
 	{
 		switch (treasure)
 		{
@@ -1906,10 +1906,10 @@ void update_rout_by_treasure_8(void)
 	    }
 	}
 }
-/*õÎõÎ°å*/
+/*è··è··æ¿*/
 void QQB_1(void)
 {
-	//ÊÇ·ñ¿ª×ÔÆ½ºâ
+	//æ˜¯å¦å¼€è‡ªå¹³è¡¡
 	uint8_t gyro_flag;
 	uint16_t break_time = 0;
 	float num;
@@ -1923,13 +1923,13 @@ void QQB_1(void)
 	motor_all.Cspeed = Low_Speed;
 	pid_mode_switch(is_Line);
 	if(nodesr.nowNode.nodenum == B9)
-		scaner_set.CatchsensorNum = line_weight_default[8]; // ¸øÓè×ó±ßÈ¨Öµ
+		scaner_set.CatchsensorNum = line_weight_default[8]; // ç»™äºˆå·¦è¾¹æƒå€¼
 	else
-		scaner_set.CatchsensorNum = line_weight_default[8]; // ¸øÓè×ó±ßÈ¨Öµ
+		scaner_set.CatchsensorNum = line_weight_default[8]; // ç»™äºˆå·¦è¾¹æƒå€¼
 	infrare_open = 1;
 
-	/*°å´¦Àí*/
-	/*Ñ­¼£×ß°åÇ°1/4Íä»¡*/
+	/*æ¿å¤„ç†*/
+	/*å¾ªè¿¹èµ°æ¿å‰1/4å¼¯å¼§*/
 	if(nodesr.lastNode.nodenum == N7 && nodesr.nowNode.nodenum == B8)
 		Want2Go(89);	/*80*/
 	else 
@@ -1937,7 +1937,7 @@ void QQB_1(void)
 	motor_all.Cspeed = 15; 
 	while ((imu.pitch < basic_p + 6))
 	{
-		Cross_getline();
+		Cross_getline(&Cross_Scaner);
 		if ((Cross_Scaner.detail & 0x3) == 0x3 ||//0000 0000 0000 0011
 			(Cross_Scaner.detail & 0x6) == 0x6 ||//0000 0000 0000 0110
 			(Cross_Scaner.detail & 0xC) == 0xC)//0000 0000 0000 1100
@@ -1946,7 +1946,7 @@ void QQB_1(void)
 	}
 	scaner_set.CatchsensorNum = 0;
 
-	/*ÍÓÂİÒÇ×ªÕıÎ»ÖÃ*/
+	/*é™€èºä»ªè½¬æ­£ä½ç½®*/
 	if (nodesr.nowNode.nodenum == B8)
 		Motor_Control(is_Gyro, QQB_Speed, QQB_Speed, getAngleZ()+4);//+5 
 	else
@@ -1960,7 +1960,7 @@ void QQB_1(void)
 		vTaskDelay(2);
 	}
 	break_time=0;
-	/*°åÉÏºìÍâ+Ñ­¼£½ÃÕı*/
+	/*æ¿ä¸Šçº¢å¤–+å¾ªè¿¹çŸ«æ­£*/
 	gyroG_pid_param.kp = 4;//8
 	gyroG_pid_param.ki = 0.004;
 	gyroG_pid_param.kd = 0;
@@ -1985,7 +1985,7 @@ void QQB_1(void)
 		vTaskDelay(2);
 		
 	}
-//	Ğ§¹û²»ºÃ
+//	æ•ˆæœä¸å¥½
 //	 while(imu.pitch < Down_pitch+6)
 //		{ 
 //				Want2Go(10);	
@@ -2022,14 +2022,14 @@ void QQB_1(void)
 	
 	CarBrake();
 	vTaskDelay(700);
-	Cross_getline();	
-	/*°åÖĞÍ£³µµÈ´ı°åÔÒÏÂ*/
-	while(1)//Ò»¶¨ÒªÈ¥¼ì²âgyro_flag
+	Cross_getline(&Cross_Scaner);	
+	/*æ¿ä¸­åœè½¦ç­‰å¾…æ¿ç ¸ä¸‹*/
+	while(1)//ä¸€å®šè¦å»æ£€æµ‹gyro_flag
 	{	
 		buzzer_on();
 		vTaskDelay(2);
 		timeout ++;
-		Cross_getline();
+		Cross_getline(&Cross_Scaner);
 		if(Cross_Scaner.detail & 0x7FC)
 		{
 			gyro_flag=0;
@@ -2045,7 +2045,7 @@ void QQB_1(void)
 	buzzer_off();
 	if(gyro_flag==1)
 	{
-		  	/*Ñ­¼£½ÃÕı*/
+		  	/*å¾ªè¿¹çŸ«æ­£*/
 			gyroG_pid_param.kp = 1.5;//8
 			gyroG_pid_param.ki = 0.004;
 			gyroG_pid_param.kd = 20;
@@ -2054,7 +2054,7 @@ void QQB_1(void)
 			while (fabs(need2turn(getAngleZ(), angle.AngleG)) > 5 )
 			{
 				break_time++;
-				Cross_getline();
+				Cross_getline(&Cross_Scaner);
 				if (break_time > 500|| Cross_Scaner.detail &0x7FF )
 				{
 					line_pid_param.kp = 17;//18
@@ -2064,7 +2064,7 @@ void QQB_1(void)
 				}
 				vTaskDelay(2);
 			}
-			//Ô­À´²ÎÊı
+			//åŸæ¥å‚æ•°
 			gyroG_pid_param.kp = 8;//8
 			gyroG_pid_param.ki = 0.004;
 			gyroG_pid_param.kd = 0;
@@ -2078,8 +2078,8 @@ void QQB_1(void)
 	infrare_open = 0;
 	scaner_set.EdgeIgnore = 0;
 	
-	/*¿ª»·×ªÒ»¶Î£¬È·±£ÄÜ¿´µ½Ïß*///ÔİÊ±²»Òª
-	/*°åÖĞÍ£³µµÈ´ı°åÔÒÏÂ*/
+	/*å¼€ç¯è½¬ä¸€æ®µï¼Œç¡®ä¿èƒ½çœ‹åˆ°çº¿*///æš‚æ—¶ä¸è¦
+	/*æ¿ä¸­åœè½¦ç­‰å¾…æ¿ç ¸ä¸‹*/
 /*	
 	while(imu.pitch > Down_pitch+6)
 	{	
@@ -2104,16 +2104,16 @@ void QQB_1(void)
 		vTaskDelay(500);
 		needangle = 45;
 	}
-	//µ±¼ì²âµ½ÒÑÍê³É´ó²¿·Ö×ªÏò£¨>60%£©ÇÒ¾ÓÖĞÊ±£¬ÌáÇ°ÍË³ö
+	//å½“æ£€æµ‹åˆ°å·²å®Œæˆå¤§éƒ¨åˆ†è½¬å‘ï¼ˆ>60%ï¼‰ä¸”å±…ä¸­æ—¶ï¼Œæå‰é€€å‡º
 	while ((fabsf(need2turn(getAngleZ(), angle1))) < needangle)
 	{
 		vTaskDelay(2);
-		Cross_getline();
-		if (Cross_Scaner.lineNum == 1 && Cross_Scaner.ledNum >= 2 && (Cross_Scaner.detail & 0x0ff0) && (fabs(need2turn(angle.AngleG, getAngleZ())) < fabs(need2turn(angle.AngleG, needangle) * 0.6f)))//µ±Ç°º½ÏòÆ«²î Ğ¡ÓÚÔ¤ÆÚ×ÜÆ«²îµÄ60% Ê±ÍË³ö
+		Cross_getline(&Cross_Scaner);
+		if (Cross_Scaner.lineNum == 1 && Cross_Scaner.ledNum >= 2 && (Cross_Scaner.detail & 0x0ff0) && (fabs(need2turn(angle.AngleG, getAngleZ())) < fabs(need2turn(angle.AngleG, needangle) * 0.6f)))//å½“å‰èˆªå‘åå·® å°äºé¢„æœŸæ€»åå·®çš„60% æ—¶é€€å‡º
 			break;
 	}
 */	
-	/*Á½°å×Ó¸ø²»Í¬ËÙ¶È*/
+	/*ä¸¤æ¿å­ç»™ä¸åŒé€Ÿåº¦*/
 	scaner_set.CatchsensorNum = 0;
 	motor_all.Cspeed = Low_Speed-12;
 	
@@ -2124,14 +2124,14 @@ void QQB_1(void)
 	nodesr.flag |= 0X04;
 }
 
-/*¿´µÆ*/
+/*çœ‹ç¯*/
 void door()
 {
 	static uint8_t flag = 0;
 	static uint8_t wait_cnt = 0;
 	buzzer_on();
 
-	if (flag <= 10) // È¥
+	if (flag <= 10) // å»
 			{
 				Robot_Work(HEAD,HEAD_RIGHT);
 			}
@@ -2142,21 +2142,21 @@ void door()
 	
 	while (1)
 	{
-		/*×ßµ½µÆÇ°*/
+		/*èµ°åˆ°ç¯å‰*/
 		if (Scaner.ledNum >= 8)
 		{
 			buzzer_off();
 			Motor_Control(is_No, 0, 0, 0);
-			/*ÅĞ¶Ï¿ªÄÄ±ßµÄMV*/
+			/*åˆ¤æ–­å¼€å“ªè¾¹çš„MV*/
 			Color_Right = Color_Left = 0;
-			if (flag <= 10) // È¥
+			if (flag <= 10) // å»
 			{
 				Open_COLOR_R();}
 			else
 			{
 				Open_COLOR_L();}
 
-			/*µÈ¿´ÍêµÆ*/
+			/*ç­‰çœ‹å®Œç¯*/
 			uint16_t outtime = 0;
 
 //			 if (nodesr.nowNode.nodenum == N12)
@@ -2172,12 +2172,12 @@ void door()
 				vTaskDelay(2);
 			}
 
-			/*µÚÒ»´Î¿´µÆ - ¿´D2*/
+			/*ç¬¬ä¸€æ¬¡çœ‹ç¯ - çœ‹D2*/
 			if (flag == 0)
 			{
 				while (1)
 				{
-					/*ºìµÆ - »ØÈ¥×¼±¸¿´D3*/
+					/*çº¢ç¯ - å›å»å‡†å¤‡çœ‹D3*/
 					if (Color_Right == Red)
 					{
 						color_flag[0] = Color_Right;
@@ -2206,22 +2206,22 @@ void door()
 						nodesr.flag |= 0x20;
 						flag = 1;
 						close_Maxicam();
-						//¿´ÍêÍ·»ØÕı
+						//çœ‹å®Œå¤´å›æ­£
 						Robot_Work(HEAD,HEAD_MID);
 						return;
 					}
-					/*ÂÌµÆ - ¼ÌĞøÇ°½ø*/
+					/*ç»¿ç¯ - ç»§ç»­å‰è¿›*/
 					else if (Color_Right == Green)
 					{
 						color_flag[0] = Color_Right;
 						send_play_specified_command(8);
 						map.point = 0;
-						nodesr.nowNode = Node[getNextConnectNode(N5, N12)]; // ÖØĞÂÉèÖÃnowNode
+						nodesr.nowNode = Node[getNextConnectNode(N5, N12)]; // é‡æ–°è®¾ç½®nowNode
 						nodesr.nowNode.flag = DLEFT | DRIGHT | LEFT_LINE;
 						nodesr.nowNode.step = 120 /*100*/;
 						nodesr.nowNode.speed = SPEED2;
 						nodesr.nowNode.function = NONE;
-						//¸üĞÂÂ·¾¶
+						//æ›´æ–°è·¯å¾„
 						update_route_by_QR();
 						
 						motor_all.Cspeed = nodesr.nowNode.speed;
@@ -2231,24 +2231,24 @@ void door()
 						TC_speed = 0;
 						
 						nodesr.flag |= 0x80;
-						flag = 0;	//È·¶¨Â·Ïß
+						flag = 0;	//ç¡®å®šè·¯çº¿
 						close_Maxicam();
-						//¿´ÍêÍ·»ØÕı
+						//çœ‹å®Œå¤´å›æ­£
 						Robot_Work(HEAD,HEAD_MID);
 						return;
 					}
-					/*»ÆµÆ - ¼ÌĞøÇ°½ø£¬ĞèÒª¿´D5*/
+					/*é»„ç¯ - ç»§ç»­å‰è¿›ï¼Œéœ€è¦çœ‹D5*/
 					else if (Color_Right == Yellow)
 					{
 						send_play_specified_command(10);
 						color_flag[0] = Color_Right;
 						map.point = 0;
-						nodesr.nowNode = Node[getNextConnectNode(N5, N12)]; // ÖØĞÂÉèÖÃnowNode
+						nodesr.nowNode = Node[getNextConnectNode(N5, N12)]; // é‡æ–°è®¾ç½®nowNode
 						nodesr.nowNode.flag = DLEFT |DRIGHT|CRIGHT|MUL2SING|LEFT_LINE;
 						nodesr.nowNode.step = 120;//90
 						nodesr.nowNode.speed = SPEED2;
 						nodesr.nowNode.function = NONE;
-						//¸üĞÂÂ·¾¶
+						//æ›´æ–°è·¯å¾„
 						update_route_by_QR();
 						
 						line_pid_obj = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
@@ -2257,20 +2257,20 @@ void door()
 						motor_all.Cspeed = nodesr.nowNode.speed;
 						pid_mode_switch(is_Line);
 						nodesr.flag |= 0x80;
-						flag = 11;	//ĞèÒª¿´D5
+						flag = 11;	//éœ€è¦çœ‹D5
 						close_Maxicam();
-						//¿´ÍêÍ·»ØÕı
+						//çœ‹å®Œå¤´å›æ­£
 						Robot_Work(HEAD,HEAD_MID);
 						return;
 					}
-					/*´íÎó*/
+					/*é”™è¯¯*/
 					else
 					{
 						CarBrake();
 					}
 					vTaskDelay(2);
 
-					/*³¬Ê±»¹Ã»¿´ÍêµÆ¾ÍÔÙ¿ªÒ»´Î*/
+					/*è¶…æ—¶è¿˜æ²¡çœ‹å®Œç¯å°±å†å¼€ä¸€æ¬¡*/
 					wait_cnt++;
 					if (wait_cnt == 50)
 					{
@@ -2279,12 +2279,12 @@ void door()
 					}
 				}
 			}
-			/*µÚ¶ş´Î¿´µÆ - D2ºì,¿´D3*/
+			/*ç¬¬äºŒæ¬¡çœ‹ç¯ - D2çº¢,çœ‹D3*/
 			if (flag == 1)
 			{
 				while (1)
 				{
-					/*ºìµÆ - »ØÈ¥*/
+					/*çº¢ç¯ - å›å»*/
 					if (Color_Right == Red)
 					{
 						color_flag[1] = Color_Right;
@@ -2296,7 +2296,7 @@ void door()
 							vTaskDelay(2);
 						}
 						
-						nodesr.nowNode = Node[getNextConnectNode(N8, N5)]; // ÖØĞÂÉèÖÃnowNode
+						nodesr.nowNode = Node[getNextConnectNode(N8, N5)]; // é‡æ–°è®¾ç½®nowNode
 						nodesr.nowNode.flag |= CLEFT | CRIGHT;
 						nodesr.nowNode.step = 70;
 						nodesr.nowNode.speed = SPEED4;
@@ -2316,14 +2316,14 @@ void door()
 						nodesr.flag |= 0x20;
 						flag = 2;
 						close_Maxicam();
-						//¿´ÍêÍ·»ØÕı
+						//çœ‹å®Œå¤´å›æ­£
 						Robot_Work(HEAD,HEAD_MID);
 						return;
 					}
-					/*·ÇºìµÆ - ¼ÌĞø×ß*/
+					/*éçº¢ç¯ - ç»§ç»­èµ°*/
 					else if (Color_Right == Green | Color_Right == Yellow)
 					{
-						nodesr.nowNode = Node[getNextConnectNode(N5, N8)]; // ÖØĞÂÉèÖÃnowNode
+						nodesr.nowNode = Node[getNextConnectNode(N5, N8)]; // é‡æ–°è®¾ç½®nowNode
 						nodesr.nowNode.flag = DLEFT | LEFT_LINE | DRIGHT;
 						nodesr.nowNode.step = 60;//60
 						nodesr.nowNode.speed = SPEED2;
@@ -2337,10 +2337,10 @@ void door()
 							Node[getNextConnectNode(N8, N5)].speed = SPEED4;
 							Node[getNextConnectNode(N8, N5)].step = 150;
 							
-							//¸üĞÂÂ·¾¶
+							//æ›´æ–°è·¯å¾„
 							update_route_by_QR();
 							
-							flag = 0;	//È·¶¨Â·Ïß
+							flag = 0;	//ç¡®å®šè·¯çº¿
 						}
 						else if (Color_Right == Yellow)
 						{
@@ -2348,15 +2348,15 @@ void door()
 							send_play_specified_command(10);
 							nodesr.flag |= 0x80;
 							
-							//¸üĞÂÂ·¾¶
+							//æ›´æ–°è·¯å¾„
 							update_route_by_QR();
 							
-							flag = 11;	//Òª¿´D5
+							flag = 11;	//è¦çœ‹D5
 						}
 						Motor_Control(is_Line, nodesr.nowNode.speed, nodesr.nowNode.speed, 0);
 						close_Maxicam();
 						nodesr.flag |= 0x80;
-						//¿´ÍêÍ·»ØÕı
+						//çœ‹å®Œå¤´å›æ­£
 						Robot_Work(HEAD,HEAD_MID);
 						return;
 					}
@@ -2371,13 +2371,13 @@ void door()
 					}
 				}
 			}
-			/*µÚÈı´Î¿´µÆ - D2ºì,D3ºì,¿´D4*/
+			/*ç¬¬ä¸‰æ¬¡çœ‹ç¯ - D2çº¢,D3çº¢,çœ‹D4*/
 			if (flag == 2)
 			{
 				flag = 0;
 				while (1)
 				{
-					/*ÂÌµÆ - ¼ÌĞøÇ°½ø*/
+					/*ç»¿ç¯ - ç»§ç»­å‰è¿›*/
 					if (Color_Right == Green)
 					{
 						send_play_specified_command(8);
@@ -2387,24 +2387,24 @@ void door()
 						Node[getNextConnectNode(N8, N3)].speed = SPEED4;
 						Node[getNextConnectNode(N8, N3)].step = 140;
 						
-						//¸üĞÂÂ·¾¶
+						//æ›´æ–°è·¯å¾„
 						update_route_by_QR();
 						
 						//route_reset(4);
 						close_Maxicam();
 						break;
 					}
-					/*»ÆµÆ - ¼ÌĞøÇ°½ø*/
-					//ÔòD5±ØÎªÂÌÉ«
+					/*é»„ç¯ - ç»§ç»­å‰è¿›*/
+					//åˆ™D5å¿…ä¸ºç»¿è‰²
 					else if (Color_Right == Yellow)
 					{
 						send_play_specified_command(10);
 						color_flag[2] = Color_Right;
-						Node[getNextConnectNode(N10, N3)].function = NONE;		//D5±Ø¶¨ÂÌ£¬²»ÓÃ¿´
+						Node[getNextConnectNode(N10, N3)].function = NONE;		//D5å¿…å®šç»¿ï¼Œä¸ç”¨çœ‹
 						Node[getNextConnectNode(N10, N3)].speed = SPEED4;//SPEED4
 						Node[getNextConnectNode(N10, N3)].step = 200;
 						
-						//¸üĞÂÂ·¾¶
+						//æ›´æ–°è·¯å¾„
 						update_route_by_QR();
 						
 						//route_reset(9);
@@ -2424,7 +2424,7 @@ void door()
 					}
 				}
 				map.point = 0;
-				nodesr.nowNode = Node[getNextConnectNode(N3, N8)]; // ÖØĞÂÉèÖÃnowNode
+				nodesr.nowNode = Node[getNextConnectNode(N3, N8)]; // é‡æ–°è®¾ç½®nowNode
 				nodesr.nowNode.flag = DLEFT | DRIGHT;
 				nodesr.nowNode.step = 60;
 				nodesr.nowNode.speed = SPEED3;
@@ -2434,22 +2434,22 @@ void door()
 				motor_all.Cspeed = nodesr.nowNode.speed;
 				pid_mode_switch(is_Line);
 				nodesr.nowNode.function = 1;
-				//¿´ÍêÍ·»ØÕı
+				//çœ‹å®Œå¤´å›æ­£
 				Robot_Work(HEAD,HEAD_MID);
 				return;
 			}
-			/*¿´D5 - Á½ÖÖÇé¿ö£º1.D2»Æ 2.D2ºì D3»Æ*/
+			/*çœ‹D5 - ä¸¤ç§æƒ…å†µï¼š1.D2é»„ 2.D2çº¢ D3é»„*/
 			if (flag == 11)
 			{
 				while (1)
 				{
-					/*ÂÌµÆ - ¼ÌĞøÇ°½ø*/
+					/*ç»¿ç¯ - ç»§ç»­å‰è¿›*/
 					if (Color_Left == Green)
 					{
 						send_play_specified_command(8);
 						color_flag[3] = Color_Left;
 						map.point = 0;
-						nodesr.nowNode = Node[getNextConnectNode(N10, N3)]; // ÖØĞÂÉèÖÃnowNode
+						nodesr.nowNode = Node[getNextConnectNode(N10, N3)]; // é‡æ–°è®¾ç½®nowNode
 						nodesr.nowNode.flag = DRIGHT | RIGHT_LINE;
 						nodesr.nowNode.step = 65;
 						nodesr.nowNode.speed = SPEED4;
@@ -2459,13 +2459,13 @@ void door()
 						
 						break;
 					}
-					/*ºìµÆ - ·µ»Ø¿´Çé¿ö*/
+					/*çº¢ç¯ - è¿”å›çœ‹æƒ…å†µ*/
 					else if (Color_Left == Red)
 					{
 						send_play_specified_command(11);
 						color_flag[3] = Color_Left;
 						
-						/*D2»Æ£¬D5ºì£¬È¥¿´D4*/
+						/*D2é»„ï¼ŒD5çº¢ï¼Œå»çœ‹D4*/
 						if (color_flag[0] == Yellow)
 						{
 							map.point -= 2;
@@ -2484,7 +2484,7 @@ void door()
 							nodesr.nowNode.speed = SPEED3;
 							flag = 12;
 						}
-						/*D2ºì£¬D3»Æ£¬D5ºì£¬Ê£ÏÂµÄ±Ø¶¨¶¼ÊÇÂÌ*/
+						/*D2çº¢ï¼ŒD3é»„ï¼ŒD5çº¢ï¼Œå‰©ä¸‹çš„å¿…å®šéƒ½æ˜¯ç»¿*/
 						else if ((color_flag[0] == Red) && (color_flag[1] == Yellow))
 						{
 							Turn_Angle_Relative(181);
@@ -2494,7 +2494,7 @@ void door()
 							}
 
 							map.point = 0;
-							nodesr.nowNode = Node[getNextConnectNode(N3, N10)]; // ÖØĞÂÉèÖÃnowNode
+							nodesr.nowNode = Node[getNextConnectNode(N3, N10)]; // é‡æ–°è®¾ç½®nowNode
 							nodesr.nowNode.flag = DLEFT | DRIGHT;
 							nodesr.nowNode.step = 70;
 							nodesr.nowNode.speed = SPEED3;
@@ -2528,22 +2528,22 @@ void door()
 				pid_mode_switch(is_Line);
 				motor_all.Cspeed = nodesr.nowNode.speed;
 				nodesr.nowNode.function = 1;
-				//¿´ÍêÍ·»ØÕı
+				//çœ‹å®Œå¤´å›æ­£
 				Robot_Work(HEAD,HEAD_MID);
 				return;
 			}
-			/*¿´D4 - D2»Æ£¬D5ºì£¬ĞèÒª¿´D4È·ÈÏ*/
+			/*çœ‹D4 - D2é»„ï¼ŒD5çº¢ï¼Œéœ€è¦çœ‹D4ç¡®è®¤*/
 			if (flag == 12)
 			{
 				while (1)
 				{
-					/*ÂÌµÆ - ¼ÌĞøÇ°½ø*/
+					/*ç»¿ç¯ - ç»§ç»­å‰è¿›*/
 					if (Color_Left == Green)
 					{
 						send_play_specified_command(8);
 						color_flag[2] = Color_Left;
 						map.point = 0;
-						nodesr.nowNode = Node[getNextConnectNode(N8, N3)]; // ÖØĞÂÉèÖÃnowNode
+						nodesr.nowNode = Node[getNextConnectNode(N8, N3)]; // é‡æ–°è®¾ç½®nowNode
 						nodesr.nowNode.flag = LEFT_LINE | MUL2MUL | STOPTURN;
 						nodesr.nowNode.step = 10;
 						nodesr.nowNode.speed = SPEED3;
@@ -2555,12 +2555,12 @@ void door()
 						motor_pid_clear();
 						break;
 					}
-					/*ºìµÆ - Ê£ÏÂµÄ¶¼ÊÇÂÌµÆ*/
+					/*çº¢ç¯ - å‰©ä¸‹çš„éƒ½æ˜¯ç»¿ç¯*/
 					else if (Color_Left == Red)
 					{
 						send_play_specified_command(11);
 						color_flag[2] = Color_Left;
-						Turn_Angle_Relative(181); //	×ªµ½µ±Ç°½áµã·½Ïò
+						Turn_Angle_Relative(181); //	è½¬åˆ°å½“å‰ç»“ç‚¹æ–¹å‘
 						while (fabs(angle.AngleT - getAngleZ()) > 2)
 						{
 							vTaskDelay(2);
@@ -2599,13 +2599,13 @@ void door()
 				pid_mode_switch(is_Line);
 				motor_all.Cspeed = nodesr.nowNode.speed;
 				nodesr.nowNode.function = NONE;
-				//¿´ÍêÍ·»ØÕı
+				//çœ‹å®Œå¤´å›æ­£
 				Robot_Work(HEAD,HEAD_MID);
 				return;
 			}
 		}
 	}
-		//¿´ÍêÍ·»ØÕı
+		//çœ‹å®Œå¤´å›æ­£
 		Robot_Work(HEAD,HEAD_MID);
 }
 
@@ -2628,7 +2628,7 @@ void update_route_for_stage34(void)
 
 void update_route_by_door_1(void)
 {
-	//±¦ÎïÄÃ¹ıÁË£¬Ö±½Ó»Ø¼Ò
+	//å®ç‰©æ‹¿è¿‡äº†ï¼Œç›´æ¥å›å®¶
 	if(treasure ==5||treasure == 6)
 	{
 		for(uint8_t i = 0;i<100;i++)
@@ -2639,7 +2639,7 @@ void update_route_by_door_1(void)
 		}
 	
 	}
-	//È¥ÈıºÅÆ½Ì¨ÄÃ±¦Îï
+	//å»ä¸‰å·å¹³å°æ‹¿å®ç‰©
 	if(treasure ==3)
 	{
 		u8 route_to_3[15] = {P3,N3,N4,B3,N2,P2,0XFF};
@@ -2650,7 +2650,7 @@ void update_route_by_door_1(void)
 				break;
 		}
 	}
-	//È¥ËÄºÅÆ½Ì¨ÄÃ±¦Îï
+	//å»å››å·å¹³å°æ‹¿å®ç‰©
 	if(treasure ==4)
 	{
 		u8 route_to_4[15] = {N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF};
@@ -2661,7 +2661,7 @@ void update_route_by_door_1(void)
 				break;
 		}
 	}
-	//È¥¶şºÅÆ½Ì¨ÄÃ±¦Îï
+	//å»äºŒå·å¹³å°æ‹¿å®ç‰©
 	if(treasure ==2)
 	{
 		u8 route_to_2[15] = {N4,B2,N1,P1,N1,B1,N2,P2,0XFF};
@@ -2675,7 +2675,7 @@ void update_route_by_door_1(void)
 }
 void update_route_by_door_2(void)
 {
-	//±¦ÎïÄÃ¹ıÁË£¬Ö±½Ó»Ø¼Ò
+	//å®ç‰©æ‹¿è¿‡äº†ï¼Œç›´æ¥å›å®¶
 	if(treasure ==5||treasure == 6)
 	{
 		
@@ -2687,7 +2687,7 @@ void update_route_by_door_2(void)
 		}
 	
 	}
-	//È¥ÈıºÅÆ½Ì¨ÄÃ±¦Îï
+	//å»ä¸‰å·å¹³å°æ‹¿å®ç‰©
 	if(treasure ==3)
 	{
 		u8 route_to_3[15] = {N8,N3,P3,N3,N4,B3,N2,P2,0XFF};
@@ -2698,7 +2698,7 @@ void update_route_by_door_2(void)
 				break;
 		}
 	}
-	//È¥ËÄºÅÆ½Ì¨ÄÃ±¦Îï
+	//å»å››å·å¹³å°æ‹¿å®ç‰©
 	if(treasure ==4)
 	{
 		u8 route_to_4[15] = {N8,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF};
@@ -2709,7 +2709,7 @@ void update_route_by_door_2(void)
 				break;
 		}
 	}
-	//È¥¶şºÅÆ½Ì¨ÄÃ±¦Îï
+	//å»äºŒå·å¹³å°æ‹¿å®ç‰©
 	if(treasure ==2)
 	{
 		u8 route_to_2[15] = {N8,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF};
@@ -2723,7 +2723,7 @@ void update_route_by_door_2(void)
 }
 void update_route_by_door_3(void)
 {
-	//±¦ÎïÄÃ¹ıÁË£¬Ö±½Ó»Ø¼Ò
+	//å®ç‰©æ‹¿è¿‡äº†ï¼Œç›´æ¥å›å®¶
 	if(treasure ==5||treasure == 6)
 	{
 		
@@ -2735,7 +2735,7 @@ void update_route_by_door_3(void)
 		}
 	
 	}
-	//È¥ÈıºÅÆ½Ì¨ÄÃ±¦Îï
+	//å»ä¸‰å·å¹³å°æ‹¿å®ç‰©
 	if(treasure ==3)
 	{
 		u8 route_to_3[15] = {P3,N3,N4,B3,N2,P2,0XFF};
@@ -2746,7 +2746,7 @@ void update_route_by_door_3(void)
 				break;
 		}
 	}
-	//È¥ËÄºÅÆ½Ì¨ÄÃ±¦Îï
+	//å»å››å·å¹³å°æ‹¿å®ç‰©
 	if(treasure ==4)
 	{
 		u8 route_to_4[15] = {N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF};
@@ -2757,7 +2757,7 @@ void update_route_by_door_3(void)
 				break;
 		}
 	}
-	//È¥¶şºÅÆ½Ì¨ÄÃ±¦Îï
+	//å»äºŒå·å¹³å°æ‹¿å®ç‰©
 	if(treasure ==2)
 	{
 		u8 route_to_2[15] = {N4,B2,N1,P1,N1,B1,N2,P2,0XFF};
@@ -2771,7 +2771,7 @@ void update_route_by_door_3(void)
 }
 void update_route_by_door_4(void)
 {
-	//±¦ÎïÄÃ¹ıÁË£¬Ö±½Ó»Ø¼Ò
+	//å®ç‰©æ‹¿è¿‡äº†ï¼Œç›´æ¥å›å®¶
 	if(treasure ==5||treasure == 6)
 	{
 		
@@ -2783,7 +2783,7 @@ void update_route_by_door_4(void)
 		}
 	
 	}
-	//È¥ÈıºÅÆ½Ì¨ÄÃ±¦Îï
+	//å»ä¸‰å·å¹³å°æ‹¿å®ç‰©
 	if(treasure ==3)
 	{
 		u8 route_to_3[15] = {N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF};
@@ -2794,7 +2794,7 @@ void update_route_by_door_4(void)
 				break;
 		}
 	}
-	//È¥ËÄºÅÆ½Ì¨ÄÃ±¦Îï
+	//å»å››å·å¹³å°æ‹¿å®ç‰©
 	if(treasure ==4)
 	{
 		u8 route_to_4[15] = {N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF};
@@ -2805,7 +2805,7 @@ void update_route_by_door_4(void)
 				break;
 		}
 	}
-	//È¥¶şºÅÆ½Ì¨ÄÃ±¦Îï
+	//å»äºŒå·å¹³å°æ‹¿å®ç‰©
 	if(treasure ==2)
 	{
 		u8 route_to_2[15] = {N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF};
@@ -2819,7 +2819,7 @@ void update_route_by_door_4(void)
 }
 void update_route_by_QR(void)
 {
-	//ÈôÏßË÷ÔÚ57ºÅÆ½Ì¨
+	//è‹¥çº¿ç´¢åœ¨57å·å¹³å°
 	if (clue_A_stage == 5&&clue_B_stage == 7)
 	{  
 		if(color_flag[1] == Green || color_flag[1] == Yellow||color_flag[2] == Green || color_flag[2] == Yellow)
@@ -2842,7 +2842,7 @@ void update_route_by_QR(void)
 			  }
 		 }
 	}							
-	//ÈôÏßË÷ÔÚ58ºÅÆ½Ì¨
+	//è‹¥çº¿ç´¢åœ¨58å·å¹³å°
 	if (clue_A_stage == 5&&clue_B_stage == 8)
 	{
 		if(color_flag[1] == Green || color_flag[1] == Yellow||color_flag[2] == Green || color_flag[2] == Yellow)
@@ -2865,7 +2865,7 @@ void update_route_by_QR(void)
 			  }
 		 }
 	}
-	//ÈôÏßË÷ÔÚ67ºÅÆ½Ì¨
+	//è‹¥çº¿ç´¢åœ¨67å·å¹³å°
 	if (clue_A_stage == 6&&clue_B_stage == 7)
 	{
 		if(color_flag[1] == Green || color_flag[1] == Yellow||color_flag[2] == Green || color_flag[2] == Yellow)
@@ -2890,7 +2890,7 @@ void update_route_by_QR(void)
 			  }
 		 }
 	}
-	//ÈôÏßË÷ÔÚ68ºÅÆ½Ì¨
+	//è‹¥çº¿ç´¢åœ¨68å·å¹³å°
 	if (clue_A_stage == 6&&clue_B_stage == 8)
 	{
 		if(color_flag[1] == Green || color_flag[1] == Yellow||color_flag[2] == Green || color_flag[2] == Yellow)
@@ -2917,11 +2917,11 @@ void update_route_by_QR(void)
 	}
 	
 }
-///*Öé·åÏÂÍ¨µÀ´¦Àí*/
+///*ç å³°ä¸‹é€šé“å¤„ç†*/
 void undermou(void)
 {
 	encoder_clear();
-	motor_all.Cspeed = UnderMou_Speed;//ÂıÒ»µã£¿
+	motor_all.Cspeed = UnderMou_Speed;//æ…¢ä¸€ç‚¹ï¼Ÿ
 	infrare_open = 1;
 	Robot_Work(HEAD,DOWN);
 	
@@ -2943,25 +2943,25 @@ void undermou(void)
 		motor_all.Cspeed = nodesr.nowNode.speed;
 	}
 
-	Cross_getline();
+	Cross_getline(&Cross_Scaner);
 	while(!deal_arrive())
 	{
-		Cross_getline();
+		Cross_getline(&Cross_Scaner);
 		vTaskDelay(2);
 	}
 	Robot_Work(HEAD,UP);
 	nodesr.nowNode.function = 0;
-	nodesr.flag |= 0x04; // µ½´ïÂ·¿Ú
+	nodesr.flag |= 0x04; // åˆ°è¾¾è·¯å£
 }
 
-///*ºöÂÔ½Úµã - Ö±½ÓÅĞ¶¨µ½´ïÂ·¿Ú*/
+///*å¿½ç•¥èŠ‚ç‚¹ - ç›´æ¥åˆ¤å®šåˆ°è¾¾è·¯å£*/
 //void ignore_node(void)
 //{
 //	nodesr.nowNode.function = 0;
-//	nodesr.flag |= 0x04; // µ½´ïÂ·¿Ú
+//	nodesr.flag |= 0x04; // åˆ°è¾¾è·¯å£
 //}
 
-/*µÚ¶şÂÖÂ·Ïß¹æ»®*/
+/*ç¬¬äºŒè½®è·¯çº¿è§„åˆ’*/
 void get_newroute(void)
 {
 	mapInit1();
@@ -2976,7 +2976,7 @@ void get_newroute(void)
 		}
 	}
 
-	if(color_flag[0]==Green)//µÚÒ»¸öÃÅ¿ª
+	if(color_flag[0]==Green)//ç¬¬ä¸€ä¸ªé—¨å¼€
 	{
 		Node[getNextConnectNode(P3, N3)].flag |= STOPTURN;
 		switch(treasure)
@@ -3226,7 +3226,7 @@ void get_newroute(void)
 						break;
 				}
 				break;
-			case 6: 									//¿É²»¹ıµ¶É½		
+			case 6: 									//å¯ä¸è¿‡åˆ€å±±		
 				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N8,N5,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
@@ -3278,7 +3278,7 @@ void get_newroute(void)
 						break;
 				}
 				break;
-			case 6: 									//¿É²»¹ıµ¶É½		
+			case 6: 									//å¯ä¸è¿‡åˆ€å±±		
 				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
@@ -3289,7 +3289,7 @@ void get_newroute(void)
 				break;
 		}
 	}
-	else if(color_flag[0]==Red && color_flag[1]==Yellow && color_flag[3]==Red)//D4ÂÌ
+	else if(color_flag[0]==Red && color_flag[1]==Yellow && color_flag[3]==Red)//D4ç»¿
 	{
 		Node[getNextConnectNode(S1, N3)].flag |= STOPTURN;
 		switch(treasure)
@@ -3330,7 +3330,7 @@ void get_newroute(void)
 						break;
 				}
 				break;
-			case 6: 									//¿É²»¹ıµ¶É½		
+			case 6: 									//å¯ä¸è¿‡åˆ€å±±		
 				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N8,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
@@ -3341,7 +3341,7 @@ void get_newroute(void)
 				break;
 		}
 	}
-	else if(color_flag[0]==Red && color_flag[1]==Red && color_flag[2]==Green)//´Ó×îÍâÃæ³öÈ¥°É
+	else if(color_flag[0]==Red && color_flag[1]==Red && color_flag[2]==Green)//ä»æœ€å¤–é¢å‡ºå»å§
 	{
 		Node[getNextConnectNode(P3, N3)].flag |= STOPTURN;
 		switch(treasure)
@@ -3382,7 +3382,7 @@ void get_newroute(void)
 						break;
 				}
 				break;
-			case 6: 									//¿É²»¹ıµ¶É½		
+			case 6: 									//å¯ä¸è¿‡åˆ€å±±		
 				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N8,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
@@ -3393,7 +3393,7 @@ void get_newroute(void)
 				break;
 		}
 	}
-	else if(color_flag[0]==Red && color_flag[1]==Red && color_flag[2]==Yellow)//´Ó×îÍâÃæ³öÈ¥°É
+	else if(color_flag[0]==Red && color_flag[1]==Red && color_flag[2]==Yellow)//ä»æœ€å¤–é¢å‡ºå»å§
 	{
 		Node[getNextConnectNode(P3, N3)].flag |= STOPTURN;
 		switch(treasure)
@@ -3434,7 +3434,7 @@ void get_newroute(void)
 						break;
 				}
 				break;
-			case 6: 									//¿É²»¹ıµ¶É½		
+			case 6: 									//å¯ä¸è¿‡åˆ€å±±		
 				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
@@ -3449,7 +3449,7 @@ void get_newroute(void)
 		CarBrake_Stop();
 }
 
-/*K210¶ÁÊı×Ö*/
+/*K210è¯»æ•°å­—*/
 uint8_t WaitFor_OCR(void)
 {
 	static uint8_t No2Tra = 0;
@@ -3459,7 +3459,7 @@ uint8_t WaitFor_OCR(void)
 		((nodesr.nowNode.nodenum == P7 || nodesr.nowNode.nodenum == P8) && No3Tra == 1))
 		return 0;
 
-	/*µÈ´ı¿´Íê*/
+	/*ç­‰å¾…çœ‹å®Œ*/
 	uint16_t break_times = 0;
 	uint8_t ReturnFlag = 0;
 
@@ -3472,9 +3472,9 @@ uint8_t WaitFor_OCR(void)
 		if (break_times >= 600)//500
 		{	
 //			Motor_Control(is_No, BACK_SPEED, BACK_SPEED, 0);
-			moveServo(0, 1610, 1000);//Í·Ïò×ó°ÚÒ»µã
+			moveServo(0, 1610, 1000);//å¤´å‘å·¦æ‘†ä¸€ç‚¹
 			vTaskDelay(2000);
-			moveServo(0, 1330, 1000);//Í·ÏòÓÒ°ÚÒ»µã
+			moveServo(0, 1330, 1000);//å¤´å‘å³æ‘†ä¸€ç‚¹
 			vTaskDelay(2000);
 //			Want2Go(1);
 			
@@ -3506,7 +3506,7 @@ uint8_t WaitFor_OCR(void)
 	}
 
 	K210_Rece = 0;
-	/*¼ÇÂ¼±¦²Ø*/
+	/*è®°å½•å®è—*/
 	if (nodesr.nowNode.nodenum == P1)
 	{
 		Clue_Num = 0;
@@ -3552,11 +3552,11 @@ uint8_t WaitFor_OCR(void)
 //			buzzer_off();
 //			vTaskDelay(500);
 //		}
-		treasure = clue_A+clue_B;//»ñÈ¡±¦ÎïÆ½Ì¨Î»ÖÃ
+		treasure = clue_A+clue_B;//è·å–å®ç‰©å¹³å°ä½ç½®
 		Clue_Num = 0;
 	}
 
-	/*¹Ø±ÕMaxicam*/
+	/*å…³é—­Maxicam*/
 	close_Maxicam();
 	buzzer_on();
 	vTaskDelay(100);
@@ -3566,7 +3566,7 @@ uint8_t WaitFor_OCR(void)
 
 uint8_t WaitFor_QR(void)
 {
-	/*µÈ´ı¿´Íê*/
+	/*ç­‰å¾…çœ‹å®Œ*/
 	uint16_t break_times = 0;
 	uint8_t ReturnFlag = 0;
 	
@@ -3592,29 +3592,29 @@ uint8_t WaitFor_QR(void)
 	}
 //	if (nodesr.nowNode.nodenum == P1)
 //	{
-//		clue_A_stage = (QR_code/10)%10;//»ñÈ¡Ê®Î»ÉÏµÄÊı×Ö
-//		clue_B_stage = QR_code%10;//»ñÈ¡¸öÎ»ÉÏÊı×Ö
+//		clue_A_stage = (QR_code/10)%10;//è·å–åä½ä¸Šçš„æ•°å­—
+//		clue_B_stage = QR_code%10;//è·å–ä¸ªä½ä¸Šæ•°å­—
 //	}
 }
 	
 extern uint8_t isAllRoute;
 //int i=0;
-uint16_t AD_Value[4];//¶¨ÒåÒ»¸öÊı×é
-/*Æô¶¯Á÷³Ì*/
+uint16_t AD_Value[4];//å®šä¹‰ä¸€ä¸ªæ•°ç»„
+/*å¯åŠ¨æµç¨‹*/
 void zhunbei(void)
 {
 
-	/*Í£³µ*/
+	/*åœè½¦*/
 	Motor_Control(is_No, 0, 0, 0);
 
-	/*»úÆ÷ÈË¶¯×÷*/
-	Robot_Work(BODY, UP); 	//ÈËÕ¾ÆğÀ´
+	/*æœºå™¨äººåŠ¨ä½œ*/
+	Robot_Work(BODY, UP); 	//äººç«™èµ·æ¥
 	vTaskDelay(1000);
-	Robot_Work(PIG, HEAD_LEFT); //×ªÍ·
+	Robot_Work(PIG, HEAD_LEFT); //è½¬å¤´
 	vTaskDelay(500);		
 	Robot_Work(PIG, HEAD_RIGHT); 	
 	vTaskDelay(500);
-	/*·äÃùÆ÷ÌáÊ¾³õÊ¼»¯Íê³É - µ÷ÊÔÓÃ*/
+	/*èœ‚é¸£å™¨æç¤ºåˆå§‹åŒ–å®Œæˆ - è°ƒè¯•ç”¨*/
 	buzzer_on();
 	
 	// i = HAL_GPIO_ReadPin(GPIOC,GPIO_PIN_13);
@@ -3624,13 +3624,13 @@ void zhunbei(void)
 
 	close_Maxicam();
 	IMU_CalibrateZero(&basic_y,&basic_p);
-	mpuZreset(basic_y, nodesr.nowNode.angle); // °Ñ´ËÊ±½Ç¶È±äÎª´Ë½áµã½Ç¶È
+	mpuZreset(basic_y, nodesr.nowNode.angle); // æŠŠæ­¤æ—¶è§’åº¦å˜ä¸ºæ­¤ç»“ç‚¹è§’åº¦
 	
-	/*µÈ´ıµ²°å*/
+	/*ç­‰å¾…æŒ¡æ¿*/
 	while (Infrared_ahead == 0)
 		vTaskDelay(5);
 
-	/*µÈ´ıÒÆ³ıµ²°å*/
+	/*ç­‰å¾…ç§»é™¤æŒ¡æ¿*/
 	while(Infrared_ahead == 1)
 		vTaskDelay(5);
 //	HAL_ADC_Start(&hadc1);
@@ -3650,8 +3650,8 @@ void zhunbei(void)
 //	Want2Go(100);
 
 	
-	/**************×ªÍä²âÊÔ***************/
-	/*²¥±¨ÓïÒô*/
+	/**************è½¬å¼¯æµ‹è¯•***************/
+	/*æ’­æŠ¥è¯­éŸ³*/
 	send_play_specified_command(7);
 	
 #if DEBUG
@@ -3683,16 +3683,16 @@ void zhunbei(void)
 #endif	
 
 	
-	/*»úÆ÷ÈË¶¯×÷*/
-	Robot_Work(LARM, UP);		// ×óÊÖ¾ÙÆğ
+	/*æœºå™¨äººåŠ¨ä½œ*/
+	Robot_Work(LARM, UP);		// å·¦æ‰‹ä¸¾èµ·
 	vTaskDelay(100);
-	Robot_Work(RARM, UP);		//ÓÒÊÖ¾ÙÆğ
+	Robot_Work(RARM, UP);		//å³æ‰‹ä¸¾èµ·
 	vTaskDelay(500);
-	Robot_Work(LARM, DOWN);		//×óÊÖ·ÅÏÂ
+	Robot_Work(LARM, DOWN);		//å·¦æ‰‹æ”¾ä¸‹
 	vTaskDelay(100);
-	Robot_Work(RARM, DOWN);		//ÓÒÊÖ·ÅÏÂ
+	Robot_Work(RARM, DOWN);		//å³æ‰‹æ”¾ä¸‹
 	vTaskDelay(100);
-	Robot_Work(BODY, DOWN);		//ÈËÌÉÏÂ
+	Robot_Work(BODY, DOWN);		//äººèººä¸‹
 	vTaskDelay(100);
 	Robot_Work(HEAD,HEAD_MID);
 	vTaskDelay(100);
@@ -3703,23 +3703,23 @@ void zhunbei(void)
 
 	if(isAllRoute || map.routetime!=0)
 	{
-		Motor_Control(is_Gyro, Rubbish_Speed, Rubbish_Speed, getAngleZ()); // ÉèÖÃ×ÔÆ½ºâ¼°ÆäËÙ¶È
+		Motor_Control(is_Gyro, Rubbish_Speed, Rubbish_Speed, getAngleZ()); // è®¾ç½®è‡ªå¹³è¡¡åŠå…¶é€Ÿåº¦
 
 		LiuShuiRate = LiuShuiRate_BG;
 		DownLiuShui = 1;
-		/*µÈ´ı¿ªÊ¼ÏÂÇÅ*/
+		/*ç­‰å¾…å¼€å§‹ä¸‹æ¡¥*/
 		while (imu.pitch > Down_pitch)	
 			vTaskDelay(2);
-		/*ÕıÔÚÏÂÇÅ*/
+		/*æ­£åœ¨ä¸‹æ¡¥*/
 		while (imu.pitch < After_down)
 			vTaskDelay(2);
-		/*ÏÂÇÅÍê±Ï*/
+		/*ä¸‹æ¡¥å®Œæ¯•*/
 		DownLiuShui = 0;
 		LiuShuiRate = LiuShuiRate_Default;
 	}
 }
 
-///*±£»¤»úÖÆ*/
+///*ä¿æŠ¤æœºåˆ¶*/
 //void Protect(float angle1)
 //{
 //	int num = 0;
@@ -3746,7 +3746,7 @@ void zhunbei(void)
 //	CarBrake();
 //	vTaskDelay(300);
 
-//	// ±£»¤½ÃÕı
+//	// ä¿æŠ¤çŸ«æ­£
 //	angle.AngleT = getAngleZ() + angle1;
 //	pid_mode_switch(is_Turn);
 //	while (fabsf(angle.AngleT - getAngleZ()) > 4)
@@ -3757,7 +3757,7 @@ void zhunbei(void)
 //			break;
 //	}
 
-//	// Ö±×ß
+//	// ç›´èµ°
 //	pid_mode_switch(is_Gyro);
 //	angle.AngleG = getAngleZ();
 //	motor_all.Gspeed = 17;
@@ -3770,29 +3770,29 @@ void zhunbei(void)
 
 
 
-//void DragonProtection(void) //ÓÎÁú±£»¤
+//void DragonProtection(void) //æ¸¸é¾™ä¿æŠ¤
 //{
-//		/*ÓÎÁúÅĞ¶ÏÓë±£»¤*/
+//		/*æ¸¸é¾™åˆ¤æ–­ä¸ä¿æŠ¤*/
 //			if (nodesr.nowNode.angle != nodesr.lastNode.angle && nodesr.nowNode.nodenum != C4 && nodesr.nowNode.nodenum != P8)
 //			{			
-//				Cross_getline();//¸üĞÂÑ­¼£°åÊı¾İ
+//				Cross_getline(&Cross_Scaner);//æ›´æ–°å¾ªè¿¹æ¿æ•°æ®
 //				
-//				/************* Î£ÏÕ×´Ì¬¼ì²â****************/
+//				/************* å±é™©çŠ¶æ€æ£€æµ‹****************/
 //        if (Cross_Scaner.detail & 0xFC3F)  // 0xFC3F = 1111110000111111
 //        {
 //            ErrorTimes[0]++;       
-//            ErrorTimes[1] = 0;     // °²È«±êÖ¾ÇåÁã
+//            ErrorTimes[1] = 0;     // å®‰å…¨æ ‡å¿—æ¸…é›¶
 //      
 //            
-//            //ÀÛ¼Æ5´ÎÎ£ÏÕ£¬·Ç³£Î£ÏÕ
+//            //ç´¯è®¡5æ¬¡å±é™©ï¼Œéå¸¸å±é™©
 //            if (ErrorTimes[0] >= 5) 
 //            {
-//           			 motor_all.Cspeed = nodesr.nowNode.speed * 0.67f;//½µËÙ
+//           			 motor_all.Cspeed = nodesr.nowNode.speed * 0.67f;//é™é€Ÿ
 //                 ErrorTimes[0] = 0; 
 //            }
 //        } 
 //				
-//				/************* °²È«×´Ì¬¼ì²â ***************/
+//				/************* å®‰å…¨çŠ¶æ€æ£€æµ‹ ***************/
 //			else 
 //			{
 //				if(Cross_Scaner.detail & 0x0180)
@@ -3809,7 +3809,7 @@ void zhunbei(void)
 //					{
 //								angle.AngleG = getAngleZ();
 //					}
-//					motor_all.Cspeed = nodesr.nowNode.speed;  // ÍêÈ«»Ö¸´ËÙ¶È
+//					motor_all.Cspeed = nodesr.nowNode.speed;  // å®Œå…¨æ¢å¤é€Ÿåº¦
 //					ErrorTimes[1]=0;
 //				}
 //			}
@@ -3819,7 +3819,7 @@ void zhunbei(void)
 //}
 
 
-/*ÓëConnectFirstBack¹²ÓÃ*/
+/*ä¸ConnectFirstBackå…±ç”¨*/
 void Connect(uint8_t Route[])
 {
 	static u8 temp = 0, i = 0;
@@ -3829,7 +3829,7 @@ void Connect(uint8_t Route[])
 	nodesr.nowNode.angle = nodesr.nextNode.angle;
 	while (1)
 	{
-		route[temp++] = Route[i++]; // Â·ÏßÁ¬½Ó
+		route[temp++] = Route[i++]; // è·¯çº¿è¿æ¥
 		if (Route[i] == 255)
 		{
 			route[temp] = Route[i];
@@ -3869,19 +3869,19 @@ void select_speed_stage(void)
 
 	  }
 }
-/*ÌØÊâ½áµã*/
+/*ç‰¹æ®Šç»“ç‚¹*/
 //void Special_Node(void)
 //{
-//	if (((nodesr.nowNode.flag & DRIGHT) == DRIGHT) & ((nodesr.nowNode.flag & CRIGHT) == CRIGHT) & (nodesr.nowNode.nodenum == N5)) // N4-N5ÓÒÑ­¼£ ×óÑ­¼£ ±ßÔµºöÂÔ
+//	if (((nodesr.nowNode.flag & DRIGHT) == DRIGHT) & ((nodesr.nowNode.flag & CRIGHT) == CRIGHT) & (nodesr.nowNode.nodenum == N5)) // N4-N5å³å¾ªè¿¹ å·¦å¾ªè¿¹ è¾¹ç¼˜å¿½ç•¥
 //	{																															  // N4-N5
-//		nodesr.nowNode.flag &= (~RIGHT_LINE);																					  // È¡ÏûÓÒÑ­¼£±êÖ¾Î»
-//		nodesr.nowNode.flag |= LEFT_LINE;																						  // ×óÑ­¼£
+//		nodesr.nowNode.flag &= (~RIGHT_LINE);																					  // å–æ¶ˆå³å¾ªè¿¹æ ‡å¿—ä½
+//		nodesr.nowNode.flag |= LEFT_LINE;																						  // å·¦å¾ªè¿¹
 //		while (deal_arrive() != 1)
 //		{
 //			vTaskDelay(2);
-//		}								  // ÓÒ·Ö²í
-//		nodesr.nowNode.flag &= (~CRIGHT); // È¡ÏûÓÒ·Ö²í±êÖ¾Î»
-//		while (deal_arrive() != 1)		  // ÓÒ°ë±ßÌì
+//		}								  // å³åˆ†å²”
+//		nodesr.nowNode.flag &= (~CRIGHT); // å–æ¶ˆå³åˆ†å²”æ ‡å¿—ä½
+//		while (deal_arrive() != 1)		  // å³åŠè¾¹å¤©
 //		{
 //			vTaskDelay(2);
 //			scaner_set.EdgeIgnore = 6;
@@ -3892,13 +3892,13 @@ void select_speed_stage(void)
 //	{
 //		float num = 0;
 //		nodesr.nowNode.flag &= (~RIGHT_LINE);
-//		nodesr.nowNode.flag |= LEFT_LINE; // ×óÑ­¼£
+//		nodesr.nowNode.flag |= LEFT_LINE; // å·¦å¾ªè¿¹
 //		while (deal_arrive() != 1)
 //		{
 //			vTaskDelay(2);
 //		}
 //		num = motor_all.Distance;
-//		while (fabsf(motor_all.Distance - num) < 10) // µÚÒ»¸ö×ó·Ö²íÂ·¿ÚÔÙ×ß10ÀåÃ×
+//		while (fabsf(motor_all.Distance - num) < 10) // ç¬¬ä¸€ä¸ªå·¦åˆ†å²”è·¯å£å†èµ°10å˜ç±³
 //		{
 //			vTaskDelay(2);
 //		}
@@ -3911,13 +3911,13 @@ void select_speed_stage(void)
 //	{
 //		float num = 0;
 //		nodesr.nowNode.flag &= (~LEFT_LINE);
-//		nodesr.nowNode.flag |= RIGHT_LINE; // ÓÒÑ­¼£
+//		nodesr.nowNode.flag |= RIGHT_LINE; // å³å¾ªè¿¹
 //		while (deal_arrive() != 1)
 //		{
 //			vTaskDelay(2);
 //		}
 //		num = motor_all.Distance;
-//		while (fabsf(motor_all.Distance - num) < 10) // µÚÒ»¸ö×ó·Ö²íÂ·¿ÚÔÙ×ß10ÀåÃ×
+//		while (fabsf(motor_all.Distance - num) < 10) // ç¬¬ä¸€ä¸ªå·¦åˆ†å²”è·¯å£å†èµ°10å˜ç±³
 //		{
 //			vTaskDelay(2);
 //		}
@@ -3955,30 +3955,30 @@ void select_speed_stage(void)
 //		motor_all.Gspeed = 1000;
 //		pid_mode_switch(is_Gyro);
 //	}
-//	//	if(((nodesr.nowNode.flag&CRIGHT)==CRIGHT)&((nodesr.nowNode.flag&CLEFT)==CLEFT))//N5-N6  P4-N6ÏÈ×óÑ­¼£ºóÓÒÑ­¼£
+//	//	if(((nodesr.nowNode.flag&CRIGHT)==CRIGHT)&((nodesr.nowNode.flag&CLEFT)==CLEFT))//N5-N6  P4-N6å…ˆå·¦å¾ªè¿¹åå³å¾ªè¿¹
 //	//	{
 //	//		angle.AngleT=getAngleZ();
 //	//		pid_mode_switch(is_Gyro);
-//	////		nodesr.nowNode.flag|=LEFT_LINE;//×óÑ­¼£
+//	////		nodesr.nowNode.flag|=LEFT_LINE;//å·¦å¾ªè¿¹
 //	////		while(deal_arrive()!=1)
 //	////		{
 //	////			vTaskDelay(2);
-//	////		}//¼ì²âµ½ÓÒ·Ö²í
-//	////		nodesr.nowNode.flag&=(~CRIGHT);//È¡ÏûÓÒ·Ö²í±êÖ¾Î»
+//	////		}//æ£€æµ‹åˆ°å³åˆ†å²”
+//	////		nodesr.nowNode.flag&=(~CRIGHT);//å–æ¶ˆå³åˆ†å²”æ ‡å¿—ä½
 //	////		while(deal_arrive()!=1)
 //	////		{
 //	////			vTaskDelay(2);
-//	////		}//¼ì²âµ½×ó·Ö²í
-//	////		nodesr.nowNode.flag&=(~LEFT_LINE);//È¡Ïû×óÑ­¼£
-//	////		nodesr.nowNode.flag|=RIGHT_LINE;//ÓÒÑ­¼£
+//	////		}//æ£€æµ‹åˆ°å·¦åˆ†å²”
+//	////		nodesr.nowNode.flag&=(~LEFT_LINE);//å–æ¶ˆå·¦å¾ªè¿¹
+//	////		nodesr.nowNode.flag|=RIGHT_LINE;//å³å¾ªè¿¹
 //	////		special_arrive=1;
 //	//	}
 //}
 
-/*Â¥ÌİÍÓÂİÒÇÑ­¼£×ÔÇĞ»» - Ê¹ÓÃÇ°ĞèÔÚ¿É¿¿Î»ÖÃmpuZreset*/
+/*æ¥¼æ¢¯é™€èºä»ªå¾ªè¿¹è‡ªåˆ‡æ¢ - ä½¿ç”¨å‰éœ€åœ¨å¯é ä½ç½®mpuZreset*/
 void CGChange(float Speed)
 {
-//	Cross_getline();
+//	Cross_getline(&Cross_Scaner);
 //	if(Cross_Scaner.ledNum >= 4 || Cross_Scaner.ledNum == 0 || Cross_Scaner.lineNum > 1)
 //	{
 //		Motor_Control(is_Gyro, Speed, Speed, nodesr.nowNode.angle);
@@ -3998,7 +3998,7 @@ void Motor_Control(uint8_t target_mode,float LSPEED,float RSPEED,float aim)
 int Six2Zero(void)
 {
 	static int sum = 0;
-	while(Infrared_left == 1) //ºìÍâÁÁ1s
+	while(Infrared_left == 1) //çº¢å¤–äº®1s
 	{
 		sum++;
 		vTaskDelay(2);

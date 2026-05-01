@@ -5,11 +5,11 @@
 #include "main.h"
 #include "cmsis_os.h"
 #include "sys.h"
-//¿ªÊ¼ÈÎÎñ
-extern TaskHandle_t motor_handler ; 				//¶¨Òå¿ªÊ¼ÈÎÎñ¾ä±ú
-void motor_task(void *pvParameters);//ÉùÃ÷ÈÎÎñº¯Êı
-#define motor_size  512   					//ÈÎÎñ¶ÑÕ»´óĞ¡
-#define motor_task_priority 10 //7 //10		//ÈÎÎñÓÅÏÈ¼¶
+//å¼€å§‹ä»»åŠ¡
+extern TaskHandle_t motor_handler ; 				//å®šä¹‰å¼€å§‹ä»»åŠ¡å¥æŸ„
+void motor_task(void *pvParameters);//å£°æ˜ä»»åŠ¡å‡½æ•°
+#define motor_size  512   					//ä»»åŠ¡å †æ ˆå¤§å°
+#define motor_task_priority 10 //7 //10		//ä»»åŠ¡ä¼˜å…ˆçº§
 #define PI  3.1415926535f
 #define is_Front 0
 #define is_Back  1
@@ -17,17 +17,17 @@ void motor_task_create(void);
 extern volatile uint8_t PIDMode;
 
 typedef enum {
-	is_No = 0,  //¹Ø±ÕËùÓĞ²Ù×÷
-	is_Free,   //±£ÁôÇĞ»»Ç°µÄ×´Ì¬1
-	is_Line,   //Ñ­¼£2
-	is_Turn,   //×ªÍä3
-	is_Gyro,   //×ÔÆ½ºâ4
+	is_No = 0,  //å…³é—­æ‰€æœ‰æ“ä½œ
+	is_Free,   //ä¿ç•™åˆ‡æ¢å‰çš„çŠ¶æ€1
+	is_Line,   //å¾ªè¿¹2
+	is_Turn,   //è½¬å¼¯3
+	is_Gyro,   //è‡ªå¹³è¡¡4
 	
 };
 extern uint8_t open_qiang_jiao;
 extern uint8_t Nosmall;
 extern int MOTOR_PWM_MAX;
-/*----------ÄÚ²¿ÓÃ----------------------*/
+/*----------å†…éƒ¨ç”¨----------------------*/
 void get_motor_speed(void);
 void handle_line_error(void);
 void handle_motor_speed(void);

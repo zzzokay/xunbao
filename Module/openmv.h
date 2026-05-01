@@ -15,5 +15,5 @@ void Open_COLOR_L(void);
 void send_play_command(void);
 void send_stop_play_command(void);
 
-extern UART_HandleTypeDef mv_R; // UART¾ä±ú
+extern UART_HandleTypeDef mv_R; // UARTå¥æŸ„
 #endif

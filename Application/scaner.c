@@ -1,30 +1,30 @@
 /**
  * =============================================================================
- * Ñ­¼£ÏµÍ³ - scaner.c
+ * å¾ªè¿¹ç³»ç»Ÿ - scaner.c
  * 
- * ¡¾µ÷ÓÃ¹ØÏµ¡¿
- *  ©°©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤
- *  ©¦  ÈÎÎñ ¡ú getline_error() ¡ú Line_Scan() <-> value_calculation()           
- *  ©¦          				    ¡ı (Ğ´Èë)           ¼ÆËãline_data.errorºÍline_data.pos    
- *  ©¦         				line_data[5] ¡û ÀúÊ·Êı¾İ        
- *  ©¦         			 	Scaner       ¡û µ±Ç°Êı¾İ        
- *  ©¦             				 ¡ı (¶ÁÈ¡)                            
- *  ©¦  ÈÎÎñ ¡ú Go_Line(speed) ¡ú Get_scaner_error() ¸ù¾İ5´ÎÊı¾İ¼ÆËã³ö×î¼Ñerror     
- *  ©¸©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª
+ * ã€è°ƒç”¨å…³ç³»ã€‘
+ *  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ *  â”‚  ä»»åŠ¡ â†’ getline_error() â†’ Line_Scan() <-> value_calculation()           
+ *  â”‚          				    â†“ (å†™å…¥)           è®¡ç®—line_data.errorå’Œline_data.pos    
+ *  â”‚         				line_data[5] â† å†å²æ•°æ®        
+ *  â”‚         			 	Scaner       â† å½“å‰æ•°æ®        
+ *  â”‚             				 â†“ (è¯»å–)                            
+ *  â”‚  ä»»åŠ¡ â†’ Go_Line(speed) â†’ Get_scaner_error() æ ¹æ®5æ¬¡æ•°æ®è®¡ç®—å‡ºæœ€ä½³error     
+ *  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
  *  
- *  ¡¾È«¾Ö±äÁ¿½»Á÷¡¿
- *  - line_data[5]  ¡û ÀúÊ·Êı¾İ£¨Á½¸öº¯Êı×éµÄºËĞÄÇÅÁº£©
- *  - Scaner         ¡û µ±Ç°Ñ­¼£Êı¾İ
- *  - Fspeed         ¡û PIDÊä³ö
- *  - motor_all      ¡û µç»úËÙ¶È
+ *  ã€å…¨å±€å˜é‡äº¤æµã€‘
+ *  - line_data[5]  â† å†å²æ•°æ®ï¼ˆä¸¤ä¸ªå‡½æ•°ç»„çš„æ ¸å¿ƒæ¡¥æ¢ï¼‰
+ *  - Scaner         â† å½“å‰å¾ªè¿¹æ•°æ®
+ *  - Fspeed         â† PIDè¾“å‡º
+ *  - motor_all      â† ç”µæœºé€Ÿåº¦
  * 
  * 
- *  ¡¾Ö÷Òªº¯Êı¡¿
- *  - getline_error()     Èë¿Ú£º¶ÁÈ¡´«¸ĞÆ÷²¢´¦Àí
- *  - Go_Line(speed)      Èë¿Ú£ºPID¼ÆËã²îËÙ
- *  - Cross_getline(void) Èë¿Ú£º¶ÁÈ¡´«¸ĞÆ÷²¢´¦Àí
- *  - Line_Scan()         ºËĞÄ£º¸üĞÂÀúÊ·
- *  - Get_scaner_error()  Èİ´í£º´ÓÀúÊ·Ñ¡×î¼Ñ
+ *  ã€ä¸»è¦å‡½æ•°ã€‘
+ *  - getline_error()     å…¥å£ï¼šè¯»å–ä¼ æ„Ÿå™¨å¹¶å¤„ç†
+ *  - Go_Line(speed)      å…¥å£ï¼šPIDè®¡ç®—å·®é€Ÿ
+ *  - Cross_getline(void) å…¥å£ï¼šè¯»å–ä¼ æ„Ÿå™¨å¹¶å¤„ç†
+ *  - Line_Scan()         æ ¸å¿ƒï¼šæ›´æ–°å†å²
+ *  - Get_scaner_error()  å®¹é”™ï¼šä»å†å²é€‰æœ€ä½³
  * 
  * =============================================================================
  */
@@ -41,20 +41,18 @@
 #include "string.h"
 #include "chassis_api.h"
 
-#define LINE_SPEED_MAX 100
-#define LINEG_SPEED_MAX 100
 #define Speed_Compensate 5
-#define BLACK 0	 // Ñ­ºÚÏß
-#define WHLITE 1 // Ñ­°×Ïß
+#define BLACK 0	 // å¾ªé»‘çº¿
+#define WHLITE 1 // å¾ªç™½çº¿
 
 volatile uint8_t LEFT_RIGHT_LINE = 0;
-float Fspeed;				//¾­¹ıPIDÔËËãºóµÄ½á¹û
+float Fspeed;				//ç»è¿‡PIDè¿ç®—åçš„ç»“æœ
 const float line_weight_default[16] = {-3, -2.4, -1.8, -1.3, -0.9, -0.6, -0.4, -0.2, 0.2, 0.4, 0.6, 0.9, 1.3, 1.8, 2.4, 3};
 const float lineG_weight_default[8] = {-0.9, -0.6, -0.6, -0.3, 0.3, 0.6, 0.6, 0.9};
 //const float lineG_weight_default[8] = {0.9, 0.6, 0.4, 0.2, -0.2, -0.4, -0.6, -0.9};
 
 //const float lineG_weight_default[8] = {0.9, 0.8, 0.6, 0.4, -0.4, -0.6, -0.8, -0.9};
-float line_weight[16];		//¼¤¹â´Ó×óµ½ÓÒ¸÷µÆÈ¨ÖØ
+float line_weight[16];		//æ¿€å…‰ä»å·¦åˆ°å³å„ç¯æƒé‡
 volatile struct Scaner_Set scaner_set = {0, 0};
 volatile SCANER Scaner;
 volatile SCANER Cross_Scaner;
@@ -82,28 +80,28 @@ static uint16_t ReadLineSensorDetail(void)
 	detail ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_3)) << 3);
 	detail ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2)) << 2);
 	detail ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_1)) << 1);
-	detail ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14)) << 0); // ²»Í¬Êä³ö1.ÏàÍ¬Êä³ö
+	detail ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14)) << 0); // ä¸åŒè¾“å‡º1.ç›¸åŒè¾“å‡º
 	return detail;
 }
 
-/*½Úµã¼äÁÙÊ±Ñ­¼£Öµ»ñÈ¡*/
-void Cross_getline(void)
+/*èŠ‚ç‚¹é—´ä¸´æ—¶å¾ªè¿¹å€¼è·å–*/
+void Cross_getline(volatile SCANER *scaner)
 {
-	u8 linenum = 0; // ¼ÇÂ¼ÏßµÄÊıÄ¿
+	u8 linenum = 0; // è®°å½•çº¿çš„æ•°ç›®
 	u8 lednum = 0;
 
-	Cross_Scaner.detail = ReadLineSensorDetail();
-	for (uint8_t i = 0; i < 16; i++) // ´ÓĞ¡³µ·½Ïò´Ó×óÍùÓÒÊıÁÁµÆÊıºÍÒıµ¼ÏßÊı
-	{										// linenumÓÃÀ´¼ÇÂ¼ÓĞ¶àÉÙÌõÏß£¬lineÓÃÀ´¼ÇÂ¼µÚ¼¸ÌõÏß¡£
-		if (Cross_Scaner.detail & (0x1 << i))
+	scaner->detail = ReadLineSensorDetail();
+	for (uint8_t i = 0; i < 16; i++) // ä»å°è½¦æ–¹å‘ä»å·¦å¾€å³æ•°äº®ç¯æ•°å’Œå¼•å¯¼çº¿æ•°
+	{									// linenumç”¨æ¥è®°å½•æœ‰å¤šå°‘æ¡çº¿ï¼Œlineç”¨æ¥è®°å½•ç¬¬å‡ æ¡çº¿ã€‚
+		if (scaner->detail & (0x1 << i))
 		{
 			lednum++;
-			if (i == 15 || !(Cross_Scaner.detail & (1 << (i + 1))))
-				linenum++; // ÏÈ¶ÁÈ¡ÁÁµÆÊıºÍÒıµ¼ÏßÊı£¬¼ì²âµ½´Ó1±äÎª0ÈÏÎªÒ»ÌõÏß
+			if (i == 15 || !(scaner->detail & (1 << (i + 1))))
+				linenum++; // å…ˆè¯»å–äº®ç¯æ•°å’Œå¼•å¯¼çº¿æ•°ï¼Œæ£€æµ‹åˆ°ä»1å˜ä¸º0è®¤ä¸ºä¸€æ¡çº¿
 		}
 	}
-	Cross_Scaner.lineNum = linenum;
-	Cross_Scaner.ledNum = lednum;
+	scaner->lineNum = linenum;
+	scaner->ledNum = lednum;
 }
 static void UpdateScanerFromGray(volatile SCANER *scaner)
 {
@@ -114,10 +112,10 @@ static void UpdateScanerFromGray(volatile SCANER *scaner)
 static void UpdateScanerFromRf(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_ignore, uint8_t track_mode)
 {
 	scaner->detail = ReadLineSensorDetail();
-	Line_Scan(scaner, sensorNum, edge_ignore, track_mode); // ¼¤¹âÑ­¼£»ñÈ¡Îó²î
+	Line_Scan(scaner, sensorNum, edge_ignore, track_mode); // æ¿€å…‰å¾ªè¿¹è·å–è¯¯å·®
 }
 
-/*Ñ­¼£PID¼ÆËã*/
+/*å¾ªè¿¹PIDè®¡ç®—*/
 void Go_Line(float speed, volatile struct Motors *motor)
 {
 	if(isFilter && ScanerMode == RF)
@@ -126,15 +124,16 @@ void Go_Line(float speed, volatile struct Motors *motor)
 		// printf("mea:%.2f\r\n", line_pid_obj.measure);
 	}
 	else if(ScanerMode == Gray)
-		line_pid_obj.measure = Scaner.gray_error;					// µ±Ç°Ñ­¼£°åËùÔÚµÄÎ»ÖÃ£¬´Ó×óµ½ÓÒ-7µ½0µ½0µ½7
+		line_pid_obj.measure = Scaner.gray_error;					// å½“å‰å¾ªè¿¹æ¿æ‰€åœ¨çš„ä½ç½®ï¼Œä»å·¦åˆ°å³-7åˆ°0åˆ°0åˆ°7
 	
-	line_pid_obj.target = scaner_set.CatchsensorNum; 			//Ä¿±ê
+	line_pid_obj.target = scaner_set.CatchsensorNum; 			//ç›®æ ‡
 
 	Fspeed = positional_PID(&line_pid_obj, &line_pid_param);
-	if (Fspeed >= LINE_SPEED_MAX)
-		Fspeed = LINE_SPEED_MAX;
-	else if (Fspeed <= -LINE_SPEED_MAX)
-		Fspeed = -LINE_SPEED_MAX;
+	
+	if (Fspeed >= motor_all.Line_speedMax)
+		Fspeed = motor_all.Line_speedMax;
+	else if (Fspeed <= -motor_all.Line_speedMax)
+		Fspeed = -motor_all.Line_speedMax;
 		
 	Fspeed *= fabsf(speed) / 50;
 
@@ -143,7 +142,7 @@ void Go_Line(float speed, volatile struct Motors *motor)
 	motor->Rspeed = speed + Fspeed;
 }
 
-/*»ñÈ¡Ä£Ê½´¦ÀíºóµÄÑ­¼£Öµ*/
+/*è·å–æ¨¡å¼å¤„ç†åçš„å¾ªè¿¹å€¼*/
 uint8_t getline_error(void)
 {
 	getline_error_ex(&Scaner,ScanerMode, scaner_set.EdgeIgnore, LEFT_RIGHT_LINE);
@@ -169,7 +168,7 @@ void getline_error_ex(volatile SCANER *scaner, uint8_t scaner_mode, int8_t edge_
 	}
 }
 
-/*»ñÈ¡¸÷µÆÖµ*/
+/*è·å–å„ç¯å€¼*/
 void get_detail(void)
 {
 	uint16_t data;
@@ -192,7 +191,7 @@ void get_detail(void)
 	data ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_3)) << 3);
 	data ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2)) << 2);
 	data ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_1)) << 1);
-	data ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14)) << 0); // ²»Í¬Êä³ö1.ÏàÍ¬Êä³ö0
+	data ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14)) << 0); // ä¸åŒè¾“å‡º1.ç›¸åŒè¾“å‡º0
 	}
 	else if(ScanerMode == Gray)
 	{
@@ -202,17 +201,17 @@ void get_detail(void)
 	Scaner.detail = data;
 }
 
-struct Line_data // Ñ­¼£ËÙ¶È½á¹¹Ìå
+struct Line_data // å¾ªè¿¹é€Ÿåº¦ç»“æ„ä½“
 {
-	volatile float pos;		// µÆµÄÖĞĞÄÎ»ÖÃ
-	volatile float error;	// Îó²î
-	volatile uint8_t truth; // ¸ÃÖµÊÇ·ñÕıÈ·
+	volatile float pos;		// ç¯çš„ä¸­å¿ƒä½ç½®
+	volatile float error;	// è¯¯å·®
+	volatile uint8_t truth; // è¯¥å€¼æ˜¯å¦æ­£ç¡®
 } line_data[5] = {
-	{0.0f, 0.0f, 1}, // µÚÒ»¸ö½á¹¹Ìå³õÖµ
-	{0.0f, 0.0f, 1}, // µÚ¶ş¸ö½á¹¹Ìå³õÖµ
-	{0.0f, 0.0f, 1}, // µÚÈı¸ö½á¹¹Ìå³õÖµ
-	{0.0f, 0.0f, 1}, // µÚËÄ¸ö½á¹¹Ìå³õÖµ
-	{0.0f, 0.0f, 1}	 // µÚÎå¸ö½á¹¹Ìå³õÖµ
+	{0.0f, 0.0f, 1}, // ç¬¬ä¸€ä¸ªç»“æ„ä½“åˆå€¼
+	{0.0f, 0.0f, 1}, // ç¬¬äºŒä¸ªç»“æ„ä½“åˆå€¼
+	{0.0f, 0.0f, 1}, // ç¬¬ä¸‰ä¸ªç»“æ„ä½“åˆå€¼
+	{0.0f, 0.0f, 1}, // ç¬¬å››ä¸ªç»“æ„ä½“åˆå€¼
+	{0.0f, 0.0f, 1}	 // ç¬¬äº”ä¸ªç»“æ„ä½“åˆå€¼
 };
 enum
 {
@@ -220,49 +219,49 @@ enum
 	all_error,
 	pos_error
 };
-/*Ñ­ÏßÉ¨Ãè - °üÀ¨¸÷ÖÖÄ£Ê½´¦Àí*/
+/*å¾ªçº¿æ‰«æ - åŒ…æ‹¬å„ç§æ¨¡å¼å¤„ç†*/
 uint8_t Line_Scan(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_ignore, uint8_t track_mode)
 {
 	float error = 0;
-	u8 linenum = 0; 	//ÏßÊı
-	u8 lednum = 0;		//µÆÊı
+	u8 linenum = 0; 	//çº¿æ•°
+	u8 lednum = 0;		//ç¯æ•°
 	uint8_t lednum_tmp = 0;
 
-	/*»ñÈ¡¶ş½øÖÆÑ­¼£Öµ*/
-	for (uint8_t i = 0; i < sensorNum; i++) 	// ´ÓĞ¡³µ·½Ïò´Ó×óÍùÓÒÊıÁÁµÆÊıºÍÒıµ¼ÏßÊı
-	{											// linenumÓÃÀ´¼ÇÂ¼ÓĞ¶àÉÙÌõÏß£¬lineÓÃÀ´¼ÇÂ¼µÚ¼¸ÌõÏß¡£
+	/*è·å–äºŒè¿›åˆ¶å¾ªè¿¹å€¼*/
+	for (uint8_t i = 0; i < sensorNum; i++) 	// ä»å°è½¦æ–¹å‘ä»å·¦å¾€å³æ•°äº®ç¯æ•°å’Œå¼•å¯¼çº¿æ•°
+	{											// linenumç”¨æ¥è®°å½•æœ‰å¤šå°‘æ¡çº¿ï¼Œlineç”¨æ¥è®°å½•ç¬¬å‡ æ¡çº¿ã€‚
 		if ((scaner->detail & (0x1 << i)))
 		{
 			lednum++;
 			if (!(scaner->detail & (1 << (i + 1))))
-				++linenum; 						// ÏÈ¶ÁÈ¡ÁÁµÆÊıºÍÒıµ¼ÏßÊı£¬¼ì²âµ½´Ó1±äÎª0ÈÏÎªÒ»ÌõÏß
+				++linenum; 						// å…ˆè¯»å–äº®ç¯æ•°å’Œå¼•å¯¼çº¿æ•°ï¼Œæ£€æµ‹åˆ°ä»1å˜ä¸º0è®¤ä¸ºä¸€æ¡çº¿
 		}
 	}
 	scaner->lineNum = linenum;
 	scaner->ledNum = lednum;
 
-	/*´ÖÂÔ¼ì²â - ÂËµô±Ø¶¨´íÎóµÄÖµ*/
+	/*ç²—ç•¥æ£€æµ‹ - æ»¤æ‰å¿…å®šé”™è¯¯çš„å€¼*/
 	if (error_detect_one(lednum, linenum))
 	{
 		Update_line_data(all_error, -1, -1);
 		return 0;
 	}
 
-	/*Ñ­¼£ÖĞĞÄÖµ¼ÆËã - errorÖµ¼ÆËã*/
+	/*å¾ªè¿¹ä¸­å¿ƒå€¼è®¡ç®— - errorå€¼è®¡ç®—*/
 	float pos = value_calculation(scaner, edge_ignore, sensorNum, track_mode, &error, &lednum_tmp);
 
-	/*Î»ÖÃÕıÈ·ĞÔÅĞ¶Ï*/
+	/*ä½ç½®æ­£ç¡®æ€§åˆ¤æ–­*/
 	if (pos >= 0)
 	{
-		if (pos_detect(pos)) // ÕıÈ·
+		if (pos_detect(pos)) // æ­£ç¡®
 		{
-			error /= (float)lednum_tmp; // È¡Æ½¾ù
+			error /= (float)lednum_tmp; // å–å¹³å‡
 			scaner->error = error;
 			Update_line_data(NO_error, pos, scaner->error);
 		}
 		else
 		{
-			error /= (float)lednum_tmp; // È¡Æ½¾ù
+			error /= (float)lednum_tmp; // å–å¹³å‡
 			scaner->error = error;
 			Update_line_data(pos_error, pos, scaner->error);
 		}
@@ -274,10 +273,10 @@ uint8_t Line_Scan(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_
 	return 0;
 }
 
-/*´òÓ¡³öu16±äÁ¿µÄ¶ş½øÖÆÖµ - Ç°°ëÎª¶ş½øÖÆÖµ£¬ºó°ëÎªÔ­Ê¼Êı¾İ*/
+/*æ‰“å°å‡ºu16å˜é‡çš„äºŒè¿›åˆ¶å€¼ - å‰åŠä¸ºäºŒè¿›åˆ¶å€¼ï¼ŒååŠä¸ºåŸå§‹æ•°æ®*/
 void printf_byte(uint16_t data)
 {
-    /*´òÓ¡¶ş½øÖÆÖµ*/
+    /*æ‰“å°äºŒè¿›åˆ¶å€¼*/
     for(int16_t i=sizeof(data)*8-1; i>=0; i--)
     {
         printf("%d", (data>>i)&1);
@@ -287,16 +286,16 @@ void printf_byte(uint16_t data)
 
 
 
-/*Ñ­¼£ÂË²¨*/
-/*Ñ­¼£ÖĞĞÄÖµºÍÎ»ÖÃ¼ÆËã - ÕıÈ··µ»Ø´óÓÚµÈÓÚ0µÄÎ»ÖÃ£¬´íÎó·µ»Ø¸ºÊı*/
+/*å¾ªè¿¹æ»¤æ³¢*/
+/*å¾ªè¿¹ä¸­å¿ƒå€¼å’Œä½ç½®è®¡ç®— - æ­£ç¡®è¿”å›å¤§äºç­‰äº0çš„ä½ç½®ï¼Œé”™è¯¯è¿”å›è´Ÿæ•°*/
 #define MAX_LED	4
 float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned char SensorNum, uint8_t track_mode, float *Error, u8 *LED_Num_Temp)
 {
 	float pos = 0;
-	/*»ñÈ¡ĞèÒªµÄÑ­¼£Öµ - ÒÔL_R_openÎª×î¸ßÑ­¼£ÓÅÏÈ¼¶*/
-	if (track_mode != TRACK_ALL)		//Ç¿ÖÆÆ«×ó/ÓÒ/¾ÓÖĞÑ­¼£
+	/*è·å–éœ€è¦çš„å¾ªè¿¹å€¼ - ä»¥L_R_openä¸ºæœ€é«˜å¾ªè¿¹ä¼˜å…ˆçº§*/
+	if (track_mode != TRACK_ALL)		//å¼ºåˆ¶åå·¦/å³/å±…ä¸­å¾ªè¿¹
 	{
-		/*×óÑ­Ïß*/
+		/*å·¦å¾ªçº¿*/
 		if (track_mode == TRACK_LEFT_EDGE)
 		{
 			for (uint8_t i = edge_ignore; i < SensorNum - edge_ignore; i++)
@@ -305,21 +304,21 @@ float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned ch
 				*Error += ((scaner->detail >> (SensorNum - 1 - i)) & 0X01) * line_weight[i];
 				if ((scaner->detail >> (SensorNum - 1 - i)) & 0X01)
 					pos += i;
-				/*Èç¹ûÊÇ°×Ïß*/
+				/*å¦‚æœæ˜¯ç™½çº¿*/
 				if ((scaner->detail >> (SensorNum - i - 1)) & 0X01)
 				{
-					if (i == SensorNum - 1 || !((scaner->detail >> ((SensorNum - i - 1) - 1)) & 0x01)) // ÏÂÒ»¸öµÆ²»ÊÇ°×
+					if (i == SensorNum - 1 || !((scaner->detail >> ((SensorNum - i - 1) - 1)) & 0x01)) // ä¸‹ä¸€ä¸ªç¯ä¸æ˜¯ç™½
 					{
-						break; // ÍË³ö			//Ä¿µÄ È¡µÚÒ»¶ÎÁ¬ĞøÁÁµÆ
+						break; // é€€å‡º			//ç›®çš„ å–ç¬¬ä¸€æ®µè¿ç»­äº®ç¯
 					}
 				}
 			}
-			if ((*LED_Num_Temp > MAX_LED)) // Ä¿±êµÆÊı¹ı¶à  Òıµ¼Ïß¹ı¶à
+			if ((*LED_Num_Temp > MAX_LED)) // ç›®æ ‡ç¯æ•°è¿‡å¤š  å¼•å¯¼çº¿è¿‡å¤š
 			{
 				return -1;
 			}
 		}
-		/*ÓÒÑ²Ïß*/
+		/*å³å·¡çº¿*/
 		else if (track_mode == TRACK_RIGHT_EDGE)
 		{
 			for (uint8_t i = edge_ignore; i < SensorNum - edge_ignore; i++)
@@ -336,13 +335,13 @@ float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned ch
 					}
 				}
 			}
-			if ((*LED_Num_Temp > MAX_LED)) // Ä¿±êµÆÊı¹ı¶à  Òıµ¼Ïß¹ı¶à
+			if ((*LED_Num_Temp > MAX_LED)) // ç›®æ ‡ç¯æ•°è¿‡å¤š  å¼•å¯¼çº¿è¿‡å¤š
 			{
 				return -1;
 			}
 		}
-		/*¾ÓÖĞÁ÷Ë®*/
-		else if (track_mode == TRACK_LIUSHUI )           // Á÷Ë®Ñ²ÏßÄ£Ê½
+		/*å±…ä¸­æµæ°´*/
+		else if (track_mode == TRACK_LIUSHUI )           // æµæ°´å·¡çº¿æ¨¡å¼
 		{
 			float best_location = 0.0f;
 			float temp_location = 0.0f;
@@ -356,16 +355,16 @@ float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned ch
 				{
 					temp_location += i;
 					temp_len++;
-					if (i == SensorNum - 1 || !(scaner->detail & (1 << (i + 1))))//ÕÒÒ»¶ÎÁ¬ĞøµÄÁÁµÆ
+					if (i == SensorNum - 1 || !(scaner->detail & (1 << (i + 1))))//æ‰¾ä¸€æ®µè¿ç»­çš„äº®ç¯
 					{
-						temp_location /= (float)temp_len; // »ñÈ¡Æ½¾ùÎ»ÖÃ
+						temp_location /= (float)temp_len; // è·å–å¹³å‡ä½ç½®
 						
-																		//(((float)(SensorNum - 1)) / 2) ±íÊ¾ ÖĞĞÄÏß
+																		//(((float)(SensorNum - 1)) / 2) è¡¨ç¤º ä¸­å¿ƒçº¿
 						if (fabs(temp_location - (((float)(SensorNum - 1)) / 2)) < fabs(best_location - (((float)(SensorNum - 1)) / 2)))
 						{
 							best_location = temp_location;
-							line_led_last = i; // ±£´æ
-							len = temp_len;	   // ±£´æ
+							line_led_last = i; // ä¿å­˜
+							len = temp_len;	   // ä¿å­˜
 							temp_location = 0;
 							temp_len = 0;
 						}
@@ -379,15 +378,15 @@ float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned ch
 				if ((scaner->detail >> i) & 1)
 					pos += SensorNum - 1 - i;
 			}
-			if ((*LED_Num_Temp > MAX_LED)) // Ä¿±êµÆÊı¹ı¶à  Òıµ¼Ïß¹ı¶à
+			if ((*LED_Num_Temp > MAX_LED)) // ç›®æ ‡ç¯æ•°è¿‡å¤š  å¼•å¯¼çº¿è¿‡å¤š
 			{
 				return -1;
 			}
 		}
 	}
-	else  //·ÇÇ¿ÖÆÄ£Ê½£¬¸ù¾İ½ÚµãÑ¡ÔñÆ«×ó/ÓÒ/¾ÓÖĞÑ­¼£
+	else  //éå¼ºåˆ¶æ¨¡å¼ï¼Œæ ¹æ®èŠ‚ç‚¹é€‰æ‹©åå·¦/å³/å±…ä¸­å¾ªè¿¹
 	{
-			//È«¾ÖÆ½¾ù£¬°Ñ·¶Î§ÄÚËùÓĞÁÁµÆ¶¼²ÎÓë¼ÆËã
+			//å…¨å±€å¹³å‡ï¼ŒæŠŠèŒƒå›´å†…æ‰€æœ‰äº®ç¯éƒ½å‚ä¸è®¡ç®—
 			if (scaner->ledNum >= 4 && scaner->lineNum >= 2)
 			{
 				edge_ignore = 4;
@@ -399,7 +398,7 @@ float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned ch
 				if ((scaner->detail >> (SensorNum - 1 - i)) & 0X01)
 					pos += i;
 			}
-			if ((*LED_Num_Temp > MAX_LED)) // Ä¿±êµÆÊı¹ı¶à  Òıµ¼Ïß¹ı¶à
+			if ((*LED_Num_Temp > MAX_LED)) // ç›®æ ‡ç¯æ•°è¿‡å¤š  å¼•å¯¼çº¿è¿‡å¤š
 			{
 				return -1;
 			}
@@ -409,18 +408,18 @@ float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned ch
 	pos /= (float)(*LED_Num_Temp);
 	return pos;
 }
-/*¸üĞÂÑ­¼£ÖµÊı×é - ´íÎóÀàĞÍ 0ÎªÎŞ´í£¬ÎªÕıÈ·Öµ 1Îª¾«¼ìÑé´íÎó  2Îª´ÖÂÔ¼ì²â´íÎó*/
+/*æ›´æ–°å¾ªè¿¹å€¼æ•°ç»„ - é”™è¯¯ç±»å‹ 0ä¸ºæ— é”™ï¼Œä¸ºæ­£ç¡®å€¼ 1ä¸ºç²¾æ£€éªŒé”™è¯¯  2ä¸ºç²—ç•¥æ£€æµ‹é”™è¯¯*/
 void Update_line_data(uint8_t error_kind, float pos, float error)
 {
-	memmove(&line_data, &line_data[1], sizeof(struct Line_data) * 4); // µİÍÆÆ½¾ùÂË²¨·¨
+	memmove(&line_data, &line_data[1], sizeof(struct Line_data) * 4); // é€’æ¨å¹³å‡æ»¤æ³¢æ³•
 	switch (error_kind)
 	{
-	case NO_error: // ÎŞ´íÎó
+	case NO_error: // æ— é”™è¯¯
 		line_data[4].error = error;
 		line_data[4].pos = pos;
 		line_data[4].truth = error_kind;
 		break;
-	case all_error: // È«´íÎó
+	case all_error: // å…¨é”™è¯¯
 		line_data[4].error = -1;
 		line_data[4].pos = -1;
 		line_data[4].truth = error_kind;
@@ -437,12 +436,12 @@ void Update_line_data(uint8_t error_kind, float pos, float error)
 
 
 #define pos_max_error 1.5f
-/*ÅĞ¶ÏÎ»ÖÃºÍÉÏÒ»´ÎÕıÈ·ÖµÊÇ·ñÏà½ü - ÕıÈ·Ôò·µ»Ø1 ´íÎó·µ»Ø0*/
+/*åˆ¤æ–­ä½ç½®å’Œä¸Šä¸€æ¬¡æ­£ç¡®å€¼æ˜¯å¦ç›¸è¿‘ - æ­£ç¡®åˆ™è¿”å›1 é”™è¯¯è¿”å›0*/
 uint8_t pos_detect(float pos)
 {
 	uint8_t flag = 0;
 	uint8_t idx = 0;
-	// ÕÒµ½×î½üµÄÕıÈ·Öµ
+	// æ‰¾åˆ°æœ€è¿‘çš„æ­£ç¡®å€¼
 	for (int i = 4; i >= 0; i--)
 	{
 		if (line_data[i].truth == 0)
@@ -452,7 +451,7 @@ uint8_t pos_detect(float pos)
 			break;
 		}
 	}
-	// ÓĞÕıÈ·Öµ¶Ô±È
+	// æœ‰æ­£ç¡®å€¼å¯¹æ¯”
 	if (flag)
 	{
 		if (fabs(line_data[idx].pos - pos) < pos_max_error)
@@ -464,14 +463,14 @@ uint8_t pos_detect(float pos)
 			return 0;
 		}
 	}
-	// ÎŞÕıÈ·Öµ¶Ô±È  Ö»ÄÜÈÏÎªÕâ¸öÊÇ¶ÔµÄ¿©
+	// æ— æ­£ç¡®å€¼å¯¹æ¯”  åªèƒ½è®¤ä¸ºè¿™ä¸ªæ˜¯å¯¹çš„å’¯
 	else
 	{
 		return 1;
 	}
 }
 #define R_ 1
-/*»ñÈ¡Ñ­¼£Öµerror*/
+/*è·å–å¾ªè¿¹å€¼error*/
 float Get_scaner_error(void)
 {
 	uint8_t nums = 0;
@@ -481,45 +480,45 @@ float Get_scaner_error(void)
 	uint8_t pos_error_nums = 0;
 	uint8_t idex[5] = {0, 0, 0, 0, 0};
 
-	/*ÅĞ¶ÏÕıÈ·Êı¾İ¶à»¹ÊÇ´íÎóÊı¾İ¶à*/
+	/*åˆ¤æ–­æ­£ç¡®æ•°æ®å¤šè¿˜æ˜¯é”™è¯¯æ•°æ®å¤š*/
 	for (int i = 0; i < 5; i++)
 	{
 		if (line_data[i].truth == 0)
 		{
 			idex[nums] = i;
-			nums++; // Êı¾İÕıÈ·µÄÊıÁ¿
+			nums++; // æ•°æ®æ­£ç¡®çš„æ•°é‡
 		}
 		else if (line_data[i].truth == pos_error)
 		{
 			pos_data[pos_error_nums] = line_data[i].error;
 			pos_pos[pos_error_nums] = line_data[i].pos;
-			pos_error_nums++; // pos´íÎóµÄÊı¾İÊıÁ¿
+			pos_error_nums++; // posé”™è¯¯çš„æ•°æ®æ•°é‡
 		}
 	}
 
-	if (nums >= 3 || (nums >= pos_error_nums && nums != 0)) // ÕıÈ·µÄÊıÁ¿¶à£¬²¢ÇÒÕıÈ·ÊıÁ¿²»Îª0
+	if (nums >= 3 || (nums >= pos_error_nums && nums != 0)) // æ­£ç¡®çš„æ•°é‡å¤šï¼Œå¹¶ä¸”æ­£ç¡®æ•°é‡ä¸ä¸º0
 	{
-		// printf("´úÂëÂ·¹ıÇøÓò\n");
+		// printf("ä»£ç è·¯è¿‡åŒºåŸŸ\n");
 		for (int i = 0; i < nums; i++)
 		{
 			error += line_data[idex[i]].error;
 		}
 		error /= (float)nums;
 	}
-	else if (nums == 0) // Ã»ÓĞÕıÈ·Öµ
+	else if (nums == 0) // æ²¡æœ‰æ­£ç¡®å€¼
 	{
-		if (pos_error_nums == 0) // Ã»ÓĞposÖµ¿É²Î¿¼
+		if (pos_error_nums == 0) // æ²¡æœ‰poså€¼å¯å‚è€ƒ
 		{
-			return 0; // Ã»ÓĞ°ì·¨£¬Ó²×ÅÍ·Æ¤Ô­Â·Ç°½ø
+			return 0; // æ²¡æœ‰åŠæ³•ï¼Œç¡¬ç€å¤´çš®åŸè·¯å‰è¿›
 		}
-		else // ²Î¿¼´íÎóµÄÎ»ÖÃ»òĞí¿ÉĞĞ
+		else // å‚è€ƒé”™è¯¯çš„ä½ç½®æˆ–è®¸å¯è¡Œ
 		{
-			if (pos_error_nums == 1) // Ö»ÓĞÒ»¸ö¿É²Î¿¼
+			if (pos_error_nums == 1) // åªæœ‰ä¸€ä¸ªå¯å‚è€ƒ
 			{
 				return pos_data[0];
 			}
 
-			/*½±Àø»úÖÆ*/
+			/*å¥–åŠ±æœºåˆ¶*/
 			uint8_t scorce[5] = {0, 0, 0, 0, 0};
 			for (int i = 0; i < pos_error_nums; i++)
 			{
@@ -533,8 +532,8 @@ float Get_scaner_error(void)
 				}
 			}
 
-			/*ÕÒ³ö×î¶àÁÙ½üµÄÎ»ÖÃ*/
-			uint8_t max = scorce[0]; // ¼ÙÉèµÚÒ»¸öÔªËØÊÇ×î´óµÄ
+			/*æ‰¾å‡ºæœ€å¤šä¸´è¿‘çš„ä½ç½®*/
+			uint8_t max = scorce[0]; // å‡è®¾ç¬¬ä¸€ä¸ªå…ƒç´ æ˜¯æœ€å¤§çš„
 			uint8_t max_idx = 0;
 			for (int i = 0; i < pos_error_nums; i++)
 			{
@@ -544,7 +543,7 @@ float Get_scaner_error(void)
 					max_idx = i;
 				}
 			}
-			/*¶¼ÊÇÀëÉ¢·ÖÉ¢µÄ£¬Ã»¾ÈÁË*/
+			/*éƒ½æ˜¯ç¦»æ•£åˆ†æ•£çš„ï¼Œæ²¡æ•‘äº†*/
 			if (max == 0)
 			{
 				return 0;
@@ -555,9 +554,9 @@ float Get_scaner_error(void)
 			}
 		}
 	}
-	else // ÕıÈ·Öµ±È´íÎóÖµÉÙ ĞèÒªÅĞ¶ÏÓĞĞ§´íÎóÖµÊÇ·ñ´óÓÚÕıÈ·Öµ
+	else // æ­£ç¡®å€¼æ¯”é”™è¯¯å€¼å°‘ éœ€è¦åˆ¤æ–­æœ‰æ•ˆé”™è¯¯å€¼æ˜¯å¦å¤§äºæ­£ç¡®å€¼
 	{
-		/*½±Àø»úÖÆ*/
+		/*å¥–åŠ±æœºåˆ¶*/
 		uint8_t scorce[5] = {0, 0, 0, 0, 0};
 		for (int i = 0; i < pos_error_nums; i++)
 		{
@@ -570,8 +569,8 @@ float Get_scaner_error(void)
 				}
 			}
 		}
-		/*ÕÒ³ö×î¶àÁÙ½üµÄÎ»ÖÃ*/
-		uint8_t max = scorce[0]; // ¼ÙÉèµÚÒ»¸öÔªËØÊÇ×î´óµÄ
+		/*æ‰¾å‡ºæœ€å¤šä¸´è¿‘çš„ä½ç½®*/
+		uint8_t max = scorce[0]; // å‡è®¾ç¬¬ä¸€ä¸ªå…ƒç´ æ˜¯æœ€å¤§çš„
 		uint8_t max_idx = 0;
 		for (int i = 0; i < pos_error_nums; i++)
 		{
@@ -581,7 +580,7 @@ float Get_scaner_error(void)
 				max_idx = i;
 			}
 		}
-		if (nums >= max + 1) // ÕıÈ·ÖµÆ«¶à£¬ÕâÀïµÄ¼ÓÒ»ÊÇÒòÎª½±Àø»úÖÆÖĞÃ»°Ñ×Ô¼ºÒ²µ±ºÃÅóÓÑËã½øÈ¥
+		if (nums >= max + 1) // æ­£ç¡®å€¼åå¤šï¼Œè¿™é‡Œçš„åŠ ä¸€æ˜¯å› ä¸ºå¥–åŠ±æœºåˆ¶ä¸­æ²¡æŠŠè‡ªå·±ä¹Ÿå½“å¥½æœ‹å‹ç®—è¿›å»
 		{
 			for (int i = 0; i < nums; i++)
 			{
@@ -597,11 +596,11 @@ float Get_scaner_error(void)
 	return error;
 }
 
-/*´ÖÂÔ¼ì²â - ÅĞ¶Ï¸ÃÑ­¼£ÖµÊÇ·ñ¿ÉÓÃ£¬¿ÉÓÃ·µ»Ø1£¬²»¿ÉÓÃ·µ»Ø0*/
+/*ç²—ç•¥æ£€æµ‹ - åˆ¤æ–­è¯¥å¾ªè¿¹å€¼æ˜¯å¦å¯ç”¨ï¼Œå¯ç”¨è¿”å›1ï¼Œä¸å¯ç”¨è¿”å›0*/
 uint8_t error_detect_one(u8 LED_Num, u8 Line_Num)
 {
 	
-	// ¶àµÆ ¶àÏß ÎŞµÆ µÆÊı/ÏßÊı >=4						            LED_Num / Line_Num >= 4±íÊ¾ Æ½¾ùÃ¿ÌõÏßÕ¼Ì«¶àµÆ
+	// å¤šç¯ å¤šçº¿ æ— ç¯ ç¯æ•°/çº¿æ•° >=4						            LED_Num / Line_Num >= 4è¡¨ç¤º å¹³å‡æ¯æ¡çº¿å å¤ªå¤šç¯
 	if (LED_Num >= 10 || Line_Num >= 4 || LED_Num == 0 || LED_Num / Line_Num >= 4)
 	{
 		return 1;

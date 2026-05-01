@@ -6,35 +6,35 @@
 
 
 #define NO      	 (1<<0) 
-#define DLEFT 		 (1<<1)				//×ó±ßºáÏß
-#define DRIGHT 		 (1<<2)				//ÓÒ±ßºáÏß   ÓÒ°ë±ßÌì
-#define CLEFT	     (1<<3)				//×ó±ßÐ±Ïß  ×ó·Ö²íÂ· 45¡ã
-#define CRIGHT		 (1<<4)				//ÓÒ±ßÐ±Ïß
-#define MUL2SING	 (1<<5)				//¶àÌõ±äÒ»Ìõ
-#define MUL2MUL 	 (1<<6) 		    //¶àÌõ±ä¶àÌõ
-#define AWHITE  	 (1<<7)			   	//È«ºÚ
+#define DLEFT 		 (1<<1)				//å·¦è¾¹æ¨ªçº¿
+#define DRIGHT 		 (1<<2)				//å³è¾¹æ¨ªçº¿   å³åŠè¾¹å¤©
+#define CLEFT	     (1<<3)				//å·¦è¾¹æ–œçº¿  å·¦åˆ†å²”è·¯ 45Â°
+#define CRIGHT		 (1<<4)				//å³è¾¹æ–œçº¿
+#define MUL2SING	 (1<<5)				//å¤šæ¡å˜ä¸€æ¡
+#define MUL2MUL 	 (1<<6) 		    //å¤šæ¡å˜å¤šæ¡
+#define AWHITE  	 (1<<7)			   	//å…¨é»‘
 					 
-#define RESTMPUZ	 (1<<8)			    //ÍÓÂÝÒÇÐ£×¼
-#define STOPTURN 	 (1<<9)				//Í£ÏÂÀ´×ªÍä
-#define SLOWDOWN	 (1<<10)    		//¼õËÙ
+#define RESTMPUZ	 (1<<8)			    //é™€èžºä»ªæ ¡å‡†
+#define STOPTURN 	 (1<<9)				//åœä¸‹æ¥è½¬å¼¯
+#define SLOWDOWN	 (1<<10)    		//å‡é€Ÿ
 
-#define LEFT_LINE    (1<<11)   			//×óÑ­Ïß(ºöÂÔÓÒ±ß°×Ïß¸ÉÈÅ)
-#define RIGHT_LINE	 (1<<12)   			//ÓÒÑ­Ïß
+#define LEFT_LINE    (1<<11)   			//å·¦å¾ªçº¿(å¿½ç•¥å³è¾¹ç™½çº¿å¹²æ‰°)
+#define RIGHT_LINE	 (1<<12)   			//å³å¾ªçº¿
 
 #define MCLEFT       (1<<13)
 #define MCRIGHT      (1<<14)
 
-#define DRIFT        (1<<15)    		//ÒªÓÃÍÓÂÝÒÇÀ´×ª    		
-#define L_follow     (1<<16)			//×óÑ­¼£×ªÍä£¨ÓÃÀ´×ªÍä
-#define R_follow     (1<<17)			//ÓÒÑ­¼£×ªÍä
-#define MORELED      (1<<18)            //¸ü¶àLED
-#define LiuShui      (1<<19)			//Á÷Ë®µÆ
-#define NOTURN       (1<<20)			//²»×ªÍä  
+#define DRIFT        (1<<15)    		//è¦ç”¨é™€èžºä»ªæ¥è½¬    		
+#define L_follow     (1<<16)			//å·¦å¾ªè¿¹è½¬å¼¯ï¼ˆç”¨æ¥è½¬å¼¯
+#define R_follow     (1<<17)			//å³å¾ªè¿¹è½¬å¼¯
+#define MORELED      (1<<18)            //æ›´å¤šLED
+#define LiuShui      (1<<19)			//æµæ°´ç¯
+#define NOTURN       (1<<20)			//ä¸è½¬å¼¯  
 
-#define INGNORE      (1<<21)            //¶ÌÖ±Á¢¾°µãºóÍË
-#define Temp_L		 (1<<22)			//ÁÙÊ±×óÑ­¼£
-#define Temp_R		 (1<<23)			//ÁÙÊ±ÓÒÑ­¼£
-#define Temp_LiuShui (1<<24)			//ÁÙÊ±Á÷Ë®
+#define INGNORE      (1<<21)            //çŸ­ç›´ç«‹æ™¯ç‚¹åŽé€€
+#define Temp_L		 (1<<22)			//ä¸´æ—¶å·¦å¾ªè¿¹
+#define Temp_R		 (1<<23)			//ä¸´æ—¶å³å¾ªè¿¹
+#define Temp_LiuShui (1<<24)			//ä¸´æ—¶æµæ°´
 
 enum barriers {
 	NONE = 1,
@@ -133,37 +133,37 @@ enum MapNode {	//MapNode
 };
 
 /**************************************/
-//½áµãÐÅÏ¢
-//flag 0Î»Ñ°Ïß·½Ê½£º0×óÑ°Ïß£¬1ÓÒÑ°Ïß
-//flag 123Î»µ½´ïÂ·¿Ú±êÖ¾£º	000×î×ó±ß´òµ½£¬001×îÓÒ±ß´òµ½£¬010×ó±ßÊýÏß£¬011ÓÒ±ßÊýÏß£¬100ÏßÊýÓÉ¶à±ä³ÉÒ»Ìõ	
-//flag 45Î»£¬ÊýÏßÊýÄ¿	
-//flag 6Î»£¬Ñ°Ïß·½Ê½ÊÇ·ñÒªÇÐ»»£¬1ÐèÒªÇÐ»»£¬0²»ÐèÒªÇÐ»»
-//flag 7Î»	ÐèÒªÍÓÂÝÒÇÐ£Õý
+//ç»“ç‚¹ä¿¡æ¯
+//flag 0ä½å¯»çº¿æ–¹å¼ï¼š0å·¦å¯»çº¿ï¼Œ1å³å¯»çº¿
+//flag 123ä½åˆ°è¾¾è·¯å£æ ‡å¿—ï¼š	000æœ€å·¦è¾¹æ‰“åˆ°ï¼Œ001æœ€å³è¾¹æ‰“åˆ°ï¼Œ010å·¦è¾¹æ•°çº¿ï¼Œ011å³è¾¹æ•°çº¿ï¼Œ100çº¿æ•°ç”±å¤šå˜æˆä¸€æ¡	
+//flag 45ä½ï¼Œæ•°çº¿æ•°ç›®	
+//flag 6ä½ï¼Œå¯»çº¿æ–¹å¼æ˜¯å¦è¦åˆ‡æ¢ï¼Œ1éœ€è¦åˆ‡æ¢ï¼Œ0ä¸éœ€è¦åˆ‡æ¢
+//flag 7ä½	éœ€è¦é™€èžºä»ªæ ¡æ­£
 //flag 8~11	
 typedef struct _node{
-	u8 nodenum;     //½áµãÃû³Æ
-	u32  flag;	    //½áµã±êÖ¾Î»
-	float angle;	//½Ç¶È	
-	u16	step;		//Ïß³¤
-	float speed;	//Ñ°ÏßËÙ¶È
-	u8 function;    //½áµãº¯Êý
+	u8 nodenum;     //ç»“ç‚¹åç§°
+	u32  flag;	    //ç»“ç‚¹æ ‡å¿—ä½
+	float angle;	//è§’åº¦	
+	u16	step;		//çº¿é•¿
+	float speed;	//å¯»çº¿é€Ÿåº¦
+	u8 function;    //ç»“ç‚¹å‡½æ•°
 }NODE;
 
 extern NODE Node[126];
 /*************************/
-//flag 0Î»£º1±àÂëÆ÷ÇåÁãÇëÇó£¬0ÇåÁãÍê±Ï
-//flag 1Î»£ºÆô¶¯Â·¿ÚÅÐ¶Ï
-//flag 2Î»£ºÊÇ·ñµ½´ïÂ·¿Ú
-//flag 3Î»£ºarriveÀïtempÇåÁã
-//flag 4Î»£ºZÖáÖÃÁã
-//flag 5Î»£ºÂ·Ïß´¦Àí¸´Î» ´òµ½ÃÅ
-//flag 6Î»£ºÃ»ÓÐÃÅ
-//flag 7Î»£ººìµÆ
+//flag 0ä½ï¼š1ç¼–ç å™¨æ¸…é›¶è¯·æ±‚ï¼Œ0æ¸…é›¶å®Œæ¯•
+//flag 1ä½ï¼šå¯åŠ¨è·¯å£åˆ¤æ–­
+//flag 2ä½ï¼šæ˜¯å¦åˆ°è¾¾è·¯å£
+//flag 3ä½ï¼šarriveé‡Œtempæ¸…é›¶
+//flag 4ä½ï¼šZè½´ç½®é›¶
+//flag 5ä½ï¼šè·¯çº¿å¤„ç†å¤ä½ æ‰“åˆ°é—¨
+//flag 6ä½ï¼šæ²¡æœ‰é—¨
+//flag 7ä½ï¼šçº¢ç¯
 typedef struct _nodesr{
 	u8 flag;
-	NODE lastNode;		//¶ÎÆðµã
-	NODE nowNode;		//¶ÎÖÕµã - Òªµ½´ïµÄ½Úµã
-	NODE nextNode;		//¶ÎµÄºóÒ»½áµã
+	NODE lastNode;		//æ®µèµ·ç‚¹
+	NODE nowNode;		//æ®µç»ˆç‚¹ - è¦åˆ°è¾¾çš„èŠ‚ç‚¹
+	NODE nextNode;		//æ®µçš„åŽä¸€ç»“ç‚¹
 }NODESR;
 
 extern uint8_t Change_Route;
@@ -171,7 +171,7 @@ extern NODESR nodesr;
 
 struct Map_State {
 	u8 point;
-	u8 routetime;//µÚ¼¸´ÎÅÜµØÍ¼
+	u8 routetime;//ç¬¬å‡ æ¬¡è·‘åœ°å›¾
 };
 extern struct Map_State map;
 extern uint8_t Turn_Flag;

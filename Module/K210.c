@@ -15,38 +15,38 @@ uint8_t K210_Rece = 0;
 uint8_t K210_RxTemp_L = 0;
 uint8_t Maxicam_Rx = 0;
 
-//ÇĞ»»³É¹¦±êÖ¾Î»
+//åˆ‡æ¢æˆåŠŸæ ‡å¿—ä½
 uint8_t open_QR_mode_sign=2;
 uint8_t open_OCR_mode_sign=2;
 uint8_t open_COLOR_L_mode_sign=2;
 uint8_t open_COLOR_R_mode_sign=2;
 
-#define REQUIRED_CONSECUTIVE 3  // ĞèÒªÁ¬ĞøÏàÍ¬µÄ´ÎÊı
+#define REQUIRED_CONSECUTIVE 3  // éœ€è¦è¿ç»­ç›¸åŒçš„æ¬¡æ•°
 
 
-/*Ê¹ÄÜMaxicam*/
+/*ä½¿èƒ½Maxicam*/
 void Maxicam_Enable(void)
 {
 	HAL_UART_Receive_IT(&huart5, &Maxicam_Rx, 1);
 }
 
-/* ´ò¿ªQRÄ£Ê½£¨´ø0x94È·ÈÏ£©*/
+/* æ‰“å¼€QRæ¨¡å¼ï¼ˆå¸¦0x94ç¡®è®¤ï¼‰*/
 void open_QR_mode(void)
 {
-    uint8_t cmd = 0x11;  // QRÄ£Ê½Ö¸ÁîÂë
-    uint8_t retry = 3;//ÓĞÏŞ´ÎÊıµÄÈ·ÈÏ
+    uint8_t cmd = 0x11;  // QRæ¨¡å¼æŒ‡ä»¤ç 
+    uint8_t retry = 3;//æœ‰é™æ¬¡æ•°çš„ç¡®è®¤
     open_QR_mode_sign = 1;
     while(retry--) {
-        // ·¢ËÍÖ¸Áî
+        // å‘é€æŒ‡ä»¤
         HAL_UART_Transmit(&huart5, &cmd, 1, 100);
 			  HAL_Delay(20);
         if(open_QR_mode_sign == 0) break;
-        HAL_Delay(30); // ¶Ì¼ä¸ôÖØÊÔ
+        HAL_Delay(30); // çŸ­é—´éš”é‡è¯•
     }
 
 }
 
-/* ´ò¿ªOCRÄ£Ê½£¨´ø0x94È·ÈÏ£©*/
+/* æ‰“å¼€OCRæ¨¡å¼ï¼ˆå¸¦0x94ç¡®è®¤ï¼‰*/
 void open_OCR_mode(void)
 {
     uint8_t cmd[] = {0x22};
@@ -62,7 +62,7 @@ void open_OCR_mode(void)
 }
 
 
-/* ¹Ø±ÕÉè±¸£¨´ø0x94È·ÈÏ£©*/
+/* å…³é—­è®¾å¤‡ï¼ˆå¸¦0x94ç¡®è®¤ï¼‰*/
 void close_Maxicam(void)
 {
     uint8_t cmd = 0x66;
@@ -72,12 +72,12 @@ void close_Maxicam(void)
 		HAL_UART_Transmit(&huart5, &cmd, 1, 100);
 }
 
-// QRÂëÊı¾İÍ³¼Æº¯Êı
+// QRç æ•°æ®ç»Ÿè®¡å‡½æ•°
 void Process_QR_Data(uint8_t line, uint8_t stageA, uint8_t stageB) {
     static uint8_t last_line = 0, last_A = 0, last_B = 0;
     static uint8_t consecutive_count = 0;
     
-    // ¼ì²éÊÇ·ñÓëÉÏ´ÎÏàÍ¬
+    // æ£€æŸ¥æ˜¯å¦ä¸ä¸Šæ¬¡ç›¸åŒ
     if(line == last_line && stageA == last_A && stageB == last_B) {
         consecutive_count++;
     } else {
@@ -87,7 +87,7 @@ void Process_QR_Data(uint8_t line, uint8_t stageA, uint8_t stageB) {
         last_B = stageB;
     }
     
-    // ´ïµ½Á¬Ğø´ÎÊıÒªÇó
+    // è¾¾åˆ°è¿ç»­æ¬¡æ•°è¦æ±‚
     if(consecutive_count >= REQUIRED_CONSECUTIVE) {
         line_clue = line;
         clue_A_stage = stageA;
@@ -95,17 +95,17 @@ void Process_QR_Data(uint8_t line, uint8_t stageA, uint8_t stageB) {
 //        buzzer_flag = 1;
         get_cude = 1;
         close_Maxicam();
-        consecutive_count = 0; // ÖØÖÃ¼ÆÊı
+        consecutive_count = 0; // é‡ç½®è®¡æ•°
     }
 }
 
-// OCRÊı¾İÍ³¼Æº¯Êı
+// OCRæ•°æ®ç»Ÿè®¡å‡½æ•°
 void Process_OCR_Data(uint8_t ocr_value) {
     static uint8_t last_value = 0;
     static uint8_t consecutive_count = 0;
 		if(ocr_value<=6 && ocr_value>=0)	
 			{
-					// ¼ì²éÊÇ·ñÓëÉÏ´ÎÏàÍ¬
+					// æ£€æŸ¥æ˜¯å¦ä¸ä¸Šæ¬¡ç›¸åŒ
 					if(ocr_value == last_value) {
 							consecutive_count++;
 					} else {
@@ -113,29 +113,29 @@ void Process_OCR_Data(uint8_t ocr_value) {
 							last_value = ocr_value;
 					}
 					
-					// ´ïµ½Á¬Ğø´ÎÊıÒªÇó
+					// è¾¾åˆ°è¿ç»­æ¬¡æ•°è¦æ±‚
 					if(consecutive_count >= REQUIRED_CONSECUTIVE) {
 							Clue_Num = last_value;
 							K210_Rece = 1;
 				//			close_Maxicam();
-							consecutive_count = 0; // ÖØÖÃ¼ÆÊı
+							consecutive_count = 0; // é‡ç½®è®¡æ•°
 							ocr_value=0;
 							last_value = 0;
 					}
 			}
 }
 
-// ÑÕÉ«Êı¾İÍ³¼Æ
+// é¢œè‰²æ•°æ®ç»Ÿè®¡
 void Process_COLOR_Data(uint8_t color_value) {
-    static uint8_t last_color = 0;       // ¼ÇÂ¼ÉÏÒ»´ÎÊ¶±ğµÄÑÕÉ«Öµ
-    static uint8_t consecutive_count = 0; // Á¬ĞøÊ¶±ğÏàÍ¬ÑÕÉ«µÄ´ÎÊı
+    static uint8_t last_color = 0;       // è®°å½•ä¸Šä¸€æ¬¡è¯†åˆ«çš„é¢œè‰²å€¼
+    static uint8_t consecutive_count = 0; // è¿ç»­è¯†åˆ«ç›¸åŒé¢œè‰²çš„æ¬¡æ•°
 		
-			// ¼ì²éµ±Ç°ÑÕÉ«ÖµÊÇ·ñÓëÉÏÒ»´ÎÏàÍ¬
+			// æ£€æŸ¥å½“å‰é¢œè‰²å€¼æ˜¯å¦ä¸ä¸Šä¸€æ¬¡ç›¸åŒ
 			if (color_value == last_color) {
-					consecutive_count++;  // Á¬ĞøÏàÍ¬£¬¼ÆÊıµİÔö
+					consecutive_count++;  // è¿ç»­ç›¸åŒï¼Œè®¡æ•°é€’å¢
 			} else {
-					consecutive_count = 1; // ²»Í¬£¬ÖØÖÃ¼ÆÊıÎª1
-					last_color = color_value; // ¸üĞÂÉÏ´ÎÑÕÉ«Öµ
+					consecutive_count = 1; // ä¸åŒï¼Œé‡ç½®è®¡æ•°ä¸º1
+					last_color = color_value; // æ›´æ–°ä¸Šæ¬¡é¢œè‰²å€¼
 			}
 
 			if (consecutive_count >= REQUIRED_CONSECUTIVE) {
@@ -146,19 +146,19 @@ void Process_COLOR_Data(uint8_t color_value) {
 					}
 					COLOR_flag = 0;
 					close_Maxicam(); 
-					consecutive_count = 0; // ÖØÖÃ¼ÆÊı£¬×¼±¸ÏÂÒ»´ÎÊ¶±ğ
+					consecutive_count = 0; // é‡ç½®è®¡æ•°ï¼Œå‡†å¤‡ä¸‹ä¸€æ¬¡è¯†åˆ«
 
 			}
 		
 		
 }
 
-/* Maxicam½ÓÊÕÖĞ¶Ï */
+/* Maxicamæ¥æ”¶ä¸­æ–­ */
 /*
-Êı×Ö/OCRÊ¶±ğ¡ª¡ª¡ª¡ª Ö¡Í·0x01 0x01 Ö¡Î²0x0a
-¶şÎ¬Âë/QRÊ¶±ğ¡ª¡ª¡ª¡ªÖ¡Í·0x02 0x02 Ö¡Î²0x0a
-ÑÕÉ«/COLORÊ¶±ğ¡ª¡ª¡ª¡ªÖ¡Í·0x03 0x03 Ö¡Î²0x0a
-frame_type 1£º±íÊ¾¶şÎ¬ÂëÊ¶±ğÄ£Ê½  2£º±íÊ¾Êı×ÖÊ¶±ğÄ£Ê½ 3£º±íÊ¾ÑÕÉ«Ê¶±ğÄ£Ê½
+æ•°å­—/OCRè¯†åˆ«â€”â€”â€”â€” å¸§å¤´0x01 0x01 å¸§å°¾0x0a
+äºŒç»´ç /QRè¯†åˆ«â€”â€”â€”â€”å¸§å¤´0x02 0x02 å¸§å°¾0x0a
+é¢œè‰²/COLORè¯†åˆ«â€”â€”â€”â€”å¸§å¤´0x03 0x03 å¸§å°¾0x0a
+frame_type 1ï¼šè¡¨ç¤ºäºŒç»´ç è¯†åˆ«æ¨¡å¼  2ï¼šè¡¨ç¤ºæ•°å­—è¯†åˆ«æ¨¡å¼ 3ï¼šè¡¨ç¤ºé¢œè‰²è¯†åˆ«æ¨¡å¼
 
 */
 //void UART5_IRQHandler(void)
@@ -166,11 +166,11 @@ frame_type 1£º±íÊ¾¶şÎ¬ÂëÊ¶±ğÄ£Ê½  2£º±íÊ¾Êı×ÖÊ¶±ğÄ£Ê½ 3£º±íÊ¾ÑÕÉ«Ê¶±ğÄ£Ê½
 //    HAL_UART_IRQHandler(&huart5);
 
 //    static uint8_t flag = 0;
-//    static uint8_t frame_type = 0; // Ö¡ÀàĞÍ£º1-QRÖ¡£¬2-OCRÖ¡£¬3-COLORÖ¡
-//    static uint8_t data_buffer[3]; // Êı¾İ»º³åÇø£¨QR:3×Ö½Ú£¬OCR/COLOR:1×Ö½Ú£©
-//    static uint8_t data_index = 0; // Êı¾İ»º³åÇøË÷Òı
+//    static uint8_t frame_type = 0; // å¸§ç±»å‹ï¼š1-QRå¸§ï¼Œ2-OCRå¸§ï¼Œ3-COLORå¸§
+//    static uint8_t data_buffer[3]; // æ•°æ®ç¼“å†²åŒºï¼ˆQR:3å­—èŠ‚ï¼ŒOCR/COLOR:1å­—èŠ‚ï¼‰
+//    static uint8_t data_index = 0; // æ•°æ®ç¼“å†²åŒºç´¢å¼•
 //    
-//	  //Ä£Ê½È·ÈÏÇĞ»»³É¹¦
+//	  //æ¨¡å¼ç¡®è®¤åˆ‡æ¢æˆåŠŸ
 //	  if(Maxicam_Rx == 0x94)
 //		{
 //			 if(open_QR_mode_sign == 1)
@@ -182,50 +182,50 @@ frame_type 1£º±íÊ¾¶şÎ¬ÂëÊ¶±ğÄ£Ê½  2£º±íÊ¾Êı×ÖÊ¶±ğÄ£Ê½ 3£º±íÊ¾ÑÕÉ«Ê¶±ğÄ£Ê½
 //			 if(open_COLOR_R_mode_sign == 1)
 //				 open_COLOR_R_mode_sign=0;
 //		}
-//    // Ö¡Í·¼ì²â
+//    // å¸§å¤´æ£€æµ‹
 //    if (Maxicam_Rx == 0x01 && flag == 0) {
-//        flag = 1; // ÊÕµ½µÚÒ»¸ö0x01£¨QRÖ¡Í·£©
+//        flag = 1; // æ”¶åˆ°ç¬¬ä¸€ä¸ª0x01ï¼ˆQRå¸§å¤´ï¼‰
 //    } 
 //    else if (Maxicam_Rx == 0x01 && flag == 1) {
-//        frame_type = 1; // È·ÈÏQRÖ¡
+//        frame_type = 1; // ç¡®è®¤QRå¸§
 //        flag = 2;
 //        data_index = 0; 
 //        memset(data_buffer, 0, sizeof(data_buffer)); 
 //    }
 //    else if (Maxicam_Rx == 0x02 && flag == 0) {
-//        flag = 1; // ÊÕµ½µÚÒ»¸ö0x02£¨OCRÖ¡Í·£©
+//        flag = 1; // æ”¶åˆ°ç¬¬ä¸€ä¸ª0x02ï¼ˆOCRå¸§å¤´ï¼‰
 //    }
 //    else if (Maxicam_Rx == 0x02 && flag == 1) {
-//        frame_type = 2; // È·ÈÏOCRÖ¡
+//        frame_type = 2; // ç¡®è®¤OCRå¸§
 //        flag = 2;
 //        data_index = 0; 
 //        memset(data_buffer, 0, sizeof(data_buffer)); 
 //    }
-//    // COLORÖ¡Í·¼ì²â£¨0x03 0x03£©
+//    // COLORå¸§å¤´æ£€æµ‹ï¼ˆ0x03 0x03ï¼‰
 //    else if (Maxicam_Rx == 0x03 && flag == 0) {
-//        flag = 1; // ÊÕµ½µÚÒ»¸ö0x03£¨COLORÖ¡Í·µÚÒ»×Ö½Ú£©
+//        flag = 1; // æ”¶åˆ°ç¬¬ä¸€ä¸ª0x03ï¼ˆCOLORå¸§å¤´ç¬¬ä¸€å­—èŠ‚ï¼‰
 //    }
 //    else if (Maxicam_Rx == 0x03 && flag == 1) {
-//        frame_type = 3; // È·ÈÏCOLORÖ¡
+//        frame_type = 3; // ç¡®è®¤COLORå¸§
 //        flag = 2;
 //        data_index = 0; 
 //        memset(data_buffer, 0, sizeof(data_buffer)); 
 //    }
-//    // Êı¾İ½ÓÊÕ´¦Àí£¨ËùÓĞÖ¡ÀàĞÍ¹²ÓÃ£©
+//    // æ•°æ®æ¥æ”¶å¤„ç†ï¼ˆæ‰€æœ‰å¸§ç±»å‹å…±ç”¨ï¼‰
 //    else if (flag == 2 && Maxicam_Rx != 0x0a)
 //    {
 //        if(data_index < sizeof(data_buffer)) {
 //            data_buffer[data_index++] = Maxicam_Rx;
 //        }
 //    }
-//    // Ö¡Î²¼ì²â£¨0x0a£©£¬´¦Àí¸÷ÀàĞÍÖ¡Êı¾İ
+//    // å¸§å°¾æ£€æµ‹ï¼ˆ0x0aï¼‰ï¼Œå¤„ç†å„ç±»å‹å¸§æ•°æ®
 //    else if (flag == 2 && Maxicam_Rx == 0x0a)
 //    {
-//        // QRÖ¡´¦Àí
+//        // QRå¸§å¤„ç†
 //        if(frame_type == 1 && data_index == 3) {
 //            Process_QR_Data(data_buffer[0]-'0', data_buffer[1]-'0', data_buffer[2]-'0');
 //        }
-//        // OCRÖ¡´¦Àí
+//        // OCRå¸§å¤„ç†
 //        else if(frame_type == 2 && data_index == 1) {
 //            if ((nodesr.nowNode.nodenum == P5 && (clue_A_stage == 6)) ||
 //                (nodesr.nowNode.nodenum == P6 && (clue_A_stage == 5)) ||
@@ -238,7 +238,7 @@ frame_type 1£º±íÊ¾¶şÎ¬ÂëÊ¶±ğÄ£Ê½  2£º±íÊ¾Êı×ÖÊ¶±ğÄ£Ê½ 3£º±íÊ¾ÑÕÉ«Ê¶±ğÄ£Ê½
 ////						Process_OCR_Data(data_buffer[0]-'0');
 
 //        }
-//        // COLORÖ¡´¦Àí
+//        // COLORå¸§å¤„ç†
 //        else if(frame_type == 3 && data_index == 1) {
 //            Process_COLOR_Data(data_buffer[0] - '0');
 //        }
@@ -254,7 +254,7 @@ frame_type 1£º±íÊ¾¶şÎ¬ÂëÊ¶±ğÄ£Ê½  2£º±íÊ¾Êı×ÖÊ¶±ğÄ£Ê½ 3£º±íÊ¾ÑÕÉ«Ê¶±ğÄ£Ê½
 
 
 
-/*×óK210½ÓÊÕÖĞ¶Ï*/
+/*å·¦K210æ¥æ”¶ä¸­æ–­*/
 //void USART2_IRQHandler(void)
 //{
 //	HAL_UART_IRQHandler(&huart2);

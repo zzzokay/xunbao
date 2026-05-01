@@ -21,18 +21,18 @@ void motor_init(void)
 	HAL_TIM_Base_Start(&htim9);
 	HAL_TIM_Base_Start(&htim12);
 	
-	HAL_TIM_PWM_Start(&htim4,TIM_CHANNEL_1);  //右后
+	HAL_TIM_PWM_Start(&htim4,TIM_CHANNEL_1);  //鍙冲悗
 	HAL_TIM_PWM_Start(&htim4,TIM_CHANNEL_2);
-	HAL_TIM_PWM_Start(&htim4,TIM_CHANNEL_3);  //右前
+	HAL_TIM_PWM_Start(&htim4,TIM_CHANNEL_3);  //鍙冲墠
 	HAL_TIM_PWM_Start(&htim4,TIM_CHANNEL_4);
-	HAL_TIM_PWM_Start(&htim12,TIM_CHANNEL_1);  //右前
+	HAL_TIM_PWM_Start(&htim12,TIM_CHANNEL_1);  //鍙冲墠
 	HAL_TIM_PWM_Start(&htim12,TIM_CHANNEL_2);
 
 
-	HAL_TIM_PWM_Start(&htim8,TIM_CHANNEL_3);  //左前
+	HAL_TIM_PWM_Start(&htim8,TIM_CHANNEL_3);  //宸﹀墠
 	HAL_TIM_PWM_Start(&htim8,TIM_CHANNEL_4);
 	
-	HAL_TIM_PWM_Start(&htim9,TIM_CHANNEL_1);  //左后
+	HAL_TIM_PWM_Start(&htim9,TIM_CHANNEL_1);  //宸﹀悗
 	HAL_TIM_PWM_Start(&htim9,TIM_CHANNEL_2);
 
 }
@@ -56,11 +56,11 @@ void motor_set_pwm(uint8_t motor, int32_t pid_out)
 		
 		switch (motor)
 		{	
-//			case 4: TIM12->CCR1 = 0; TIM12->CCR2 = ccr;	break;  //右前	R0
-			case 1: TIM9->CCR2 = 0; TIM9->CCR1 = ccr;	break;  //左前	L0//TIM9->CCR2
-			case 2: TIM8->CCR3 = 0; TIM8->CCR4 = ccr;	break;  //左后	L1
-			case 3: TIM4->CCR4 = 0; TIM4->CCR3 = ccr;	break;  //右前
-			case 4: TIM4->CCR2 = 0; TIM4->CCR1 = ccr;	break;  //右后	
+//			case 4: TIM12->CCR1 = 0; TIM12->CCR2 = ccr;	break;  //鍙冲墠	R0
+			case 1: TIM9->CCR2 = 0; TIM9->CCR1 = ccr;	break;  //宸﹀墠	L0//TIM9->CCR2
+			case 2: TIM8->CCR3 = 0; TIM8->CCR4 = ccr;	break;  //宸﹀悗	L1
+			case 3: TIM4->CCR4 = 0; TIM4->CCR3 = ccr;	break;  //鍙冲墠
+			case 4: TIM4->CCR2 = 0; TIM4->CCR1 = ccr;	break;  //鍙冲悗	
 
 			default: ; //TODO
 		}
@@ -75,10 +75,10 @@ void motor_set_pwm(uint8_t motor, int32_t pid_out)
 		
 		switch (motor)
 		{
-			case 1: TIM9->CCR1 = 0; TIM9->CCR2 = ccr;	break;  //左前	L0//TIM9->CCR1
-			case 2: TIM8->CCR4 = 0; TIM8->CCR3 = ccr;	break;  //左后	L1	
-			case 3: TIM4->CCR3 = 0; TIM4->CCR4 = ccr;	break;  //右前
-			case 4: TIM4->CCR1 = 0; TIM4->CCR2 = ccr;	break; //右后
+			case 1: TIM9->CCR1 = 0; TIM9->CCR2 = ccr;	break;  //宸﹀墠	L0//TIM9->CCR1
+			case 2: TIM8->CCR4 = 0; TIM8->CCR3 = ccr;	break;  //宸﹀悗	L1	
+			case 3: TIM4->CCR3 = 0; TIM4->CCR4 = ccr;	break;  //鍙冲墠
+			case 4: TIM4->CCR1 = 0; TIM4->CCR2 = ccr;	break; //鍙冲悗
 			default: ; 
 		}
 	}

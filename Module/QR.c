@@ -15,14 +15,14 @@ uint8_t QR_rx_len = 0;
 u8 buzzer_flag = 0;
 
 
-/*¶şÎ¬Âë½ÓÊÕÖĞ¶Ï¿ªÆô*/
+/*äºŒç»´ç æ¥æ”¶ä¸­æ–­å¼€å¯*/
 void QR_receive_init(void)
 {
 //	 __HAL_UART_ENABLE_IT(&huart2, UART_IT_IDLE);
 //	 HAL_UART_Receive_IT(&huart2,QR_rx_buf,QRBUFFER_SIZE);
 }
 
-/*¶şÎ¬Âë½ÓÊÕÖĞ¶Ï*/
+/*äºŒç»´ç æ¥æ”¶ä¸­æ–­*/
  void USART2_IRQHandler(void)
  {
  	 uint32_t flag_idle = 0;
@@ -35,7 +35,7 @@ void QR_receive_init(void)
  	 	QR_rx_len = QRBUFFER_SIZE - temp; 
  	 	if(QR_rx_buf[0] == 0x48&QR_rx_buf[1]==0X45&QR_rx_buf[2]==0X41&QR_rx_buf[3]==0X44)
  	 	{
- 	 		/*ASCIIÂë¶ÔÓ¦×ª»»*/
+ 	 		/*ASCIIç å¯¹åº”è½¬æ¢*/
  	 		Clue_Stage[0] = QR_rx_buf[4]-'0';
  	 		Clue_Stage[1] = QR_rx_buf[5]-'0';
  	 		Clue_Stage[2] = QR_rx_buf[6]-'0';
@@ -51,10 +51,10 @@ void QR_receive_init(void)
 // 	 HAL_UART_Receive_DMA(&huart2,QR_rx_buf,QRBUFFER_SIZE);
 // 	 HAL_UART_IRQHandler(&huart2);
 
-//ÉÏÃæµÄuart2»»ÈÎÒâÒ»¸ö´®¿Ú
+//ä¸Šé¢çš„uart2æ¢ä»»æ„ä¸€ä¸ªä¸²å£
 	 
 	 
-//ÏÂÃæ´úÂë²»ÓÃ	 
+//ä¸‹é¢ä»£ç ä¸ç”¨	 
 // 	uint32_t flag_idle = 0;
 // 	flag_idle = __HAL_UART_GET_FLAG(&huart2, UART_FLAG_IDLE);
 // 	if ((flag_idle != RESET))

@@ -3,7 +3,7 @@
 #include "main.h"
 
 extern void delay_init(void);
-extern void delay_us(uint16_t nus);  //Î¢Ãë¼¶ÑÓÊ±
-extern void delay_ms(uint16_t nms);  //ºÁÃë¼¶ÑÓÊ±
+extern void delay_us(uint16_t nus);  //å¾®ç§’çº§å»¶æ—¶
+extern void delay_ms(uint16_t nms);  //æ¯«ç§’çº§å»¶æ—¶
 
 #endif   

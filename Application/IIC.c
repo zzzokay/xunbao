@@ -1,6 +1,6 @@
 /*
  * @File: IIC.c
- * @Description: IICÇı¶¯
+ * @Description: IICé©±åŠ¨
  * @Version: 1.0.0
  * @Author:
  * @Date: 2023-09-13 20:33:36
@@ -16,13 +16,13 @@ void IIC_Init(void)
 {
 	GPIO_InitTypeDef GPIO_Initure;
 
-	__HAL_RCC_GPIOD_CLK_ENABLE(); // Ê¹ÄÜGPIODÊ±ÖÓ
+	__HAL_RCC_GPIOD_CLK_ENABLE(); // ä½¿èƒ½GPIODæ—¶é’Ÿ
 
-	// PD12,PD13³õÊ¼»¯ÉèÖÃ
+	// PD12,PD13åˆå§‹åŒ–è®¾ç½®
 	GPIO_Initure.Pin = GPIO_PIN_11 | GPIO_PIN_12;
-	GPIO_Initure.Mode = GPIO_MODE_OUTPUT_PP;   // ÍÆÍìÊä³ö
-	GPIO_Initure.Pull = GPIO_PULLUP;		   // ÉÏÀ­
-	GPIO_Initure.Speed = GPIO_SPEED_FREQ_HIGH; // ¸ßËÙ
+	GPIO_Initure.Mode = GPIO_MODE_OUTPUT_PP;   // æ¨æŒ½è¾“å‡º
+	GPIO_Initure.Pull = GPIO_PULLUP;		   // ä¸Šæ‹‰
+	GPIO_Initure.Speed = GPIO_SPEED_FREQ_HIGH; // é«˜é€Ÿ
 	HAL_GPIO_Init(GPIOA, &GPIO_Initure);
 
 	IIC_SDA_OUT;
@@ -40,59 +40,59 @@ void SDA(uint8_t param)
 	if (param == 1)
 	{
 		GPIO_Initure.Pin = GPIO_PIN_11;
-		GPIO_Initure.Mode = GPIO_MODE_OUTPUT_PP;   // ÍÆÍìÊä³ö
-		GPIO_Initure.Pull = GPIO_PULLUP;		   // ÉÏÀ­
-		GPIO_Initure.Speed = GPIO_SPEED_FREQ_HIGH; // ¸ßËÙ
+		GPIO_Initure.Mode = GPIO_MODE_OUTPUT_PP;   // æ¨æŒ½è¾“å‡º
+		GPIO_Initure.Pull = GPIO_PULLUP;		   // ä¸Šæ‹‰
+		GPIO_Initure.Speed = GPIO_SPEED_FREQ_HIGH; // é«˜é€Ÿ
 		HAL_GPIO_Init(GPIOA, &GPIO_Initure);
 	}
 	if (param == 0)
 	{
 		GPIO_Initure.Pin = GPIO_PIN_11;
-		GPIO_Initure.Mode = GPIO_MODE_INPUT;	   // ÊäÈë
-		GPIO_Initure.Pull = GPIO_PULLDOWN;		   // ÏÂÀ­
-		GPIO_Initure.Speed = GPIO_SPEED_FREQ_HIGH; // ¸ßËÙ
+		GPIO_Initure.Mode = GPIO_MODE_INPUT;	   // è¾“å…¥
+		GPIO_Initure.Pull = GPIO_PULLDOWN;		   // ä¸‹æ‹‰
+		GPIO_Initure.Speed = GPIO_SPEED_FREQ_HIGH; // é«˜é€Ÿ
 		HAL_GPIO_Init(GPIOA, &GPIO_Initure);
 	}
 }
 
 /**
- * @brief: ²úÉúIICÆğÊ¼ĞÅºÅ
+ * @brief: äº§ç”ŸIICèµ·å§‹ä¿¡å·
  * @return {*}
  */
 void IIC_Start(void)
 {
-	SDA(0x01); // sdaÏßÊä³ö
+	SDA(0x01); // sdaçº¿è¾“å‡º
 	IIC_SDA_OUT;
 	IIC_SCK_OUT;
 	delay_us(4);
 	IIC_SDA_DOWN; // START:when CLK is high,DATA change form high to low
 	delay_us(4);
-	IIC_SCK_DOWN; // Ç¯×¡I2C×ÜÏß£¬×¼±¸·¢ËÍ»ò½ÓÊÕÊı¾İ
+	IIC_SCK_DOWN; // é’³ä½I2Cæ€»çº¿ï¼Œå‡†å¤‡å‘é€æˆ–æ¥æ”¶æ•°æ®
 }
 
 /**
- * @brief: ²úÉúIICÍ£Ö¹ĞÅºÅ
+ * @brief: äº§ç”ŸIICåœæ­¢ä¿¡å·
  * @return {*}
  */
 void IIC_Stop(void)
 {
-	SDA(0x01); // sdaÏßÊä³ö
+	SDA(0x01); // sdaçº¿è¾“å‡º
 	IIC_SCK_DOWN;
 	IIC_SDA_DOWN; // STOP:when CLK is high DATA change form low to high
 	delay_us(4);
 	IIC_SCK_OUT;
-	IIC_SDA_OUT; // ·¢ËÍI2C×ÜÏß½áÊøĞÅºÅ
+	IIC_SDA_OUT; // å‘é€I2Cæ€»çº¿ç»“æŸä¿¡å·
 	delay_us(4);
 }
 
 /**
- * @brief: µÈ´ıÓ¦´ğĞÅºÅµ½À´
- * @return {uint8_t} 1£¬½ÓÊÕÓ¦´ğÊ§°Ü 0£¬½ÓÊÕÓ¦´ğ³É¹¦
+ * @brief: ç­‰å¾…åº”ç­”ä¿¡å·åˆ°æ¥
+ * @return {uint8_t} 1ï¼Œæ¥æ”¶åº”ç­”å¤±è´¥ 0ï¼Œæ¥æ”¶åº”ç­”æˆåŠŸ
  */
 uint8_t IIC_Wait_Ack(void)
 {
 	uint8_t ucErrTime = 0;
-	SDA(0X00); // SDAÉèÖÃÎªÊäÈë
+	SDA(0X00); // SDAè®¾ç½®ä¸ºè¾“å…¥
 	IIC_SDA_OUT;
 	delay_us(1);
 	IIC_SCK_OUT;
@@ -106,12 +106,12 @@ uint8_t IIC_Wait_Ack(void)
 			return 1;
 		}
 	}
-	IIC_SCK_DOWN; // Ê±ÖÓÊä³ö0
+	IIC_SCK_DOWN; // æ—¶é’Ÿè¾“å‡º0
 	return 0;
 }
 
 /**
- * @brief: ²úÉúACKÓ¦´ğ
+ * @brief: äº§ç”ŸACKåº”ç­”
  * @return {*}
  */
 void IIC_Ack(void)
@@ -126,7 +126,7 @@ void IIC_Ack(void)
 }
 
 /**
- * @brief: ²»²úÉúACKÓ¦´ğ
+ * @brief: ä¸äº§ç”ŸACKåº”ç­”
  * @return {*}
  */
 void IIC_NAck(void)
@@ -140,11 +140,11 @@ void IIC_NAck(void)
 	IIC_SCK_DOWN;
 }
 
-// ·µ»Ø´Ó»úÓĞÎŞÓ¦´ğ
-// 1£¬ÓĞÓ¦´ğ
-// 0£¬ÎŞÓ¦´ğ
+// è¿”å›ä»æœºæœ‰æ— åº”ç­”
+// 1ï¼Œæœ‰åº”ç­”
+// 0ï¼Œæ— åº”ç­”
 /**
- * @brief: IIC·¢ËÍÒ»¸ö×Ö½Ú
+ * @brief: IICå‘é€ä¸€ä¸ªå­—èŠ‚
  * @param {uint8_t} txd
  * @return {*}
  */
@@ -152,7 +152,7 @@ void IIC_Send_Byte(uint8_t txd)
 {
 	uint8_t t;
 	SDA(0x01);
-	IIC_SCK_DOWN; // À­µÍÊ±ÖÓ¿ªÊ¼Êı¾İ´«Êä
+	IIC_SCK_DOWN; // æ‹‰ä½æ—¶é’Ÿå¼€å§‹æ•°æ®ä¼ è¾“
 	for (t = 0; t < 8; t++)
 	{
 		if ((txd & 0x80) >> 7)
@@ -165,7 +165,7 @@ void IIC_Send_Byte(uint8_t txd)
 		}
 
 		txd <<= 1;
-		delay_us(2); // ¶ÔTEA5767ÕâÈı¸öÑÓÊ±¶¼ÊÇ±ØĞëµÄ
+		delay_us(2); // å¯¹TEA5767è¿™ä¸‰ä¸ªå»¶æ—¶éƒ½æ˜¯å¿…é¡»çš„
 		IIC_SCK_OUT;
 		delay_us(2);
 		IIC_SCK_DOWN;
@@ -174,13 +174,13 @@ void IIC_Send_Byte(uint8_t txd)
 }
 
 /**
- * @brief: ¶Á1¸ö×Ö½Ú£¬ack=1Ê±£¬·¢ËÍACK£¬ack=0£¬·¢ËÍNAck
+ * @brief: è¯»1ä¸ªå­—èŠ‚ï¼Œack=1æ—¶ï¼Œå‘é€ACKï¼Œack=0ï¼Œå‘é€NAck
  * @return {uint8_t}
  */
 uint8_t IIC_Read_Byte(unsigned char ack)
 {
 	unsigned char i, receive = 0;
-	SDA(0x0); // SDAÉèÖÃÎªÊäÈë
+	SDA(0x0); // SDAè®¾ç½®ä¸ºè¾“å…¥
 	for (i = 0; i < 8; i++)
 	{
 		IIC_SCK_DOWN;
@@ -192,8 +192,8 @@ uint8_t IIC_Read_Byte(unsigned char ack)
 		delay_us(1);
 	}
 	if (!ack)
-		IIC_NAck(); // ·¢ËÍNAck
+		IIC_NAck(); // å‘é€NAck
 	else
-		IIC_Ack(); // ·¢ËÍACK
+		IIC_Ack(); // å‘é€ACK
 	return receive;
 }

@@ -5,7 +5,8 @@
 #include "main.h"
 #include "cmsis_os.h"
 #include  "task_create.h"
+#include "scaner.h"
 extern void arrive_detect_task(void *pvParameters);
 void send_play_specified_command(uint8_t index);
-uint8_t deal_arrive(void);
+uint8_t deal_arrive(volatile SCANER *scaner, uint32_t node_flag);
 #endif

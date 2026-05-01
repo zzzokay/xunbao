@@ -24,12 +24,11 @@ float TC_speed = 0, TG_speed = 0;
 // 底盘内部的状态缓存（不对外暴露，保护数据）
 typedef struct {
     //以下主要是记录底盘状态的变量，不直接参与控制，不是全局变量
-    uint8_t            PID_mode;
     LineTrackMode_e     track_mode;
     uint8_t             target_speed; 
     
     // 游龙防护算法相关变量（从 map 剥离出来）
-    uint8_t             anti_snake_err_count;
+    int16_t             anti_snake_err_count;
     uint8_t             anti_snake_flag;
 } ChassisState_t;
 
@@ -41,7 +40,7 @@ static ChassisState_t chassis = {0};
 
 void Chassis_Init(void)
 {
-    chassis.PID_mode = is_No;
+    PIDMode = is_No;
     chassis.track_mode = TRACK_ALL;
     chassis.target_speed=0;
     chassis.anti_snake_err_count = 0;
@@ -50,11 +49,12 @@ void Chassis_Init(void)
     motor_all.Lspeed = 0;   
 	motor_all.Rspeed = 0;
     motor_all.Cspeed = 0;
-    //motor_all.Cspeed = 50;
+  
     motor_all.Gspeed = 0;
 	motor_all.encoder_avg = 0;
 	motor_all.GyroG_speedMax = 100;	// 自平衡左右偏差最大值10000
 	motor_all.GyroT_speedMax = 25;  	// 自转最大速度34//--->5760 //35
+	motor_all.Line_speedMax = 50;		// 巡线差速最大值
 	motor_all.Cincrement = 0.5;	   	// 循迹加速度 0.5
 	motor_all.CDOWNincrement = 0.5;	//循迹减速0.5
     motor_all.Gincrement = 0.5;	   	// 非循迹加速度0.5
@@ -73,15 +73,8 @@ void Chassis_Init(void)
 
 void Chassis_SetMode(uint8_t mode)
 {
-    chassis.PID_mode = mode;
-    // 映射到底层具体模式
+    // 映射到底层具体模式（pid_mode_switch 内部会更新 PIDMode 并清除游龙状态）
     pid_mode_switch(mode);
-
-    if (mode != is_Line)
-    {
-        chassis.anti_snake_err_count = 0;
-        chassis.anti_snake_flag = 0;
-    }
 }
 
 void Chassis_SetTargetSpeed(float speed)
@@ -92,6 +85,7 @@ void Chassis_SetTargetSpeed(float speed)
         motor_all.Cspeed = chassis.target_speed;
         switch (chassis.target_speed) 
 			{
+                case SPEED5:
 				case SPEED4:
 					line_pid_param.kp = 4.0;//5.0
 					line_pid_param.ki = 0;//0
@@ -102,7 +96,7 @@ void Chassis_SetTargetSpeed(float speed)
 					line_pid_param.ki = 0;//0
 					line_pid_param.kd = 300;//300
 					break;
-					
+				case SPEED25:	
 				case SPEED2:
 					line_pid_param.kp = 7.0;//8.0
 					line_pid_param.ki = 0.008;//0.008
@@ -221,7 +215,7 @@ void Chassis_Brake(void)//更安全的急刹
 {
     Chassis_SetTargetSpeed(0);
     vTaskDelay(100);//100ms
-    chassis.PID_mode = is_Free;
+    PIDMode = is_Free;
     CarBrake(); // 调用原有的底层急刹
     vTaskDelay(100);//100ms
 }
@@ -243,7 +237,7 @@ void Chassis_TurnToAngle_Blocking(float target_angle, float origin_angle, float 
     while (fabsf(need2turn(target_angle, getAngleZ())) > 3.0f)
     {
         vTaskDelay(2); // RTOS 延时交出 CPU 权限
-        Cross_getline();
+        Cross_getline(&Cross_Scaner);
         if (Cross_Scaner.lineNum == 1 && ((Cross_Scaner.detail & 0x3C0) != 0) &&
             (fabsf(need2turn(target_angle, getAngleZ())) < fabsf(need2turn(target_angle, origin_angle)) * wait_ratio))
         {
@@ -256,7 +250,7 @@ void Chassis_TurnToAngle_Blocking(float target_angle, float origin_angle, float 
 static float saved_line_kp = 0.0f;
 static float saved_line_ki = 0.0f;
 static float saved_line_kd = 0.0f;
-static float saved_line_outputMax = 0.0f;
+static float saved_Line_speedMax = 0.0f;
 static uint8_t line_pid_override_active = 0;
 
 static struct PID_param saved_gyroT_pid_param = {0};
@@ -291,12 +285,13 @@ void Chassis_OverrideLinePid(float kp, float ki, float kd, float speed)
         saved_line_kp = line_pid_param.kp;
         saved_line_ki = line_pid_param.ki;
         saved_line_kd = line_pid_param.kd;
-        line_pid_param.outputMax = speed; // 备份当前的输出限制，方便恢复
+        saved_Line_speedMax = motor_all.Line_speedMax;
         line_pid_override_active = 1;
     }
     line_pid_param.kp = kp;
     line_pid_param.ki = ki;
     line_pid_param.kd = kd;
+    motor_all.Line_speedMax = speed;
 }
 
 void Chassis_RestoreLinePid(void)
@@ -306,7 +301,7 @@ void Chassis_RestoreLinePid(void)
         line_pid_param.kp = saved_line_kp;
         line_pid_param.ki = saved_line_ki;
         line_pid_param.kd = saved_line_kd;
-        line_pid_param.outputMax = saved_line_outputMax;
+        motor_all.Line_speedMax = saved_Line_speedMax;
         line_pid_override_active = 0;
     }
 }
@@ -332,7 +327,6 @@ void Chassis_RestoreTurnPid(void)
     {
         gyroT_pid_param = saved_gyroT_pid_param;
         motor_all.GyroT_speedMax = saved_GyroT_speedMax;
-        motor_all.GyroG_speedMax = saved_GyroG_speedMax;
         turn_pid_override_active = 0;
     }
 }
@@ -361,9 +355,9 @@ void Chassis_RestoreGyroPid(void)
     }
 }
 
-void Chassis_Turn_By_LeftLine_Blocking(float target_angle, float current_angle, float speed)
+void Chassis_Turn_By_LeftLine_Blocking(float target_angle, float current_angle, float different_speed)
 {
-    Chassis_OverrideLinePid(70.0f, 0.0f, 5.0f, speed);//最后一个是差速最大值
+    Chassis_OverrideLinePid(70.0f, 0.0f, 5.0f, different_speed);//最后一个是差速最大值
     
     Chassis_SetTrackMode(TRACK_LEFT_EDGE); // 设置左边缘跟踪，忽略右侧
 
@@ -374,9 +368,9 @@ void Chassis_Turn_By_LeftLine_Blocking(float target_angle, float current_angle, 
     Chassis_RestoreLinePid();
 
 }
-void Chassis_Turn_By_RightLine_Blocking(float target_angle, float current_angle, float speed)
+void Chassis_Turn_By_RightLine_Blocking(float target_angle, float current_angle, float different_speed)
 {
-    Chassis_OverrideLinePid(70.0f, 0.0f, 5.0f, speed);
+    Chassis_OverrideLinePid(70.0f, 0.0f, 5.0f, different_speed);
 
     Chassis_SetTrackMode(TRACK_RIGHT_EDGE); // 设置右边缘跟踪，忽略左侧
 
@@ -438,9 +432,9 @@ void Chassis_Periodic_Update_5ms(void)
     /* ========= 游龙防抖自适应 PID 算法 ========= */
     // 将原 map.c 的游龙检测剥离进真正的电机循环反馈，5ms 检测一次，真正发挥自适应作用
     
-    if (chassis.PID_mode == is_Line) 
+    if (PIDMode == is_Line)
     {
-        // 由于 5ms 循环非常紧凑，不要在这里调用可能会阻塞的 Cross_getline() 等指令
+        // 由于 5ms 循环非常紧凑，不要在这里调用可能会阻塞的 Cross_getline(&Cross_Scaner) 等指令
         // 直接使用全局已解析好的巡线偏移状态（如 Scaner.detail） 
         if (chassis.anti_snake_flag == 1)        
         {
@@ -452,16 +446,17 @@ void Chassis_Periodic_Update_5ms(void)
             }
             else // 回正后迅速衰减警戒值
             {
-                if(chassis.anti_snake_err_count < 10) 
-                    chassis.anti_snake_err_count += 5;
+                if(chassis.anti_snake_err_count < 200) 
+                    chassis.anti_snake_err_count -= 10;
             }
             
             // 警戒解除
-            if(chassis.anti_snake_err_count >= 10)
+            if(chassis.anti_snake_err_count <= 0 || chassis.anti_snake_err_count >= 200 )
             {
-                chassis.anti_snake_err_count = 0;
                 chassis.anti_snake_flag = 0;
+                chassis.anti_snake_err_count=0;
                 // 让 motor_all.Cspeed 恢复全速 (可以封装为 Chassis_SetTargetSpeed)
+                Chassis_RestoreLinePid(); // 恢复 PID 参数
                 motor_all.Cspeed = chassis.target_speed; // 利用备份的当前速度值恢复
             }
         }
@@ -469,10 +464,9 @@ void Chassis_Periodic_Update_5ms(void)
         // 游龙检测命中，强压 PID 系数阻止摇摆
         if (chassis.anti_snake_err_count)
         {
-            line_pid_param.kp = 12.0f;
-            line_pid_param.ki = 0.0f;
-            line_pid_param.kd = 200.0f;
-            motor_all.Cspeed = chassis.target_speed / 2; // 直接减半速度，增强稳定性
+            motor_all.Cspeed = chassis.target_speed / 2; // 直接减半速度，增强稳定
+            Chassis_OverrideLinePid(12.0f, 0.0f, 200.0f, motor_all.Cspeed); // 直接覆盖当前速度限制，确保稳定性
+        
         }
     }
 }   
@@ -488,7 +482,7 @@ void Chassis_Periodic_Update_5ms(void)
  * is_Free  - 自由模式（取消pid计算，设置速度为ccr）
  * is_No    - 无模式（取消所有任务，停止与驱动）
  */
-#define TEMP_PWM_MAX 5000 //调试用
+#define TEMP_PWM_MAX 5000 //TODO调试用
 
 void pid_mode_switch(uint8_t target_mode)
 {
@@ -496,37 +490,25 @@ void pid_mode_switch(uint8_t target_mode)
 		return;
 
 
-    // 转弯模式下切换，清零转弯PID状态，避免残留影响后续操作
-    if(PIDMode == is_Turn)
-    {
-        gyroT_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0};  // 清零转弯PID
-				
-    }
 	switch (target_mode)
 	{
 		
-		case is_Line:  // 巡线模式
-		case is_Gyro:  // 陀螺仪模式
-		case is_Free:  // 自由模式
-		{
-			MOTOR_PWM_MAX = TEMP_PWM_MAX;  // 恢复PWM最大值9800
-			break;
-		}
-        case is_No:
-		{
-			MOTOR_PWM_MAX = 9800;
-			line_pid_obj = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
-			gyroT_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
-			gyroG_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
-			TG_speed = 0;
-			TC_speed = 0;
-			break;
-		}
-        case is_Turn:  // 转弯模式
+		case is_Line:  // 巡线模式 
+		case is_Gyro:  // 陀螺仪模式 //处理放在motortask
+        {
+            MOTOR_PWM_MAX = TEMP_PWM_MAX;  // 调整PWM最大值，确保稳定性
+            break;
+        }
+        case is_Turn:  // 转弯模式//处理放在motortask
 		{
 			MOTOR_PWM_MAX = 5000;  // 减小PWM最大值，确保转弯稳定性。
-			// 清除所有PID状态
-            line_pid_obj = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
+			break;
+		}
+		case is_Free:  // 自由模式 //直接设置PWM，不使用PID
+        case is_No:
+		{
+			MOTOR_PWM_MAX = TEMP_PWM_MAX;
+			line_pid_obj = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
 			gyroT_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
 			gyroG_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
 			TG_speed = 0;
@@ -536,6 +518,13 @@ void pid_mode_switch(uint8_t target_mode)
 	}
 
 	PIDMode = target_mode;  // 更新当前模式
+
+	// 离开巡线模式时清除游龙状态（覆盖所有切换路径，包括 Turn_Angle_Relative 直接调用）
+	if (target_mode != is_Line)
+	{
+		chassis.anti_snake_err_count = 0;
+		chassis.anti_snake_flag = 0;
+	}
 }
 
 /*自定义距离前进*/

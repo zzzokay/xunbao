@@ -8,26 +8,26 @@
  */
 #include "task_create.h"
 #include "stdio.h"
-TaskHandle_t Start_handler; // ¶¨Òå¿ªÊ¼ÈÎÎñ¾ä±ú
-TaskHandle_t main_handler;	// ¶¨ÒåÖ÷¿ØÈÎÎñ¾ä±ú
-TaskHandle_t xHandle_ArriveDetect = NULL;//¶¨Òå¼ì²â½ÚµãÈÎÎñ
+TaskHandle_t Start_handler; // å®šä¹‰å¼€å§‹ä»»åŠ¡å¥æŸ„
+TaskHandle_t main_handler;	// å®šä¹‰ä¸»æ§ä»»åŠ¡å¥æŸ„
+TaskHandle_t xHandle_ArriveDetect = NULL;//å®šä¹‰æ£€æµ‹èŠ‚ç‚¹ä»»åŠ¡
 
 /**
- * @brief: ¿ªÊ¼ÈÎÎñ´´½¨º¯Êı
+ * @brief: å¼€å§‹ä»»åŠ¡åˆ›å»ºå‡½æ•°
  * @return {*}
  */
 void Start_task_create(void)
 {
-	xTaskCreate((TaskFunction_t)Start_task,		  // ÈÎÎñº¯Êı
-				(const char *)"Start_task",		  // ÈÎÎñÃû×Ö
-				(uint32_t)Start_size,			  // ÈÎÎñ¶ÑÕ»´óĞ¡
-				(void *)NULL,					  // ´«µİ¸øÈÎÎñ²ÎÊıµÄÖ¸Õë²ÎÊı
-				(UBaseType_t)Start_task_priority, // ÈÎÎñµÄÓÅÏÈ¼¶
-				(TaskHandle_t *)&Start_handler);  // ÈÎÎñ¾ä±ú
+	xTaskCreate((TaskFunction_t)Start_task,		  // ä»»åŠ¡å‡½æ•°
+				(const char *)"Start_task",		  // ä»»åŠ¡åå­—
+				(uint32_t)Start_size,			  // ä»»åŠ¡å †æ ˆå¤§å°
+				(void *)NULL,					  // ä¼ é€’ç»™ä»»åŠ¡å‚æ•°çš„æŒ‡é’ˆå‚æ•°
+				(UBaseType_t)Start_task_priority, // ä»»åŠ¡çš„ä¼˜å…ˆçº§
+				(TaskHandle_t *)&Start_handler);  // ä»»åŠ¡å¥æŸ„
 }
 
 /**
- * @brief: Ö÷¿ØÈÎÎñ´´½¨
+ * @brief: ä¸»æ§ä»»åŠ¡åˆ›å»º
  * @return {*}
  */
 void main_task_create(void)
@@ -35,26 +35,26 @@ void main_task_create(void)
 //	BaseType_t ret;
 
 //    ret = 
-			xTaskCreate((TaskFunction_t)main_task,		 // ÈÎÎñº¯Êı
-				(const char *)"main_task",		 // ÈÎÎñÃû×Ö
-				(uint32_t)main_size,			 // ÈÎÎñ¶ÑÕ»´óĞ¡
-				(void *)NULL,					 // ´«µİ¸øÈÎÎñ²ÎÊıµÄÖ¸Õë²ÎÊı
-				(UBaseType_t)main_task_priority, // ÈÎÎñµÄÓÅÏÈ¼¶
-				(TaskHandle_t *)&main_handler);	 // ÈÎÎñ¾ä±ú
+			xTaskCreate((TaskFunction_t)main_task,		 // ä»»åŠ¡å‡½æ•°
+				(const char *)"main_task",		 // ä»»åŠ¡åå­—
+				(uint32_t)main_size,			 // ä»»åŠ¡å †æ ˆå¤§å°
+				(void *)NULL,					 // ä¼ é€’ç»™ä»»åŠ¡å‚æ•°çš„æŒ‡é’ˆå‚æ•°
+				(UBaseType_t)main_task_priority, // ä»»åŠ¡çš„ä¼˜å…ˆçº§
+				(TaskHandle_t *)&main_handler);	 // ä»»åŠ¡å¥æŸ„
 				
 //		printf("main ret=%ld, handle=%p\r\n", ret, main_handler);		
 }
 /**
- * @brief: ¼ì²â½áµãÈÎÎñ´´½¨
+ * @brief: æ£€æµ‹ç»“ç‚¹ä»»åŠ¡åˆ›å»º
  * @return {*}
  */
 void create_ArriveDetect_task(void)
 {
-	xTaskCreate((TaskFunction_t)arrive_detect_task,		 // ÈÎÎñº¯Êı
-				(const char *)"arrive_detect_task",		 // ÈÎÎñÃû×Ö
-				(uint32_t)ArriveDetect_size,			 // ÈÎÎñ¶ÑÕ»´óĞ¡
-				(void *)NULL,					 // ´«µİ¸øÈÎÎñ²ÎÊıµÄÖ¸Õë²ÎÊı
-				(UBaseType_t)ArriveDetect_task_priority, // ÈÎÎñµÄÓÅÏÈ¼¶
-				(TaskHandle_t *)&xHandle_ArriveDetect);	 // ÈÎÎñ¾ä±ú
+	xTaskCreate((TaskFunction_t)arrive_detect_task,		 // ä»»åŠ¡å‡½æ•°
+				(const char *)"arrive_detect_task",		 // ä»»åŠ¡åå­—
+				(uint32_t)ArriveDetect_size,			 // ä»»åŠ¡å †æ ˆå¤§å°
+				(void *)NULL,					 // ä¼ é€’ç»™ä»»åŠ¡å‚æ•°çš„æŒ‡é’ˆå‚æ•°
+				(UBaseType_t)ArriveDetect_task_priority, // ä»»åŠ¡çš„ä¼˜å…ˆçº§
+				(TaskHandle_t *)&xHandle_ArriveDetect);	 // ä»»åŠ¡å¥æŸ„
 	
 }

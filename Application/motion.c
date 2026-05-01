@@ -12,15 +12,15 @@
 #include "rudder_control.h"
 #include "motion.h"
 
-/*»úÆ÷ÈË¶¯×÷*/
+/*æœºå™¨äººåŠ¨ä½œ*/
 void Arrived_Stage(void)
 {
-	Robot_Work(LARM, UP); // 450×óÊÖ·ÅÏÂ  150¾ÙÆð
+	Robot_Work(LARM, UP); // 450å·¦æ‰‹æ”¾ä¸‹  150ä¸¾èµ·
 	vTaskDelay(100);
-	Robot_Work(RARM, UP); // 130ÓÒÊÖ·ÅÏÂ  400¾ÙÆð
+	Robot_Work(RARM, UP); // 130å³æ‰‹æ”¾ä¸‹  400ä¸¾èµ·
 	vTaskDelay(200);
-	Robot_Work(LARM, DOWN); // 450×óÊÖ·ÅÏÂ  150¾ÙÆð
+	Robot_Work(LARM, DOWN); // 450å·¦æ‰‹æ”¾ä¸‹  150ä¸¾èµ·
 	vTaskDelay(100);
-	Robot_Work(RARM, DOWN); // 130ÓÒÊÖ·ÅÏÂ  400¾ÙÆð
+	Robot_Work(RARM, DOWN); // 130å³æ‰‹æ”¾ä¸‹  400ä¸¾èµ·
 }
 

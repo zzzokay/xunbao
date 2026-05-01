@@ -14,54 +14,54 @@
 UART_HandleTypeDef Rudder;
 
 #define GET_LOW_BYTE(A) ((uint8_t)(A))
-//ºêº¯Êı »ñµÃAµÄµÍ°ËÎ»
+//å®å‡½æ•° è·å¾—Açš„ä½å…«ä½
 #define GET_HIGH_BYTE(A) ((uint8_t)((A) >> 8))
-//ºêº¯Êı »ñµÃAµÄ¸ß°ËÎ»
+//å®å‡½æ•° è·å¾—Açš„é«˜å…«ä½
 
-uint8_t LobotTxBuf[128];  //·¢ËÍ»º´æ
+uint8_t LobotTxBuf[128];  //å‘é€ç¼“å­˜
 
 
-/*³õÊ¼»¯Rudder*/
+/*åˆå§‹åŒ–Rudder*/
 void Rudder_Init(uint32_t bound)
 {
 	Rudder.Instance = USART6;
-	Rudder.Init.BaudRate = bound;				   	// ²¨ÌØÂÊ
-	Rudder.Init.WordLength = UART_WORDLENGTH_8B; 	// ×Ö³¤Îª8Î»Êı¾İ¸ñÊ½
-	Rudder.Init.StopBits = UART_STOPBITS_1;	   	// Ò»¸öÍ£Ö¹Î»
-	Rudder.Init.Parity = UART_PARITY_NONE;	   		// ÎŞÆæÅ¼Ğ£ÑéÎ»
-	Rudder.Init.HwFlowCtl = UART_HWCONTROL_NONE; 	// ÎŞÓ²¼şÁ÷¿Ø
-	Rudder.Init.Mode = UART_MODE_TX_RX;		   	// ÊÕ·¢Ä£Ê½
-	HAL_UART_Init(&Rudder);					   	// HAL_UART_Init()»áÊ¹ÄÜUART3
+	Rudder.Init.BaudRate = bound;				   	// æ³¢ç‰¹ç‡
+	Rudder.Init.WordLength = UART_WORDLENGTH_8B; 	// å­—é•¿ä¸º8ä½æ•°æ®æ ¼å¼
+	Rudder.Init.StopBits = UART_STOPBITS_1;	   	// ä¸€ä¸ªåœæ­¢ä½
+	Rudder.Init.Parity = UART_PARITY_NONE;	   		// æ— å¥‡å¶æ ¡éªŒä½
+	Rudder.Init.HwFlowCtl = UART_HWCONTROL_NONE; 	// æ— ç¡¬ä»¶æµæ§
+	Rudder.Init.Mode = UART_MODE_TX_RX;		   	// æ”¶å‘æ¨¡å¼
+	HAL_UART_Init(&Rudder);					   	// HAL_UART_Init()ä¼šä½¿èƒ½UART3
 	__HAL_UART_ENABLE_IT(&Rudder, UART_IT_RXNE);
 }
 
 
 
 /*
-	¶æ»ú¿ØÖÆ
-		Rudder_control(170, 4);	//»úÆ÷ÈËÕ¾Á¢
-		Rudder_control(310, 4);	//»úÆ÷ÈËÌÉÏÂ//310
-		Rudder_control(360, 1); //ÓÒÊÖ¾ÙÆğ
-		Rudder_control(130, 1); //ÓÒÊÖ·ÅÏÂ
-		Rudder_control(150, 2); //×óÊÖ¾ÙÆğ
-		Rudder_control(380, 2); //×óÊÖ·ÅÏÂ
-		Rudder_control(380, 3); //Í·
+	èˆµæœºæ§åˆ¶
+		Rudder_control(170, 4);	//æœºå™¨äººç«™ç«‹
+		Rudder_control(310, 4);	//æœºå™¨äººèººä¸‹//310
+		Rudder_control(360, 1); //å³æ‰‹ä¸¾èµ·
+		Rudder_control(130, 1); //å³æ‰‹æ”¾ä¸‹
+		Rudder_control(150, 2); //å·¦æ‰‹ä¸¾èµ·
+		Rudder_control(380, 2); //å·¦æ‰‹æ”¾ä¸‹
+		Rudder_control(380, 3); //å¤´
 */
 
 
-/*»úÆ÷ÈË¶¯×÷*/
+/*æœºå™¨äººåŠ¨ä½œ*/
 void Robot_Work(uint8_t id,uint8_t aim)//70-500
 {
-	if(id == BODY)  //ÉíÌå
+	if(id == BODY)  //èº«ä½“
 	{
 		if(aim == UP)
-			{moveServo(2, 1600, 500); //1ºÅ¶æ»úÖÁ500Î»ÖÃ
+			{moveServo(2, 1600, 500); //1å·èˆµæœºè‡³500ä½ç½®
 			vTaskDelay(2);}
 		else
-			{moveServo(2, 940, 500); //1ºÅ¶æ»úÖÁ500Î»ÖÃ
+			{moveServo(2, 940, 500); //1å·èˆµæœºè‡³500ä½ç½®
 			vTaskDelay(2);}
 	}
-	else if(id == RARM)   //ÓÒ±Û
+	else if(id == RARM)   //å³è‡‚
 	{
 		if (aim == UP)
 			{moveServo(14, 2500, 200); 
@@ -70,7 +70,7 @@ void Robot_Work(uint8_t id,uint8_t aim)//70-500
 			{moveServo(14, 1005, 200); 
 			vTaskDelay(2);}
 	}
-	else if(id == LARM)   //×ó±Û
+	else if(id == LARM)   //å·¦è‡‚
 	{
 		if (aim == UP)
 			{moveServo(15, 500, 200); 
@@ -81,14 +81,14 @@ void Robot_Work(uint8_t id,uint8_t aim)//70-500
 	}
 	else if(id == HEAD)   
 	{
-		//Í·ÉÏÏÂ
+		//å¤´ä¸Šä¸‹
 		if (aim == UP)
 			{moveServo(1, 1150, 300); 
 			vTaskDelay(2);}
 		else if(aim == DOWN)
 			{moveServo(1, 815, 100); 
 			vTaskDelay(2);}
-		//Í·×óÓÒ£ºÍ·Íù×ó×ª£¬½Ç¶ÈÔö´ó
+		//å¤´å·¦å³ï¼šå¤´å¾€å·¦è½¬ï¼Œè§’åº¦å¢å¤§
 		if (aim == HEAD_MID)
 			{moveServo(0, 1500, 200);
 			vTaskDelay(200);}
@@ -101,7 +101,7 @@ void Robot_Work(uint8_t id,uint8_t aim)//70-500
 	}
 	else if(id == PIG)   
 	{
-		//PIG×óÓÒÒ¡°Ú
+		//PIGå·¦å³æ‘‡æ‘†
 		if (aim == HEAD_LEFT)
 			{moveServo(12, 1150, 300); 
 			vTaskDelay(200);}
@@ -114,26 +114,26 @@ void Robot_Work(uint8_t id,uint8_t aim)//70-500
 
 /*********************************************************************************
  * Function:  moveServo
- * Description£º ¿ØÖÆµ¥¸ö¶æ»ú×ª¶¯
- * Parameters:   sevoID:¶æ»úID£¬Position:Ä¿±êÎ»ÖÃ,Time:×ª¶¯Ê±¼ä
-                    ¶æ»úIDÈ¡Öµ:0<=¶æ»úID<=31,TimeÈ¡Öµ: Time > 0
- * Return:       ÎŞ·µ»Ø
+ * Descriptionï¼š æ§åˆ¶å•ä¸ªèˆµæœºè½¬åŠ¨
+ * Parameters:   sevoID:èˆµæœºIDï¼ŒPosition:ç›®æ ‡ä½ç½®,Time:è½¬åŠ¨æ—¶é—´
+                    èˆµæœºIDå–å€¼:0<=èˆµæœºID<=31,Timeå–å€¼: Time > 0
+ * Return:       æ— è¿”å›
  * Others:
  **********************************************************************************/
 void moveServo(uint8_t servoID, uint16_t Position, uint16_t Time)
 {
-	if (servoID > 31 || !(Time > 0)) {  //¶æ»úID²»ÄÜ´òÓÚ31,¿É¸ù¾İ¶ÔÓ¦¿ØÖÆ°åĞŞ¸Ä
+	if (servoID > 31 || !(Time > 0)) {  //èˆµæœºIDä¸èƒ½æ‰“äº31,å¯æ ¹æ®å¯¹åº”æ§åˆ¶æ¿ä¿®æ”¹
 		return;
 	}
-	LobotTxBuf[0] = LobotTxBuf[1] = FRAME_HEADER;    //Ìî³äÖ¡Í·
+	LobotTxBuf[0] = LobotTxBuf[1] = FRAME_HEADER;    //å¡«å……å¸§å¤´
 	LobotTxBuf[2] = 8;
-	LobotTxBuf[3] = CMD_SERVO_MOVE;           //Êı¾İ³¤¶È=Òª¿ØÖÆ¶æ»úÊı*3+5£¬´Ë´¦=1*3+5//Ìî³ä¶æ»úÒÆ¶¯Ö¸Áî
-	LobotTxBuf[4] = 1;                        //Òª¿ØÖÆµÄ¶æ»ú¸öÊı
-	LobotTxBuf[5] = GET_LOW_BYTE(Time);       //È¡µÃÊ±¼äµÄµÍ°ËÎ»
-	LobotTxBuf[6] = GET_HIGH_BYTE(Time);      //È¡µÃÊ±¼äµÄ¸ß°ËÎ»
-	LobotTxBuf[7] = servoID;                  //¶æ»úID
-	LobotTxBuf[8] = GET_LOW_BYTE(Position);   //È¡µÃÄ¿±êÎ»ÖÃµÄµÍ°ËÎ»
-	LobotTxBuf[9] = GET_HIGH_BYTE(Position);  //È¡µÃÄ¿±êÎ»ÖÃµÄ¸ß°ËÎ»
+	LobotTxBuf[3] = CMD_SERVO_MOVE;           //æ•°æ®é•¿åº¦=è¦æ§åˆ¶èˆµæœºæ•°*3+5ï¼Œæ­¤å¤„=1*3+5//å¡«å……èˆµæœºç§»åŠ¨æŒ‡ä»¤
+	LobotTxBuf[4] = 1;                        //è¦æ§åˆ¶çš„èˆµæœºä¸ªæ•°
+	LobotTxBuf[5] = GET_LOW_BYTE(Time);       //å–å¾—æ—¶é—´çš„ä½å…«ä½
+	LobotTxBuf[6] = GET_HIGH_BYTE(Time);      //å–å¾—æ—¶é—´çš„é«˜å…«ä½
+	LobotTxBuf[7] = servoID;                  //èˆµæœºID
+	LobotTxBuf[8] = GET_LOW_BYTE(Position);   //å–å¾—ç›®æ ‡ä½ç½®çš„ä½å…«ä½
+	LobotTxBuf[9] = GET_HIGH_BYTE(Position);  //å–å¾—ç›®æ ‡ä½ç½®çš„é«˜å…«ä½
 
    HAL_UART_Transmit(&Rudder, LobotTxBuf, 10, HAL_MAX_DELAY);
 }

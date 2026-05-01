@@ -8,11 +8,11 @@
 #include "adc.h"
 #include "stdio.h"
 
-uint8_t ScanerMode = RF;        //µ±Ç°Ñ­¼£Ä£Ê½
-uint16_t AD_Value_Gray[4];//¶¨ÒåÒ»¸öÊı×é
-#define THRESHOLD 1000  // ÉèÖÃãĞÖµ
-#define SENSOR_NUM 8  // 4 Â·»Ò¶È´«¸ĞÆ÷
-/*»Ò¶È³õÊ¼»¯*/
+uint8_t ScanerMode = RF;        //å½“å‰å¾ªè¿¹æ¨¡å¼
+uint16_t AD_Value_Gray[4];//å®šä¹‰ä¸€ä¸ªæ•°ç»„
+#define THRESHOLD 1000  // è®¾ç½®é˜ˆå€¼
+#define SENSOR_NUM 8  // 4 è·¯ç°åº¦ä¼ æ„Ÿå™¨
+/*ç°åº¦åˆå§‹åŒ–*/
 void Gray_Init(void) 
 {
     GPIO_InitTypeDef GPIO_InitStruct = {0};
@@ -26,13 +26,13 @@ void Gray_Init(void)
     ScanerMode_Switch(RF);
 }
 
-/*ÇĞ»»Ñ­¼£Ä£Ê½*/
+/*åˆ‡æ¢å¾ªè¿¹æ¨¡å¼*/
 void ScanerMode_Switch(uint8_t mode)
 {
     if(mode == RF)
     {
         ScanerMode = RF;
-		 // Í£Ö¹ DMA
+		 // åœæ­¢ DMA
 		HAL_DMA_Abort(&hdma_adc1);
  		HAL_ADC_Stop(&hadc1);
         for (uint8_t i = 0; i < 16; i++)
@@ -55,7 +55,7 @@ void ScanerMode_Switch(uint8_t mode)
     // memset(&line_pid_obj, 0, sizeof(line_pid_obj));
 }
 
-/*SDAÄ£Ê½×ª»»*/
+/*SDAæ¨¡å¼è½¬æ¢*/
 void I2C_Judge(uint8_t id,uint8_t judgement)
 {
     uint16_t Pin;
@@ -64,14 +64,14 @@ void I2C_Judge(uint8_t id,uint8_t judgement)
     else
         Pin = GPIO_PIN_8;
     GPIO_InitTypeDef GPIO_InitStruct;
-	if(judgement == out)             //Êä³öÄ£Ê½
+	if(judgement == out)             //è¾“å‡ºæ¨¡å¼
 	{
         GPIO_InitStruct.Pin = Pin;
         GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
         GPIO_InitStruct.Pull = GPIO_PULLUP;
         GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
 		HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
-	}else if(judgement == in)       //ÊäÈëÄ£Ê½
+	}else if(judgement == in)       //è¾“å…¥æ¨¡å¼
 	{
         GPIO_InitStruct.Pin = Pin;
         GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
@@ -82,77 +82,77 @@ void I2C_Judge(uint8_t id,uint8_t judgement)
 }
 
 /*
-Æô¶¯I2C µ±SCL´¦ÓÚ¸ßµçÆ½Ê±SDAÓÉ¸ßµçÆ½¸ÄÎªµÍµçÆ½£¬À­µÍSDA
-(0£ºÆô¶¯Ê§°Ü£»1£ºÆô¶¯³É¹¦)
+å¯åŠ¨I2C å½“SCLå¤„äºé«˜ç”µå¹³æ—¶SDAç”±é«˜ç”µå¹³æ”¹ä¸ºä½ç”µå¹³ï¼Œæ‹‰ä½SDA
+(0ï¼šå¯åŠ¨å¤±è´¥ï¼›1ï¼šå¯åŠ¨æˆåŠŸ)
 */
 uint8_t I2C_Start(uint8_t id)
 {
-	I2C_Judge(id,out);                  //Êä³öÄ£Ê½
+	I2C_Judge(id,out);                  //è¾“å‡ºæ¨¡å¼
     if(id == LEFT)
     {
-        LEFT_SDA_H; // À­¸ßSDA
+        LEFT_SDA_H; // æ‹‰é«˜SDA
         delay_us(5);
-        LEFT_SCL_H; // À­¸ßSCL
+        LEFT_SCL_H; // æ‹‰é«˜SCL
         delay_us(5);
         if (!LEFT_SDA_read)
-            return 0; // Èç¹ûSDAµÍµçÆ½Ôò×ÜÏßÃ¦£¬ÍË³ö
-        LEFT_SDA_L;        // SCL´¦ÓÚ¸ßµçÆ½Ê±£¬À­µÍSDA
+            return 0; // å¦‚æœSDAä½ç”µå¹³åˆ™æ€»çº¿å¿™ï¼Œé€€å‡º
+        LEFT_SDA_L;        // SCLå¤„äºé«˜ç”µå¹³æ—¶ï¼Œæ‹‰ä½SDA
         delay_us(5);
         if (LEFT_SDA_read)
-            return 0; // Èç¹ûSDA¸ßµçÆ½Ôò×ÜÏß³ö´í£¬ÍË³ö
-        LEFT_SCL_L;        // À­µÍSCL
+            return 0; // å¦‚æœSDAé«˜ç”µå¹³åˆ™æ€»çº¿å‡ºé”™ï¼Œé€€å‡º
+        LEFT_SCL_L;        // æ‹‰ä½SCL
         delay_us(5);
     }
     else if(id == RIGHT)
     {
-        RIGHT_SDA_H; // À­¸ßSDA
+        RIGHT_SDA_H; // æ‹‰é«˜SDA
         delay_us(5);
-        RIGHT_SCL_H; // À­¸ßSCL
+        RIGHT_SCL_H; // æ‹‰é«˜SCL
         delay_us(5);
         if (!RIGHT_SDA_read)
-            return 0; // Èç¹ûSDAµÍµçÆ½Ôò×ÜÏßÃ¦£¬ÍË³ö
-        RIGHT_SDA_L;   // SCL´¦ÓÚ¸ßµçÆ½Ê±£¬À­µÍSDA
+            return 0; // å¦‚æœSDAä½ç”µå¹³åˆ™æ€»çº¿å¿™ï¼Œé€€å‡º
+        RIGHT_SDA_L;   // SCLå¤„äºé«˜ç”µå¹³æ—¶ï¼Œæ‹‰ä½SDA
         delay_us(5);
         if (RIGHT_SDA_read)
-            return 0; // Èç¹ûSDA¸ßµçÆ½Ôò×ÜÏß³ö´í£¬ÍË³ö
-        RIGHT_SCL_L;   // À­µÍSCL
+            return 0; // å¦‚æœSDAé«˜ç”µå¹³åˆ™æ€»çº¿å‡ºé”™ï¼Œé€€å‡º
+        RIGHT_SCL_L;   // æ‹‰ä½SCL
         delay_us(5);
     }
 	
-	return 1;                      //³É¹¦¿ªÆôI2CÍ¨ĞÅ
+	return 1;                      //æˆåŠŸå¼€å¯I2Cé€šä¿¡
 }
 
 /*
-Í£Ö¹I2C µ±SCLÎª¸ßµçÆ½Ê±£¬SDAÓÉµÍµçÆ½¸ÄÎª¸ßµçÆ½£¬À­¸ßSDA
+åœæ­¢I2C å½“SCLä¸ºé«˜ç”µå¹³æ—¶ï¼ŒSDAç”±ä½ç”µå¹³æ”¹ä¸ºé«˜ç”µå¹³ï¼Œæ‹‰é«˜SDA
 */
 void I2C_Stop(uint8_t id)
 {
     if(id == LEFT)
     {
         I2C_Judge(id,out);
-        LEFT_SDA_L; // À­µÍSDA
-        LEFT_SCL_L; // À­µÍSCL
+        LEFT_SDA_L; // æ‹‰ä½SDA
+        LEFT_SCL_L; // æ‹‰ä½SCL
         delay_us(5);
-        LEFT_SCL_H; // À­¸ßSCL
+        LEFT_SCL_H; // æ‹‰é«˜SCL
         delay_us(5);
-        LEFT_SDA_H; // µ±SCL´¦ÓÚ¸ßµçÆ½ÆÚ¼ä£¬SDAÓÉµÍµçÆ½±ä³É¸ßµçÆ½
+        LEFT_SDA_H; // å½“SCLå¤„äºé«˜ç”µå¹³æœŸé—´ï¼ŒSDAç”±ä½ç”µå¹³å˜æˆé«˜ç”µå¹³
     }
     else if(id == RIGHT)
     {
         I2C_Judge(id,out);
-        RIGHT_SDA_L; // À­µÍSDA
-        RIGHT_SCL_L; // À­µÍSCL
+        RIGHT_SDA_L; // æ‹‰ä½SDA
+        RIGHT_SCL_L; // æ‹‰ä½SCL
         delay_us(5);
-        RIGHT_SCL_H; // À­¸ßSCL
+        RIGHT_SCL_H; // æ‹‰é«˜SCL
         delay_us(5);
-        RIGHT_SDA_H; // µ±SCL´¦ÓÚ¸ßµçÆ½ÆÚ¼ä£¬SDAÓÉµÍµçÆ½±ä³É¸ßµçÆ½
+        RIGHT_SDA_H; // å½“SCLå¤„äºé«˜ç”µå¹³æœŸé—´ï¼ŒSDAç”±ä½ç”µå¹³å˜æˆé«˜ç”µå¹³
     }
 }
 
 /*
-I2C·¢ËÍÓ¦´ğĞÅºÅ ´Ó»ú½ÓÊÕµ½Êı¾İºó£¬ÏòÖ÷»ú·¢ËÍµÍµçÆ½ĞÅºÅ
-ÏÈ×¼±¸SDAµçÆ½×´Ì¬£¬ÔÚSCL¸ßµçÆ½Ê±£¬Ö÷»ú²ÉÑùSDA
-Èë¿Ú²ÎÊıack(0£ºACK£»1£ºNAk)
+I2Cå‘é€åº”ç­”ä¿¡å· ä»æœºæ¥æ”¶åˆ°æ•°æ®åï¼Œå‘ä¸»æœºå‘é€ä½ç”µå¹³ä¿¡å·
+å…ˆå‡†å¤‡SDAç”µå¹³çŠ¶æ€ï¼Œåœ¨SCLé«˜ç”µå¹³æ—¶ï¼Œä¸»æœºé‡‡æ ·SDA
+å…¥å£å‚æ•°ack(0ï¼šACKï¼›1ï¼šNAk)
 */
 void I2C_SendACK(uint8_t id,uint8_t i)
 {
@@ -162,14 +162,14 @@ void I2C_SendACK(uint8_t id,uint8_t i)
         I2C_Judge(id, out);
         if (i == no)
         {
-            LEFT_SDA_H; // ²»Ó¦´ğ
+            LEFT_SDA_H; // ä¸åº”ç­”
         }
         else
         {
-            LEFT_SDA_L; // Ó¦´ğ
+            LEFT_SDA_L; // åº”ç­”
         }
         delay_us(5);
-        LEFT_SCL_H; // À­¸ßSCL
+        LEFT_SCL_H; // æ‹‰é«˜SCL
         delay_us(5);
         LEFT_SCL_L;
     }
@@ -179,22 +179,22 @@ void I2C_SendACK(uint8_t id,uint8_t i)
         I2C_Judge(id, out);
         if (i == no)
         {
-            RIGHT_SDA_H; // ²»Ó¦´ğ
+            RIGHT_SDA_H; // ä¸åº”ç­”
         }
         else
         {
-            RIGHT_SDA_L; // Ó¦´ğ
+            RIGHT_SDA_L; // åº”ç­”
         }
         delay_us(5);
-        RIGHT_SCL_H; // À­¸ßSCL
+        RIGHT_SCL_H; // æ‹‰é«˜SCL
         delay_us(5);
         RIGHT_SCL_L;
     }
 }
 
 /*
-µ±Ö÷»ú·¢ËÍÊı¾İºó£¬µÈ´ı´Ó»úÓ¦´ğ
-ÏÈÊÍ·ÅSDA£¬ÈÃ´Ó»úÊ¹ÓÃ£¬È»ºó²É¼¯SDA×´Ì¬
+å½“ä¸»æœºå‘é€æ•°æ®åï¼Œç­‰å¾…ä»æœºåº”ç­”
+å…ˆé‡Šæ”¾SDAï¼Œè®©ä»æœºä½¿ç”¨ï¼Œç„¶åé‡‡é›†SDAçŠ¶æ€
 */
 uint8_t I2C_WaitAck(uint8_t id)
 {
@@ -202,11 +202,11 @@ uint8_t I2C_WaitAck(uint8_t id)
 	I2C_Judge(id,in);
     if(id == LEFT)
     {
-        LEFT_SDA_H; // ÊÍ·Å£¨À­¸ß£©SDA
+        LEFT_SDA_H; // é‡Šæ”¾ï¼ˆæ‹‰é«˜ï¼‰SDA
         delay_us(5);
-        LEFT_SCL_H; // À­¸ßSCL²ÉÑù
+        LEFT_SCL_H; // æ‹‰é«˜SCLé‡‡æ ·
         delay_us(5);
-        while (LEFT_SDA_read) // µÈ´ıSDAÀ­µÍ
+        while (LEFT_SDA_read) // ç­‰å¾…SDAæ‹‰ä½
         {
             i++;
             if (i == 500)
@@ -214,20 +214,20 @@ uint8_t I2C_WaitAck(uint8_t id)
                 break;
             }
         }
-        if (LEFT_SDA_read) // ÔÙ´ÎÅĞ¶ÏSDAÊÇ·ñÀ­µÍ
+        if (LEFT_SDA_read) // å†æ¬¡åˆ¤æ–­SDAæ˜¯å¦æ‹‰ä½
         {
             LEFT_SCL_L;
-            return RESET; // Ó¦´ğÊ§°Ü£¬·µ»Ø0
+            return RESET; // åº”ç­”å¤±è´¥ï¼Œè¿”å›0
         }
         LEFT_SCL_L;
     }
     else
     {
-        RIGHT_SDA_H; // ÊÍ·Å£¨À­¸ß£©SDA
+        RIGHT_SDA_H; // é‡Šæ”¾ï¼ˆæ‹‰é«˜ï¼‰SDA
         delay_us(5);
-        RIGHT_SCL_H; // À­¸ßSCL²ÉÑù
+        RIGHT_SCL_H; // æ‹‰é«˜SCLé‡‡æ ·
         delay_us(5);
-        while (RIGHT_SDA_read) // µÈ´ıSDAÀ­µÍ
+        while (RIGHT_SDA_read) // ç­‰å¾…SDAæ‹‰ä½
         {
             i++;
             if (i == 500)
@@ -235,21 +235,21 @@ uint8_t I2C_WaitAck(uint8_t id)
                 break;
             }
         }
-        if (RIGHT_SDA_read) // ÔÙ´ÎÅĞ¶ÏSDAÊÇ·ñÀ­µÍ
+        if (RIGHT_SDA_read) // å†æ¬¡åˆ¤æ–­SDAæ˜¯å¦æ‹‰ä½
         {
             RIGHT_SCL_L;
-            return RESET; // Ó¦´ğÊ§°Ü£¬·µ»Ø0
+            return RESET; // åº”ç­”å¤±è´¥ï¼Œè¿”å›0
         }
         RIGHT_SCL_L;
     }
 
     delay_us(5);
-    return SET;                    //Ó¦´ğ³É¹¦£¬·µ»Ø1
+    return SET;                    //åº”ç­”æˆåŠŸï¼Œè¿”å›1
 }
 
 /*
-ÏòI2C×ÜÏß·¢ËÍÒ»¸ö×Ö½Ú(8 bit)Êı¾İ
-µ±SCLÎªµÍµçÆ½Ê±£¬×¼±¸ºÃSDA£¬SCL¸ßµçÆ½Ê±£¬´Ó»ú²ÉÑùSDA
+å‘I2Cæ€»çº¿å‘é€ä¸€ä¸ªå­—èŠ‚(8 bit)æ•°æ®
+å½“SCLä¸ºä½ç”µå¹³æ—¶ï¼Œå‡†å¤‡å¥½SDAï¼ŒSCLé«˜ç”µå¹³æ—¶ï¼Œä»æœºé‡‡æ ·SDA
 */
 void I2C_SendByte(uint8_t id,uint8_t data)
 {
@@ -257,10 +257,10 @@ void I2C_SendByte(uint8_t id,uint8_t data)
 	I2C_Judge(id,out);
     if(id == LEFT)
     {
-        LEFT_SCL_L;                  // À­µÍSCL£¬¸øSDA×¼±¸
-        for (i = 0; i < 8; i++) // 8Î»¼ÆÊ±Æ÷
+        LEFT_SCL_L;                  // æ‹‰ä½SCLï¼Œç»™SDAå‡†å¤‡
+        for (i = 0; i < 8; i++) // 8ä½è®¡æ—¶å™¨
         {
-            if (data & 0x80) // SDA×¼±¸£¨0x80ÎªÒ»¸ö×Ö½Ú£©,Èç¹ûµÚ°ËÎ»ÊÇ¸ßµçÆ½
+            if (data & 0x80) // SDAå‡†å¤‡ï¼ˆ0x80ä¸ºä¸€ä¸ªå­—èŠ‚ï¼‰,å¦‚æœç¬¬å…«ä½æ˜¯é«˜ç”µå¹³
             {
                 LEFT_SDA_H;
             }
@@ -269,19 +269,19 @@ void I2C_SendByte(uint8_t id,uint8_t data)
                 LEFT_SDA_L;
             }
             delay_us(5);
-            LEFT_SCL_H; // À­¸ßSCL£¬¸ø´Ó»ú²ÉÑù
+            LEFT_SCL_H; // æ‹‰é«˜SCLï¼Œç»™ä»æœºé‡‡æ ·
             delay_us(5);
-            LEFT_SCL_L; // À­µÍSCL£¬¸øSDA×ö×¼±¸
+            LEFT_SCL_L; // æ‹‰ä½SCLï¼Œç»™SDAåšå‡†å¤‡
             delay_us(5);
-            data <<= 1; // ÒÆ³öÊı¾İµÄ×î¸ßÎ»
+            data <<= 1; // ç§»å‡ºæ•°æ®çš„æœ€é«˜ä½
         }
     }
     else
     {
-        RIGHT_SCL_L;             // À­µÍSCL£¬¸øSDA×¼±¸
-        for (i = 0; i < 8; i++) // 8Î»¼ÆÊ±Æ÷
+        RIGHT_SCL_L;             // æ‹‰ä½SCLï¼Œç»™SDAå‡†å¤‡
+        for (i = 0; i < 8; i++) // 8ä½è®¡æ—¶å™¨
         {
-            if (data & 0x80) // SDA×¼±¸£¨0x80ÎªÒ»¸ö×Ö½Ú£©,Èç¹ûµÚ°ËÎ»ÊÇ¸ßµçÆ½
+            if (data & 0x80) // SDAå‡†å¤‡ï¼ˆ0x80ä¸ºä¸€ä¸ªå­—èŠ‚ï¼‰,å¦‚æœç¬¬å…«ä½æ˜¯é«˜ç”µå¹³
             {
                 RIGHT_SDA_H;
             }
@@ -290,17 +290,17 @@ void I2C_SendByte(uint8_t id,uint8_t data)
                 RIGHT_SDA_L;
             }
             delay_us(5);
-            RIGHT_SCL_H; // À­¸ßSCL£¬¸ø´Ó»ú²ÉÑù
+            RIGHT_SCL_H; // æ‹‰é«˜SCLï¼Œç»™ä»æœºé‡‡æ ·
             delay_us(5);
-            RIGHT_SCL_L; // À­µÍSCL£¬¸øSDA×ö×¼±¸
+            RIGHT_SCL_L; // æ‹‰ä½SCLï¼Œç»™SDAåšå‡†å¤‡
             delay_us(5);
-            data <<= 1; // ÒÆ³öÊı¾İµÄ×î¸ßÎ»
+            data <<= 1; // ç§»å‡ºæ•°æ®çš„æœ€é«˜ä½
         }
     }
 }
 
 /*
-´ÓI2C×ÜÏßÖĞ½ÓÊÕÒ»¸ö×Ö½ÚÊı¾İ
+ä»I2Cæ€»çº¿ä¸­æ¥æ”¶ä¸€ä¸ªå­—èŠ‚æ•°æ®
 */
 uint8_t I2C_ReceiveByte(uint8_t id)
 {
@@ -308,35 +308,35 @@ uint8_t I2C_ReceiveByte(uint8_t id)
 	I2C_Judge(id,in);
     if(id == LEFT)
     {
-        LEFT_SDA_H; // ÊÍ·ÅSDA£¬¸ø´Ó»úÊ¹ÓÃ
+        LEFT_SDA_H; // é‡Šæ”¾SDAï¼Œç»™ä»æœºä½¿ç”¨
         delay_us(5);
-        for (i = 0; i < 8; i++) // 8Î»¼ÆÊıÆ÷
+        for (i = 0; i < 8; i++) // 8ä½è®¡æ•°å™¨
         {
             data <<= 1;
-            LEFT_SCL_H;        // À­¸ßSCL£¬²ÉÑù´Ó»úSDA
-            if (LEFT_SDA_read) // ¶ÁÊı¾İ
+            LEFT_SCL_H;        // æ‹‰é«˜SCLï¼Œé‡‡æ ·ä»æœºSDA
+            if (LEFT_SDA_read) // è¯»æ•°æ®
             {
                 data |= 0x01;
             }
             delay_us(5);
-            LEFT_SCL_L; // À­µÍSCL£¬´¦ÀíÊı¾İ
+            LEFT_SCL_L; // æ‹‰ä½SCLï¼Œå¤„ç†æ•°æ®
             delay_us(5);
         }
     }
     else
     {
-        RIGHT_SDA_H; // ÊÍ·ÅSDA£¬¸ø´Ó»úÊ¹ÓÃ
+        RIGHT_SDA_H; // é‡Šæ”¾SDAï¼Œç»™ä»æœºä½¿ç”¨
         delay_us(5);
-        for (i = 0; i < 8; i++) // 8Î»¼ÆÊıÆ÷
+        for (i = 0; i < 8; i++) // 8ä½è®¡æ•°å™¨
         {
             data <<= 1;
-            RIGHT_SCL_H;        // À­¸ßSCL£¬²ÉÑù´Ó»úSDA
-            if (RIGHT_SDA_read) // ¶ÁÊı¾İ
+            RIGHT_SCL_H;        // æ‹‰é«˜SCLï¼Œé‡‡æ ·ä»æœºSDA
+            if (RIGHT_SDA_read) // è¯»æ•°æ®
             {
                 data |= 0x01;
             }
             delay_us(5);
-            RIGHT_SCL_L; // À­µÍSCL£¬´¦ÀíÊı¾İ
+            RIGHT_SCL_L; // æ‹‰ä½SCLï¼Œå¤„ç†æ•°æ®
             delay_us(5);
         }
     }
@@ -345,71 +345,71 @@ uint8_t I2C_ReceiveByte(uint8_t id)
 }
 
 /*
-ÏòI2CĞ´ÈëÒ»¸ö×Ö½ÚÊı¾İ
-Slave_Address£ºÉè±¸µØÖ·
-REG_Address£º¼Ä´æÆ÷µØÖ·
+å‘I2Cå†™å…¥ä¸€ä¸ªå­—èŠ‚æ•°æ®
+Slave_Addressï¼šè®¾å¤‡åœ°å€
+REG_Addressï¼šå¯„å­˜å™¨åœ°å€
 */
 /*
 uint8_t I2C_WriteByte(uint8_t id,uint8_t SA,uint8_t RA,uint8_t data)
 {
 	I2C_Judge(id,out);
-	if(I2C_Start(id) == 0)         //ÆğÊ¼ĞÅºÅ 
+	if(I2C_Start(id) == 0)         //èµ·å§‹ä¿¡å· 
 	{
 		I2C_Stop(id);
 		return RESET;
 	}
-	I2C_SendByte(id,SA);            //·¢ËÍÉè±¸µØÖ·
+	I2C_SendByte(id,SA);            //å‘é€è®¾å¤‡åœ°å€
 	if(!I2C_WaitAck(id))
 	{
 		I2C_Stop(id);
 		return RESET;
 	}
-	I2C_SendByte(id,RA);            //·¢ËÍ¼Ä´æÆ÷µØÖ·
+	I2C_SendByte(id,RA);            //å‘é€å¯„å­˜å™¨åœ°å€
 	if(!I2C_WaitAck(id))
 	{
 		I2C_Stop(id);
 		return RESET;
 	}
-	I2C_SendByte(id,data);          //·¢ËÍÊı¾İ
+	I2C_SendByte(id,data);          //å‘é€æ•°æ®
 	if(!I2C_WaitAck(id))
 	{
 		I2C_Stop(id);
 		return RESET;
 	}
-	I2C_Stop(id);                  //Í£Ö¹ĞÅºÅ
+	I2C_Stop(id);                  //åœæ­¢ä¿¡å·
 	return SET;
 }
 */
 
 /*
-´ÓI2CÉè±¸ÖĞ¶ÁÈ¡Ò»¸ö×Ö½ÚÊı¾İ
+ä»I2Cè®¾å¤‡ä¸­è¯»å–ä¸€ä¸ªå­—èŠ‚æ•°æ®
 */
 //uint8_t I2C_ReadByte(uint8_t id,uint8_t SA,uint8_t RA,uint8_t *REG_data,uint8_t length)
 //{
 //	I2C_Judge(id,in);
-//	if(I2C_Start(id) == 0)         //ÆğÊ¼ĞÅºÅ 
+//	if(I2C_Start(id) == 0)         //èµ·å§‹ä¿¡å· 
 //	{
 //		I2C_Stop(id);
 //		return RESET;
 //	}
-//	I2C_SendByte(id,SA);            //·¢ËÍÉè±¸µØÖ·
+//	I2C_SendByte(id,SA);            //å‘é€è®¾å¤‡åœ°å€
 //	if(!I2C_WaitAck(id))
 //	{
 //		I2C_Stop(id);
 //		return RESET;
 //	}
-//	I2C_SendByte(id,RA);            //·¢ËÍ¼Ä´æÆ÷µØÖ·
+//	I2C_SendByte(id,RA);            //å‘é€å¯„å­˜å™¨åœ°å€
 //	if(!I2C_WaitAck(id))
 //	{
 //		I2C_Stop(id);
 //		return RESET;
 //	}
-//	if(I2C_Start(id) == 0)         //ÆğÊ¼ĞÅºÅ 
+//	if(I2C_Start(id) == 0)         //èµ·å§‹ä¿¡å· 
 //	{
 //		I2C_Stop(id);
 //		return RESET;
 //	}
-//	I2C_SendByte(id,SA+1);          //·¢ËÍÉè±¸µØÖ·£¨¶Á£©
+//	I2C_SendByte(id,SA+1);          //å‘é€è®¾å¤‡åœ°å€ï¼ˆè¯»ï¼‰
 //	if(!I2C_WaitAck(id))
 //	{
 //		I2C_Stop(id);
@@ -417,27 +417,27 @@ uint8_t I2C_WriteByte(uint8_t id,uint8_t SA,uint8_t RA,uint8_t data)
 //	}
 //	while(length-1)
 //	{
-//		*REG_data++ = I2C_ReceiveByte(id);  //¶Á³ö¼Ä´æÆ÷Êı¾İ
-//		I2C_SendACK(id,0);          //Ó¦´ğ
+//		*REG_data++ = I2C_ReceiveByte(id);  //è¯»å‡ºå¯„å­˜å™¨æ•°æ®
+//		I2C_SendACK(id,0);          //åº”ç­”
 //		length--;
 //	}
 //	*REG_data = I2C_ReceiveByte(id);
-//	I2C_SendACK(id,no);              //·¢ËÍÍ£Ö¹´«ÊäĞÅºÅ
-//	I2C_Stop(id);                  //Í£Ö¹ĞÅºÅ
+//	I2C_SendACK(id,no);              //å‘é€åœæ­¢ä¼ è¾“ä¿¡å·
+//	I2C_Stop(id);                  //åœæ­¢ä¿¡å·
 //	// vTaskDelay(10);
 //	return SET;
 //}
 
-/*»Ò¶È¿ìËÙ¶ÁÖµ*/
+/*ç°åº¦å¿«é€Ÿè¯»å€¼*/
 uint8_t I2C_ReadOnce(uint8_t id, uint8_t SA, uint8_t RA, uint8_t *REG_data, uint8_t length)
 {
     I2C_Judge(id, in);
-    if (I2C_Start(id) == 0) // ÆğÊ¼ĞÅºÅ
+    if (I2C_Start(id) == 0) // èµ·å§‹ä¿¡å·
     {
         I2C_Stop(id);
         return RESET;
     }
-    I2C_SendByte(id, SA + 1); // ·¢ËÍÉè±¸µØÖ·£¨¶Á£©
+    I2C_SendByte(id, SA + 1); // å‘é€è®¾å¤‡åœ°å€ï¼ˆè¯»ï¼‰
     if (!I2C_WaitAck(id))
     {
         I2C_Stop(id);
@@ -445,18 +445,18 @@ uint8_t I2C_ReadOnce(uint8_t id, uint8_t SA, uint8_t RA, uint8_t *REG_data, uint
     }
     while (length - 1)
     {
-        *REG_data++ = I2C_ReceiveByte(id); // ¶Á³ö¼Ä´æÆ÷Êı¾İ
-        I2C_SendACK(id, 0);                // Ó¦´ğ
+        *REG_data++ = I2C_ReceiveByte(id); // è¯»å‡ºå¯„å­˜å™¨æ•°æ®
+        I2C_SendACK(id, 0);                // åº”ç­”
         length--;
     }
     *REG_data = I2C_ReceiveByte(id);
-    I2C_SendACK(id, no); // ·¢ËÍÍ£Ö¹´«ÊäĞÅºÅ
-    I2C_Stop(id);        // Í£Ö¹ĞÅºÅ
+    I2C_SendACK(id, no); // å‘é€åœæ­¢ä¼ è¾“ä¿¡å·
+    I2C_Stop(id);        // åœæ­¢ä¿¡å·
     // vTaskDelay(10);
     return SET;
 }
 
-/*»Ò¶È»ñÈ¡Ò»´Î¶ş½øÖÆÑ­ÏßÖµ*/
+/*ç°åº¦è·å–ä¸€æ¬¡äºŒè¿›åˆ¶å¾ªçº¿å€¼*/
 uint8_t Gray_GetLine(void)
 {
 	/*
@@ -467,47 +467,47 @@ uint8_t Gray_GetLine(void)
 //    I2C_ReadOnce(LEFT, 0x98, 0xdd, &temp, sizeof(temp));
 //    data |= (uint16_t)(temp) << 8;
 	*/
-	 // Í¨¹ıÅĞ¶Ï ADC ÖµÓëãĞÖµµÄ´óĞ¡À´ÉèÖÃ¶ÔÓ¦Î»µÄÊı¾İ
-	uint8_t data = 0;  // ³õÊ¼»¯Îª 00000000
+	 // é€šè¿‡åˆ¤æ–­ ADC å€¼ä¸é˜ˆå€¼çš„å¤§å°æ¥è®¾ç½®å¯¹åº”ä½çš„æ•°æ®
+	uint8_t data = 0;  // åˆå§‹åŒ–ä¸º 00000000
     for (int i = 0; i < 4; i++)
     {
-        if (AD_Value_Gray[i] < THRESHOLD)  // Èç¹û´«¸ĞÆ÷Öµ´óÓÚãĞÖµ£¬ÈÏÎª¸Ã´«¸ĞÆ÷¼ì²âµ½ºÚÏß
+        if (AD_Value_Gray[i] < THRESHOLD)  // å¦‚æœä¼ æ„Ÿå™¨å€¼å¤§äºé˜ˆå€¼ï¼Œè®¤ä¸ºè¯¥ä¼ æ„Ÿå™¨æ£€æµ‹åˆ°é»‘çº¿
         {
-            data |= (1 << (5 - i));  // ½«¶ÔÓ¦µÄ bit Î»ÉèÎª 1
+            data |= (1 << (5 - i));  // å°†å¯¹åº”çš„ bit ä½è®¾ä¸º 1
         }
         else
         {
-            data &= ~(1 << (5 - i));  // ·ñÔòÉèÎª 0
+            data &= ~(1 << (5 - i));  // å¦åˆ™è®¾ä¸º 0
         }
     }
-	// Êä³öµ÷ÊÔÊı¾İ£¬¿ÉÒÔ¸ù¾İÊµ¼ÊĞèÒªÒÆ³ı
+	// è¾“å‡ºè°ƒè¯•æ•°æ®ï¼Œå¯ä»¥æ ¹æ®å®é™…éœ€è¦ç§»é™¤
 //    printf("data: %02X\r\n", data);
 		printf("%d %d %d %d\r\n",AD_Value_Gray[0],AD_Value_Gray[1],AD_Value_Gray[2],AD_Value_Gray[3]);
     return data;
 }
 
-// ¼ÙÉè scaner.detail ´æ´¢ÁË 4 Â·´«¸ĞÆ÷µÄ¶ş½øÖÆÊı¾İ
+// å‡è®¾ scaner.detail å­˜å‚¨äº† 4 è·¯ä¼ æ„Ÿå™¨çš„äºŒè¿›åˆ¶æ•°æ®
 void Calculate_Error(volatile SCANER *scaner) {
-    float error = 0.0f;  // ÓÃÓÚ´æ´¢Îó²îÖµ
-    uint8_t lednum_tmp = 0;  // µÆÊı£¨ÓÃÀ´¼ÆËãÆ½¾ùÎó²î£©
+    float error = 0.0f;  // ç”¨äºå­˜å‚¨è¯¯å·®å€¼
+    uint8_t lednum_tmp = 0;  // ç¯æ•°ï¼ˆç”¨æ¥è®¡ç®—å¹³å‡è¯¯å·®ï¼‰
 
-    // »ñÈ¡´«¸ĞÆ÷¶ş½øÖÆÖµ²¢¼ÆËãÎó²î
+    // è·å–ä¼ æ„Ÿå™¨äºŒè¿›åˆ¶å€¼å¹¶è®¡ç®—è¯¯å·®
     for (uint8_t i = 0; i < SENSOR_NUM; i++) {
-        if ((scaner->detail_gray & (0x1 << (SENSOR_NUM-1-i)))) {  // ¼ì²âµ½ºÚÏß£¨´«¸ĞÆ÷ÖµÎª 1£©
-            lednum_tmp++;  // ¼ÇÂ¼ÓĞĞ§µÄ´«¸ĞÆ÷ÊıÁ¿
-            // ¸ù¾İ´«¸ĞÆ÷µÄÎ»ÖÃºÍÈ¨ÖØ¼ÆËãÎó²î
+        if ((scaner->detail_gray & (0x1 << (SENSOR_NUM-1-i)))) {  // æ£€æµ‹åˆ°é»‘çº¿ï¼ˆä¼ æ„Ÿå™¨å€¼ä¸º 1ï¼‰
+            lednum_tmp++;  // è®°å½•æœ‰æ•ˆçš„ä¼ æ„Ÿå™¨æ•°é‡
+            // æ ¹æ®ä¼ æ„Ÿå™¨çš„ä½ç½®å’Œæƒé‡è®¡ç®—è¯¯å·®
             error += ((scaner->detail_gray >> (SENSOR_NUM - 1 - i)) & 0x01) * lineG_weight_default[i];
         }
     }
 	
-    // Èç¹ûÓĞÓĞĞ§µÄ´«¸ĞÆ÷Êı¾İ£¬¼ÆËãÎó²îµÄÆ½¾ùÖµ
+    // å¦‚æœæœ‰æœ‰æ•ˆçš„ä¼ æ„Ÿå™¨æ•°æ®ï¼Œè®¡ç®—è¯¯å·®çš„å¹³å‡å€¼
     if (lednum_tmp > 0) {
-        error /= (float)lednum_tmp;  // È¡ÓĞĞ§´«¸ĞÆ÷Êı¾İµÄÆ½¾ùÎó²î
+        error /= (float)lednum_tmp;  // å–æœ‰æ•ˆä¼ æ„Ÿå™¨æ•°æ®çš„å¹³å‡è¯¯å·®
     }
 
-    // ½«Îó²îÖµ´æ´¢µ½ Scaner.error
+    // å°†è¯¯å·®å€¼å­˜å‚¨åˆ° Scaner.error
     scaner->gray_error = error;
 
-    // ÎŞĞè¸üĞÂ´íÎóĞÅÏ¢²¿·Ö£¬ÒÆ³ı Update_line_data º¯Êıµ÷ÓÃ
+    // æ— éœ€æ›´æ–°é”™è¯¯ä¿¡æ¯éƒ¨åˆ†ï¼Œç§»é™¤ Update_line_data å‡½æ•°è°ƒç”¨
     // Update_line_data(NO_error, scaner->error, scaner->error);
 }

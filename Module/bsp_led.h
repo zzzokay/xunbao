@@ -3,9 +3,9 @@
 
 #include "sys.h"
 
-//·­×ªLED C0µçÆ½
+//ç¿»è½¬LED C0ç”µå¹³
 #define LED_C0_Toggle()   do{HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_0); } while(0)
-//·­×ªLED C1µçÆ½
+//ç¿»è½¬LED C1ç”µå¹³
 #define LED_C1_Toggle()   do{HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_1); } while(0)
 
 #endif

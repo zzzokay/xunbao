@@ -11,7 +11,7 @@
 uint8_t	infrare_open = 0;
 volatile struct Infrared_Sensor infrared;
 
-/*ºìÍâ¶ÁÖµ - Åöµ½ÕÏ°­ÎïÊ±Îª1*/
+/*çº¢å¤–è¯»å€¼ - ç¢°åˆ°éšœç¢ç‰©æ—¶ä¸º1*/
 void get_Infrared(void)
 {
 	infrared.head_right = !(uint8_t)HAL_GPIO_ReadPin(GPIOD,GPIO_PIN_10);

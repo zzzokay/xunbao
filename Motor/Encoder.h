@@ -5,10 +5,10 @@
 #define FORWARD  1
 #define BACKWARD -1
 
-//¶¨ÒåĞ¡³µÂÖ×Ó¶ÔÓ¦µÄÊäÈë²¶»ñ¶¨Ê±Æ÷
+//å®šä¹‰å°è½¦è½®å­å¯¹åº”çš„è¾“å…¥æ•è·å®šæ—¶å™¨
 typedef struct{
 	TIM_HandleTypeDef TIM;
-	GPIO_TypeDef* GPIO_2;//BÏà
+	GPIO_TypeDef* GPIO_2;//Bç›¸
   uint32_t GPIO_PORT_2;
   uint32_t channelA;	
   __IO uint32_t CCR_CHAN;
@@ -19,7 +19,7 @@ wheel_1     wheel_2
 wheel_3     wheel_4
 */
 #define MAX_pulse   3000
-extern int  direction[4];                //Õı·´×ªÊ¶±ğ
+extern int  direction[4];                //æ­£åè½¬è¯†åˆ«
 extern float Real_Speed[4];
 
 void Encoder_init(void); 
@@ -28,6 +28,6 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim);
 void encoder_clear(void);
 
 extern float Speed[4];
-extern uint8_t dog[4];   //µç»ú¹·
+extern uint8_t dog[4];   //ç”µæœºç‹—
 
 #endif

@@ -21,21 +21,21 @@ struct Imu imu;
 struct Imu imu_shared_data;
 SemaphoreHandle_t imu_mutex;
 
-UART_HandleTypeDef gyro;//UART¾ä±ú
+UART_HandleTypeDef gyro;//UARTå¥æŸ„
 float basic_p = 0;
 float basic_y = 0;
 
 void gyro_init(uint32_t bound)
 { 
- //UART ³õÊ¼»¯ÉèÖÃ
+ //UART åˆå§‹åŒ–è®¾ç½®
  gyro.Instance=USART3;         //USART2
- gyro.Init.BaudRate=bound;        //²¨ÌØÂÊ
- gyro.Init.WordLength=UART_WORDLENGTH_8B;   //×Ö³¤Îª8Î»Êı¾İ¸ñÊ½
- gyro.Init.StopBits=UART_STOPBITS_1;     //Ò»¸öÍ£Ö¹Î»
- gyro.Init.Parity=UART_PARITY_NONE;      //ÎŞÆæÅ¼Ğ£ÑéÎ»
- gyro.Init.HwFlowCtl=UART_HWCONTROL_NONE;   //ÎŞÓ²¼şÁ÷¿Ø
- gyro.Init.Mode=UART_MODE_TX_RX;      //ÊÕ·¢Ä£Ê½
- HAL_UART_Init(&gyro);         //HAL_UART_Init()»áÊ¹ÄÜUART3
+ gyro.Init.BaudRate=bound;        //æ³¢ç‰¹ç‡
+ gyro.Init.WordLength=UART_WORDLENGTH_8B;   //å­—é•¿ä¸º8ä½æ•°æ®æ ¼å¼
+ gyro.Init.StopBits=UART_STOPBITS_1;     //ä¸€ä¸ªåœæ­¢ä½
+ gyro.Init.Parity=UART_PARITY_NONE;      //æ— å¥‡å¶æ ¡éªŒä½
+ gyro.Init.HwFlowCtl=UART_HWCONTROL_NONE;   //æ— ç¡¬ä»¶æµæ§
+ gyro.Init.Mode=UART_MODE_TX_RX;      //æ”¶å‘æ¨¡å¼
+ HAL_UART_Init(&gyro);         //HAL_UART_Init()ä¼šä½¿èƒ½UART3
 // __HAL_UART_ENABLE_IT(&gyro, UART_IT_RXNE);
 }
 
@@ -46,10 +46,10 @@ float roll,pitch,yaw;
 
 void imu_receive_init(void)
 {
-	//ÍÓÂİÒÇ»¥³âÁ¿´´½¨
+	//é™€èºä»ªäº’æ–¥é‡åˆ›å»º
 	imu_mutex = xSemaphoreCreateMutex();
 	if (imu_mutex == NULL) {
-		// ´´½¨Ê§°Ü£¬ÏµÍ³Òì³£´¦Àí
+		// åˆ›å»ºå¤±è´¥ï¼Œç³»ç»Ÿå¼‚å¸¸å¤„ç†
 		buzzer_on();
 		delay_ms(2000);
 	}
@@ -82,7 +82,7 @@ void USART3_IRQHandler(void)
 				{
 					imu.roll   =  180.0 * (short) ((imu_rx_buf[5]<<8)|imu_rx_buf[4])/32768.0; 					
 					imu.yaw    =  180.0 * (short) ((imu_rx_buf[9]<<8)|imu_rx_buf[8])/32768.0;
-					imu.pitch  =  -180.0 * (short) ((imu_rx_buf[7]<<8)|imu_rx_buf[6])/32768.0;//ÉÏÏÂ(ÕıÎªÉÏ)
+					imu.pitch  =  -180.0 * (short) ((imu_rx_buf[7]<<8)|imu_rx_buf[6])/32768.0;//ä¸Šä¸‹(æ­£ä¸ºä¸Š)
 
 					imu.yaw -= basic_y;
 					
@@ -92,13 +92,13 @@ void USART3_IRQHandler(void)
 						imu.roll   = filter(imu.roll);
 						imu.yaw    = filter(imu.yaw);
 					}
-					// ÁÙ½çÇøĞ´Èë¹²ÏíÊı¾İ
+					// ä¸´ç•ŒåŒºå†™å…¥å…±äº«æ•°æ®
 					BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 					if (imu_mutex != NULL) {
-						if (xSemaphoreTakeFromISR(imu_mutex, &xHigherPriorityTaskWoken) == pdTRUE) {//´Ó ISR£¨ÖĞ¶Ï·şÎñ³ÌĞò£©ÖĞ³¢ÊÔ¡°»ñÈ¡¡±Õâ¸ö»¥³âËø
+						if (xSemaphoreTakeFromISR(imu_mutex, &xHigherPriorityTaskWoken) == pdTRUE) {//ä» ISRï¼ˆä¸­æ–­æœåŠ¡ç¨‹åºï¼‰ä¸­å°è¯•â€œè·å–â€è¿™ä¸ªäº’æ–¥é”
 							imu_shared_data = imu;
-							xSemaphoreGiveFromISR(imu_mutex, &xHigherPriorityTaskWoken);//xSemaphoreGiveFromISR() ÖĞ°Ñ xHigherPriorityTaskWoken ÉèÖÃÎªÁË pdTRUE
-							                                                            //Èç¹ûÓĞÈÎÎñ×èÈûÔÚµÈÕâ¸öËø£¬ÄÇÏÖÔÚËü¿ÉÒÔ±»»½ĞÑÁË
+							xSemaphoreGiveFromISR(imu_mutex, &xHigherPriorityTaskWoken);//xSemaphoreGiveFromISR() ä¸­æŠŠ xHigherPriorityTaskWoken è®¾ç½®ä¸ºäº† pdTRUE
+							                                                            //å¦‚æœæœ‰ä»»åŠ¡é˜»å¡åœ¨ç­‰è¿™ä¸ªé”ï¼Œé‚£ç°åœ¨å®ƒå¯ä»¥è¢«å”¤é†’äº†
 						}
 						portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 					}
@@ -131,7 +131,7 @@ void IMU_CalibrateZero(float* yaw_out, float* pitch_out)
         }
         else
         {
-            continue; // »ñÈ¡Ê§°ÜÔòÌø¹ı¸Ã´Î
+            continue; // è·å–å¤±è´¥åˆ™è·³è¿‡è¯¥æ¬¡
         }
 
         sum_yaw   += imu_copy.yaw;
@@ -145,22 +145,22 @@ void IMU_CalibrateZero(float* yaw_out, float* pitch_out)
     if (pitch_out) *pitch_out = avg_pitch;
 	
 }
-// ĞÂÔöÒ»¸ö»ñÈ¡×îĞÂyawµÄº¯Êı£¬·â×°ËøÂß¼­
+// æ–°å¢ä¸€ä¸ªè·å–æœ€æ–°yawçš„å‡½æ•°ï¼Œå°è£…é”é€»è¾‘
 float get_latest_yaw(void)
 {
-    static float last_yaw = 0;  // ¾²Ì¬±äÁ¿»º´æÉÏ´ÎÖµ
+    static float last_yaw = 0;  // é™æ€å˜é‡ç¼“å­˜ä¸Šæ¬¡å€¼
     struct Imu temp;
     
-    // ·Ç×èÈû»ñÈ¡Ëø£¬³É¹¦Ôò¸üĞÂlast_yaw
+    // éé˜»å¡è·å–é”ï¼ŒæˆåŠŸåˆ™æ›´æ–°last_yaw
     if (imu_mutex != NULL && xSemaphoreTake(imu_mutex, 0) == pdTRUE) {
         temp = imu_shared_data;
         last_yaw = temp.yaw;
         xSemaphoreGive(imu_mutex);
     }
     
-    return last_yaw;  // ·µ»Ø×îĞÂÖµ»òÉÏ´Î»º´æÖµ
+    return last_yaw;  // è¿”å›æœ€æ–°å€¼æˆ–ä¸Šæ¬¡ç¼“å­˜å€¼
 }
-/*Ô­ÖĞ¶Ï*/
+/*åŸä¸­æ–­*/
 //void USART3_IRQHandler(void)
 //{
 //	uint32_t flag_idle = 0;
@@ -194,7 +194,7 @@ float get_latest_yaw(void)
 //				if (imu_rx_buf[23] == 0X53)
 //				{
 //					imu.roll   = 180.0 * (short) ((imu_rx_buf[25]<<8)|imu_rx_buf[24])/32768.0;  
-//					imu.pitch  = 180.0 * (short) ((imu_rx_buf[27]<<8)|imu_rx_buf[26])/32768.0;//ÉÏÏÂ(ÕıÎªÉÏ)
+//					imu.pitch  = 180.0 * (short) ((imu_rx_buf[27]<<8)|imu_rx_buf[26])/32768.0;//ä¸Šä¸‹(æ­£ä¸ºä¸Š)
 //					imu.yaw    = 180.0 * (short) ((imu_rx_buf[29]<<8)|imu_rx_buf[28])/32768.0;
 //					if(filter_Open)
 //					{

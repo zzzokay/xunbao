@@ -3,34 +3,34 @@
 #include "sys.h"
 #include "pid.h"
 #include "chassis_api.h"
-#define Lamp_Max 16   //Ñ­¼£µÆ×î´óÊı
+#define Lamp_Max 16   //å¾ªè¿¹ç¯æœ€å¤§æ•°
 #define Lamp_Half 8
 typedef struct scaner	
 {
-	uint16_t detail;  		//¶ş½øÖÆµÆÊı¾İ
-	uint8_t detail_gray;   //»Ò¶ÈÊı¾İ
-	float error;			//Îó²î
-	float gray_error;		//»Ò¶ÈÎó²î
-	u8 ledNum;				//µÆµÄÊıÁ¿
-	u8 lineNum;      		//linenumÓÃÀ´¼ÇÂ¼ÓĞ¶àÉÙÌõÒıµ¼Ïß
+	uint16_t detail;  		//äºŒè¿›åˆ¶ç¯æ•°æ®
+	uint8_t detail_gray;   //ç°åº¦æ•°æ®
+	float error;			//è¯¯å·®
+	float gray_error;		//ç°åº¦è¯¯å·®
+	u8 ledNum;				//ç¯çš„æ•°é‡
+	u8 lineNum;      		//linenumç”¨æ¥è®°å½•æœ‰å¤šå°‘æ¡å¼•å¯¼çº¿
 }SCANER;
 
 struct Scaner_Set {
-	float CatchsensorNum;   //Ä¿±êÎ»ÖÃ
-	int8_t EdgeIgnore;		//ºöÂÔµÆ£¬×óÓÒ¸÷x¸ö
+	float CatchsensorNum;   //ç›®æ ‡ä½ç½®
+	int8_t EdgeIgnore;		//å¿½ç•¥ç¯ï¼Œå·¦å³å„xä¸ª
 };
 
 extern volatile SCANER Cross_Scaner;
 extern volatile struct Scaner_Set scaner_set;
 extern volatile uint8_t LEFT_RIGHT_LINE;
-extern float Fspeed;				//¾­¹ıPIDÔËËãºóµÄ½á¹û
+extern float Fspeed;				//ç»è¿‡PIDè¿ç®—åçš„ç»“æœ
 extern volatile SCANER Scaner;
 extern float line_weight[16];
 extern const float line_weight_default[16];
 extern const float lineG_weight_default[8];
 void Go_Line(float speed,volatile struct Motors *motor);
 void get_detail(void);
-void Cross_getline(void);
+void Cross_getline(volatile SCANER *scaner);
 uint8_t Line_Scan(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_ignore, uint8_t track_mode);
 void actions(uint8_t action);
 uint8_t getline_error(void);

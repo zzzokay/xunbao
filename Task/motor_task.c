@@ -1,19 +1,19 @@
 /**
  * @file motor_task.c
- * @brief µç»úÇı¶¯ÈÎÎñÊµÏÖ
- * Íâ²¿ÓÉmaintaskÍ¨¹ıÈ«¾Ö±äÁ¿motor_all.CspeedºÍmotor_all.Gspeed´«ÈëÄ¿±êËÙ¶È£¬ÄÚ²¿Í¨¹ıPID¼ÆËãÊä³öPWMÖµ
+ * @brief ç”µæœºé©±åŠ¨ä»»åŠ¡å®ç°
+ * å¤–éƒ¨ç”±maintaské€šè¿‡å…¨å±€å˜é‡motor_all.Cspeedå’Œmotor_all.Gspeedä¼ å…¥ç›®æ ‡é€Ÿåº¦ï¼Œå†…éƒ¨é€šè¿‡PIDè®¡ç®—è¾“å‡ºPWMå€¼
  *
- * ËÙ¶ÈÓ³Éäµ½Ö´ĞĞÁ÷³Ì£º
- * 	 1. Ä¿±êÊµ¿ØĞ¡³µÄ¿±êËÙ¶È£¬gradual_cal()½«Ä¿±êĞ¡³µËÙ¶È½øĞĞ->Êµ¿ØĞ¡³µÄ¿±êËÙ¶È£¬motor_all.Cspeed->TC_speed¡£
- *	 2. Íâ»·£¨×ªÍä£©(Go_Line()¡¢Go_Angle())
- *   	 	- Ñ²ÏßÄ£Ê½£ºÊäÈëÎªÂ·¾¶Æ«²î£¬Êä³öÎªËÙ¶È²î(Fspeed)
- *   		- ÍÓÂİÒÇÄ£Ê½£ºÊäÈëÎª½Ç¶ÈÆ«²î£¬Êä³öÎªËÙ¶È²î(GGspeed)
- *    	 	- Íâ»·²îÖµ+Êµ¿ØĞ¡³µÄ¿±êËÙ¶ÈÎª×óÓÒËÙ¶È²îÖµ(TC_speed-FSpeed=motor_all.Lspeed/TC_speed+FSpeed=motor_all.Rspeed)
- *	 3. ÄÚ»·²îÖµ»»ËãÎªÇı¶¯°å¸ø¶¨(handle_target_speed()):(motor_all.Lspeed->motor_L0.target)
- * 	 4. ÄÚ»·PID(handle_pid_control())
- *  	  	- ÊäÈë£ºÄ¿±êËÙ¶È(motor_L0.target)
- *    		- Êä³ö£ºÔöÁ¿Ê½PID
- *    		- Êä³ö£ºPWMÖµ
+ * é€Ÿåº¦æ˜ å°„åˆ°æ‰§è¡Œæµç¨‹ï¼š
+ * 	 1. ç›®æ ‡å®æ§å°è½¦ç›®æ ‡é€Ÿåº¦ï¼Œgradual_cal()å°†ç›®æ ‡å°è½¦é€Ÿåº¦è¿›è¡Œ->å®æ§å°è½¦ç›®æ ‡é€Ÿåº¦ï¼Œmotor_all.Cspeed->TC_speedã€‚
+ *	 2. å¤–ç¯ï¼ˆè½¬å¼¯ï¼‰(Go_Line()ã€Go_Angle())
+ *   	 	- å·¡çº¿æ¨¡å¼ï¼šè¾“å…¥ä¸ºè·¯å¾„åå·®ï¼Œè¾“å‡ºä¸ºé€Ÿåº¦å·®(Fspeed)
+ *   		- é™€èºä»ªæ¨¡å¼ï¼šè¾“å…¥ä¸ºè§’åº¦åå·®ï¼Œè¾“å‡ºä¸ºé€Ÿåº¦å·®(GGspeed)
+ *    	 	- å¤–ç¯å·®å€¼+å®æ§å°è½¦ç›®æ ‡é€Ÿåº¦ä¸ºå·¦å³é€Ÿåº¦å·®å€¼(TC_speed-FSpeed=motor_all.Lspeed/TC_speed+FSpeed=motor_all.Rspeed)
+ *	 3. å†…ç¯å·®å€¼æ¢ç®—ä¸ºé©±åŠ¨æ¿ç»™å®š(handle_target_speed()):(motor_all.Lspeed->motor_L0.target)
+ * 	 4. å†…ç¯PID(handle_pid_control())
+ *  	  	- è¾“å…¥ï¼šç›®æ ‡é€Ÿåº¦(motor_L0.target)
+ *    		- è¾“å‡ºï¼šå¢é‡å¼PID
+ *    		- è¾“å‡ºï¼šPWMå€¼
  *
  */
 
@@ -39,132 +39,132 @@
 #include "Rec_usart.h"
 #include "chassis_api.h"
 
-/*È«¾Ö±äÁ¿¶¨ÒåÇø*/
-TaskHandle_t motor_handler;       // ÈÎÎñ¾ä±ú
-volatile uint8_t PIDMode;         // µ±Ç°PIDÄ£Ê½
+/*å…¨å±€å˜é‡å®šä¹‰åŒº*/
+TaskHandle_t motor_handler;       // ä»»åŠ¡å¥æŸ„
+volatile uint8_t PIDMode;         // å½“å‰PIDæ¨¡å¼
 uint8_t Nosmall = 1;
-int MOTOR_PWM_MAX = 9800;         // ×î´óPWMÉè¶¨Öµ
-uint8_t open_qiang_jiao = 0;      // Ç½½ÇÄ£Ê½±êÖ¾
-extern volatile uint8_t LEFT_RIGHT_LINE
+int MOTOR_PWM_MAX = 9800;         // æœ€å¤§PWMè®¾å®šå€¼
+uint8_t open_qiang_jiao = 0;      // å¢™è§’æ¨¡å¼æ ‡å¿—
+extern volatile uint8_t LEFT_RIGHT_LINE;
 
 
-/*Ö÷¿ØÖÆÈÎÎñÖ÷Ìå*/
+/*ä¸»æ§åˆ¶ä»»åŠ¡ä¸»ä½“*/
 /*
- * ¹¦ÄÜ£ºÖÜÆÚ5msµÄÑ²Ïß±Õ»·
- * Ö´ĞĞÆµÂÊ£ºÃ¿5msÖ´ĞĞÒ»´Î
+ * åŠŸèƒ½ï¼šå‘¨æœŸ5msçš„å·¡çº¿é—­ç¯
+ * æ‰§è¡Œé¢‘ç‡ï¼šæ¯5msæ‰§è¡Œä¸€æ¬¡
  */
 void motor_task(void *pvParameters)
 {
 	portTickType xLastWakeTime;
-	xLastWakeTime = xTaskGetTickCount();   	// »ñÈ¡ÏµÍ³½ÚÅÄ
+	xLastWakeTime = xTaskGetTickCount();   	// è·å–ç³»ç»ŸèŠ‚æ‹
 
-	// ³õÊ¼»¯µ×ÅÌAPI
+	// åˆå§‹åŒ–åº•ç›˜API
 	Chassis_Init();
 
 	while (1)
 	{
-		//pid²ÎÊı½Ó¿Ú
+		//pidå‚æ•°æ¥å£
 		get_PIDdata();
 
-		/*2. »ñÈ¡µç»úËÙ¶È£¬ÄÚºËÊµÊıÖµ¼°Â·³ÌÀÛ¼Æ*/
+		/*2. è·å–ç”µæœºé€Ÿåº¦ï¼Œå†…æ ¸å®æ•°å€¼åŠè·¯ç¨‹ç´¯è®¡*/
 		handle_motor_speed();
 
-		/*3. Ä£Ê½ÇĞ»»Âß¼­ - È·±£Ä£Ê½ÇĞ»»Æ½»¬¹ı¶É*/
+		/*3. æ¨¡å¼åˆ‡æ¢é€»è¾‘ - ç¡®ä¿æ¨¡å¼åˆ‡æ¢å¹³æ»‘è¿‡æ¸¡*/
 		handle_mode_switch(PIDMode);
 
-		// ´¦ÀíÑ²ÏßÄ£Ê½
+		// å¤„ç†å·¡çº¿æ¨¡å¼
 		handle_line_mode();  
 
-		// ´¦Àí×ªÍäÄ£Ê½
+		// å¤„ç†è½¬å¼¯æ¨¡å¼
 		handle_turn_mode();   
 
-		// ´¦ÀíÍÓÂİÒÇÄ£Ê½
+		// å¤„ç†é™€èºä»ªæ¨¡å¼
 		handle_gyro_mode();   
 
-		/*5. ´¦ÀíÄ¿±êËÙ¶È »ùÓÚÄÚ»·Ä¿±êÖµ¼ÆËã*/
+		/*5. å¤„ç†ç›®æ ‡é€Ÿåº¦ åŸºäºå†…ç¯ç›®æ ‡å€¼è®¡ç®—*/
 		handle_target_speed();
 
-		/*6. Ö´ĞĞPID¼ÆËãºÍµç»úÇı¶¯*/
+		/*6. æ‰§è¡ŒPIDè®¡ç®—å’Œç”µæœºé©±åŠ¨*/
 		handle_pid_control();
 
-		/*7. µ×ÅÌAPIÖÜÆÚ¸üĞÂ - µ÷ÓÃ·ÀÓÎÁúËã·¨*/
+		/*7. åº•ç›˜APIå‘¨æœŸæ›´æ–° - è°ƒç”¨é˜²æ¸¸é¾™ç®—æ³•*/
 		Chassis_Periodic_Update_5ms();
 
-		// µ÷ÊÔĞÅÏ¢£¨±»×¢ÊÍµôµÄ²¿·Ö£©
-		/*ÍÓÂİÒÇÄ£Ê½*/ ///printf("Gyro:%.2f LSP:%.2f RSP:%.2f L0:%.2f L1:%.2f R0:%.2f R1:%.2f\r\n", imu.yaw,motor_all.Lspeed,motor_all.Rspeed,motor_L0.output,motor_L1.output,motor_R0.output,motor_R1.output);
-		/*Ñ²ÏßÖµ*/ ///printf_byte(Scaner.detail);
-		/*×óËÙ¶ÈºÍÓÒËÙ¶È*/printf("Lspeed:%.2f Rspeed:%.2f\r\n", motor_all.Lspeed, motor_all.Rspeed);
-		printf("Cspeed:%.2f Gspeed:%.2f\r\n", motor_all.Cspeed, motor_all.Gspeed);
-		/*µ±Ç°½Ç¶ÈĞÅÏ¢*/// printf("yaw:%.2f\troll:%.2f\tpitch:%.2f\tbasic:%.2f\r\n", imu.yaw, imu.roll, imu.pitch, basic_p);
-		/*µ±Ç°Ä¿µÄ½Úµã*/ //printf("%d\r\n",nodesr.nowNode.nodenum);
-		/*Ñ²Ïß´íÎó*/ //printf("Ç°%d ×ó%d ÓÒ%d\r\n", Infrared_ahead, infrared.head_left, infrared.head_right);
+		// è°ƒè¯•ä¿¡æ¯ï¼ˆè¢«æ³¨é‡Šæ‰çš„éƒ¨åˆ†ï¼‰
+		/*é™€èºä»ªæ¨¡å¼*/ //printf("Gyro:%.2f LSP:%.2f RSP:%.2f L0:%.2f L1:%.2f R0:%.2f R1:%.2f\r\n", imu.yaw,motor_all.Lspeed,motor_all.Rspeed,motor_L0.output,motor_L1.output,motor_R0.output,motor_R1.output);
+		/*å·¡çº¿å€¼*/ ///printf_byte(Scaner.detail);
+		/*å·¦é€Ÿåº¦å’Œå³é€Ÿåº¦*///printf("Lspeed:%.2f Rspeed:%.2f\r\n", motor_all.Lspeed, motor_all.Rspeed);
+		//printf("Cspeed:%.2f Gspeed:%.2f\r\n", motor_all.Cspeed, motor_all.Gspeed);
+		/*å½“å‰è§’åº¦ä¿¡æ¯*/ //printf("yaw:%.2f\troll:%.2f\tpitch:%.2f\tbasic:%.2f\r\n", imu.yaw, imu.roll, imu.pitch, basic_p);
+		/*å½“å‰ç›®çš„èŠ‚ç‚¹*/ //printf("%d\r\n",nodesr.nowNode.nodenum);
+		/*å·¡çº¿é”™è¯¯*/ //printf("å‰%d å·¦%d å³%d\r\n", Infrared_ahead, infrared.head_left, infrared.head_right);
 
-		/*±àÂëÆ÷²âÁ¿Öµ*/ //printf("L0:%.1f,L1:%.1f,R0:%.1f,R1:%.1f,TargetL:%.1f,TargetR:%.1f, pidmode:%d\r\n", motor_L0.measure, motor_L1.measure, motor_R0.measure, motor_R1.measure ,motor_all.Lspeed, motor_all.Rspeed, PIDMode);
-		/*±àÂëÆ÷Ä¿±êÖµ*///printf("L0tar:%.2f\tL1tar:%.2f\tR0tar:%.2f\tR1tar:%.2f\r\n", motor_L0.target, motor_L1.target, motor_R0.target, motor_R1.target);
-		/*±àÂëÆ÷PID*/// printf("LSP:%.2f RSP:%.2f L0:%.2f L1:%.2f R0:%.2f R1:%.2f\r\n", motor_all.Lspeed,motor_all.Rspeed,motor_L0.output,motor_L1.output,motor_R0.output,motor_R1.output);
+		/*ç¼–ç å™¨æµ‹é‡å€¼*/ //printf("L0:%.1f,L1:%.1f,R0:%.1f,R1:%.1f,TargetL:%.1f,TargetR:%.1f, pidmode:%d\r\n", motor_L0.measure, motor_L1.measure, motor_R0.measure, motor_R1.measure ,motor_all.Lspeed, motor_all.Rspeed, PIDMode);
+		/*ç¼–ç å™¨ç›®æ ‡å€¼*///printf("L0tar:%.2f\tL1tar:%.2f\tR0tar:%.2f\tR1tar:%.2f\r\n", motor_L0.target, motor_L1.target, motor_R0.target, motor_R1.target);
+		/*ç¼–ç å™¨PID*/// printf("LSP:%.2f RSP:%.2f L0:%.2f L1:%.2f R0:%.2f R1:%.2f\r\n", motor_all.Lspeed,motor_all.Rspeed,motor_L0.output,motor_L1.output,motor_R0.output,motor_R1.output);
 
-		/*´òÓ¡Ê¶±ğ½á¹û*/ //printf("%d\r\n", Clue_Num);
-		vTaskDelayUntil(&xLastWakeTime, (5 / portTICK_RATE_MS)); // ÖÜÆÚ5ms£¬È·±£Ö´ĞĞÆµÂÊÎÈ¶¨
+		/*æ‰“å°è¯†åˆ«ç»“æœ*/ //printf("%d\r\n", Clue_Num);
+		vTaskDelayUntil(&xLastWakeTime, (5 / portTICK_RATE_MS)); // å‘¨æœŸ5msï¼Œç¡®ä¿æ‰§è¡Œé¢‘ç‡ç¨³å®š
 	}
 }
 
-/*´¦Àíµç»úËÙ¶È¼°Â·³ÌÀÛ¼Æ*/
+/*å¤„ç†ç”µæœºé€Ÿåº¦åŠè·¯ç¨‹ç´¯è®¡*/
 /*
- * ¹¦ÄÜ£º
- * 1. »ñÈ¡±àÂëÆ÷ÊıÖµ£¬¼ÆËãµç»úËÙ¶È
- * 2. ¼ÆËãÆ½¾ùËÙ¶È
- * 3. ÀÛ¼ÆĞĞÊ»Â·³Ì
- * Â·³ÌÀÛ¼Æ¹«Ê½£º
- * Distance = (±àÂëÆ÷Æ½¾ùÖµ * ÂÖ×ÓÖ±¾¶ * ¦Ğ) / (±àÂëÆ÷Ã¿È¦Âö³åÊı * ¼õËÙ±È)
- * ²ÎÊıÖĞ£º
- * - ÂÖ×ÓÖ±¾¶£º10.4cm
- * - ±àÂëÆ÷Ã¿È¦Âö³åÊı£º5720
- * - ¼õËÙ±È£º0.362
+ * åŠŸèƒ½ï¼š
+ * 1. è·å–ç¼–ç å™¨æ•°å€¼ï¼Œè®¡ç®—ç”µæœºé€Ÿåº¦
+ * 2. è®¡ç®—å¹³å‡é€Ÿåº¦
+ * 3. ç´¯è®¡è¡Œé©¶è·¯ç¨‹
+ * è·¯ç¨‹ç´¯è®¡å…¬å¼ï¼š
+ * Distance = (ç¼–ç å™¨å¹³å‡å€¼ * è½®å­ç›´å¾„ * Ï€) / (ç¼–ç å™¨æ¯åœˆè„‰å†²æ•° * å‡é€Ÿæ¯”)
+ * å‚æ•°ä¸­ï¼š
+ * - è½®å­ç›´å¾„ï¼š10.4cm
+ * - ç¼–ç å™¨æ¯åœˆè„‰å†²æ•°ï¼š5720
+ * - å‡é€Ÿæ¯”ï¼š0.362
  */
 void handle_motor_speed(void)
 {
-	get_motor_speed();  // »ñÈ¡±àÂëÆ÷ÊıÖµ£¬¼ÆËãµç»úËÙ¶È
+	get_motor_speed();  // è·å–ç¼–ç å™¨æ•°å€¼ï¼Œè®¡ç®—ç”µæœºé€Ÿåº¦
 
-	// ¼ÆËãËÄ¸öµç»úÆ½¾ùËÙ¶È
+	// è®¡ç®—å››ä¸ªç”µæœºå¹³å‡é€Ÿåº¦
 	motor_all.encoder_avg = (motor_L0.measure + motor_L1.measure + motor_R0.measure + motor_R1.measure) / 4;
 
-	// ¼ÆËã²¢ÀÛ¼ÆĞĞÊ»Â·³Ì
+	// è®¡ç®—å¹¶ç´¯è®¡è¡Œé©¶è·¯ç¨‹
 	motor_all.Distance += ((motor_all.encoder_avg * 10.4f * PI)/5720.0f)/0.362f;
 }
 
 
 
-/*´¦ÀíÑ²ÏßÄ£Ê½Ö÷Ìå*/
+/*å¤„ç†å·¡çº¿æ¨¡å¼ä¸»ä½“*/
 /*
- * Ö÷ÒªÁ÷³Ì£º
- * 1. »ñÈ¡Ñ²Ïßerror
- * 2. ¼ÆËãÆ½¾ùËÙ¶È
- * 3. Ö´ĞĞÑ²ÏßÈÎÎñ
+ * ä¸»è¦æµç¨‹ï¼š
+ * 1. è·å–å·¡çº¿error
+ * 2. è®¡ç®—å¹³å‡é€Ÿåº¦
+ * 3. æ‰§è¡Œå·¡çº¿ä»»åŠ¡
  */
 void handle_line_mode(void)
 {
 	if (PIDMode == is_Line)
 	{
-		/* »ñÈ¡Ñ²Ïßerror - ÏÔÊ½´«ÈëÑ­¼£¶ÔÏóÓë²ÎÊı */
+		/* è·å–å·¡çº¿error - æ˜¾å¼ä¼ å…¥å¾ªè¿¹å¯¹è±¡ä¸å‚æ•° */
 		getline_error_ex(&Scaner,ScanerMode, scaner_set.EdgeIgnore, LEFT_RIGHT_LINE);
 
-		// Æ½»¬ËÙ¶È
+		// å¹³æ»‘é€Ÿåº¦
 		gradual_cal(&TC_speed, motor_all.Cspeed, motor_all.Cincrement, motor_all.CDOWNincrement);
 
-		// Ö´ĞĞÑ²ÏßÈÎÎñ
+		// æ‰§è¡Œå·¡çº¿ä»»åŠ¡
 		Go_Line(TC_speed, &motor_all);
 	
 	}
 	else
-		motor_all.Cspeed = 0;  // ·ÇÑ²ÏßÄ£Ê½Ê±£¬Çå³ıÑ²ÏßËÙ¶È
+		motor_all.Cspeed = 0;  // éå·¡çº¿æ¨¡å¼æ—¶ï¼Œæ¸…é™¤å·¡çº¿é€Ÿåº¦
 }
 
-/*´¦Àí×ªÍäÄ£Ê½Ö÷Ìå*/
+/*å¤„ç†è½¬å¼¯æ¨¡å¼ä¸»ä½“*/
 /*
- * Ä£Ê½·ÖÀà£º
- * 1. 360¶È×ªÈ¦
- * 2. Æ½Ì¨¸¨Öú×ªÏò£¨°üº¬ÉÏÇÅÏÂÇÅµÈ£©
- * 3. ÆÕÍ¨½Ç¶È×ªÍä
+ * æ¨¡å¼åˆ†ç±»ï¼š
+ * 1. 360åº¦è½¬åœˆ
+ * 2. å¹³å°è¾…åŠ©è½¬å‘ï¼ˆåŒ…å«ä¸Šæ¡¥ä¸‹æ¡¥ç­‰ï¼‰
+ * 3. æ™®é€šè§’åº¦è½¬å¼¯
  */
 void handle_turn_mode(void)
 {
@@ -172,46 +172,77 @@ void handle_turn_mode(void)
 	{
 		if (Turn360_Flag)
 		{
-			Turn360Step();  // Ö´ĞĞ360¶È×ªÈ¦ÈÎÎñ
+			Turn360Step();  // æ‰§è¡Œ360åº¦è½¬åœˆä»»åŠ¡
 		}
-		// Æ½Ì¨¸¨Öú
+		// å¹³å°è¾…åŠ©
 		else if (nodesr.nowNode.function == UpStage || nodesr.nowNode.function == BSoutPole || nodesr.nowNode.function == BHM)
 		{
-			if (Stage_turn_Angle(angle.AngleT))  // Ö´ĞĞÆ½Ì¨×ªÍä
-				gyroT_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0};  // ÇåÁã×ªÍäPID
+			if (Stage_turn_Angle(angle.AngleT))  // æ‰§è¡Œå¹³å°è½¬å¼¯
+				gyroT_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0};  // æ¸…é›¶è½¬å¼¯PID
 		}
-		// ÆÕÍ¨½Ç¶È
-		else if (Turn_Angle(angle.AngleT))  // Ö´ĞĞÆÕÍ¨×ªÍä
-			gyroT_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0};  // ÇåÁã×ªÍäPID
+		// æ™®é€šè§’åº¦
+		else if (Turn_Angle(angle.AngleT))  // æ‰§è¡Œæ™®é€šè½¬å¼¯
+			gyroT_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0};  // æ¸…é›¶è½¬å¼¯PID
 	}
 }
 
-/*´¦ÀíÍÓÂİÒÇÄ£Ê½Ö÷Ìå*/
+/*å¤„ç†é™€èºä»ªæ¨¡å¼ä¸»ä½“*/
 /*
- * Ö÷ÒªÁ÷³Ì£º
- * 1. ¼ÆËãÆ½¾ùËÙ¶È
- * 2. °´Ö¸¶¨½Ç¶ÈÖ´ĞĞ¸ø¶¨Ç¿ gyro
+ * ä¸»è¦æµç¨‹ï¼š
+ * 1. è®¡ç®—å¹³å‡é€Ÿåº¦
+ * 2. æŒ‰æŒ‡å®šè§’åº¦æ‰§è¡Œç»™å®šå¼º gyro
  */
 void handle_gyro_mode(void)
 {
 	if (PIDMode == is_Gyro)
 	{
-		// »ñÈ¡ÍÓÂİÒÇ´«¸ĞÆ÷ÊıÖµÓÃÓÚÅĞ¶ÏÍê³É£º
+		// è·å–é™€èºä»ªä¼ æ„Ÿå™¨æ•°å€¼ç”¨äºåˆ¤æ–­å®Œæˆï¼š
 
-		// ¼ÆËãÆ½¾ùËÙ¶È£¬×óÓÒµç»úËÙ¶ÈºÍ¸ø¼õËÙËÙ¶È£¬
+		// è®¡ç®—å¹³å‡é€Ÿåº¦ï¼Œå·¦å³ç”µæœºé€Ÿåº¦å’Œç»™å‡é€Ÿé€Ÿåº¦ï¼Œ
 		gradual_cal(&TG_speed, motor_all.Gspeed, motor_all.Gincrement, motor_all.GDOWNincrement);
 
-		// °´Ö¸¶¨½Ç¶ÈÖ´ĞĞ¸ø¶¨Ç¿ gyro
+		// æŒ‰æŒ‡å®šè§’åº¦æ‰§è¡Œç»™å®šå¼º gyro
 		Go_Angle(angle.AngleG, TG_speed, &motor_all);
 	}
 	else
-		motor_all.Gspeed = 0;  // ·ÇÍÓÂİÒÇÄ£Ê½Ê±£¬Çå³ıÍÓÂİÒÇ¸øËÙ
+		motor_all.Gspeed = 0;  // éé™€èºä»ªæ¨¡å¼æ—¶ï¼Œæ¸…é™¤é™€èºä»ªç»™é€Ÿ
 }
 
-/*´¦ÀíÄ£Ê½ÇĞ»»Âß¼­*/
+/*å¤„ç†æ¨¡å¼åˆ‡æ¢é€»è¾‘*/
 /*
- * ¹¦ÄÜ£º´¦ÀíÑ²ÏßºÍÍÓÂİÒÇÄ£Ê½Ö®¼äµÄÇĞ»»
- * Í¨¹ı¼ÇÂ¼Ç°ºó PIDMode£¬ÔÚº¯ÊıÄÚ²¿Íê³ÉÑ²Ïß/ÍÓÂİÒÇ×´Ì¬Ç¨ÒÆ
+ * åŠŸèƒ½ï¼šæ¨¡å¼ä¹‹é—´çš„å¹³æ»‘åˆ‡æ¢
+ * é€šè¿‡è®°å½•å‰å PIDModeï¼Œåœ¨å‡½æ•°å†…éƒ¨å®Œæˆå·¡çº¿/é™€èºä»ªçŠ¶æ€è¿ç§»
+ *
+ * åˆ‡æ¢è·¯å¾„åŠå¤„ç†æ–¹å¼ï¼š
+ *
+ * â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+ * â”‚   æ¥æºæ¨¡å¼   â”‚   ç›®æ ‡æ¨¡å¼   â”‚                 å¤„ç†æ–¹å¼                    â”‚
+ * â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+ * â”‚ Gyro(é™€èºä»ª) â”‚ Line(å·¡çº¿)   â”‚ æ— æ‰°è¿ç§»ï¼šgyroG_pidâ†’line_pid_objï¼Œ        â”‚
+ * â”‚             â”‚              â”‚ TG_speedâ†’TC_speedï¼ŒGspeedâ†’Cspeed           â”‚
+ * â”‚             â”‚              â”‚ åŸå› ï¼šä¸¤è€…éƒ½æ˜¯ç›´è¡Œæ§åˆ¶ï¼ŒPIDçŠ¶æ€å¯å¤ç”¨        â”‚
+ * â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+ * â”‚ Line(å·¡çº¿)   â”‚ Gyro(é™€èºä»ª) â”‚ æ— æ‰°è¿ç§»ï¼šline_pid_objâ†’gyroG_pidï¼Œ        â”‚
+ * â”‚             â”‚              â”‚ TC_speedâ†’TG_speedï¼ŒCspeedâ†’Gspeed           â”‚
+ * â”‚             â”‚              â”‚ åŸå› ï¼šåŒä¸Šï¼Œæ–¹å‘ç›¸å                        â”‚
+ * â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+ * â”‚ Turn(è½¬å¼¯)   â”‚ Line(å·¡çº¿)   â”‚ æ¸…é›¶ï¼šline_pid_objã€TC_speedã€Cspeed       â”‚
+ * â”‚             â”‚              â”‚ åŸå› ï¼šè½¬å¼¯åä¼ æ„Ÿå™¨ä½ç½®å·²å˜ï¼Œæ—§PIDçŠ¶æ€æ— æ„ä¹‰  â”‚
+ * â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+ * â”‚ Turn(è½¬å¼¯)   â”‚ Gyro(é™€èºä»ª) â”‚ æ¸…é›¶ï¼šgyroG_pidã€TG_speedã€Gspeed         â”‚
+ * â”‚             â”‚              â”‚ åŸå› ï¼šè½¬å¼¯åèˆªå‘å·²å˜ï¼Œæ—§PIDçŠ¶æ€æ— æ„ä¹‰        â”‚
+ * â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+ * â”‚ Line/Gyro    â”‚ Turn(è½¬å¼¯)   â”‚ æ¸…é›¶ï¼šgyroT_pid                            â”‚
+ * â”‚             â”‚              â”‚ åŸå› ï¼šè¿›å…¥è½¬å¼¯å‰é‡ç½®è½¬å¼¯PID                  â”‚
+ * â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+ * â”‚ ä»»æ„æ¨¡å¼     â”‚is_No          â”‚ ç”±pid_mode_switchå¤„ç†ï¼ˆå…¨æ¸…ï¼Œåœæ­¢æ—¶æ— éœ€ç­‰å¾…5msï¼‰    â”‚
+ * â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+ *
+ * è®¾è®¡è¦ç‚¹ï¼š
+ * - æ— æ‰°è¿ç§»ï¼ˆGyroâ†”Lineï¼‰ï¼šç›´æ¥å¤åˆ¶PIDè¾“å‡ºå’Œæ¸å˜é€Ÿåº¦ï¼Œåˆ‡æ¢ç¬é—´æ— è·³å˜
+ * - æ¸…é›¶ï¼ˆTurnâ†’Line/Gyroï¼‰ï¼šè½¬å¼¯åä½ç½®/èˆªå‘å·²å˜ï¼Œå¿…é¡»é‡æ–°ç§¯ç´¯PID
+ * - æ‰€æœ‰PIDæ¸…é›¶å‡åœ¨æœ¬å‡½æ•°å®Œæˆï¼Œä¿è¯è½¬æ¢é€»è¾‘åœ¨è®¡ç®—é€»è¾‘ä¹‹å‰æ‰§è¡Œ
+ * - pid_mode_switch()ä»…è´Ÿè´£PWMé™å¹…å’ŒPIDModeèµ‹å€¼
  */
 void handle_mode_switch(uint8_t target_mode)
 {
@@ -220,24 +251,40 @@ void handle_mode_switch(uint8_t target_mode)
 
 	if (current_pid_mode != last_pid_mode)
 	{
-		/* Ö»ÔÚÑ²Ïß/ÍÓÂİÒÇ»¥ÇĞÊ±Ç¨ÒÆ×´Ì¬£¬±ÜÃâÍâ²¿ÔÙ¶îÍâ´ò±êÖ¾ */
+		/* åªåœ¨å·¡çº¿/é™€èºä»ªäº’åˆ‡æ—¶è¿ç§»çŠ¶æ€ï¼Œé¿å…å¤–éƒ¨å†é¢å¤–æ‰“æ ‡å¿— */
 		if (last_pid_mode == is_Gyro && current_pid_mode == is_Line)
 		{
 			line_pid_obj = gyroG_pid;
 			TC_speed = TG_speed;
-			motor_all.Cspeed = motor_all.Gspeed;  // ½«ÍÓÂİÒÇ¸øËÙÖ±½Ó¸³Öµ¸øÑ²Ïß¸øËÙ£¬È·±£ÇĞ»»Æ½»¬
+			motor_all.Cspeed = motor_all.Gspeed;  // å°†é™€èºä»ªç»™é€Ÿç›´æ¥èµ‹å€¼ç»™å·¡çº¿ç»™é€Ÿï¼Œç¡®ä¿åˆ‡æ¢å¹³æ»‘
 			gyroG_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
 			TG_speed = 0;
-			motor_all.Gspeed = 0;// Çå³ıÍÓÂİÒÇÄ£Ê½µÄPID×´Ì¬
+			motor_all.Gspeed = 0;// æ¸…é™¤é™€èºä»ªæ¨¡å¼çš„PIDçŠ¶æ€
 		}
 		else if (last_pid_mode == is_Line && current_pid_mode == is_Gyro)
 		{
 			gyroG_pid = line_pid_obj;
 			TG_speed = TC_speed;
-			motor_all.Gspeed = motor_all.Cspeed;  // ½«Ñ²Ïß¸øËÙÖ±½Ó¸³Öµ¸øÍÓÂİÒÇ¸øËÙ£¬È·±£ÇĞ»»Æ½»¬
+			motor_all.Gspeed = motor_all.Cspeed;  // å°†å·¡çº¿ç»™é€Ÿç›´æ¥èµ‹å€¼ç»™é™€èºä»ªç»™é€Ÿï¼Œç¡®ä¿åˆ‡æ¢å¹³æ»‘
 			line_pid_obj = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
 			TC_speed = 0;
 			motor_all.Cspeed = 0;
+		}
+		else if (last_pid_mode == is_Turn && current_pid_mode == is_Line)
+		{
+			line_pid_obj = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
+			TC_speed = 0;
+			motor_all.Cspeed = 0;
+		}
+		else if (last_pid_mode == is_Turn && current_pid_mode == is_Gyro)
+		{
+			gyroG_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
+			TG_speed = 0;
+			motor_all.Gspeed = 0;
+		}
+		else if (current_pid_mode == is_Turn)
+		{
+			gyroT_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
 		}
 
 		last_pid_mode = current_pid_mode;
@@ -245,42 +292,42 @@ void handle_mode_switch(uint8_t target_mode)
 	
 }
 
-/*´¦ÀíÖ¸Ê¾µÆÖ÷Ìå*/
+/*å¤„ç†æŒ‡ç¤ºç¯ä¸»ä½“*/
 /*
- * ¹¦ÄÜ£º´¦ÀíLEDµÆµÄÉÁË¸ÈÎÎñ×´Ì¬Ö¸Ê¾
- * ÉÁË¸ÆµÂÊ£ºÔ¼2Hz£¬Ã¿100´ÎÑ­»·ÇĞ»»Ò»´Î×´Ì¬£¬Ô¼0.5Ãë£©
+ * åŠŸèƒ½ï¼šå¤„ç†LEDç¯çš„é—ªçƒä»»åŠ¡çŠ¶æ€æŒ‡ç¤º
+ * é—ªçƒé¢‘ç‡ï¼šçº¦2Hzï¼Œæ¯100æ¬¡å¾ªç¯åˆ‡æ¢ä¸€æ¬¡çŠ¶æ€ï¼Œçº¦0.5ç§’ï¼‰
  */
 void handle_led_mouse(void)
 {
-	static uint8_t mouse = 0;  		  	// Ğ¡³µ×´Ì¬¼ÆÊı
+	static uint8_t mouse = 0;  		  	// å°è½¦çŠ¶æ€è®¡æ•°
 	mouse++;
-	if (mouse > 100)  // Ã¿100´ÎÑ­»·£¬Ô¼0.5Ãë£©ÇĞ»»Ò»´Î
+	if (mouse > 100)  // æ¯100æ¬¡å¾ªç¯ï¼Œçº¦0.5ç§’ï¼‰åˆ‡æ¢ä¸€æ¬¡
 	{
 		mouse = 0;
-		LED_C1_Toggle();  // ÇĞ»»LED×´Ì¬
+		LED_C1_Toggle();  // åˆ‡æ¢LEDçŠ¶æ€
 	}
 }
 
-/*´¦ÀíÄ¿±êËÙ¶ÈÖ÷Ìå*/
+/*å¤„ç†ç›®æ ‡é€Ÿåº¦ä¸»ä½“*/
 /*
- * ¹¦ÄÜ£º¸ù¾İµ±Ç°Ä£Ê½ºÍÂ·¾¶½ÚµãÉè¶¨µÄÄ¿±êËÙ¶È
- * Âß¼­ËµÃ÷£º
- * 1. Á÷Ë®Ñ²ÏßÄ£Ê½£ºDownLiuShui == 1Ê±£¬½µµÍµ±Ç°ËÙ¶È
- * 2. ÆÕÍ¨Ä£Ê½£ºÉèÖÃËÄ¸öµç»úµÄÄ¿±êËÙ¶È
+ * åŠŸèƒ½ï¼šæ ¹æ®å½“å‰æ¨¡å¼å’Œè·¯å¾„èŠ‚ç‚¹è®¾å®šçš„ç›®æ ‡é€Ÿåº¦
+ * é€»è¾‘è¯´æ˜ï¼š
+ * 1. æµæ°´å·¡çº¿æ¨¡å¼ï¼šDownLiuShui == 1æ—¶ï¼Œé™ä½å½“å‰é€Ÿåº¦
+ * 2. æ™®é€šæ¨¡å¼ï¼šè®¾ç½®å››ä¸ªç”µæœºçš„ç›®æ ‡é€Ÿåº¦
  */
 void handle_target_speed(void)
 {
-	if(DownLiuShui)  // Á÷Ë®Ñ²ÏßÄ£Ê½
+	if(DownLiuShui)  // æµæ°´å·¡çº¿æ¨¡å¼
 	{
-		// Ç°·½ËÙ¶È³¬¹ıÁ÷Ë®ãĞÖµ£¬Ç¿ÖÆÏÈÎÈ¶¨
+		// å‰æ–¹é€Ÿåº¦è¶…è¿‡æµæ°´é˜ˆå€¼ï¼Œå¼ºåˆ¶å…ˆç¨³å®š
 		motor_L0.target = motor_all.Lspeed * LiuShuiRate;
 		motor_L1.target = motor_all.Lspeed;
 		motor_R0.target = motor_all.Rspeed * LiuShuiRate;
 		motor_R1.target = motor_all.Rspeed;
 	}
-	else  // ÆÕÍ¨Ä£Ê½
+	else  // æ™®é€šæ¨¡å¼
 	{
-		// ËÄ¸öµç»úÉèÖÃÍ¬µÄÄ¿±êËÙ¶È
+		// å››ä¸ªç”µæœºè®¾ç½®åŒçš„ç›®æ ‡é€Ÿåº¦
 		motor_L0.target = motor_L1.target = motor_all.Lspeed;
 		motor_R0.target = motor_R1.target = motor_all.Rspeed;
 	}
@@ -288,90 +335,90 @@ void handle_target_speed(void)
 
 
 
-/*»ñÈ¡±àÂëÆ÷¼ÆÊıÖµ*/
+/*è·å–ç¼–ç å™¨è®¡æ•°å€¼*/
 /*
- * ¹¦ÄÜ£º»ñÈ¡±àÂëÆ÷ÊıÖµ£¬¼ÆËãµç»úËÙ¶È
- * Ö´ĞĞÁ÷³Ì£º
- * 1. »ñÈ¡ËÄ¸ö¶¨Ê±Æ÷µÄ¼ÆÊıÖµ
- * 2. ¼ÆËã²îÖµ×÷Îª±¾´Î»ñÈ¡µÄ×¼
- * 3. ¸ù¾İ·½ÏòÏµÊıĞ£Õıµç»úËÙ¶È
+ * åŠŸèƒ½ï¼šè·å–ç¼–ç å™¨æ•°å€¼ï¼Œè®¡ç®—ç”µæœºé€Ÿåº¦
+ * æ‰§è¡Œæµç¨‹ï¼š
+ * 1. è·å–å››ä¸ªå®šæ—¶å™¨çš„è®¡æ•°å€¼
+ * 2. è®¡ç®—å·®å€¼ä½œä¸ºæœ¬æ¬¡è·å–çš„å‡†
+ * 3. æ ¹æ®æ–¹å‘ç³»æ•°æ ¡æ­£ç”µæœºé€Ÿåº¦
  *
- * Òı½Å¶ÔÓ¦¹ØÏµ£º
- * TIM1 -> ×óÇ°ÂÖ
- * TIM2 -> ×óºóÂÖ
- * TIM3 -> ÓÒÇ°ÂÖ
- * TIM5 -> ÓÒºóÂÖ
+ * å¼•è„šå¯¹åº”å…³ç³»ï¼š
+ * TIM1 -> å·¦å‰è½®
+ * TIM2 -> å·¦åè½®
+ * TIM3 -> å³å‰è½®
+ * TIM5 -> å³åè½®
  */
 void get_motor_speed()
 {
 	static uint16_t last_cnt[4] = {0};
 	uint16_t curr_cnt[4];
 
-	// »ñÈ¡´Ë¿Ì¼ÆÊıÖµ
+	// è·å–æ­¤åˆ»è®¡æ•°å€¼
 	curr_cnt[0] = TIM1->CNT;
 	curr_cnt[1] = TIM2->CNT;
 	curr_cnt[2] = TIM3->CNT;
 	curr_cnt[3] = TIM5->CNT;
 
-	// ¼ÆËã²îÖµ×÷Îª±¾´ÎÖµ£¬Ê¹ÓÃuint16_t×ÔÈ»Òç³öÌØĞÔ
+	// è®¡ç®—å·®å€¼ä½œä¸ºæœ¬æ¬¡å€¼ï¼Œä½¿ç”¨uint16_tè‡ªç„¶æº¢å‡ºç‰¹æ€§
 	Speed[0] = (int16_t)(curr_cnt[0] - last_cnt[0]);
 	Speed[1] = (int16_t)(curr_cnt[1] - last_cnt[1]);
 	Speed[2] = (int16_t)(curr_cnt[2] - last_cnt[2]);
 	Speed[3] = (int16_t)(curr_cnt[3] - last_cnt[3]);
 
-	// ¸üĞÂÉÏ´ÎÖµ
+	// æ›´æ–°ä¸Šæ¬¡å€¼
 	for(int i=0; i<4; i++) last_cnt[i] = curr_cnt[i];
 
-	// ¼ÆËãµç»úËÙ¶È£¬²âÁ¿Öµ¼°·½ÏòĞ£Õı
-	motor_L0.measure = (float)Speed[0];  // ×óÇ°ÂÖ
-	motor_L1.measure = (float)Speed[1];  // ×óºóÂÖ
-	motor_R0.measure = -(float)Speed[2];  // ÓÒÇ°ÂÖ
-	motor_R1.measure = -(float)Speed[3];  // ÓÒºóÂÖ
+	// è®¡ç®—ç”µæœºé€Ÿåº¦ï¼Œæµ‹é‡å€¼åŠæ–¹å‘æ ¡æ­£
+	motor_L0.measure = (float)Speed[0];  // å·¦å‰è½®
+	motor_L1.measure = (float)Speed[1];  // å·¦åè½®
+	motor_R0.measure = -(float)Speed[2];  // å³å‰è½®
+	motor_R1.measure = -(float)Speed[3];  // å³åè½®
 
 }
 
-/*´¦ÀíPID¼ÆËãºÍµç»úÇı¶¯*/
+/*å¤„ç†PIDè®¡ç®—å’Œç”µæœºé©±åŠ¨*/
 /*
- * ¹¦ÄÜ£ºÖ´ĞĞÔöÁ¿Ê½PID¼ÆËã²¢Êä³öPWMĞÅºÅ
- * Ö´ĞĞÌõ¼ş£ºÇ¿Çı¶¯Ä£Ê½£¨PIDMode != is_Free£©
- * Ö÷ÒªÁ÷³Ì£º
- * 1. ¼ÆËãËÄ¸öµç»úPIDÇı¶¯
- * 2. ÉèÖÃÇı¶¯PWMÖµ
+ * åŠŸèƒ½ï¼šæ‰§è¡Œå¢é‡å¼PIDè®¡ç®—å¹¶è¾“å‡ºPWMä¿¡å·
+ * æ‰§è¡Œæ¡ä»¶ï¼šå¼ºé©±åŠ¨æ¨¡å¼ï¼ˆPIDMode != is_Freeï¼‰
+ * ä¸»è¦æµç¨‹ï¼š
+ * 1. è®¡ç®—å››ä¸ªç”µæœºPIDé©±åŠ¨
+ * 2. è®¾ç½®é©±åŠ¨PWMå€¼
  */
 void handle_pid_control(void)
 {
-	if (PIDMode != is_Free)  // ·ÇÇ¿Çı¶¯Ä£Ê½Ê±Ö´ĞĞPID¼ÆËã
+	if (PIDMode != is_Free)  // éå¼ºé©±åŠ¨æ¨¡å¼æ—¶æ‰§è¡ŒPIDè®¡ç®—
 	{
-		/*PID¼ÆËã*/
-		incremental_PID(&motor_L0, &motor_pid_paramL0);  // ×óÇ°ÂÖ
-		incremental_PID(&motor_L1, &motor_pid_paramL1);  // ×óºóÂÖ
-		incremental_PID(&motor_R0, &motor_pid_paramR0);  // ÓÒÇ°ÂÖ
-		incremental_PID(&motor_R1, &motor_pid_paramR1);  // ÓÒºóÂÖ
+		/*PIDè®¡ç®—*/
+		incremental_PID(&motor_L0, &motor_pid_paramL0);  // å·¦å‰è½®
+		incremental_PID(&motor_L1, &motor_pid_paramL1);  // å·¦åè½®
+		incremental_PID(&motor_R0, &motor_pid_paramR0);  // å³å‰è½®
+		incremental_PID(&motor_R1, &motor_pid_paramR1);  // å³åè½®
 
-		/*ÉèÖÃÇı¶¯PWMÖµ*/
-		motor_set_pwm(1, (int32_t)motor_L0.output);  // ×óÇ°ÂÖ
-		motor_set_pwm(2, (int32_t)motor_L1.output);  // ×óºóÂÖ
- 		motor_set_pwm(3, (int32_t)motor_R0.output);  // ÓÒÇ°ÂÖ
-		motor_set_pwm(4, (int32_t)motor_R1.output);  // ÓÒºóÂÖ
+		/*è®¾ç½®é©±åŠ¨PWMå€¼*/
+		motor_set_pwm(1, (int32_t)motor_L0.output);  // å·¦å‰è½®
+		motor_set_pwm(2, (int32_t)motor_L1.output);  // å·¦åè½®
+ 		motor_set_pwm(3, (int32_t)motor_R0.output);  // å³å‰è½®
+		motor_set_pwm(4, (int32_t)motor_R1.output);  // å³åè½®
 	}
 }
 
-/*´´½¨µç»úÈÎÎñ*/
+/*åˆ›å»ºç”µæœºä»»åŠ¡*/
 /*
- * ¹¦ÄÜ£º´´½¨µç»ú¿ØÖÆÈÎÎñ
- * ²ÎÊıËµÃ÷£º
- * - ´´½¨ÈÎÎñ£ºmotor_task
- * - ÈÎÎñÃû³Æ£º"motor_task"
- * - Õ»¿Õ¼ä´óĞ¡£ºmotor_size£¬Ä¬ÈÏÉèÖÃÎª512¡£
- * - ÓÅÏÈ¼¶£ºmotor_task_priority£¬Ä¬ÈÏÉèÖÃÎª10¡£
- * - ÈÎÎñ¾ä±ú£ºmotor_handler
+ * åŠŸèƒ½ï¼šåˆ›å»ºç”µæœºæ§åˆ¶ä»»åŠ¡
+ * å‚æ•°è¯´æ˜ï¼š
+ * - åˆ›å»ºä»»åŠ¡ï¼šmotor_task
+ * - ä»»åŠ¡åç§°ï¼š"motor_task"
+ * - æ ˆç©ºé—´å¤§å°ï¼šmotor_sizeï¼Œé»˜è®¤è®¾ç½®ä¸º512ã€‚
+ * - ä¼˜å…ˆçº§ï¼šmotor_task_priorityï¼Œé»˜è®¤è®¾ç½®ä¸º10ã€‚
+ * - ä»»åŠ¡å¥æŸ„ï¼šmotor_handler
  */
 void motor_task_create(void)
 {
-	xTaskCreate((TaskFunction_t)motor_task,  	  // ÈÎÎñº¯Êı
-			(const char *)"motor_task",  	  // ÈÎÎñÃû³Æ
-			(uint32_t)motor_size,  	  // ÈÎÎñÕ»´óĞ¡
-			(void *)NULL,  		  // ´«µİ¸øÈÎÎñº¯ÊıµÄ²ÎÊıÖ¸Õë
-			(UBaseType_t)motor_task_priority, // ÈÎÎñÓÅÏÈ¼¶
-			(TaskHandle_t *)&motor_handler);  // ÈÎÎñ¾ä±ú
+	xTaskCreate((TaskFunction_t)motor_task,  	  // ä»»åŠ¡å‡½æ•°
+			(const char *)"motor_task",  	  // ä»»åŠ¡åç§°
+			(uint32_t)motor_size,  	  // ä»»åŠ¡æ ˆå¤§å°
+			(void *)NULL,  		  // ä¼ é€’ç»™ä»»åŠ¡å‡½æ•°çš„å‚æ•°æŒ‡é’ˆ
+			(UBaseType_t)motor_task_priority, // ä»»åŠ¡ä¼˜å…ˆçº§
+			(TaskHandle_t *)&motor_handler);  // ä»»åŠ¡å¥æŸ„
 }

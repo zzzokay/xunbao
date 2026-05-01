@@ -2,17 +2,17 @@
 #define __BSP_LINEFOLLOWER_H
 #include "sys.h"
 
-#define Infrared_ahead   (uint8_t)!HAL_GPIO_ReadPin(GPIOD,GPIO_PIN_8)	//´óÅÚ11
-#define Infrared_left	 (uint8_t)!HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_12)	//×óºìÍâ
+#define Infrared_ahead   (uint8_t)!HAL_GPIO_ReadPin(GPIOD,GPIO_PIN_8)	//å¤§ç‚®11
+#define Infrared_left	 (uint8_t)!HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_12)	//å·¦çº¢å¤–
 
-struct Infrared_Sensor    //ºìÍâ´«¸ĞÆ÷
+struct Infrared_Sensor    //çº¢å¤–ä¼ æ„Ÿå™¨
 {
-	uint8_t head_right;         	 //³µÍ·ÓÒ±ß
-	uint8_t head_left;         		 //³µÍ·×ó±ß
-	uint8_t tail_left;          	 //³µÎ²×ó±ß
-	uint8_t tail_right;              //³µÎ²ÓÒ±ß
-	uint8_t inside_outside_left;     //³µµ××ó±ß 
-	uint8_t inside_outside_right;    //³µµ×ÓÒ±ß
+	uint8_t head_right;         	 //è½¦å¤´å³è¾¹
+	uint8_t head_left;         		 //è½¦å¤´å·¦è¾¹
+	uint8_t tail_left;          	 //è½¦å°¾å·¦è¾¹
+	uint8_t tail_right;              //è½¦å°¾å³è¾¹
+	uint8_t inside_outside_left;     //è½¦åº•å·¦è¾¹ 
+	uint8_t inside_outside_right;    //è½¦åº•å³è¾¹
 };
 
 extern volatile struct Infrared_Sensor infrared;

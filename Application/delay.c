@@ -5,30 +5,30 @@
 #include "bsp_led.h"
 #include "tim.h"
 
-//ÑÓÊ±º¯Êý+µç»ú¹·
+//å»¶æ—¶å‡½æ•°+ç”µæœºç‹—
 TIM_HandleTypeDef TIM7_Handler;
 void delay_init(void)
 {
-    //¶¨Ê±Æ÷7
+    //å®šæ—¶å™¨7
     __HAL_RCC_TIM7_CLK_ENABLE();
      
-    TIM7_Handler.Instance=TIM7;                          //Í¨ÓÃ¶¨Ê±Æ÷7
-    TIM7_Handler.Init.Prescaler=216-1;                     //·ÖÆµ
-    TIM7_Handler.Init.CounterMode=TIM_COUNTERMODE_UP;    //ÏòÉÏ¼ÆÊýÆ÷
-    TIM7_Handler.Init.Period=1500-1;                        //×Ô¶¯×°ÔØÖµ
+    TIM7_Handler.Instance=TIM7;                          //é€šç”¨å®šæ—¶å™¨7
+    TIM7_Handler.Init.Prescaler=216-1;                     //åˆ†é¢‘
+    TIM7_Handler.Init.CounterMode=TIM_COUNTERMODE_UP;    //å‘ä¸Šè®¡æ•°å™¨
+    TIM7_Handler.Init.Period=1500-1;                        //è‡ªåŠ¨è£…è½½å€¼
     TIM7_Handler.Init.ClockDivision=TIM_CLOCKDIVISION_DIV1;
 	TIM7_Handler.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
     HAL_TIM_Base_Init(&TIM7_Handler);
-	HAL_NVIC_SetPriority(TIM7_IRQn,9,0);    //ÉèÖÃÖÐ¶ÏÓÅÏÈ¼¶£¬ÇÀÕ¼ÓÅÏÈ¼¶3£¬×ÓÓÅÏÈ¼¶3
-    HAL_NVIC_EnableIRQ(TIM7_IRQn);          //¿ªÆôITM4ÖÐ¶Ï  
-    HAL_TIM_Base_Start_IT(&TIM7_Handler); //Ê¹ÄÜ¶¨Ê±Æ÷7ºÍ¶¨Ê±Æ÷7ÖÐ¶Ï 
+	HAL_NVIC_SetPriority(TIM7_IRQn,9,0);    //è®¾ç½®ä¸­æ–­ä¼˜å…ˆçº§ï¼ŒæŠ¢å ä¼˜å…ˆçº§3ï¼Œå­ä¼˜å…ˆçº§3
+    HAL_NVIC_EnableIRQ(TIM7_IRQn);          //å¼€å¯ITM4ä¸­æ–­  
+    HAL_TIM_Base_Start_IT(&TIM7_Handler); //ä½¿èƒ½å®šæ—¶å™¨7å’Œå®šæ—¶å™¨7ä¸­æ–­ 
 }
 
 //1.5ms  
 void TIM7_IRQHandler(void)
 {
-	static uint8_t mouse = 0;    //Ð¡µÆÊó
-    if(__HAL_TIM_GET_IT_SOURCE(&TIM7_Handler,TIM_IT_UPDATE)==SET)//Òç³öÖÐ¶Ï
+	static uint8_t mouse = 0;    //å°ç¯é¼ 
+    if(__HAL_TIM_GET_IT_SOURCE(&TIM7_Handler,TIM_IT_UPDATE)==SET)//æº¢å‡ºä¸­æ–­
     {		
 		mouse++;
 		if(mouse>100)
@@ -37,11 +37,11 @@ void TIM7_IRQHandler(void)
 			LED_C0_Toggle();
 		}
 	}
-    __HAL_TIM_CLEAR_IT(&TIM7_Handler, TIM_IT_UPDATE);//Çå³ýÖÐ¶Ï±êÖ¾Î»
+    __HAL_TIM_CLEAR_IT(&TIM7_Handler, TIM_IT_UPDATE);//æ¸…é™¤ä¸­æ–­æ ‡å¿—ä½
 	HAL_TIM_IRQHandler(&TIM7_Handler);
 }
 
-//×î¶àÑÓÊ±1500us
+//æœ€å¤šå»¶æ—¶1500us
 void delay_us(uint16_t nus)
 {
    TIM7->CNT = 0;

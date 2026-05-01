@@ -7,12 +7,12 @@
 
 struct Imu
 {
-	float yaw; //Æ«º½½Ç(ÈÆZÖá)
-	float roll; //ºá¹ö½Ç:ÎïÌåÈÆÇ°ºóÖá£¨XÖá£©
-	float pitch; //¸©Ñö½Ç£ºÎïÌåÈÆ×óÓÒÖá£¨YÖá£©
+	float yaw; //åèˆªè§’(ç»•Zè½´)
+	float roll; //æ¨ªæ»šè§’:ç‰©ä½“ç»•å‰åè½´ï¼ˆXè½´ï¼‰
+	float pitch; //ä¿¯ä»°è§’ï¼šç‰©ä½“ç»•å·¦å³è½´ï¼ˆYè½´ï¼‰
 
-	float compensateZ; //ZÖá²¹³¥Öµ
-	float compensatePitch; //¸©Ñö½Ç²¹³¥Öµ
+	float compensateZ; //Zè½´è¡¥å¿å€¼
+	float compensatePitch; //ä¿¯ä»°è§’è¡¥å¿å€¼
 };
 extern SemaphoreHandle_t imu_mutex;
 extern struct Imu imu_shared_data;

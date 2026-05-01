@@ -3,16 +3,16 @@
 
 #include "sys.h"
 
-#define Up_pitch   basic_p+12   //while(imu.pitch<Up_pitch)  ³öÑ­»· ¸ÕÉÏÇÅ
-#define Down_pitch basic_p-12   //while(imu.pitch>Down_pitch)³öÑ­»· ¸ÕÏÂÇÅ 
-#define After_down basic_p-5    //while(imu.pitch<After_down)³öÑ­»·ÏÂÍê ÔÚÆ½µØ
-#define After_up   basic_p+5    //while(imu.pitch>After_up)³öÑ­»·ÉÏÍê ÔÚÆ½µØ
+#define Up_pitch   basic_p+12   //while(imu.pitch<Up_pitch)  å‡ºå¾ªç¯ åˆšä¸Šæ¡¥
+#define Down_pitch basic_p-12   //while(imu.pitch>Down_pitch)å‡ºå¾ªç¯ åˆšä¸‹æ¡¥ 
+#define After_down basic_p-5    //while(imu.pitch<After_down)å‡ºå¾ªç¯ä¸‹å®Œ åœ¨å¹³åœ°
+#define After_up   basic_p+5    //while(imu.pitch>After_up)å‡ºå¾ªç¯ä¸Šå®Œ åœ¨å¹³åœ°
 
-#define Old_M_Speed    6                //ÀÏÒ¯Ò¯
-#define QQB_Out_Speed  8                //³öõÎõÎ°å
-#define BL_Speed 	   12               //²¨ÀË°å
+#define Old_M_Speed    6                //è€çˆ·çˆ·
+#define QQB_Out_Speed  8                //å‡ºè··è··æ¿
+#define BL_Speed 	   12               //æ³¢æµªæ¿
 #define Rubbish_Speed  13               //Rubbish
-#define Stop_T_Speed   15               //Ô­µØ×ª
+#define Stop_T_Speed   15               //åŸåœ°è½¬
 #define UnderMou_Speed 20
 #define GoStage_Speed  12   //16
 #define Low_Speed      20 
@@ -52,7 +52,7 @@ void Stage(void);
 void Barrier_Bridge(void);
 void Barrier_Hill(void) ;
 void back(void);
-void view1(void);//´ò¾°µã	
+void view1(void);//æ‰“æ™¯ç‚¹	
 void Sword_Mountain(void);
 void Barrier_HighMountain(float speed);
 void Barrier_Down_HighMountain(float speed);
@@ -72,7 +72,7 @@ void zhunbei(void);
 void select_speed_stage(void);
 //void Protect(float angle1);
 
-//void DragonProtection(void); //ÓÎÁú±£»¤
+//void DragonProtection(void); //æ¸¸é¾™ä¿æŠ¤
 
 void Connect(uint8_t Route[]);
 void CGChange(float Speed);

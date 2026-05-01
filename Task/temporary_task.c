@@ -19,28 +19,28 @@
 #include "task.h"
 #include "Rec_usart.h"
 
-/*¿ªÊ¼ÈÎÎñ*/
+/*å¼€å§‹ä»»åŠ¡*/
 void Start_task(void *pvParameters)
 {	
 	user_init();
 
-	taskENTER_CRITICAL(); // ½øÈëÁÙ½çÇø
+	taskENTER_CRITICAL(); // è¿›å…¥ä¸´ç•ŒåŒº
    
 	Rec_usart_init();	
-	main_task_create(); // ´´½¨Ö÷¿ØÈÎÎñ
+	main_task_create(); // åˆ›å»ºä¸»æ§ä»»åŠ¡
 	motor_task_create();
-	create_ArriveDetect_task();//¼ì²â½áµãÈÎÎñ£¡£¡²»¿ÉÒÔ¹ÒÆğsuspend	
+	create_ArriveDetect_task();//æ£€æµ‹ç»“ç‚¹ä»»åŠ¡ï¼ï¼ä¸å¯ä»¥æŒ‚èµ·suspend	
 	
-	vTaskDelete(Start_handler); // É¾³ı¿ªÊ¼ÈÎÎñ
+	vTaskDelete(Start_handler); // åˆ é™¤å¼€å§‹ä»»åŠ¡
 
-	taskEXIT_CRITICAL();		// ÍË³öÁÙ½çÇø
+	taskEXIT_CRITICAL();		// é€€å‡ºä¸´ç•ŒåŒº
 }
 
 /*****************************************************************************
-º¯ÊıÃû£º GET_free_RAM
-º¯Êı¹¦ÄÜ£º»ñµÃÈÎÎñµÄÊ£Óà¶ÑÕ»´óĞ¡ ²¢ÇÒ´òÓ¡
-ĞÎ²Î£º¸ÃÈÎÎñµÄ¾ä±ú      Èô´«»ØNULL£¬ÔòÎª¸ÃÈÎÎñµÄ¶ÑÕ»
-×¢Òâ£ºINCLUDE_uxTaskGetStackHighWaterMark 1    ²ÅÄÜÊ¹ÓÃ
+å‡½æ•°åï¼š GET_free_RAM
+å‡½æ•°åŠŸèƒ½ï¼šè·å¾—ä»»åŠ¡çš„å‰©ä½™å †æ ˆå¤§å° å¹¶ä¸”æ‰“å°
+å½¢å‚ï¼šè¯¥ä»»åŠ¡çš„å¥æŸ„      è‹¥ä¼ å›NULLï¼Œåˆ™ä¸ºè¯¥ä»»åŠ¡çš„å †æ ˆ
+æ³¨æ„ï¼šINCLUDE_uxTaskGetStackHighWaterMark 1    æ‰èƒ½ä½¿ç”¨
 *******************************************************************************/
 void GET_free_RAM(TaskHandle_t xTask)
 {
@@ -48,14 +48,14 @@ void GET_free_RAM(TaskHandle_t xTask)
 	vTaskDelay(500);
 }
 
-/*³õÊ¼»¯ÍâÉè£¬½á¹¹ÌåµÈ*/
+/*åˆå§‹åŒ–å¤–è®¾ï¼Œç»“æ„ä½“ç­‰*/
 void user_init(void)
 {
-//	uart_init(115200); // ³õÊ¼»¯ÖØ¶¨Ïò´®¿Ú
+//	uart_init(115200); // åˆå§‹åŒ–é‡å®šå‘ä¸²å£
 	Encoder_init();
 //	IIC_Init();
 	Gray_Init();
-//	Rudder_Init(9600); // ¶æ»ú³õÊ¼»¯
+//	Rudder_Init(9600); // èˆµæœºåˆå§‹åŒ–
 	Maxicam_Enable();
 	imu_receive_init();
 	motor_init();

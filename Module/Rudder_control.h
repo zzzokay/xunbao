@@ -22,8 +22,8 @@ void Rudder_Init(uint32_t bound);
 #define HEAD_RIGHT  4
 
 
-#define FRAME_HEADER 0x55             //帧头
-#define CMD_SERVO_MOVE 0x03           //舵机移动指令
+#define FRAME_HEADER 0x55             //甯уご
+#define CMD_SERVO_MOVE 0x03           //鑸垫満绉诲姩鎸囦护
 
 void Robot_Work(uint8_t id, uint8_t aim);
 void moveServo(uint8_t servoID, uint16_t Position, uint16_t Time);

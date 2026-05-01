@@ -33,6 +33,7 @@ struct Motors
 	float Gspeed;				//自平衡速度
 	float GyroT_speedMax;		//转弯最大速度
 	float GyroG_speedMax;		//自平衡最大速度
+	float Line_speedMax;		//巡线差速最大值
 	
 	float encoder_avg;			//编码器读数 
 	float Distance;				//路程

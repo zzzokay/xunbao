@@ -13,7 +13,7 @@ Application/          # 应用层 — 地图导航、障碍处理、底盘API
   ├── map_message.c/h # 地图数据（Node[]连接表）
   ├── barrier.c/h     # 障碍处理（平台/桥/山/南极/跷跷板/波动板）
   ├── scaner.c/h      # 16路巡线传感器
-  ├── turn.c/h        # 转弯控制（原地转、陀螺仪转、360°转）
+  ├── turn.c/h        # 转弯控制（原地转、陀螺仪转、360°转、梯形速度曲线）
   ├── gray.c/h        # 灰度传感器(I2C软件模拟)
   ├── IIC.c/h         # 软件I2C
   ├── motion.c/h      # 运动控制
@@ -115,6 +115,7 @@ struct Motors {
     float Gspeed;                 // 陀螺仪速度
     float GyroT_speedMax;         // 转弯最大速度
     float GyroG_speedMax;         // 直行最大速度
+    float Line_speedMax;          // 巡线差速最大值
     float encoder_avg;            // 编码器平均
     float Distance;               // 累计里程(cm)
     float Cincrement;             // 巡线加速度
@@ -174,9 +175,9 @@ uint8_t get_cude, get_a, get_b; // 线索标志
 
 | 用途 | Kp | Ki | Kd | outputMax |
 |------|----|----|----|-----------|
-| 巡线(line) | 10.5 | 0 | 500 | ±100 |
-| 转弯(gyroT) | 4.0 | 0 | 70 | ±100 |
-| 陀螺仪直行(gyroG) | 2 | 0.004 | 0.5 | ±100 |
+| 巡线(line) | 10.5 | 0 | 500 | ±80 |
+| 转弯(gyroT) | 4.0 | 0 | 70 | ±80 |
+| 陀螺仪直行(gyroG) | 2 | 0.004 | 0.5 | ±80 |
 | 灰度(lineG) | 15 | 0 | 5 | ±100 |
 
 ### 5.3 速度等级 ([chassis_api.h](Application/chassis_api.h))
@@ -382,3 +383,140 @@ DOOR      → door()          // 开门
 - 当前分支: `study_code`
 - 主分支: `main`
 - 最近提交: `4f4816f` 接口验证完成
+
+---
+
+## 十六、模式切换逻辑审查（2026-05-01）
+
+### 16.1 流程概览
+
+```
+map.c / barrier.c
+    ↓
+Chassis_MotorControl() 或 Chassis_SetMode()
+    ↓
+pid_mode_switch()          ← 立即执行，设PWM_MAX，清目标模式PID
+    ↓
+PIDMode = target_mode      ← 全局状态更新
+    ↓
+motor_task 5ms循环:
+    handle_mode_switch()   ← 检测变化，处理状态转移
+    handle_line_mode()
+    handle_turn_mode()
+    handle_gyro_mode()
+    handle_target_speed()
+    handle_pid_control()
+    Chassis_Periodic_Update_5ms()
+```
+
+### 16.2 handle_mode_switch 状态转移表
+
+| 来源 | 目标 | 处理方式 |
+|------|------|---------|
+| Gyro → Line | 无扰转移：gyroG_pid → line_pid_obj，TG_speed → TC_speed |
+| Line → Gyro | 无扰转移：line_pid_obj → gyroG_pid，TC_speed → TG_speed |
+| Turn → Line | 清零：line_pid_obj、TC_speed、Cspeed（转弯后位置已变，重新开始） |
+| Turn → Gyro | 清零：gyroG_pid、TG_speed、Gspeed（转弯后位置已变，重新开始） |
+| Line → Turn | 清零：gyroT_pid（进入转弯前重置转弯PID） |
+| Gyro → Turn | 同上 |
+
+### 16.3 待修复问题
+
+**P0: pid_mode_switch 进入 is_Turn 时清零范围过大** ✓ 已修复
+- 文件: Application/chassis_api.c, 函数: pid_mode_switch
+- 修复: 进入 is_Turn 只清零 gyroT_pid，删掉了对 line_pid_obj、gyroG_pid、TG_speed、TC_speed 的清零
+- 后续优化: gyroT_pid 清零也移至 handle_mode_switch，pid_mode_switch 仅负责 PWM 限幅和 PIDMode 赋值
+
+**P0: Turn→Line/Gyro 缺少转换逻辑** ✓ 已修复
+- 文件: Task/motor_task.c, 函数: handle_mode_switch
+- 修复: 新增 Turn→Line（清零 line_pid_obj/TC_speed/Cspeed）和 Turn→Gyro（清零 gyroG_pid/TG_speed/Gspeed）
+
+**P1: chassis.PID_mode 和 PIDMode 不同步** ✓ 已修复
+- 删除 chassis.PID_mode，统一使用全局 PIDMode
+- Chassis_Init/Brake 直接写 PIDMode，Chassis_SetMode 通过 pid_mode_switch 写 PIDMode
+
+**P1: anti_snake 和 Override 会冲突** ✓ 已修复
+- 文件: Application/chassis_api.c, 函数: Chassis_Periodic_Update_5ms
+- 问题: 游龙防护直接改 line_pid_param.kp/kd，如果 Chassis_OverrideLinePid 生效，会覆盖掉 Override 的值
+- 修复: 游龙现在通过 Chassis_OverrideLinePid 修改 PID，复用 Override/Restore 机制，不再直接改 line_pid_param
+
+**P1: Chassis_OverrideLinePid 没有保存 outputMax** ✓ 已修复
+- 文件: Application/chassis_api.c, 函数: Chassis_OverrideLinePid
+- 问题: saved_line_outputMax 声明了但从未赋值，RestoreLinePid 会把 outputMax 设成 0
+- 修复: 差速限幅统一到 motor_all.Line_speedMax，OverrideLinePid 保存/恢复 motor_all.Line_speedMax，不再修改 line_pid_param.outputMax（固定 ±80）
+
+**P2: is_Turn 绕过 Chassis_SetMode** ✓ 已修复
+- 文件: Application/chassis_api.c, 函数: Chassis_MotorControl
+- 问题: is_Turn 直接调用 Turn_Angle_Relative → pid_mode_switch，跳过了 Chassis_SetMode
+- 修复: anti_snake 重置移入 pid_mode_switch，所有模式切换路径（包括 Turn_Angle_Relative 直接调用）都会清除游龙状态
+
+**P2: Want2Go 和 Chassis_MoveDistance_Blocking 重复**
+- 两个函数逻辑完全一样，Want2Go 应删除
+
+**P2: 角度归一化代码重复3次**
+- Chassis_SetGyroAngle_Go、Chassis_SetGyroAngle_Turn、Chassis_Turn_By_Gyro_Blocking 都有 if > 180 / if <= -180
+- 应提取 normalize_angle() 工具函数
+
+**P2: anti_snake 衰减逻辑可能写反** ✓ 已修复
+- 注释说"回正后迅速衰减警戒值"
+- 修复: 衰减改为 anti_snake_err_count -= 10（真正的递减），解除条件改为 err_count <= 0
+
+### 16.4 差速限幅统一
+
+巡线差速限幅已统一到 `motor_all.Line_speedMax`，与陀螺仪的 `motor_all.GyroG_speedMax` 和转弯的 `motor_all.GyroT_speedMax` 保持一致：
+- 删除 `LINE_SPEED_MAX` 宏（原 scaner.c 硬编码 100）
+- `Go_Line()` 使用 `motor_all.Line_speedMax` 作为差速上限
+- `Chassis_OverrideLinePid` 保存/恢复 `motor_all.Line_speedMax`，不再修改 `line_pid_param.outputMax`
+- `line_pid_param.outputMax` 固定 ±80，不再被外部修改
+
+### 16.5 文件编码
+
+2026-05-01 全部项目源文件已从 GBK 转为 UTF-8，可直接用 Edit 工具编辑。
+唯一未转换：Middlewares/Third_Party/FreeRTOS 下的 cmsis_os.c/h（非项目代码）。
+
+---
+
+## 十七、转弯逻辑审查与重构（2026-05-01）
+
+### 17.1 turn.c 函数总览
+
+| 函数 | 作用 | 调用者 |
+|------|------|--------|
+| `need2turn(now, target)` | 计算最短旋转角 (-180, 180] | 内部工具 |
+| `getAngleZ()` | 返回补偿航向角 = `get_latest_yaw() + compensateZ` | 转弯/巡线 |
+| `mpuZreset(sensor, ref)` | 设置零偏补偿 | 开机校准 |
+| `Turn_Angle_Base(Angle, ratio)` | 原地转基函数（static） | Turn_Angle / Stage_turn_Angle |
+| `Turn_Angle(Angle)` | 原地转（左右对称，ratio=1.0） | motor_task handle_turn_mode |
+| `Stage_turn_Angle(Angle)` | 平台转（右电机 x1.3 补偿阻力） | motor_task handle_turn_mode |
+| `Turn360Step()` | 360° 转圈单步（梯形速度曲线） | motor_task handle_turn_mode |
+| `Turn_Angle_Relative(Angle1)` | 相对角转绝对角，设 is_Turn 模式 | chassis_api |
+| `Turn_Angle360()` | 阻塞型 360° 转圈入口 | map.c / barrier.c |
+| `Go_Angle(angle, speed, motor)` | 陀螺仪直行（PID 修正差速） | motor_task handle_gyro_mode |
+| `FreeTurn(Angle, L, R)` | 开环直接设 PWM（死代码，未被调用） | 无 |
+
+### 17.2 360° 转圈重构
+
+**旧方案**（PID + MustBeZero 脉冲）：
+- 双层 `Change360Angle` 转 0-360 空间计算
+- `MustBeZero` 每 500ms 脉冲强制全速，然后检查真实角度
+- 速度不平滑：全速 500ms → 停 → PID 慢速 → 再全速
+
+**新方案**（梯形速度曲线，无 PID）：
+- 累加法：每 5ms 算 `delta = curr_yaw - prev_yaw`，处理 ±180° 边界回绕
+- 梯形速度曲线：加速(0-30°) → 全速(30-300°) → 减速(300-358°) → 停
+- 顺时针：`Lspeed = +GTspeed, Rspeed = -GTspeed`
+- 可调参数（`#define`）：`TURN360_FULL_SPEED`(25), `TURN360_MIN_SPEED`(8), `TURN360_ACCEL_END`(30°), `TURN360_DECEL_START`(300°), `TURN360_STOP_ANGLE`(358°)
+
+**已清理**：`MustBeZero` 变量、`Turn360RecallAngle` 变量。`Change360Angle` 保留但 360° 转圈不再使用。
+
+### 17.3 Turn_Angle / Stage_turn_Angle 合并
+
+两者逻辑 90% 相同，唯一区别是右电机速比。提取 `static Turn_Angle_Base(Angle, right_ratio)` 基函数：
+- `Turn_Angle(Angle)` → `Turn_Angle_Base(Angle, 1.0f)`
+- `Stage_turn_Angle(Angle)` → `Turn_Angle_Base(Angle, 1.3f)`
+
+### 17.4 IMU 并发安全
+
+- `Turn360Step` 已从 `imu.yaw` 改为 `get_latest_yaw()`（通过 mutex 保护）
+- `Go_Angle` / `Turn_Angle_Base` 使用 `getAngleZ()`（内部调用 `get_latest_yaw()`）
+- printf 调试输出直接读 `imu.yaw` 可接受（单次 float 读原子，调试用途无需一致性）

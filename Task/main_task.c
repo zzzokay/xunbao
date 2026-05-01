@@ -23,67 +23,67 @@
 #include "scaner.h"
 #include "motor.h"
 #include "chassis_api.h"
-
-/*Ö÷ÈÎÎñ*/
+uint8_t test_flag =0;
+/*ä¸»ä»»åŠ¡*/
 void main_task(void *pvParameters)
 {
 	portTickType xLastWakeTime;
-	xLastWakeTime = xTaskGetTickCount();   //»ñÈ¡ÏµÍ³½ÚÅÄ¡¢
-	zhunbei(); // Æô¶¯Á÷³Ì//×¢ÒâÓĞµ²°å »á¿¨ÔÚÕâ
-	encoder_clear(); // Â·³Ì¼ÇÂ¼ÇåÁã
+	xLastWakeTime = xTaskGetTickCount();   //è·å–ç³»ç»ŸèŠ‚æ‹ã€
+	zhunbei(); // å¯åŠ¨æµç¨‹//æ³¨æ„æœ‰æŒ¡æ¿ ä¼šå¡åœ¨è¿™
+	encoder_clear(); // è·¯ç¨‹è®°å½•æ¸…é›¶
 	Motor_Control(is_Line, SPEED0, SPEED0, 0);
 	
 	
-	uint8_t test_flag =1;
+	
 	while (1)
 	{
 
-		// /*¶şÂÖ´¦Àí*/
+		// /*äºŒè½®å¤„ç†*/
 		// if(map.routetime == 1)
 		// {
 		// 	map.routetime = 2;
 		// 	get_newroute();
 
-		// 	// ÍÓÂİÒÇ½Ç¶È¸´Î»£¬²ÉÑù10´ÎÈ¡Æ½¾ùÖµ
+		// 	// é™€èºä»ªè§’åº¦å¤ä½ï¼Œé‡‡æ ·10æ¬¡å–å¹³å‡å€¼
 		// 	IMU_CalibrateZero(&basic_y,&basic_p);
-		// 	mpuZreset(basic_y, nodesr.nowNode.angle); // °Ñ´ËÊ±½Ç¶È±äÎª´Ë½áµã½Ç¶È
+		// 	mpuZreset(basic_y, nodesr.nowNode.angle); // æŠŠæ­¤æ—¶è§’åº¦å˜ä¸ºæ­¤ç»“ç‚¹è§’åº¦
 		// 	zhunbei();
 
-		// 	encoder_clear(); // Â·³Ì¼ÇÂ¼ÇåÁã
+		// 	encoder_clear(); // è·¯ç¨‹è®°å½•æ¸…é›¶
 		// 	Motor_Control(is_Line, SPEED0, SPEED0, 0);
 		// }
 		
 		
  		if(test_flag)
  		{
-			//vTaskDelay(100);
+			vTaskDelay(100);
 
-			////Ö±ÏßÑ­¼£
+			////ç›´çº¿å¾ªè¿¹
 			// Chassis_DriveDistance_Blocking(is_Line,20,20,0,0);
 			// Chassis_SetTargetSpeed(SPEED0);
 			// vTaskDelay(500);
 			// Chassis_Brake();
  			
 
-			////Æ«×óÑ­¼£
+			////åå·¦å¾ªè¿¹
 			// Chassis_SetTrackMode(TRACK_LEFT_EDGE);
 			// Chassis_DriveDistance_Blocking(is_Line,50,25,0,0);
 			// Chassis_Brake();
 			
 			
-			////Æ«ÓÒÑ­¼£
+			////åå³å¾ªè¿¹
 			// Chassis_SetTrackMode(TRACK_RIGHT_EDGE);
 			// Chassis_DriveDistance_Blocking(is_Line,50,25,0,0);
 			// Chassis_Brake();
 		
 
-			////Á÷Ë®Ñ­¼£
+			////æµæ°´å¾ªè¿¹
 			// Chassis_SetTrackMode(TRACK_LIUSHUI);
 			// Chassis_DriveDistance_Blocking(is_Line,50,25,0,0);
 			// Chassis_Brake();
 		
 			
-			////¹Ì¶¨½Ç¶ÈÖ±ĞĞ
+			////å›ºå®šè§’åº¦ç›´è¡Œ
 			//Chassis_DriveDistance_Blocking(is_Gyro,100,20,getAngleZ(),0);
 			// Chassis_SetMode(is_Gyro);
 			// Chassis_SetGyroAngle_Go(getAngleZ());
@@ -92,28 +92,28 @@ void main_task(void *pvParameters)
 			// Chassis_Brake();
 
 
-			////¹Ì¶¨½Ç¶È×ªÍä			 
+			////å›ºå®šè§’åº¦è½¬å¼¯			 
 			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+90, getAngleZ());
 			
 			
-			////Ñ­¼£×ªÏò
+			////å¾ªè¿¹è½¬å‘
 			//Chassis_SetMode(is_Gyro);
 			//Chassis_SetTargetSpeed(15);
 			//Chassis_Turn_By_Gyro_Blocking(getAngleZ()+90, getAngleZ());
 			//Chassis_Brake();
-			
+			Turn_Angle360();
 			test_flag=0;
 		}			
 		
-//		/*½Úµã¼ä´¦Àí*/
-		//Cross();
+//		/*èŠ‚ç‚¹é—´å¤„ç†*/
+		Cross();
 //		
-//		/*¶şÂÖ½áÊø´¦Àí*/
+//		/*äºŒè½®ç»“æŸå¤„ç†*/
 //		if(map.routetime==3)
 //			CarBrake_Stop();
 	
 		
 		
-		vTaskDelayUntil(&xLastWakeTime, (5/portTICK_RATE_MS));//¾ø¶ÔĞİÃß5ms // INCLUDE_vTaskDelayUntil 1
+		vTaskDelayUntil(&xLastWakeTime, (5/portTICK_RATE_MS));//ç»å¯¹ä¼‘çœ 5ms // INCLUDE_vTaskDelayUntil 1
 	}
 }

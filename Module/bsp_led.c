@@ -1,6 +1,6 @@
 /*
  * @File: bsp_led.c
- * @Description: LED�弶֧�ְ�
+ * @Description: LED板级支持包
  * @Version: 1.0.0
  * @Author: 
  * @Date: 2023-09-13 20:33:36

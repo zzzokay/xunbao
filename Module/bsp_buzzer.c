@@ -6,7 +6,7 @@
  * @Date: 2023-09-13 20:33:36
  * @LastEditTime: 2023-09-15 15:36:41
  */
-#include "bsp_buzzer.h" //¿ØÖÆ·äÃùÆ÷£¨buzzer£©µÄ¿ª¹Ø¹¦ÄÜ
+#include "bsp_buzzer.h" //æŽ§åˆ¶èœ‚é¸£å™¨ï¼ˆbuzzerï¼‰çš„å¼€å…³åŠŸèƒ½
 #include "main.h" 
 
 void buzzer_on(void)

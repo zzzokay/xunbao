@@ -5,24 +5,24 @@
 #include "main.h"
 #include "cmsis_os.h"
 #include "ArriveDetect_task.h"
-//¿ªÊ¼ÈÎÎñ
-extern TaskHandle_t Start_handler ; //¶¨Òå¿ªÊ¼ÈÎÎñ¾ä±ú
-void Start_task(void *pvParameters);//ÉùÃ÷ÈÎÎñº¯Êı
-#define Start_size  256   //ÈÎÎñ¶ÑÕ»´óĞ¡
-#define Start_task_priority 32  //ÈÎÎñÓÅÏÈ¼¶
+//å¼€å§‹ä»»åŠ¡
+extern TaskHandle_t Start_handler ; //å®šä¹‰å¼€å§‹ä»»åŠ¡å¥æŸ„
+void Start_task(void *pvParameters);//å£°æ˜ä»»åŠ¡å‡½æ•°
+#define Start_size  256   //ä»»åŠ¡å †æ ˆå¤§å°
+#define Start_task_priority 32  //ä»»åŠ¡ä¼˜å…ˆçº§
 
 
-//Ö÷¿ØÈÎÎñ
-extern TaskHandle_t main_handler ; //¶¨ÒåÖ÷¿ØÈÎÎñ¾ä±ú
-void main_task(void *pvParameters);//ÉùÃ÷ÈÎÎñº¯Êı
-//#define main_size  1024*3  //ÈÎÎñ¶ÑÕ»´óĞ¡
-#define main_size  1024*2  //ÈÎÎñ¶ÑÕ»´óĞ¡
-#define main_task_priority  12//7  //12 //ÈÎÎñÓÅÏÈ¼¶12
+//ä¸»æ§ä»»åŠ¡
+extern TaskHandle_t main_handler ; //å®šä¹‰ä¸»æ§ä»»åŠ¡å¥æŸ„
+void main_task(void *pvParameters);//å£°æ˜ä»»åŠ¡å‡½æ•°
+//#define main_size  1024*3  //ä»»åŠ¡å †æ ˆå¤§å°
+#define main_size  1024*2  //ä»»åŠ¡å †æ ˆå¤§å°
+#define main_task_priority  12//7  //12 //ä»»åŠ¡ä¼˜å…ˆçº§12
 
-extern TaskHandle_t xHandle_ArriveDetect;//¶¨Òå¼ì²â½ÚµãÈÎÎñ
-//void ArriveDetect_task(void *pvParameters);//ÉùÃ÷ÈÎÎñº¯Êı
-#define ArriveDetect_size  512   //ÈÎÎñ¶ÑÕ»´óĞ¡
-#define ArriveDetect_task_priority 10  //ÈÎÎñÓÅÏÈ¼¶
+extern TaskHandle_t xHandle_ArriveDetect;//å®šä¹‰æ£€æµ‹èŠ‚ç‚¹ä»»åŠ¡
+//void ArriveDetect_task(void *pvParameters);//å£°æ˜ä»»åŠ¡å‡½æ•°
+#define ArriveDetect_size  512   //ä»»åŠ¡å †æ ˆå¤§å°
+#define ArriveDetect_task_priority 10  //ä»»åŠ¡ä¼˜å…ˆçº§
 
 void Start_task_create(void);
 void main_task_create(void);

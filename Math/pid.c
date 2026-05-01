@@ -21,15 +21,15 @@ struct P_pid_obj line_pid_obj = {0, 0, 0, 0, 0, 0};
 struct PID_param line_pid_param;
 struct PID_param lineG_pid_param;
 
-struct P_pid_obj gyroT_pid = {0, 0, 0, 0, 0, 0}; // Í£ÏÂ×ª
-struct P_pid_obj gyroG_pid = {0, 0, 0, 0, 0, 0}; // ×ÔÆ½ºâ
+struct P_pid_obj gyroT_pid = {0, 0, 0, 0, 0, 0}; // åœä¸‹è½¬
+struct P_pid_obj gyroG_pid = {0, 0, 0, 0, 0, 0}; // è‡ªå¹³è¡¡
 struct PID_param gyroT_pid_param, gyroG_pid_param;
 
-struct P_pid_obj GyroP_pid = {0, 0, 0, 0, 0, 0}; // Æ¯ÒÆ
+struct P_pid_obj GyroP_pid = {0, 0, 0, 0, 0, 0}; // æ¼‚ç§»
 struct PID_param GyroP_pid_param;
 
 /**
- * @brief: ÔöÁ¿Ê½PID ´ø¿¹»ı·Ö±¥ºÍ
+ * @brief: å¢é‡å¼PID å¸¦æŠ—ç§¯åˆ†é¥±å’Œ
  * @param {I_pid_obj} *motor
  * @param {PID_param} *pid
  * @return {*}
@@ -42,7 +42,7 @@ void incremental_PID(struct I_pid_obj *motor, struct PID_param *pid)
 
 	proportion = motor->bias - motor->last_bias;
 
-	// ¿¹»ı·Ö±¥ºÍ
+	// æŠ—ç§¯åˆ†é¥±å’Œ
 	if (motor->output > pid->outputMax || motor->measure > pid->actualMax)
 	{
 		if (motor->bias < 0)
@@ -62,7 +62,7 @@ void incremental_PID(struct I_pid_obj *motor, struct PID_param *pid)
 
 	motor->output += pid->kp * proportion + pid->ki * integral + pid->kd * differential;
 
-	// Êä³öÏŞ·ù
+	// è¾“å‡ºé™å¹…
 	if (motor->output > MOTOR_PWM_MAX)
 	{
 		motor->output = MOTOR_PWM_MAX;
@@ -74,8 +74,8 @@ void incremental_PID(struct I_pid_obj *motor, struct PID_param *pid)
 
 	motor->last2_bias = motor->last_bias;
 	motor->last_bias = motor->bias;
-	//¹ıĞ¡µÄÊä³öÖÃÁã
-	if (motor->target == 0 && fabsf(motor->measure) < 0.5f) // Èç¹ûÓĞÇáÎ¢¶¶¶¯£¬Ò²¿É¸Ä³É abs(motor->measure) < 2
+	//è¿‡å°çš„è¾“å‡ºç½®é›¶
+	if (motor->target == 0 && fabsf(motor->measure) < 0.5f) // å¦‚æœæœ‰è½»å¾®æŠ–åŠ¨ï¼Œä¹Ÿå¯æ”¹æˆ abs(motor->measure) < 2
     {
         motor->output = 0;
         motor->bias = 0;
@@ -85,7 +85,7 @@ void incremental_PID(struct I_pid_obj *motor, struct PID_param *pid)
 }
 
 /**
- * @brief: Î»ÖÃÊ½PID ´ø¿¹»ı·Ö±¥ºÍ ´øÎ¢·ÖÏîµÍÍ¨ÂË²¨
+ * @brief: ä½ç½®å¼PID å¸¦æŠ—ç§¯åˆ†é¥±å’Œ å¸¦å¾®åˆ†é¡¹ä½é€šæ»¤æ³¢
  * @param {P_pid_obj} *obj
  * @param {PID_param} *pid
  * @return {*}
@@ -111,13 +111,13 @@ float positional_PID(struct P_pid_obj *obj, struct PID_param *pid)
 		obj->integral += obj->bias;
 	}
 
-	// Î¢·ÖÏîµÍÍ¨ÂË²¨
+	// å¾®åˆ†é¡¹ä½é€šæ»¤æ³¢
 	differential = (obj->bias - obj->last_bias) * pid->differential_filterK +
 				   (1 - pid->differential_filterK) * obj->last_differential;
 
 	obj->output = pid->kp * obj->bias + pid->ki * obj->integral + pid->kd * differential;
 
-	// Êä³öÏŞ·ù
+	// è¾“å‡ºé™å¹…
 	if (obj->output > pid->outputMax)
 	{
 		obj->output = pid->outputMax;
@@ -139,7 +139,7 @@ float positional_PID(struct P_pid_obj *obj, struct PID_param *pid)
  */
 void pid_init(void)
 {
-	/*L0µç»ú*/
+	/*L0ç”µæœº*/
 	motor_pid_paramL0.outputMax = MOTOR_PWM_MAX;
 	motor_pid_paramL0.kp = 40; // 55
 	motor_pid_paramL0.ki = 10; // 42.0
@@ -147,7 +147,7 @@ void pid_init(void)
 	motor_pid_paramL0.differential_filterK = 0.5;
 	motor_pid_paramL0.actualMax = 100;
 
-	/*L1µç»ú*/
+	/*L1ç”µæœº*/
 	motor_pid_paramL1.outputMax = MOTOR_PWM_MAX;
 	motor_pid_paramL1.kp = 40; // 90
 	motor_pid_paramL1.ki = 10; // 75
@@ -155,7 +155,7 @@ void pid_init(void)
 	motor_pid_paramL1.differential_filterK = 0.5;
 	motor_pid_paramL1.actualMax = 100;
 
-	/*R0µç»ú*/
+	/*R0ç”µæœº*/
 	motor_pid_paramR0.outputMax = MOTOR_PWM_MAX;
 	motor_pid_paramR0.kp = 40; // 55
 	motor_pid_paramR0.ki = 10; // 42.0
@@ -163,15 +163,7 @@ void pid_init(void)
 	motor_pid_paramR0.differential_filterK = 0.5;
 	motor_pid_paramR0.actualMax = 100;
 
-	/*R1µç»ú*/
-//	motor_pid_paramR1.outputMax = MOTOR_PWM_MAX;
-//	motor_pid_paramR1.kp = 40; // 55
-//	motor_pid_paramR1.ki = 10; // 42.0
-//	motor_pid_paramR1.kd = 5;  // 25
-//	motor_pid_paramR1.differential_filterK = 0.5;
-//	motor_pid_paramR1.actualMax = 100;
-
-
+	/*R1ç”µæœº*/
 	motor_pid_paramR1.outputMax = MOTOR_PWM_MAX;
 	motor_pid_paramR1.kp = 40; // 55
 	motor_pid_paramR1.ki = 10; // 42.0
@@ -179,61 +171,44 @@ void pid_init(void)
 	motor_pid_paramR1.differential_filterK = 0.5;
 	motor_pid_paramR1.actualMax = 100;
 
-
-	/*¼¤¹âÑ­¼£*/
-	/*
-	  SPEED0~2
-		line_pid_param.kp = 12;
-		line_pid_param.ki = 0;
-		line_pid_param.kd = 400;
-
-	  SPEED3
-		line_pid_param.kp = 5;
-		line_pid_param.ki = 0;
-		line_pid_param.kd = 125;
-
-	  SPEED4
-		line_pid_param.kp = 3;
-		line_pid_param.ki = 0;
-		line_pid_param.kd = 125;
-	*/
 	line_pid_param.kp = 10.5;
 	line_pid_param.ki = 0;
 	line_pid_param.kd = 500;
 	line_pid_param.differential_filterK = 0.5;
-	line_pid_param.outputMax = 100;
-	line_pid_param.outputMin = -100;
+	line_pid_param.outputMax = 80;
+	line_pid_param.outputMin = -80;
 
-	/*×ªÍä*/
+	/*è½¬å¼¯*/
 	gyroT_pid_param.kp = 4.0f; // 6.5f
 	gyroT_pid_param.ki = 0;	   // 0
 	gyroT_pid_param.kd = 70;   // 50
 	gyroT_pid_param.differential_filterK = 1;
-	gyroT_pid_param.outputMax = 100;
-	gyroT_pid_param.outputMin = -100;
+	gyroT_pid_param.outputMax = 80;
+	gyroT_pid_param.outputMin = -80;
 
-	/*×ÔÆ½ºâ*/
+	/*è‡ªå¹³è¡¡*/
 	gyroG_pid_param.kp = 2;
 	gyroG_pid_param.ki = 0.004;
 	gyroG_pid_param.kd = 0.5;
 	gyroG_pid_param.differential_filterK = 0.5;
-	gyroG_pid_param.outputMax = 100;
-	gyroG_pid_param.outputMin = -100;
+	gyroG_pid_param.outputMax = 80;
+	gyroG_pid_param.outputMin = -80;
 
-	GyroP_pid_param.kp = 0.9; // Ô­À´1.2 1.1
-	GyroP_pid_param.ki = 0.004;
-	GyroP_pid_param.kd = 0.5;
-	GyroP_pid_param.differential_filterK = 0.5;
-	GyroP_pid_param.outputMax = 100;
-	GyroP_pid_param.outputMin = -100;
+	//TODO
+	// GyroP_pid_param.kp = 0.9; // åŸæ¥1.2 1.1
+	// GyroP_pid_param.ki = 0.004;
+	// GyroP_pid_param.kd = 0.5;
+	// GyroP_pid_param.differential_filterK = 0.5;
+	// GyroP_pid_param.outputMax = 80;
+	// GyroP_pid_param.outputMin = -80	;
 
-	/*»Ò¶ÈÑ­¼£*/
+	/*ç°åº¦å¾ªè¿¹*/
 	lineG_pid_param.kp = 15;
 	lineG_pid_param.ki = 0;
 	lineG_pid_param.kd = 5;
 	lineG_pid_param.differential_filterK = 0.5;
-	lineG_pid_param.outputMax = 100;
-	lineG_pid_param.outputMin = -100;
+	lineG_pid_param.outputMax = 80;
+	lineG_pid_param.outputMin = -80;
 
 	motor_pid_clear();
 }
@@ -251,12 +226,12 @@ void motor_pid_clear(void)
 }
 
 /**
- * @brief: usmartµÄµ÷ÊÔº¯Êı£¬ÓÃÓÚĞŞ¸ÄPID²ÎÊı
+ * @brief: usmartçš„è°ƒè¯•å‡½æ•°ï¼Œç”¨äºä¿®æ”¹PIDå‚æ•°
  * @param {uint16_t} val
  * @param {int} deno
  * @param {int} mode
  * @return {*}
- * @note ÓÉÓÚusmart²»Ö§³Ö¸¡µãÊı£¬ËùÒÔÊäÈëÒ»¸öÕûÊıºÍÒ»¸öÒª³ıÒÔµÄÎ»Êı(deno)
+ * @note ç”±äºusmartä¸æ”¯æŒæµ®ç‚¹æ•°ï¼Œæ‰€ä»¥è¾“å…¥ä¸€ä¸ªæ•´æ•°å’Œä¸€ä¸ªè¦é™¤ä»¥çš„ä½æ•°(deno)
  */
 void usmart_pid(uint16_t val, int deno, int mode)
 {
@@ -264,7 +239,7 @@ void usmart_pid(uint16_t val, int deno, int mode)
 	//	switch(mode)
 	//	{
 	//		case 1:
-	//			motor_pid_param.kp=fval/deno;  //mode1: ĞŞ¸ÄKp
+	//			motor_pid_param.kp=fval/deno;  //mode1: ä¿®æ”¹Kp
 	//			break;
 	//		case 2:
 	//			motor_pid_param.ki=fval/deno;  //mode2: Ki

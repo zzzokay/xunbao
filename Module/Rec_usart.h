@@ -23,13 +23,13 @@
 extern volatile uint16_t last_center_y[5];
 extern	volatile uint8_t send_target_flag ;
 extern uint8_t S_recData;
-extern volatile uint8_t start_flag ;//¶æ¿Ø°åÉÏµÄ°´¼ü¿ØÖÆ³ÌĞòÔËĞĞµÄ±êÖ¾Î»
-//extern int8_t track_line_dir ;//Ñ­¼£·½Ïò
+extern volatile uint8_t start_flag ;//èˆµæ§æ¿ä¸Šçš„æŒ‰é”®æ§åˆ¶ç¨‹åºè¿è¡Œçš„æ ‡å¿—ä½
+//extern int8_t track_line_dir ;//å¾ªè¿¹æ–¹å‘
 
 
 void Rec_usart_init(void);
 
-//Èë²Î£º×Ö·û´®Êı×é(´æ´¢asciiÂëÊı×é)µÄµØÖ· ; ×Ö·û´®Êı×éµÄ³¤¶È
+//å…¥å‚ï¼šå­—ç¬¦ä¸²æ•°ç»„(å­˜å‚¨asciiç æ•°ç»„)çš„åœ°å€ ; å­—ç¬¦ä¸²æ•°ç»„çš„é•¿åº¦
 // void get_PIDdata(uint8_t *data, uint16_t size);
 void get_PIDdata();
 

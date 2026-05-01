@@ -3,7 +3,7 @@
 
 #include "main.h"
 #include "scaner.h"
-/*×ó±ß:E12->SCK/E13->SDA£»ÓÒ±ß:E7->SCK/E8->SDA*/
+/*å·¦è¾¹:E12->SCK/E13->SDAï¼›å³è¾¹:E7->SCK/E8->SDA*/
 
 #define out        0
 #define in         1

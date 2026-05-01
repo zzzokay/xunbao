@@ -12,11 +12,11 @@
 
 
 uint8_t Color_Left, Color_Right;
-uint8_t COLOR_flag=0;//Îª1¾ÍÊÇ¿´×ó±ß£¬Îª2¾ÍÊÇ¿´ÓÒ±ß
+uint8_t COLOR_flag=0;//ä¸º1å°±æ˜¯çœ‹å·¦è¾¹ï¼Œä¸º2å°±æ˜¯çœ‹å³è¾¹
 
 
 
-/*´ò¿ªÓÒMV*/
+/*æ‰“å¼€å³MV*/
 void Open_COLOR_R()
 {
 	open_COLOR_R_mode_sign=1;
@@ -35,7 +35,7 @@ void Open_COLOR_R()
 
 
 
-/*´ò¿ª×óMV*/
+/*æ‰“å¼€å·¦MV*/
 void Open_COLOR_L()
 {
 	COLOR_flag = 1;

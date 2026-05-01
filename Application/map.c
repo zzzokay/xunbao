@@ -425,6 +425,7 @@ void Cross(void)
 			if((nodesr.flag&0x04)!=0x04 && (nodesr.flag&0x80)!=0x80 && (nodesr.flag&0x20)!=0x20)
 			{
 				/*发送通知给任务判断是否到达路径点*/
+					//TODO: 这里可以优化为直接调用函数而不是通知任务，减少延迟
 					xTaskNotifyGive(xHandle_ArriveDetect);
 				
 					// 阻塞自己等待任务完成信号

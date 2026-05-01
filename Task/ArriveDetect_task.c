@@ -6,60 +6,60 @@
 #include "turn.h"
 #include "stdio.h"
 
-uint8_t  mul2sing = 0 ,sing2mul = 0;
+static uint8_t  mul2sing = 0 ,sing2mul = 0;
 void arrive_detect_task(void *pvParameters)
 {
 	 while (1)
     {
-        // µÈ´ýÖ÷ÈÎÎñ»½ÐÑÎÒ
+        // ç­‰å¾…ä¸»ä»»åŠ¡å”¤é†’æˆ‘
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-		// Ã¿´Î¼ì²âÇ°Çå³ý×´Ì¬
+		// æ¯æ¬¡æ£€æµ‹å‰æ¸…é™¤çŠ¶æ€
         mul2sing = 0;
         sing2mul = 0;
-        // --- ½øÐÐ½Úµã¼ì²â ---
-        Cross_getline();
-        while (!deal_arrive())
+        // --- è¿›è¡ŒèŠ‚ç‚¹æ£€æµ‹ ---
+        Cross_getline(&Cross_Scaner);
+        while (!deal_arrive(&Cross_Scaner, nodesr.nowNode.flag))
         {
             vTaskDelay(2);
-            Cross_getline();
-			if(((nodesr.nowNode.flag&RESTMPUZ) == RESTMPUZ))		//ÍÓÂÝÒÇÐ£Õý
+            Cross_getline(&Cross_Scaner);
+			if(((nodesr.nowNode.flag&RESTMPUZ) == RESTMPUZ))		//é™€èžºä»ªæ ¡æ­£
 				{
-					if((Cross_Scaner.detail & 0X0180) == 0X0180)		//Èç¹ûÔÚ×îÖÐ¼äÎ»ÖÃ
-					{	
-						mpuZreset(get_latest_yaw(), nodesr.nowNode.angle);     	//»ñÈ¡²¹³¥½ÇZ;
+					if((Cross_Scaner.detail & 0X0180) == 0X0180)		//å¦‚æžœåœ¨æœ€ä¸­é—´ä½ç½®
+					{
+						mpuZreset(get_latest_yaw(), nodesr.nowNode.angle);     	//èŽ·å–è¡¥å¿è§’Z;
 					}
 				}
         }
 
-        // ±ê¼Çµ½´ï
+        // æ ‡è®°åˆ°è¾¾
         nodesr.flag |= 0x04;
 
-        send_play_specified_command(13); // ²¥±¨
+        send_play_specified_command(13); // æ’­æŠ¥
         scaner_set.CatchsensorNum = 0;
 
-        // Í¨Öª main_task ¿ÉÒÔ¼ÌÐø
-        xTaskNotifyGive(main_handler); // »òÕßÄãÒ²¿ÉÒÔ±£ÁôÒ»¸ö main_task µÄ¾ä±ú
+        // é€šçŸ¥ main_task å¯ä»¥ç»§ç»­
+        xTaskNotifyGive(main_handler);
 
 
     }
-	
+
 }
-/*
-	1	ÁùºÅ
-	2	ÎåºÅ
-	3	ËÄºÅ
-	4	ÈýºÅ
-	5	¶þºÅ
-	6	Ö±Á¢
-	7	×¼±¸
-	8	ÂÌ
-	9	±¦Îï
-	10	»Æ
-	11	ºì
-	12	ÆßºÅ
-	13	Â·¿Ú
-	14	°ËºÅ
-	15	´íÎó
+/*è¯­è¨€æ’­æŠ¥ç´¢å¼•è¡¨
+	1	å…­å·
+	2	äº”å·
+	3	å››å·
+	4	ä¸‰å·
+	5	äºŒå·
+	6	ç›´ç«‹
+	7	å‡†å¤‡
+	8	ç»¿
+	9	å®ç‰©
+	10	é»„
+	11	çº¢
+	12	ä¸ƒå·
+	13	è·¯å£
+	14	å…«å·
+	15	é”™è¯¯
 	16  A0
 	17  A1
 	18  A2
@@ -77,7 +77,7 @@ void arrive_detect_task(void *pvParameters)
 */
 void send_play_specified_command(uint8_t index)
 {
-	// 7E 05 41 00(¸èÇú¸ßÎ») 01(¸èÇúµÍÎ») 45(Ð£ÑéºÍ) EF
+	// 7E 05 41 00(æ­Œæ›²é«˜ä½) 01(æ­Œæ›²ä½Žä½) 45(æ ¡éªŒå’Œ) EF
 	uint8_t data[7] = {0x7e, 0x05, 0x41, 0x00, 0x00, 0x00, 0xef};
 	data[4] = index;
 	uint8_t sum = data[1] ^ data[2] ^ data[3] ^ data[4];
@@ -88,36 +88,22 @@ void send_play_specified_command(uint8_t index)
 	}
 }
 
-/*ÅÐ¶Ï½Úµã*/
-//// GCC/ARMCC Ö§³ÖÄÚ½¨ popcount
-//static inline uint8_t count_bits(uint8_t x) {
-//#if defined(__GNUC__) || defined(__ARMCC_VERSION)
-//    return __builtin_popcount(x);
-//#else
-//    // ¼æÈÝÆäËû±àÒëÆ÷
-//    uint8_t count = 0;
-//    while (x) {
-//        count += x & 1;
-//        x >>= 1;
-//    }
-//    return count;
-//#endif
-//}
+/*åˆ¤æ–­èŠ‚ç‚¹*/
 
-uint8_t deal_arrive()
-{				
+uint8_t deal_arrive(volatile SCANER *scaner, uint32_t node_flag)
+{
 	register uint8_t lnum = 0, i = 0;
 	register uint16_t seed = 0;
 
-	if ((nodesr.nowNode.flag & DLEFT) == DLEFT)  //×ó°ë±ß
+	if ((node_flag & DLEFT) == DLEFT)  //å·¦åŠè¾¹
 	{
-		//×ó±ß6¸öµÆÈÎÒâ5¸öÁÁ¼´¿É
-		if (Cross_Scaner.ledNum>=5)
+		//å·¦è¾¹6ä¸ªç¯ä»»æ„5ä¸ªäº®å³å¯
+		if (scaner->ledNum>=5)
 		{
 			seed = 0X8000;
 			for (i = 0; i<6; i++)
 			{
-				if (Cross_Scaner.detail & seed)
+				if (scaner->detail & seed)
 					++lnum;
 				if (lnum >= 5)
 				{
@@ -128,14 +114,15 @@ uint8_t deal_arrive()
 			lnum = 0;
 		}
 	}
-	if ((nodesr.nowNode.flag & DRIGHT) == DRIGHT)//ÓÒ°ë±ß
-	{    	
-		if (Cross_Scaner.ledNum >= 5)
+	if ((node_flag & DRIGHT) == DRIGHT)//å³åŠè¾¹
+	{
+		//å³è¾¹6ä¸ªç¯ä»»æ„5ä¸ªäº®å³å¯
+		if (scaner->ledNum >= 5)
 		{
 			seed = 0X0001;
 			for (i = 0; i<6; i++)
 			{
-				if (Cross_Scaner.detail & seed)
+				if (scaner->detail & seed)
 					++lnum;
 				if (lnum >= 5)
 				{
@@ -146,73 +133,73 @@ uint8_t deal_arrive()
 			lnum = 0;
 		}
 	}
-	if ((nodesr.nowNode.flag & CLEFT) == CLEFT)//×ó·Ö²íÂ·
+	if ((node_flag & CLEFT) == CLEFT)//å·¦åˆ†å²”è·¯
 	{
-		//×ó±ßÊýÆðµÚ¶þ¡¢µÚÈý¸öµÆÈÎÒâÒ»¸öÁÁ¼´¿É
-		 if( (Cross_Scaner.ledNum>=4&&Cross_Scaner.ledNum<=7) && ((Cross_Scaner.detail&0x4000)|(Cross_Scaner.detail&0x2000)) )//
+		//å·¦è¾¹æ•°èµ·ç¬¬äºŒã€ç¬¬ä¸‰ä¸ªç¯ä»»æ„ä¸€ä¸ªäº®å³å¯
+		 if( (scaner->ledNum>=4&&scaner->ledNum<=7) && ((scaner->detail&0x4000)|(scaner->detail&0x2000)) )
 		 {
 			return 1;
 		}
 	}
-	if ((nodesr.nowNode.flag & MCLEFT) == MCLEFT)//×ó·Ö²íÂ·
+	if ((node_flag & MCLEFT) == MCLEFT)//å·¦åˆ†å²”è·¯
 	{
-		//×ó±ßÊýÆðµÚÒ»¸öµÆÁÁ¼´¿É
-		 if( (Cross_Scaner.ledNum>=4&&Cross_Scaner.ledNum<=7) && (Cross_Scaner.detail&0x8000) )
+		//å·¦è¾¹æ•°èµ·ç¬¬ä¸€ä¸ªç¯äº®å³å¯
+		 if( (scaner->ledNum>=4&&scaner->ledNum<=7) && (scaner->detail&0x8000) )
 		{
 			return 1;
 		}
 	}
-	if ((nodesr.nowNode.flag & MCRIGHT) == MCRIGHT)//×ó·Ö²íÂ·
+	if ((node_flag & MCRIGHT) == MCRIGHT)//å³åˆ†å²”è·¯
 	{
-		//ÓÒ±ßÊýÆðµÚÒ»¸öµÆÁÁ¼´¿É
-		 if( (Cross_Scaner.ledNum>=4&&Cross_Scaner.ledNum<=7) && (Cross_Scaner.detail&0x0001) )
+		//å³è¾¹æ•°èµ·ç¬¬ä¸€ä¸ªç¯äº®å³å¯
+		 if( (scaner->ledNum>=4&&scaner->ledNum<=7) && (scaner->detail&0x0001) )
 		{
 			return 1;
 		}
 	}
-	if ((nodesr.nowNode.flag & CRIGHT) == CRIGHT)//ÓÒ·Ö²íÂ·
+	if ((node_flag & CRIGHT) == CRIGHT)//å³åˆ†å²”è·¯
 	{
-		 if( (Cross_Scaner.ledNum>=4&&Cross_Scaner.ledNum<=7) && (Cross_Scaner.detail&0xc) )//ÓÒÆð2ºÍ3µÆÁÁ
+		 if( (scaner->ledNum>=4&&scaner->ledNum<=7) && (scaner->detail&0xc) )//å³èµ·2å’Œ3ç¯äº®
 		{
 			return 1;
 		}
 	}
-	if ((nodesr.nowNode.flag & MORELED) == MORELED)
+	if ((node_flag & MORELED) == MORELED)
 	{
-		 if( (Cross_Scaner.ledNum>=5) )//5¸öµÆÒÔÉÏÁÁ
+		 if( (scaner->ledNum>=5) )//5ä¸ªç¯ä»¥ä¸Šäº®
 		{
 			return 1;
 		}
 	}
-	if ((nodesr.nowNode.flag & AWHITE) == AWHITE)//È«°×
+	if ((node_flag & AWHITE) == AWHITE)//å…¨ç™½
 	{
-		 if((Cross_Scaner.ledNum>=10&&(Cross_Scaner.detail&0x1FF8)==0x1FF8))
+		 if((scaner->ledNum>=10&&(scaner->detail&0x1FF8)==0x1FF8))
 		{
 			return 1;
 		}
 	}
-	if ((nodesr.nowNode.flag & MUL2SING) == MUL2SING)//Èý·Ö²íÂ·
+	if ((node_flag & MUL2SING) == MUL2SING)//ä¸‰åˆ†å²”è·¯
 	{
-		if (Cross_Scaner.lineNum > 1 && Cross_Scaner.ledNum >= 4)
+		if (scaner->lineNum > 1 && scaner->ledNum >= 4)
 			++mul2sing;
-		if (mul2sing > 4 && Cross_Scaner.lineNum == 1) //ÏßÊýÄ¿ÓÉ¶à±ä³ÉÒ»Ìõ
+		if (mul2sing > 4 && scaner->lineNum == 1) //çº¿æ•°ç›®ç”±å¤šå˜æˆä¸€æ¡
 		{
 			mul2sing = sing2mul = 0;
 			return 1;
 		}
 	}
-	if ((nodesr.nowNode.flag & MUL2MUL) == MUL2MUL)  //ÏßÊýÄ¿ÓÉ¶àÌõ±ä¶àÌõ
+	if ((node_flag & MUL2MUL) == MUL2MUL)  //çº¿æ•°ç›®ç”±å¤šæ¡å˜å¤šæ¡
 	{
-		if (Cross_Scaner.lineNum > 1 && Cross_Scaner.ledNum >= 4)
+		if (scaner->lineNum > 1 && scaner->ledNum >= 4)
 			++mul2sing;
-		if (mul2sing > 4 && (Cross_Scaner.lineNum == 1 || Cross_Scaner.ledNum <=3 ))
+		if (mul2sing > 4 && (scaner->lineNum == 1 || scaner->ledNum <=3 ))
 			++sing2mul;
-		if (sing2mul > 4 && Cross_Scaner.lineNum > 1 && Cross_Scaner.ledNum >= 4)
+		if (sing2mul > 4 && scaner->lineNum > 1 && scaner->ledNum >= 4)
 		{
 			mul2sing = sing2mul = 0;
 			return 1;
 		}
 	}
-	
+
 	return 0;
 }

@@ -9,10 +9,6 @@
 uint8_t Rx_data[BUFFER_SIZE_rec];
 uint8_t command[30];
 
-#define LINE_SPEED_MAX 68
-#define CAR_ALINE_SPEED_MAX 50
-
-
 #define GET_LOW_BYTE(A) ((uint8_t)(A))
 //�꺯�� ���A�ĵͰ�λ
 #define GET_HIGH_BYTE(A) ((uint8_t)((A) >> 8))

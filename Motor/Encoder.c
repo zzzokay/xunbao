@@ -15,38 +15,38 @@
 wheel wheel_1,wheel_2,wheel_3,wheel_4;
 
 /*************************
-	µç»ú±àÂëÆ÷ÏßÊı13
-	µç»ú¼õËÙ±È144
-	ÂÖ×ÓÖ±¾¶104mm
+	ç”µæœºç¼–ç å™¨çº¿æ•°13
+	ç”µæœºå‡é€Ÿæ¯”144
+	è½®å­ç›´å¾„104mm
 *************************/
 #define coefficient 0.000909090909f
 #define Half_ARR 32767
-uint8_t dog[4] = {0};   //µç»ú¹·
+uint8_t dog[4] = {0};   //ç”µæœºç‹—
 
 short Buffer_Encoder[4] = {0};  
 float Speed[4];
 
 /**
- * @brief: ¶¨ÒåĞ¡³µµÄÂÖ×Ó±àÂëÆ÷ÊôÓÚÄÄ¸ö¶¨Ê±Æ÷
+ * @brief: å®šä¹‰å°è½¦çš„è½®å­ç¼–ç å™¨å±äºå“ªä¸ªå®šæ—¶å™¨
  * @return {*}
  */
 void Encoder_init(void){
-	//×óÇ°
+	//å·¦å‰
 	HAL_TIM_Encoder_Start(&htim1,TIM_CHANNEL_1);
 	HAL_TIM_Encoder_Start(&htim1,TIM_CHANNEL_2);
 	HAL_TIM_Base_Start_IT(&htim1);
 	
-	//×óºó
+	//å·¦å
 	HAL_TIM_Encoder_Start(&htim2,TIM_CHANNEL_1);
 	HAL_TIM_Encoder_Start(&htim2,TIM_CHANNEL_2);
 	HAL_TIM_Base_Start_IT(&htim2);
 
-	//ÓÒÇ°
+	//å³å‰
 	HAL_TIM_Encoder_Start(&htim3,TIM_CHANNEL_1);
 	HAL_TIM_Encoder_Start(&htim3,TIM_CHANNEL_2);
 	HAL_TIM_Base_Start_IT(&htim3);
 	
-	//ÓÒºó
+	//å³å
 	HAL_TIM_Encoder_Start(&htim5,TIM_CHANNEL_1);
 	HAL_TIM_Encoder_Start(&htim5,TIM_CHANNEL_2);
 	HAL_TIM_Base_Start_IT(&htim5);
@@ -85,7 +85,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
 }
 
-/*ÖØĞÂ¼ÆËãÂö³å*/
+/*é‡æ–°è®¡ç®—è„‰å†²*/
 void encoder_clear(void)
 {
 	motor_all.Distance = 0;
