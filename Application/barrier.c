@@ -3698,8 +3698,6 @@ void zhunbei(void)
 	vTaskDelay(100);
 	Robot_Work(HEAD,UP);
 
-	motor_all.Gincrement = 0.5;
-	motor_all.Cincrement = 0.5;
 
 	if(isAllRoute || map.routetime!=0)
 	{

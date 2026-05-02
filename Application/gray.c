@@ -29,6 +29,14 @@ void Gray_Init(void)
 /*切换循迹模式*/
 void ScanerMode_Switch(uint8_t mode)
 {
+    // 切换模式时清零 line_data，避免旧模式数据污染新模式
+    for (int i = 0; i < HISTORY_SIZE; i++)
+    {
+        line_data[i].pos = 0.0f;
+        line_data[i].error = 0.0f;
+        line_data[i].truth = TRUTH_ALL_ERR; // 初始状态
+    }
+
     if(mode == RF)
     {
         ScanerMode = RF;

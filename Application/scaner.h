@@ -3,6 +3,13 @@
 #include "sys.h"
 #include "pid.h"
 #include "chassis_api.h"
+/*巡线历史数据 truth 枚举*/
+enum LineTruth {
+    TRUTH_VALID = 0,    // 正确值
+    TRUTH_ALL_ERR = 1,  // 全错误（粗滤/丢线）
+    TRUTH_POS_ERR = 2   // 位置跳变（精检错误）
+};
+
 #define Lamp_Max 16   //循迹灯最大数
 #define Lamp_Half 8
 typedef struct scaner	
@@ -28,6 +35,14 @@ extern volatile SCANER Scaner;
 extern float line_weight[16];
 extern const float line_weight_default[16];
 extern const float lineG_weight_default[8];
+
+#define HISTORY_SIZE 5
+struct Line_data {
+	volatile float pos;
+	volatile float error;
+	volatile uint8_t truth;
+};
+extern struct Line_data line_data[HISTORY_SIZE];
 void Go_Line(float speed,volatile struct Motors *motor);
 void get_detail(void);
 void Cross_getline(volatile SCANER *scaner);
@@ -37,10 +52,6 @@ uint8_t getline_error(void);
 void getline_error_ex(volatile SCANER *scaner, uint8_t scaner_mode, int8_t edge_ignore, uint8_t track_mode);
 // void MODE_Switch(int8_t MODE_need);
 void printf_byte(uint16_t data);
-float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned char SensorNum, uint8_t track_mode, float *Error, u8 *LED_Num_Temp);
-void Update_line_data(uint8_t error_kind, float pos, float error);
-uint8_t pos_detect(float pos);
 float Get_scaner_error(void);
-uint8_t error_detect_one(u8 LED_Num, u8 Line_Num);
 
 #endif

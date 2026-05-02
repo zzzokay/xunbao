@@ -78,6 +78,21 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
 21. **ArriveDetect_task.c/h** — `deal_arrive()` 改为 `deal_arrive(volatile SCANER *scaner, uint32_t node_flag)`，消除对 `nodesr.nowNode.flag` 和 `Cross_Scaner` 的隐式依赖
 22. **barrier.c / chassis_api.c** — 所有 `Cross_getline()` 调用更新为 `Cross_getline(&Cross_Scaner)`
 
+**2026-05-02 — 巡线逻辑检测与优化**
+
+23. **gray.c ScanerMode_Switch** — 模式切换时清零 `line_data[5]`，避免旧模式历史数据污染新模式
+24. **scaner.c Get_scaner_error** — 添加 `last_valid_error` 静态变量，丢线时保持上次有效误差而非返回 0（直行）
+25. **scaner.c value_calculation** — LEFT_EDGE / RIGHT_EDGE 合并冗余 `if` 条件，减少重复位运算
+26. **scaner.c value_calculation** — `pos /= LED_Num_Temp` 前添加除零保护，LIUSHUI 模式 `len=0` 时返回 -1
+
+**2026-05-02 — 巡线函数结构重构**
+
+27. **scaner.h** — 新增 `enum LineTruth`（TRUTH_VALID/TRUTH_ALL_ERR/TRUTH_POS_ERR），替代魔法数字 0/1/2
+28. **scaner.c value_calculation** — 拆分为 4 个 static 函数 `calc_left_edge/calc_right_edge/calc_liushui/calc_track_all`，原函数退化为 switch 分发器
+29. **scaner.c error_detect_one** — 重命名为 `coarse_filter`，改为 static
+30. **scaner.c Line_Scan** — 扁平化，用 early return 消除嵌套，减少重复的 error 平均计算
+31. **scaner.c** — `R_` 宏重命名为 `POS_CLUSTER_RADIUS`；`pos_detect`/`Update_line_data` 改为 static；从 header 移除内部函数声明
+
 ---
 
 ## 小车导航逻辑

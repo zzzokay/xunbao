@@ -1,31 +1,33 @@
 /**
  * =============================================================================
  * 循迹系统 - scaner.c
- * 
+ *
  * 【调用关系】
- *  ┌─────────────────────────────────────────────────
- *  │  任务 → getline_error() → Line_Scan() <-> value_calculation()           
- *  │          				    ↓ (写入)           计算line_data.error和line_data.pos    
- *  │         				line_data[5] ← 历史数据        
- *  │         			 	Scaner       ← 当前数据        
- *  │             				 ↓ (读取)                            
- *  │  任务 → Go_Line(speed) → Get_scaner_error() 根据5次数据计算出最佳error     
- *  └─────────────────────────────────────────────────————————————
- *  
- *  【全局变量交流】
- *  - line_data[5]  ← 历史数据（两个函数组的核心桥梁）
- *  - Scaner         ← 当前循迹数据
- *  - Fspeed         ← PID输出
- *  - motor_all      ← 电机速度
- * 
- * 
- *  【主要函数】
- *  - getline_error()     入口：读取传感器并处理
- *  - Go_Line(speed)      入口：PID计算差速
- *  - Cross_getline(void) 入口：读取传感器并处理
- *  - Line_Scan()         核心：更新历史
- *  - Get_scaner_error()  容错：从历史选最佳
- * 
+ *  ┌──────────────────────────────────────────────────────────────
+ *  │  getline_error_ex()
+ *  │    ├─ RF模式 → UpdateScanerFromRf → Line_Scan
+ *  │    │    ├─ coarse_filter()       粗滤（灯数/线数检查）
+ *  │    │    ├─ value_calculation()   分发 → calc_left/right/liushui/track_all
+ *  │    │    ├─ pos_detect()          位置连续性验证
+ *  │    │    └─ Update_line_data()    写入 line_data[5] 历史
+ *  │    └─ Gray模式 → UpdateScanerFromGray → Calculate_Error（不经过 line_data）
+ *  │
+ *  │  Go_Line(speed)
+ *  │    └─ Get_scaner_error()  从 line_data[5] 投票选最佳 error → PID → 差速
+ *  └──────────────────────────────────────────────────────────────
+ *
+ *  【全局变量】
+ *  - line_data[5]   历史数据（两个函数组的核心桥梁）
+ *  - Scaner         当前循迹数据
+ *  - Fspeed         PID输出
+ *  - motor_all      电机速度
+ *
+ *  【主要入口函数】
+ *  - getline_error_ex()  更新传感器数据（RF/Gray 双模式）
+ *  - Go_Line(speed)      PID巡线执行
+ *  - Cross_getline()     节点检测用
+ *  - Get_scaner_error()  从历史选最佳（丢线时保持上次有效值）
+ *
  * =============================================================================
  */
 #include "scaner.h"
@@ -58,8 +60,18 @@ volatile SCANER Scaner;
 volatile SCANER Cross_Scaner;
 #define Line_color WHLITE
 
-
-
+struct Line_data // 循迹速度结构体
+{
+	volatile float pos;		// 灯的中心位置
+	volatile float error;	// 误差
+	volatile uint8_t truth; // 该值是否正确
+} line_data[5] = {
+	{0.0f, 0.0f, 1}, // 第一个结构体初值
+	{0.0f, 0.0f, 1}, // 第二个结构体初值
+	{0.0f, 0.0f, 1}, // 第三个结构体初值
+	{0.0f, 0.0f, 1}, // 第四个结构体初值
+	{0.0f, 0.0f, 1}	 // 第五个结构体初值
+};
 uint8_t isFilter = 1;
 
 static uint16_t ReadLineSensorDetail(void)
@@ -136,8 +148,13 @@ void Go_Line(float speed, volatile struct Motors *motor)
 		Fspeed = -motor_all.Line_speedMax;
 		
 	Fspeed *= fabsf(speed) / 50;
-
-
+	//打印寻迹测量值，目标值，输出值
+	printf("%.1f,%.1f,%.1f\r\n", line_pid_obj.measure, line_pid_obj.target, Fspeed);
+	// //打印line_data历史数据
+	//  for (int i = 0; i < 5; i++)
+	//  {
+	//  	printf("line_data[%d]: pos=%.2f, error=%.2f, truth=%d\r\n", i, line_data[i].pos, line_data[i].error, line_data[i].truth);
+	//  }
 	motor->Lspeed = speed - Fspeed;
 	motor->Rspeed = speed + Fspeed;
 }
@@ -201,75 +218,48 @@ void get_detail(void)
 	Scaner.detail = data;
 }
 
-struct Line_data // 循迹速度结构体
-{
-	volatile float pos;		// 灯的中心位置
-	volatile float error;	// 误差
-	volatile uint8_t truth; // 该值是否正确
-} line_data[5] = {
-	{0.0f, 0.0f, 1}, // 第一个结构体初值
-	{0.0f, 0.0f, 1}, // 第二个结构体初值
-	{0.0f, 0.0f, 1}, // 第三个结构体初值
-	{0.0f, 0.0f, 1}, // 第四个结构体初值
-	{0.0f, 0.0f, 1}	 // 第五个结构体初值
-};
-enum
-{
-	NO_error,
-	all_error,
-	pos_error
-};
+
 /*循线扫描 - 包括各种模式处理*/
 uint8_t Line_Scan(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_ignore, uint8_t track_mode)
 {
 	float error = 0;
-	u8 linenum = 0; 	//线数
-	u8 lednum = 0;		//灯数
+	u8 linenum = 0;
+	u8 lednum = 0;
 	uint8_t lednum_tmp = 0;
 
-	/*获取二进制循迹值*/
-	for (uint8_t i = 0; i < sensorNum; i++) 	// 从小车方向从左往右数亮灯数和引导线数
-	{											// linenum用来记录有多少条线，line用来记录第几条线。
+	/*统计亮灯数和引导线数*/
+	for (uint8_t i = 0; i < sensorNum; i++)
+	{
 		if ((scaner->detail & (0x1 << i)))
 		{
 			lednum++;
 			if (!(scaner->detail & (1 << (i + 1))))
-				++linenum; 						// 先读取亮灯数和引导线数，检测到从1变为0认为一条线
+				++linenum;
 		}
 	}
 	scaner->lineNum = linenum;
 	scaner->ledNum = lednum;
 
 	/*粗略检测 - 滤掉必定错误的值*/
-	if (error_detect_one(lednum, linenum))
+	if (coarse_filter(lednum, linenum))
 	{
-		Update_line_data(all_error, -1, -1);
+		Update_line_data(TRUTH_ALL_ERR, -1, -1);
 		return 0;
 	}
 
-	/*循迹中心值计算 - error值计算*/
+	/*循迹中心值计算*/
 	float pos = value_calculation(scaner, edge_ignore, sensorNum, track_mode, &error, &lednum_tmp);
+	if (pos < 0)
+	{
+		Update_line_data(TRUTH_ALL_ERR, -1, -1);
+		return 0;
+	}
 
-	/*位置正确性判断*/
-	if (pos >= 0)
-	{
-		if (pos_detect(pos)) // 正确
-		{
-			error /= (float)lednum_tmp; // 取平均
-			scaner->error = error;
-			Update_line_data(NO_error, pos, scaner->error);
-		}
-		else
-		{
-			error /= (float)lednum_tmp; // 取平均
-			scaner->error = error;
-			Update_line_data(pos_error, pos, scaner->error);
-		}
-	}
-	else
-	{
-		Update_line_data(all_error, -1, -1);
-	}
+	/*取误差平均值，记录到历史*/
+	error /= (float)lednum_tmp;
+	scaner->error = error;
+	uint8_t truth = pos_detect(pos) ? TRUTH_VALID : TRUTH_POS_ERR;
+	Update_line_data(truth, pos, scaner->error);
 	return 0;
 }
 
@@ -287,144 +277,142 @@ void printf_byte(uint16_t data)
 
 
 /*循迹滤波*/
-/*循迹中心值和位置计算 - 正确返回大于等于0的位置，错误返回负数*/
 #define MAX_LED	4
-float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned char SensorNum, uint8_t track_mode, float *Error, u8 *LED_Num_Temp)
+
+/*--- 左循线：从左往右取第一段连续亮灯 ---*/
+static float calc_left_edge(volatile SCANER *scaner, int8_t edge_ignore, uint8_t sensorNum, float *error, uint8_t *lednum)
 {
 	float pos = 0;
-	/*获取需要的循迹值 - 以L_R_open为最高循迹优先级*/
-	if (track_mode != TRACK_ALL)		//强制偏左/右/居中循迹
+	for (uint8_t i = edge_ignore; i < sensorNum - edge_ignore; i++)
 	{
-		/*左循线*/
-		if (track_mode == TRACK_LEFT_EDGE)
+		if ((scaner->detail >> (sensorNum - 1 - i)) & 0X01)
 		{
-			for (uint8_t i = edge_ignore; i < SensorNum - edge_ignore; i++)
-			{
-				*LED_Num_Temp += (scaner->detail >> (SensorNum - 1 - i)) & 0X01;
-				*Error += ((scaner->detail >> (SensorNum - 1 - i)) & 0X01) * line_weight[i];
-				if ((scaner->detail >> (SensorNum - 1 - i)) & 0X01)
-					pos += i;
-				/*如果是白线*/
-				if ((scaner->detail >> (SensorNum - i - 1)) & 0X01)
-				{
-					if (i == SensorNum - 1 || !((scaner->detail >> ((SensorNum - i - 1) - 1)) & 0x01)) // 下一个灯不是白
-					{
-						break; // 退出			//目的 取第一段连续亮灯
-					}
-				}
-			}
-			if ((*LED_Num_Temp > MAX_LED)) // 目标灯数过多  引导线过多
-			{
-				return -1;
-			}
-		}
-		/*右巡线*/
-		else if (track_mode == TRACK_RIGHT_EDGE)
-		{
-			for (uint8_t i = edge_ignore; i < SensorNum - edge_ignore; i++)
-			{
-				*LED_Num_Temp += (scaner->detail >> i) & 0X01;
-				*Error += ((scaner->detail >> i) & 0X01) * line_weight[SensorNum - 1 - i];
-				if ((scaner->detail >> i) & 0X01)
-					pos += SensorNum - 1 - i;
-				if ((scaner->detail >> i) & 0X01)
-				{
-					if (i == SensorNum - 1 || !((scaner->detail >> (i + 1)) & 0x01))
-					{
-						break;
-					}
-				}
-			}
-			if ((*LED_Num_Temp > MAX_LED)) // 目标灯数过多  引导线过多
-			{
-				return -1;
-			}
-		}
-		/*居中流水*/
-		else if (track_mode == TRACK_LIUSHUI )           // 流水巡线模式
-		{
-			float best_location = 0.0f;
-			float temp_location = 0.0f;
-			uint8_t line_led_last = 0;
-			uint8_t len = 0;
-			uint8_t temp_len = 0;
-
-			for (uint8_t i = edge_ignore; i < SensorNum - edge_ignore; i++)
-			{
-				if ((scaner->detail & (1 << i)))
-				{
-					temp_location += i;
-					temp_len++;
-					if (i == SensorNum - 1 || !(scaner->detail & (1 << (i + 1))))//找一段连续的亮灯
-					{
-						temp_location /= (float)temp_len; // 获取平均位置
-						
-																		//(((float)(SensorNum - 1)) / 2) 表示 中心线
-						if (fabs(temp_location - (((float)(SensorNum - 1)) / 2)) < fabs(best_location - (((float)(SensorNum - 1)) / 2)))
-						{
-							best_location = temp_location;
-							line_led_last = i; // 保存
-							len = temp_len;	   // 保存
-							temp_location = 0;
-							temp_len = 0;
-						}
-					}
-				}
-			}
-			for (uint8_t i = line_led_last - len + 1; i <= line_led_last; i++)
-			{
-				*LED_Num_Temp += (scaner->detail >> i) & 1;
-				*Error += ((scaner->detail >> i) & 1) * line_weight[SensorNum - 1 - i];
-				if ((scaner->detail >> i) & 1)
-					pos += SensorNum - 1 - i;
-			}
-			if ((*LED_Num_Temp > MAX_LED)) // 目标灯数过多  引导线过多
-			{
-				return -1;
-			}
+			*lednum += 1;
+			*error += line_weight[i];
+			pos += i;
+			if (i == sensorNum - 1 || !((scaner->detail >> ((sensorNum - i - 1) - 1)) & 0x01))
+				break;
 		}
 	}
-	else  //非强制模式，根据节点选择偏左/右/居中循迹
-	{
-			//全局平均，把范围内所有亮灯都参与计算
-			if (scaner->ledNum >= 4 && scaner->lineNum >= 2)
-			{
-				edge_ignore = 4;
-			}
-			for (uint8_t i = edge_ignore; i < SensorNum - edge_ignore; i++)
-			{
-				*LED_Num_Temp += (scaner->detail >> (SensorNum - 1 - i)) & 0X01;
-				*Error += ((scaner->detail >> (SensorNum - 1 - i)) & 0X01) * line_weight[i];
-				if ((scaner->detail >> (SensorNum - 1 - i)) & 0X01)
-					pos += i;
-			}
-			if ((*LED_Num_Temp > MAX_LED)) // 目标灯数过多  引导线过多
-			{
-				return -1;
-			}
-
-	}
-
-	pos /= (float)(*LED_Num_Temp);
+	if (*lednum > MAX_LED || *lednum == 0)
+		return -1;
+	pos /= (float)(*lednum);
 	return pos;
 }
+
+/*--- 右循线：从右往左取第一段连续亮灯 ---*/
+static float calc_right_edge(volatile SCANER *scaner, int8_t edge_ignore, uint8_t sensorNum, float *error, uint8_t *lednum)
+{
+	float pos = 0;
+	for (uint8_t i = edge_ignore; i < sensorNum - edge_ignore; i++)
+	{
+		if ((scaner->detail >> i) & 0X01)
+		{
+			*lednum += 1;
+			*error += line_weight[sensorNum - 1 - i];
+			pos += sensorNum - 1 - i;
+			if (i == sensorNum - 1 || !((scaner->detail >> (i + 1)) & 0x01))
+				break;
+		}
+	}
+	if (*lednum > MAX_LED || *lednum == 0)
+		return -1;
+	pos /= (float)(*lednum);
+	return pos;
+}
+
+/*--- 流水巡线：取离中心最近的一段连续亮灯 ---*/
+static float calc_liushui(volatile SCANER *scaner, int8_t edge_ignore, uint8_t sensorNum, float *error, uint8_t *lednum)
+{
+	float pos = 0;
+	float best_location = 0.0f;
+	float temp_location = 0.0f;
+	uint8_t line_led_last = 0;
+	uint8_t len = 0;
+	uint8_t temp_len = 0;
+	float center = ((float)(sensorNum - 1)) / 2;
+
+	for (uint8_t i = edge_ignore; i < sensorNum - edge_ignore; i++)
+	{
+		if (scaner->detail & (1 << i))
+		{
+			temp_location += i;
+			temp_len++;
+			if (i == sensorNum - 1 || !(scaner->detail & (1 << (i + 1))))
+			{
+				temp_location /= (float)temp_len;
+				if (fabs(temp_location - center) < fabs(best_location - center))
+				{
+					best_location = temp_location;
+					line_led_last = i;
+					len = temp_len;
+					temp_location = 0;
+					temp_len = 0;
+				}
+			}
+		}
+	}
+	for (uint8_t i = line_led_last - len + 1; i <= line_led_last; i++)
+	{
+		*lednum += (scaner->detail >> i) & 1;
+		*error += ((scaner->detail >> i) & 1) * line_weight[sensorNum - 1 - i];
+		if ((scaner->detail >> i) & 1)
+			pos += sensorNum - 1 - i;
+	}
+	if (*lednum > MAX_LED || *lednum == 0)
+		return -1;
+	pos /= (float)(*lednum);
+	return pos;
+}
+
+/*--- 双边循线：多灯多线时自动收紧 edge_ignore ---*/
+static float calc_track_all(volatile SCANER *scaner, int8_t edge_ignore, uint8_t sensorNum, float *error, uint8_t *lednum)
+{
+	float pos = 0;
+	if (scaner->ledNum >= 4 && scaner->lineNum >= 2)
+		edge_ignore = 4;
+
+	for (uint8_t i = edge_ignore; i < sensorNum - edge_ignore; i++)
+	{
+		*lednum += (scaner->detail >> (sensorNum - 1 - i)) & 0X01;
+		*error += ((scaner->detail >> (sensorNum - 1 - i)) & 0X01) * line_weight[i];
+		if ((scaner->detail >> (sensorNum - 1 - i)) & 0X01)
+			pos += i;
+	}
+	if (*lednum > MAX_LED || *lednum == 0)
+		return -1;
+	pos /= (float)(*lednum);
+	return pos;
+}
+
+/*循迹中心值和位置计算 - 正确返回大于等于0的位置，错误返回-1*/
+float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned char SensorNum, uint8_t track_mode, float *Error, u8 *LED_Num_Temp)
+{
+	switch (track_mode)
+	{
+		case TRACK_LEFT_EDGE:  return calc_left_edge(scaner, edge_ignore, SensorNum, Error, LED_Num_Temp);
+		case TRACK_RIGHT_EDGE: return calc_right_edge(scaner, edge_ignore, SensorNum, Error, LED_Num_Temp);
+		case TRACK_LIUSHUI:    return calc_liushui(scaner, edge_ignore, SensorNum, Error, LED_Num_Temp);
+		default:               return calc_track_all(scaner, edge_ignore, SensorNum, Error, LED_Num_Temp);
+	}
+}
 /*更新循迹值数组 - 错误类型 0为无错，为正确值 1为精检验错误  2为粗略检测错误*/
-void Update_line_data(uint8_t error_kind, float pos, float error)
+static void Update_line_data(uint8_t error_kind, float pos, float error)
 {
 	memmove(&line_data, &line_data[1], sizeof(struct Line_data) * 4); // 递推平均滤波法
 	switch (error_kind)
 	{
-	case NO_error: // 无错误
+	case TRUTH_VALID: // 无错误
 		line_data[4].error = error;
 		line_data[4].pos = pos;
 		line_data[4].truth = error_kind;
 		break;
-	case all_error: // 全错误
+	case TRUTH_ALL_ERR: // 全错误
 		line_data[4].error = -1;
 		line_data[4].pos = -1;
 		line_data[4].truth = error_kind;
 		break;
-	case pos_error:
+	case TRUTH_POS_ERR:
 		line_data[4].error = error;
 		line_data[4].pos = pos;
 		line_data[4].truth = error_kind;
@@ -469,10 +457,11 @@ uint8_t pos_detect(float pos)
 		return 1;
 	}
 }
-#define R_ 1
+#define POS_CLUSTER_RADIUS 1
 /*获取循迹值error*/
 float Get_scaner_error(void)
 {
+	static float last_valid_error = 0; // 丢线时保持上一次有效误差
 	uint8_t nums = 0;
 	float error = 0;
 	float pos_data[5] = {0, 0, 0, 0, 0};
@@ -488,7 +477,7 @@ float Get_scaner_error(void)
 			idex[nums] = i;
 			nums++; // 数据正确的数量
 		}
-		else if (line_data[i].truth == pos_error)
+		else if (line_data[i].truth == TRUTH_POS_ERR)
 		{
 			pos_data[pos_error_nums] = line_data[i].error;
 			pos_pos[pos_error_nums] = line_data[i].pos;
@@ -509,7 +498,7 @@ float Get_scaner_error(void)
 	{
 		if (pos_error_nums == 0) // 没有pos值可参考
 		{
-			return 0; // 没有办法，硬着头皮原路前进
+			return last_valid_error; // 保持上一次有效误差，避免丢线后直行
 		}
 		else // 参考错误的位置或许可行
 		{
@@ -524,7 +513,7 @@ float Get_scaner_error(void)
 			{
 				for (int j = i + 1; j < pos_error_nums; j++)
 				{
-					if (fabs(pos_pos[i] - pos_pos[j]) <= R_)
+					if (fabs(pos_pos[i] - pos_pos[j]) <= POS_CLUSTER_RADIUS)
 					{
 						scorce[i]++;
 						scorce[j]++;
@@ -546,7 +535,7 @@ float Get_scaner_error(void)
 			/*都是离散分散的，没救了*/
 			if (max == 0)
 			{
-				return 0;
+				return last_valid_error; // 保持上一次有效误差
 			}
 			else
 			{
@@ -562,7 +551,7 @@ float Get_scaner_error(void)
 		{
 			for (int j = i + 1; j < pos_error_nums; j++)
 			{
-				if (fabs(pos_pos[i] - pos_pos[j]) <= R_)
+				if (fabs(pos_pos[i] - pos_pos[j]) <= POS_CLUSTER_RADIUS)
 				{
 					scorce[i]++;
 					scorce[j]++;
@@ -593,11 +582,13 @@ float Get_scaner_error(void)
 			return pos_data[max_idx];
 		}
 	}
+	if (error != 0)
+		last_valid_error = error;
 	return error;
 }
 
 /*粗略检测 - 判断该循迹值是否可用，可用返回1，不可用返回0*/
-uint8_t error_detect_one(u8 LED_Num, u8 Line_Num)
+static uint8_t coarse_filter(u8 LED_Num, u8 Line_Num)
 {
 	
 	// 多灯 多线 无灯 灯数/线数 >=4						            LED_Num / Line_Num >= 4表示 平均每条线占太多灯

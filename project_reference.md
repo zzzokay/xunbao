@@ -245,6 +245,19 @@ TIM5_CNT → Speed[3] → motor_R1.measure (右后，取反)
 
 权重表: `line_weight[16] = {-3, -2.4, -1.8, -1.3, -0.9, -0.6, -0.4, -0.2, 0.2, 0.4, 0.6, 0.9, 1.3, 1.8, 2.4, 3}`
 
+巡线历史滤波: `line_data[5]` 滑动窗口，存储最近5次的 pos/error/truth。
+- `truth` 枚举（`enum LineTruth`，scaner.h）: `TRUTH_VALID=0` 正确值；`TRUTH_ALL_ERR=1` 全错误；`TRUTH_POS_ERR=2` 位置跳变
+- `ScanerMode_Switch()` 切换模式时会清零 `line_data`，避免旧模式数据污染
+- Gray 模式不写入 `line_data`（`Update_line_data` 已注释），直接用 `Scaner.gray_error`
+- `Get_scaner_error()` 丢线时保持上次有效误差（`last_valid_error`），不会直行
+
+巡线函数结构（scaner.c）:
+- `getline_error_ex()` → RF: `UpdateScanerFromRf` → `Line_Scan`（粗滤→计算→位置验证→写历史）；Gray: `UpdateScanerFromGray` → `Calculate_Error`
+- `value_calculation()` 为 switch 分发器，实际逻辑在 4 个 static 函数：`calc_left_edge`/`calc_right_edge`/`calc_liushui`/`calc_track_all`
+- `coarse_filter()` 粗滤：灯数≥10 / 线数≥4 / 无灯 / 平均每线≥4灯 → 丢弃
+- `pos_detect()` 位置连续性：新 pos 与最近正确值差 < 1.5（`POS_CLUSTER_RADIUS`）才算通过
+- 内部函数（`coarse_filter`/`pos_detect`/`Update_line_data`/`value_calculation`）均为 static，不对外暴露
+
 ---
 
 ## 八、地图节点功能 ([map.h](Application/map.h))

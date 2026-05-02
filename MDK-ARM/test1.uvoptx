@@ -158,42 +158,42 @@
         <Ww>
           <count>0</count>
           <WinNumber>1</WinNumber>
-          <ItemText>motor</ItemText>
+          <ItemText>PIDMode</ItemText>
         </Ww>
         <Ww>
           <count>1</count>
           <WinNumber>1</WinNumber>
-          <ItemText>recv_end_flag</ItemText>
+          <ItemText>nodesr.nowNode</ItemText>
         </Ww>
         <Ww>
           <count>2</count>
           <WinNumber>1</WinNumber>
-          <ItemText>recv_flag</ItemText>
+          <ItemText>scaner_set.CatchsensorNum</ItemText>
         </Ww>
         <Ww>
           <count>3</count>
           <WinNumber>1</WinNumber>
-          <ItemText>Turn360_Flag</ItemText>
+          <ItemText>line_pid_obj.measure</ItemText>
         </Ww>
         <Ww>
           <count>4</count>
           <WinNumber>1</WinNumber>
-          <ItemText>turn360_prev_yaw</ItemText>
+          <ItemText>line_pid_obj.target</ItemText>
         </Ww>
         <Ww>
           <count>5</count>
           <WinNumber>1</WinNumber>
-          <ItemText>test_flag</ItemText>
+          <ItemText>Fspeed</ItemText>
         </Ww>
         <Ww>
           <count>6</count>
           <WinNumber>1</WinNumber>
-          <ItemText>PIDMode</ItemText>
+          <ItemText>motor_R1.measure</ItemText>
         </Ww>
         <Ww>
           <count>7</count>
           <WinNumber>1</WinNumber>
-          <ItemText>motor_L1.measure</ItemText>
+          <ItemText>motor_R0.measure</ItemText>
         </Ww>
         <Ww>
           <count>8</count>
@@ -203,12 +203,17 @@
         <Ww>
           <count>9</count>
           <WinNumber>1</WinNumber>
-          <ItemText>motor_R0.measure</ItemText>
+          <ItemText>motor_L1.measure</ItemText>
         </Ww>
         <Ww>
           <count>10</count>
           <WinNumber>1</WinNumber>
-          <ItemText>motor_R1.measure</ItemText>
+          <ItemText>motor_all.Lspeed</ItemText>
+        </Ww>
+        <Ww>
+          <count>11</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>motor_all.Rspeed</ItemText>
         </Ww>
       </WatchWindow1>
       <MemoryWindow1>

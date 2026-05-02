@@ -106,7 +106,7 @@ void Chassis_SetTargetSpeed(float speed)
 				case SPEED1:
 					line_pid_param.kp = 7.0;//6.0
 					line_pid_param.ki = 0;//0
-					line_pid_param.kd = 350;//300
+					line_pid_param.kd = 0;//300
 					break;
 				default:
 					break;
@@ -213,9 +213,6 @@ void Chassis_EnableAntiSnake(void)
 
 void Chassis_Brake(void)//更安全的急刹
 {
-    Chassis_SetTargetSpeed(0);
-    vTaskDelay(100);//100ms
-    PIDMode = is_Free;
     CarBrake(); // 调用原有的底层急刹
     vTaskDelay(100);//100ms
 }

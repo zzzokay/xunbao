@@ -27,20 +27,33 @@ Project File Date:  05/01/2026
 <h2>Output:</h2>
 *** Using Compiler 'V5.06 update 7 (build 960)', folder: 'D:\KEIL5\Core\ARM\version5\Bin'
 Build target 'test1'
-compiling main_task.c...
+compiling Rec_usart.c...
 ../Task/motor_task.h(26): warning:  #375-D: declaration requires a typedef name
   };
-../Application/turn.h(17): warning:  #231-D: declaration is not visible outside of function
+..\Module\Rec_usart.h(34): warning:  #1295-D: Deprecated declaration get_PIDdata - give arg types
+  void get_PIDdata();
+..\Module\Rec_usart.c(20): error:  #20: identifier "HISTORY_SIZE" is undefined
+  extern struct Line_data line_data[HISTORY_SIZE];
+..\Module\Rec_usart.c: 2 warnings, 1 error
+compiling chassis_api.c...
+../Task/motor_task.h(26): warning:  #375-D: declaration requires a typedef name
+  };
+..\Application\turn.h(17): warning:  #231-D: declaration is not visible outside of function
   uint8_t Go_Angle(float angle_want, float speed,volatile struct Motors *motor);
-..\Task\main_task.c: 2 warnings, 0 errors
-compiling turn.c...
+..\Application\chassis_api.c(35): warning:  #188-D: enumerated type mixed with another type
+  static ChassisState_t chassis = {0};
+..\Application\chassis_api.c(579): warning:  #223-D: function "buzzer_on" declared implicitly
+  	buzzer_on();
+..\Application\chassis_api.c(585): warning:  #1-D: last line of file ends without a newline
+  }
+..\Application\chassis_api.c: 5 warnings, 0 errors
+compiling scaner.c...
 ../Task/motor_task.h(26): warning:  #375-D: declaration requires a typedef name
   };
-..\Application\turn.c: 1 warning, 0 errors
-linking...
-Program Size: Code=58396 RO-data=4352 RW-data=4352 ZI-data=21216  
-FromELF: creating hex file...
-"test1\test1.axf" - 0 Error(s), 3 Warning(s).
+..\Application\turn.h(17): warning:  #231-D: declaration is not visible outside of function
+  uint8_t Go_Angle(float angle_want, float speed,volatile struct Motors *motor);
+..\Application\scaner.c: 2 warnings, 0 errors
+"test1\test1.axf" - 1 Error(s), 9 Warning(s).
 
 <h2>Software Packages used:</h2>
 
@@ -63,7 +76,8 @@ Package Vendor: Keil
 
    * Component: ARM::CMSIS:CORE:5.6.0
       Include file:  CMSIS/Core/Include/tz_context.h
-Build Time Elapsed:  00:00:06
+Target not created.
+Build Time Elapsed:  00:00:08
 </pre>
 </body>
 </html>

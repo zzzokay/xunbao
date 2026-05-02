@@ -92,13 +92,15 @@ void motor_task(void *pvParameters)
 
 		// 调试信息（被注释掉的部分）
 		/*陀螺仪模式*/ //printf("Gyro:%.2f LSP:%.2f RSP:%.2f L0:%.2f L1:%.2f R0:%.2f R1:%.2f\r\n", imu.yaw,motor_all.Lspeed,motor_all.Rspeed,motor_L0.output,motor_L1.output,motor_R0.output,motor_R1.output);
-		/*巡线值*/ ///printf_byte(Scaner.detail);
-		/*左速度和右速度*///printf("Lspeed:%.2f Rspeed:%.2f\r\n", motor_all.Lspeed, motor_all.Rspeed);
+		/*巡线值*/ //printf_byte(Scaner.detail);
+		
+
 		//printf("Cspeed:%.2f Gspeed:%.2f\r\n", motor_all.Cspeed, motor_all.Gspeed);
 		/*当前角度信息*/ //printf("yaw:%.2f\troll:%.2f\tpitch:%.2f\tbasic:%.2f\r\n", imu.yaw, imu.roll, imu.pitch, basic_p);
 		/*当前目的节点*/ //printf("%d\r\n",nodesr.nowNode.nodenum);
 		/*巡线错误*/ //printf("前%d 左%d 右%d\r\n", Infrared_ahead, infrared.head_left, infrared.head_right);
 
+		/*左速度和右速度*///printf("Lspeed:%.2f Rspeed:%.2f\r\n", motor_all.Lspeed, motor_all.Rspeed);
 		/*编码器测量值*/ //printf("L0:%.1f,L1:%.1f,R0:%.1f,R1:%.1f,TargetL:%.1f,TargetR:%.1f, pidmode:%d\r\n", motor_L0.measure, motor_L1.measure, motor_R0.measure, motor_R1.measure ,motor_all.Lspeed, motor_all.Rspeed, PIDMode);
 		/*编码器目标值*///printf("L0tar:%.2f\tL1tar:%.2f\tR0tar:%.2f\tR1tar:%.2f\r\n", motor_L0.target, motor_L1.target, motor_R0.target, motor_R1.target);
 		/*编码器PID*/// printf("LSP:%.2f RSP:%.2f L0:%.2f L1:%.2f R0:%.2f R1:%.2f\r\n", motor_all.Lspeed,motor_all.Rspeed,motor_L0.output,motor_L1.output,motor_R0.output,motor_R1.output);
