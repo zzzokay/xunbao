@@ -60,12 +60,7 @@ volatile SCANER Scaner;
 volatile SCANER Cross_Scaner;
 #define Line_color WHLITE
 
-struct Line_data // 循迹速度结构体
-{
-	volatile float pos;		// 灯的中心位置
-	volatile float error;	// 误差
-	volatile uint8_t truth; // 该值是否正确
-} line_data[5] = {
+struct Line_data line_data[5] = {
 	{0.0f, 0.0f, 1}, // 第一个结构体初值
 	{0.0f, 0.0f, 1}, // 第二个结构体初值
 	{0.0f, 0.0f, 1}, // 第三个结构体初值
@@ -218,50 +213,6 @@ void get_detail(void)
 	Scaner.detail = data;
 }
 
-
-/*循线扫描 - 包括各种模式处理*/
-uint8_t Line_Scan(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_ignore, uint8_t track_mode)
-{
-	float error = 0;
-	u8 linenum = 0;
-	u8 lednum = 0;
-	uint8_t lednum_tmp = 0;
-
-	/*统计亮灯数和引导线数*/
-	for (uint8_t i = 0; i < sensorNum; i++)
-	{
-		if ((scaner->detail & (0x1 << i)))
-		{
-			lednum++;
-			if (!(scaner->detail & (1 << (i + 1))))
-				++linenum;
-		}
-	}
-	scaner->lineNum = linenum;
-	scaner->ledNum = lednum;
-
-	/*粗略检测 - 滤掉必定错误的值*/
-	if (coarse_filter(lednum, linenum))
-	{
-		Update_line_data(TRUTH_ALL_ERR, -1, -1);
-		return 0;
-	}
-
-	/*循迹中心值计算*/
-	float pos = value_calculation(scaner, edge_ignore, sensorNum, track_mode, &error, &lednum_tmp);
-	if (pos < 0)
-	{
-		Update_line_data(TRUTH_ALL_ERR, -1, -1);
-		return 0;
-	}
-
-	/*取误差平均值，记录到历史*/
-	error /= (float)lednum_tmp;
-	scaner->error = error;
-	uint8_t truth = pos_detect(pos) ? TRUTH_VALID : TRUTH_POS_ERR;
-	Update_line_data(truth, pos, scaner->error);
-	return 0;
-}
 
 /*打印出u16变量的二进制值 - 前半为二进制值，后半为原始数据*/
 void printf_byte(uint16_t data)
@@ -600,4 +551,48 @@ static uint8_t coarse_filter(u8 LED_Num, u8 Line_Num)
 	{
 		return 0;
 	}
+}
+
+/*循线扫描 - 包括各种模式处理*/
+uint8_t Line_Scan(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_ignore, uint8_t track_mode)
+{
+	float error = 0;
+	u8 linenum = 0;
+	u8 lednum = 0;
+	uint8_t lednum_tmp = 0;
+
+	/*统计亮灯数和引导线数*/
+	for (uint8_t i = 0; i < sensorNum; i++)
+	{
+		if ((scaner->detail & (0x1 << i)))
+		{
+			lednum++;
+			if (!(scaner->detail & (1 << (i + 1))))
+				++linenum;
+		}
+	}
+	scaner->lineNum = linenum;
+	scaner->ledNum = lednum;
+
+	/*粗略检测 - 滤掉必定错误的值*/
+	if (coarse_filter(lednum, linenum))
+	{
+		Update_line_data(TRUTH_ALL_ERR, -1, -1);
+		return 0;
+	}
+
+	/*循迹中心值计算*/
+	float pos = value_calculation(scaner, edge_ignore, sensorNum, track_mode, &error, &lednum_tmp);
+	if (pos < 0)
+	{
+		Update_line_data(TRUTH_ALL_ERR, -1, -1);
+		return 0;
+	}
+
+	/*取误差平均值，记录到历史*/
+	error /= (float)lednum_tmp;
+	scaner->error = error;
+	uint8_t truth = pos_detect(pos) ? TRUTH_VALID : TRUTH_POS_ERR;
+	Update_line_data(truth, pos, scaner->error);
+	return 0;
 }

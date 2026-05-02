@@ -158,7 +158,7 @@ I (../Core/Inc/tim.h)(0x69EDA5CD)
 I (../Task/temporary_task.h)(0x69E892A4)
 I (../Task/task_create.h)(0x69F38E68)
 I (../Task/ArriveDetect_task.h)(0x69F49195)
-I (../Application/scaner.h)(0x69F4907A)
+I (../Application/scaner.h)(0x69F5EF9D)
 I (../Application/sys.h)(0x69F38E67)
 I (../Application/chassis_api.h)(0x69F45454)
 I (../Application/turn.h)(0x69EDE1E8)
@@ -1537,7 +1537,7 @@ I (../Application/turn.h)(0x69EDE1E8)
 I (../Application/sys.h)(0x69F38E67)
 I (../Module/imu.h)(0x69F38E68)
 I (../Application/chassis_api.h)(0x69F45454)
-I (../Application/scaner.h)(0x69F4907A)
+I (../Application/scaner.h)(0x69F5EF9D)
 I (../Module/bsp_linefollower.h)(0x69F38E68)
 I (../Math/sin_generate.h)(0x69E892A4)
 I (../Module/bsp_buzzer.h)(0x69E892A4)
@@ -1610,7 +1610,7 @@ I (../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h)(0x69E892A4)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h)(0x69E892A4)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h)(0x69E892A4)
 I (..\Task\task_create.h)(0x69F38E68)
-I (../Application/scaner.h)(0x69F4907A)
+I (../Application/scaner.h)(0x69F5EF9D)
 I (../Application/sys.h)(0x69F38E67)
 I (../Math/pid.h)(0x69F0C1A3)
 I (../USMAT/sys.h)(0x69E892A4)
@@ -1675,7 +1675,7 @@ I (../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h)(0x69E892A4)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h)(0x69E892A4)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h)(0x69E892A4)
 I (..\Task\ArriveDetect_task.h)(0x69F49195)
-I (../Application/scaner.h)(0x69F4907A)
+I (../Application/scaner.h)(0x69F5EF9D)
 I (../Application/sys.h)(0x69F38E67)
 I (../Math/pid.h)(0x69F0C1A3)
 I (../USMAT/sys.h)(0x69E892A4)
@@ -1685,7 +1685,7 @@ I (../Application/turn.h)(0x69EDE1E8)
 I (../Module/imu.h)(0x69F38E68)
 I (D:\KEIL5\Core\ARM\version5\include\stdio.h)(0x5E8E3CC2)
 F (..\Task\task_create.h)(0x69F38E68)()
-F (..\Task\main_task.c)(0x69F5D3F2)(--c99 -c --cpu Cortex-M7.fp.sp -D__MICROLIB -g -O2 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F7xx_HAL_Driver/Inc -I ../Drivers/STM32F7xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/r0p1 -I ../Drivers/CMSIS/Device/ST/STM32F7xx/Include -I ../Drivers/CMSIS/Include -I ../Motor -I ../Task -I ../Math -I ../USMAT -I ../Module -I ../Application-I.\RTE\_test1-ID:\KEIL5\Pack\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="537" -D_RTE_ -DSTM32F750xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F750xx-o test1\main_task.o --omf_browse test1\main_task.crf --depend test1\main_task.d)
+F (..\Task\main_task.c)(0x69F5F2C8)(--c99 -c --cpu Cortex-M7.fp.sp -D__MICROLIB -g -O2 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F7xx_HAL_Driver/Inc -I ../Drivers/STM32F7xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/r0p1 -I ../Drivers/CMSIS/Device/ST/STM32F7xx/Include -I ../Drivers/CMSIS/Include -I ../Motor -I ../Task -I ../Math -I ../USMAT -I ../Module -I ../Application-I.\RTE\_test1-ID:\KEIL5\Pack\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="537" -D_RTE_ -DSTM32F750xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F750xx-o test1\main_task.o --omf_browse test1\main_task.crf --depend test1\main_task.d)
 I (..\Task\main_task.h)(0x69E892A4)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h)(0x69E892A4)
 I (D:\KEIL5\Core\ARM\version5\include\stddef.h)(0x5E8E3CC2)
@@ -1738,7 +1738,7 @@ I (../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h)(0x69E892A4)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h)(0x69E892A4)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h)(0x69E892A4)
 I (..\Task\ArriveDetect_task.h)(0x69F49195)
-I (../Application/scaner.h)(0x69F4907A)
+I (../Application/scaner.h)(0x69F5EF9D)
 I (../Application/sys.h)(0x69F38E67)
 I (../Math/pid.h)(0x69F0C1A3)
 I (../USMAT/sys.h)(0x69E892A4)
@@ -1822,7 +1822,7 @@ I (../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h)(0x69E892A4)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h)(0x69E892A4)
 I (..\Task\task_create.h)(0x69F38E68)
 I (..\Task\ArriveDetect_task.h)(0x69F49195)
-I (../Application/scaner.h)(0x69F4907A)
+I (../Application/scaner.h)(0x69F5EF9D)
 I (../Application/sys.h)(0x69F38E67)
 I (../Math/pid.h)(0x69F0C1A3)
 I (../USMAT/sys.h)(0x69E892A4)
@@ -2127,7 +2127,7 @@ I (../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart.h)(0x69E892A3)
 I (../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart_ex.h)(0x69E892A3)
 I (../Core/Inc/usart.h)(0x69EDA5CD)
 I (../Core/Inc/tim.h)(0x69EDA5CD)
-I (../Application/scaner.h)(0x69F4907A)
+I (../Application/scaner.h)(0x69F5EF9D)
 I (../Application/sys.h)(0x69F38E67)
 I (../Math/pid.h)(0x69F0C1A3)
 I (../Application/chassis_api.h)(0x69F45454)
@@ -2384,7 +2384,7 @@ I (../USMAT/uart.h)(0x69F38E68)
 I (../USMAT/sys.h)(0x69E892A4)
 I (D:\KEIL5\Core\ARM\version5\include\stdio.h)(0x5E8E3CC2)
 F (..\Module\Rudder_control.h)(0x69F38E68)()
-F (..\Module\Rec_usart.c)(0x69F5D6EA)(--c99 -c --cpu Cortex-M7.fp.sp -D__MICROLIB -g -O2 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F7xx_HAL_Driver/Inc -I ../Drivers/STM32F7xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/r0p1 -I ../Drivers/CMSIS/Device/ST/STM32F7xx/Include -I ../Drivers/CMSIS/Include -I ../Motor -I ../Task -I ../Math -I ../USMAT -I ../Module -I ../Application-I.\RTE\_test1-ID:\KEIL5\Pack\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="537" -D_RTE_ -DSTM32F750xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F750xx-o test1\rec_usart.o --omf_browse test1\rec_usart.crf --depend test1\rec_usart.d)
+F (..\Module\Rec_usart.c)(0x69F5F585)(--c99 -c --cpu Cortex-M7.fp.sp -D__MICROLIB -g -O2 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F7xx_HAL_Driver/Inc -I ../Drivers/STM32F7xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/r0p1 -I ../Drivers/CMSIS/Device/ST/STM32F7xx/Include -I ../Drivers/CMSIS/Include -I ../Motor -I ../Task -I ../Math -I ../USMAT -I ../Module -I ../Application-I.\RTE\_test1-ID:\KEIL5\Pack\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="537" -D_RTE_ -DSTM32F750xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F750xx-o test1\rec_usart.o --omf_browse test1\rec_usart.crf --depend test1\rec_usart.d)
 I (..\Module\Rec_usart.h)(0x69F38E68)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h)(0x69E892A4)
 I (D:\KEIL5\Core\ARM\version5\include\stddef.h)(0x5E8E3CC2)
@@ -2510,7 +2510,7 @@ I (../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h)(0x69E892A4)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h)(0x69E892A4)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h)(0x69E892A4)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h)(0x69E892A4)
-I (..\Application\scaner.h)(0x69F4907A)
+I (..\Application\scaner.h)(0x69F5EF9D)
 I (..\Application\chassis_api.h)(0x69F45454)
 I (../Task/motor_task.h)(0x69F38E68)
 I (..\Application\turn.h)(0x69EDE1E8)
@@ -2578,7 +2578,7 @@ I (../Math/pid.h)(0x69F0C1A3)
 I (../USMAT/sys.h)(0x69E892A4)
 I (../Module/bsp_led.h)(0x69F38E68)
 F (..\Application\delay.h)(0x69F38E67)()
-F (..\Application\gray.c)(0x69F38E67)(--c99 -c --cpu Cortex-M7.fp.sp -D__MICROLIB -g -O2 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F7xx_HAL_Driver/Inc -I ../Drivers/STM32F7xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/r0p1 -I ../Drivers/CMSIS/Device/ST/STM32F7xx/Include -I ../Drivers/CMSIS/Include -I ../Motor -I ../Task -I ../Math -I ../USMAT -I ../Module -I ../Application-I.\RTE\_test1-ID:\KEIL5\Pack\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="537" -D_RTE_ -DSTM32F750xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F750xx-o test1\gray.o --omf_browse test1\gray.crf --depend test1\gray.d)
+F (..\Application\gray.c)(0x69F5F0DC)(--c99 -c --cpu Cortex-M7.fp.sp -D__MICROLIB -g -O2 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F7xx_HAL_Driver/Inc -I ../Drivers/STM32F7xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/r0p1 -I ../Drivers/CMSIS/Device/ST/STM32F7xx/Include -I ../Drivers/CMSIS/Include -I ../Motor -I ../Task -I ../Math -I ../USMAT -I ../Module -I ../Application-I.\RTE\_test1-ID:\KEIL5\Pack\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="537" -D_RTE_ -DSTM32F750xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F750xx-o test1\gray.o --omf_browse test1\gray.crf --depend test1\gray.d)
 I (..\Application\gray.h)(0x69F38E67)
 I (../Core/Inc/main.h)(0x69E892A2)
 I (../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal.h)(0x69E892A3)
@@ -2615,7 +2615,7 @@ I (../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_tim.h)(0x69E892A3)
 I (../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_tim_ex.h)(0x69E892A3)
 I (../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart.h)(0x69E892A3)
 I (../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart_ex.h)(0x69E892A3)
-I (..\Application\scaner.h)(0x69F4907A)
+I (..\Application\scaner.h)(0x69F5EF9D)
 I (..\Application\sys.h)(0x69F38E67)
 I (../Math/pid.h)(0x69F0C1A3)
 I (../USMAT/sys.h)(0x69E892A4)
@@ -2743,7 +2743,7 @@ I (../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h)(0x69E892A4)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h)(0x69E892A4)
 I (../USMAT/sys.h)(0x69E892A4)
 I (..\Application\delay.h)(0x69F38E67)
-I (..\Application\scaner.h)(0x69F4907A)
+I (..\Application\scaner.h)(0x69F5EF9D)
 I (../Math/pid.h)(0x69F0C1A3)
 I (..\Application\chassis_api.h)(0x69F45454)
 I (../Task/motor_task.h)(0x69F38E68)
@@ -2884,8 +2884,8 @@ I (../Module/bsp_led.h)(0x69F38E68)
 I (../Module/rudder_control.h)(0x69F38E68)
 I (..\Application\motion.h)(0x69E892A2)
 F (..\Application\motion.h)(0x69E892A2)()
-F (..\Application\scaner.c)(0x69F5D6EA)(--c99 -c --cpu Cortex-M7.fp.sp -D__MICROLIB -g -O2 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F7xx_HAL_Driver/Inc -I ../Drivers/STM32F7xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/r0p1 -I ../Drivers/CMSIS/Device/ST/STM32F7xx/Include -I ../Drivers/CMSIS/Include -I ../Motor -I ../Task -I ../Math -I ../USMAT -I ../Module -I ../Application-I.\RTE\_test1-ID:\KEIL5\Pack\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="537" -D_RTE_ -DSTM32F750xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F750xx-o test1\scaner.o --omf_browse test1\scaner.crf --depend test1\scaner.d)
-I (..\Application\scaner.h)(0x69F4907A)
+F (..\Application\scaner.c)(0x69F5F56A)(--c99 -c --cpu Cortex-M7.fp.sp -D__MICROLIB -g -O2 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F7xx_HAL_Driver/Inc -I ../Drivers/STM32F7xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/r0p1 -I ../Drivers/CMSIS/Device/ST/STM32F7xx/Include -I ../Drivers/CMSIS/Include -I ../Motor -I ../Task -I ../Math -I ../USMAT -I ../Module -I ../Application-I.\RTE\_test1-ID:\KEIL5\Pack\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="537" -D_RTE_ -DSTM32F750xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F750xx-o test1\scaner.o --omf_browse test1\scaner.crf --depend test1\scaner.d)
+I (..\Application\scaner.h)(0x69F5EF9D)
 I (..\Application\sys.h)(0x69F38E67)
 I (../Drivers/CMSIS/Device/ST/STM32F7xx/Include/stm32f7xx.h)(0x69E892A3)
 I (../Drivers/CMSIS/Device/ST/STM32F7xx/Include/stm32f750xx.h)(0x69E892A3)
@@ -2951,7 +2951,7 @@ I (../Motor/motor.h)(0x69F38E68)
 I (../Core/Inc/tim.h)(0x69EDA5CD)
 I (..\Application\gray.h)(0x69F38E67)
 I (D:\KEIL5\Core\ARM\version5\include\string.h)(0x5E8E3CC2)
-F (..\Application\scaner.h)(0x69F4907A)()
+F (..\Application\scaner.h)(0x69F5EF9D)()
 F (..\Application\sys.h)(0x69F38E67)()
 F (..\Application\turn.c)(0x69F4A72B)(--c99 -c --cpu Cortex-M7.fp.sp -D__MICROLIB -g -O2 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F7xx_HAL_Driver/Inc -I ../Drivers/STM32F7xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/r0p1 -I ../Drivers/CMSIS/Device/ST/STM32F7xx/Include -I ../Drivers/CMSIS/Include -I ../Motor -I ../Task -I ../Math -I ../USMAT -I ../Module -I ../Application-I.\RTE\_test1-ID:\KEIL5\Pack\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="537" -D_RTE_ -DSTM32F750xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F750xx-o test1\turn.o --omf_browse test1\turn.crf --depend test1\turn.d)
 I (..\Application\turn.h)(0x69EDE1E8)
@@ -3017,7 +3017,7 @@ I (../USMAT/uart.h)(0x69F38E68)
 I (D:\KEIL5\Core\ARM\version5\include\stdio.h)(0x5E8E3CC2)
 I (../Motor/motor.h)(0x69F38E68)
 I (../Core/Inc/tim.h)(0x69EDA5CD)
-I (..\Application\scaner.h)(0x69F4907A)
+I (..\Application\scaner.h)(0x69F5EF9D)
 I (../Module/openmv.h)(0x69F38E68)
 I (../Motor/encoder.h)(0x69F38E68)
 I (../Module/bsp_buzzer.h)(0x69E892A4)
@@ -3118,7 +3118,7 @@ I (../Math/pid.h)(0x69F0C1A3)
 I (..\Application\turn.h)(0x69EDE1E8)
 I (..\Application\sys.h)(0x69F38E67)
 I (../Module/imu.h)(0x69F38E68)
-I (..\Application\scaner.h)(0x69F4907A)
+I (..\Application\scaner.h)(0x69F5EF9D)
 I (../Module/bsp_linefollower.h)(0x69F38E68)
 I (D:\KEIL5\Core\ARM\version5\include\math.h)(0x5E8E3CC2)
 I (../Motor/encoder.h)(0x69F38E68)

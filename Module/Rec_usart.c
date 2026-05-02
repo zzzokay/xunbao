@@ -17,7 +17,6 @@ uint8_t command[30];
 
 extern DMA_HandleTypeDef hdma_uart4_rx;
 extern uint8_t test_flag ;
-extern struct Line_data line_data[HISTORY_SIZE];
 
 volatile int center_x =50;
 volatile int center_y =50;
@@ -63,14 +62,6 @@ void get_PIDdata()
 				if(strcmp(param,"target")==0)
 				{
 					test_flag=1;
-					//清零line_data
-					for (int i = 0; i < HISTORY_SIZE; i++)
-					{
-						line_data[i].pos = 0.0f;
-						line_data[i].error = 0.0f;
-						line_data[i].truth = 1; // TRUTH_ALL_ERR，初始状态
-					}
-					//Chassis_SetTargetSpeed(atof(value));
 					
 				}
 			}
