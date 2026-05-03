@@ -171,9 +171,9 @@ void pid_init(void)
 	motor_pid_paramR1.differential_filterK = 0.5;
 	motor_pid_paramR1.actualMax = 100;
 
-	line_pid_param.kp = 10.5;
+	line_pid_param.kp = 7;
 	line_pid_param.ki = 0;
-	line_pid_param.kd = 500;
+	line_pid_param.kd = 0;
 	line_pid_param.differential_filterK = 0.5;
 	line_pid_param.outputMax = 80;
 	line_pid_param.outputMin = -80;

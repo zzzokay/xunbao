@@ -139,41 +139,46 @@ uint8_t Command_Write(uint8_t *data, uint8_t length) {
 //    }
 //}
 uint8_t Command_GetCommand(uint8_t *command) {
+    // 快照写索引，避免读取过程中被中断更新导致不一致
+    __disable_irq();
+    uint8_t snapshot_write = writeIndex;
+    __enable_irq();
+
+    uint8_t local_read = readIndex;
+
     // 寻找完整指令
     while (1) {
-        // 如果缓冲区长度小于COMMAND_MIN_LENGTH==3 则不可能有完整的指令
-        if (Command_GetLength() < COMMAND_MIN_LENGTH) {
+        // 计算缓冲区中有效数据长度
+        uint8_t len = (snapshot_write + BUFFER_SIZE - local_read) % BUFFER_SIZE;
+        if (len < COMMAND_MIN_LENGTH) {
         return 0;
         }
         // 如果不是包头 则跳过 重新开始寻找
-        if (Command_Read(readIndex) !=HEAD) {
-        Command_AddReadIndex(1);
+        if (buffer[local_read % BUFFER_SIZE] != HEAD) {
+        local_read = (local_read + 1) % BUFFER_SIZE;
         continue;
         }
-				
-				// 找包尾，如果包尾不正确 则跳过 重新开始寻找
-			  uint8_t tailIndex = readIndex;
+
+        // 找包尾
+        uint8_t tailIndex = local_read;
         do {
-				tailIndex = (tailIndex + 1) % BUFFER_SIZE;
-					
-				// 如果绕了一圈又回到了readIndex，说明没找到包尾
-				if (tailIndex == readIndex) {
-						return 0; 
-				}
-				} while (Command_Read(tailIndex) != TAL);
-				
-				// 计算指令长度
-				uint8_t length = (tailIndex - readIndex + BUFFER_SIZE) % BUFFER_SIZE + 1;
-				
-        // 如果找到完整指令 则将指令写入command 返回指令长度
+            tailIndex = (tailIndex + 1) % BUFFER_SIZE;
+            if (tailIndex == local_read) {
+                return 0;
+            }
+        } while (buffer[tailIndex % BUFFER_SIZE] != TAL);
+
+        // 计算指令长度
+        uint8_t length = (tailIndex - local_read + BUFFER_SIZE) % BUFFER_SIZE + 1;
+
+        // 将指令拷贝到command
         for (uint8_t i = 0; i < length; i++) {
-        command[i] = Command_Read(readIndex + i);
+            command[i] = buffer[(local_read + i) % BUFFER_SIZE];
         }
-				
-				// 更新读索引
-        Command_AddReadIndex(length);
-				
-				// 返回指令长度
+
+        // 更新读索引
+        readIndex = (local_read + length) % BUFFER_SIZE;
+
         return length;
     }
 }

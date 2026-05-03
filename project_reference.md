@@ -533,3 +533,29 @@ motor_task 5ms循环:
 - `Turn360Step` 已从 `imu.yaw` 改为 `get_latest_yaw()`（通过 mutex 保护）
 - `Go_Angle` / `Turn_Angle_Base` 使用 `getAngleZ()`（内部调用 `get_latest_yaw()`）
 - printf 调试输出直接读 `imu.yaw` 可接受（单次 float 读原子，调试用途无需一致性）
+
+---
+
+## 十八、Flash 优化（2026-05-02）
+
+### 18.1 问题
+
+Flash 使用 66,648 字节超出 65,536 字节限制（STM32F750V8 仅 64KB Flash），溢出 1,112 字节。
+
+### 18.2 优化措施
+
+**barrier.c — 提取 route 复制 helper（省 ~1.5-2KB）**
+
+- `update_rout_by_treasure_7` 和 `update_rout_by_treasure_8` 各有 25 处完全相同的 for 循环复制代码
+- 提取 `static void copy_route(const u8* src)` 函数，每个 case 从 ~40 字节降至 ~10 字节
+- 使用 `const u8 r[]` 确保路由数据存放在 ROM（Flash），不额外占 RAM
+
+**Rec_usart.c — 替换 sscanf（省 ~1.6KB）**
+
+- `get_PIDdata()` 原用 `sscanf` 解析 `[dev,param,value]` 格式调试命令
+- sscanf 链接了标准库的 `_scanf.o`（810B）和 `scanf_fp.o`（852B）
+- 改为手动解析 `parse_cmd_field()`，消除对标准库 scanf 的依赖
+
+### 18.3 优化结果
+
+预估节省 3-3.5KB，解决 Flash 溢出问题。

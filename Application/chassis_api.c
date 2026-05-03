@@ -99,14 +99,14 @@ void Chassis_SetTargetSpeed(float speed)
 				case SPEED25:	
 				case SPEED2:
 					line_pid_param.kp = 7.0;//8.0
-					line_pid_param.ki = 0.008;//0.008
-					line_pid_param.kd = 400;//400
+					//line_pid_param.ki = 0.008;//0.008
+					//line_pid_param.kd = 400;//60
 					break;		
 				case SPEED0:
 				case SPEED1:
 					line_pid_param.kp = 7.0;//6.0
 					line_pid_param.ki = 0;//0
-					line_pid_param.kd = 0;//300
+					//line_pid_param.kd = 0;//90
 					break;
 				default:
 					break;
@@ -213,6 +213,8 @@ void Chassis_EnableAntiSnake(void)
 
 void Chassis_Brake(void)//更安全的急刹
 {
+	Chassis_SetTargetSpeed(0);
+	vTaskDelay(200);
     CarBrake(); // 调用原有的底层急刹
     vTaskDelay(100);//100ms
 }
@@ -381,7 +383,13 @@ void Chassis_Turn_By_RightLine_Blocking(float target_angle, float current_angle,
 //用之前先停车
 void Chassis_Turn_By_StopGyro_Blocking(float target_angle, float current_angle)
 {
-		
+    //如果没停车
+    if(fabsf(motor_all.Lspeed) > 1.0f || fabsf(motor_all.Rspeed) > 1.0f)
+    {
+        Chassis_Brake(); // 先停车，确保转弯稳定性
+    }
+	
+    
     Chassis_SetGyroAngle_Turn(target_angle);
 
     Chassis_SetMode(is_Turn);//进入转弯模式			
@@ -508,6 +516,8 @@ void pid_mode_switch(uint8_t target_mode)
 			line_pid_obj = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
 			gyroT_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
 			gyroG_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
+            motor_all.Cspeed = 0;
+            motor_all.Gspeed = 0;
 			TG_speed = 0;
 			TC_speed = 0;
 			break;

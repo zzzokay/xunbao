@@ -143,8 +143,6 @@ void Go_Line(float speed, volatile struct Motors *motor)
 		Fspeed = -motor_all.Line_speedMax;
 		
 	Fspeed *= fabsf(speed) / 50;
-	//打印寻迹测量值，目标值，输出值
-	printf("%.1f,%.1f,%.1f\r\n", line_pid_obj.measure, line_pid_obj.target, Fspeed);
 	// //打印line_data历史数据
 	//  for (int i = 0; i < 5; i++)
 	//  {

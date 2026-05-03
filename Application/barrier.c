@@ -1356,6 +1356,15 @@ void South_Pole(void)
 	nodesr.flag |= 0x04; // 到达路口
 }
 
+static void copy_route(const u8* src)
+{
+	for(uint8_t i = 0; i < 50; i++)
+	{
+		route[map.point + i] = src[i];
+		if(src[i] == 0xFF)
+			break;
+	}
+}
 
 void update_rout_by_treasure_7(void)
 {
@@ -1365,51 +1374,15 @@ void update_rout_by_treasure_7(void)
 		switch (treasure)
 		{
 			case 3:
-				
-				u8 route_1[50] = {N22,B7,C6,N19,B5,N18,N16,N12,N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF};
-				for(uint8_t i = 0;i<100;i++)
-				{
-					route[map.point+i] = route_1[i];
-					if(route_1[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 4:
-				u8 route_2[50] = {N22,B7,C6,N19,B5,N18,N16,N12,N5,N6,P4,N6,N5,N4,B3,N2,P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_2[i];
-					if(route_2[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 5:
-				u8 route_3[50] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P6,N13,N12,N5,N4,B3,N2,P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_3[i];
-					if(route_3[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P6,N13,N12,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 6:
-				u8 route_4[50] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_4[i];
-					if(route_4[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 2:
-				u8 route_5[50] = {N22,B7,C6,N19,B5,N18,N16,N12,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_5[i];
-					if(route_5[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; copy_route(r); break; }
 			default:
 
                 break;	
@@ -1420,50 +1393,15 @@ void update_rout_by_treasure_7(void)
 		switch (treasure)
 		{
 			case 3:
-				u8 route_1[50] = {N22, B7,C6,N19,B5,N18,N16,N12,N8,N5, N4,N3,P3,N3,N4, B3, N2, P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_1[i];
-					if(route_1[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 4:
-				u8 route_2[50] = {N22, B7,C6,N19,B5,N18,N16,N12,N8,N5, N6, P4, N6, N5, N4, B3, N2, P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_2[i];
-					if(route_2[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 5:
-				u8 route_3[50] = {N22,B7,C6,N19,B5,N18,N16,N12,N13, P6, N13, N12,N8, N5, N4, B3, N2, P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_3[i];
-					if(route_3[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P6,N13,N12,N8,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 6:
-				u8 route_4[50] = {N22, B6, N20, P7, N20, C4, C8, C7, N14, C3, N9, B9, N7, P5, N7, B8, N9, N10, N8, N5, N4, B3, N2, P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_4[i];
-					if(route_4[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 2:
-				u8 route_5[50] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_5[i];
-					if(route_5[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; copy_route(r); break; }
 			default:
 
                 break;	
@@ -1474,50 +1412,15 @@ void update_rout_by_treasure_7(void)
 		switch (treasure)
 		{
 			case 3:
-				u8 route_1[50] = {N22, B7,C6,N19,B5,N18,N16,N12,N8,N3,P3,N3,N4, B3, N2, P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_1[i];
-					if(route_1[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N3,P3,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 4:
-				u8 route_2[50] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N3,N4,N5, N6, P4, N6, N5, N4, B3, N2, P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_2[i];
-					if(route_2[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 5:
-				u8 route_3[50] = {N22,B7,C6,N19,B5,N18,N16,N12, N13, P6, N13, N12,N8,N3,N4, B3, N2, P2 ,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_3[i];
-					if(route_3[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P6,N13,N12,N8,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 6:
-				u8 route_4[50] = {N22, B6, N20, P7, N20, C4, C8, C7, N14, C3, N9, B9, N7, P5, N7, B8, N9, N10, N8, N3, N4, B3, N2, P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_4[i];
-					if(route_4[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 2:
-				u8 route_5[50] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_5[i];
-					if(route_5[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; copy_route(r); break; }
 			default:
 
                 break;	
@@ -1528,50 +1431,15 @@ void update_rout_by_treasure_7(void)
 		switch (treasure)
 		{
 			case 3:
-				u8 route_1[50] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3 ,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_1[i];
-					if(route_1[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; copy_route(r); break; }
 			case 4:
-				u8 route_2[50] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3 ,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_2[i];
-					if(route_2[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; copy_route(r); break; }
 			case 5:
-				u8 route_3[50] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P6,N13,N12,N11,N10,N3, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_3[i];
-					if(route_3[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P6,N13,N12,N11,N10,N3,0XFF}; copy_route(r); break; }
 			case 6:
-				u8 route_4[50] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_4[i];
-					if(route_4[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,0XFF}; copy_route(r); break; }
 			case 2:
-				u8 route_5[50] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_5[i];
-					if(route_5[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; copy_route(r); break; }
 			default:
 
                 break;	
@@ -1582,51 +1450,15 @@ void update_rout_by_treasure_7(void)
 		switch (treasure)
 		{
 			case 3:
-				//uint8_t route_1[50] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3,P3,N3,N4,B3,N2,P2,0XFF};
-				uint8_t route_1[50] = {N22,B7,C6,N19,B5,N18,C5,N15,N10,N3,P3,N3,N4,B3,N2,P2,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_1[i];
-					if(route_1[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,C5,N15,N10,N3,P3,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 4:
-				u8 route_2[50] = {N22,B7,C6,N19,B5,N18,C5,N15,N10,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_2[i];
-					if(route_2[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,C5,N15,N10,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 5:
-				u8 route_3[50] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P6,N13,N12,N11,N10,N3,N4,B3,N2,P2,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_3[i];
-					if(route_3[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P6,N13,N12,N11,N10,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 6:
-				u8 route_4[50] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_4[i];
-					if(route_4[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 2:
-				u8 route_5[50] = {N22,B7,C6,N19,B5,N18,C5,N15,N10,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_5[i];
-					if(route_5[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,C5,N15,N10,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; copy_route(r); break; }
 			default:
 
                 break;	
@@ -1639,51 +1471,16 @@ void update_rout_by_treasure_8(void)
 	{
 		switch (treasure)
 		{
-			case 3:												
-				u8 route_1[50] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,/*N13,P6,N13,N12,*/N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_1[i];
-					if(route_1[i]==0xff)
-						break;
-				}
-				   break;
+			case 3:
+				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 4:
-				u8 route_2[50] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,/*N13,P6,N13,N12,*/N5,N6,P4,N6,N5,N4,B3,N2,P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_2[i];
-					if(route_2[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 5:
-				u8 route_3[50] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N13,P6,N13,N12,N5,/*N6,P4,N6,N5,N4,N3,P3,N3,*/N4,B3,N2,P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_3[i];
-					if(route_3[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N13,P6,N13,N12,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 6:
-				u8 route_4[50] = {C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N11,N12,/*N13,P6,N13,N12*/N5,N4,B3,N2,P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_4[i];
-					if(route_4[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 2:
-				u8 route_5[50] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,/*N13,P6,N13,N12,*/N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_5[i];
-					if(route_5[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; copy_route(r); break; }
 			default:
 
                 break;	
@@ -1694,50 +1491,15 @@ void update_rout_by_treasure_8(void)
 		switch (treasure)
 		{
 			case 3:
-				u8 route_1[50] = {C4, C8, C7, N14, C3, N9, N10 , N8, N5, N4, N3, P3, N3, N4, B3, N2, P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_1[i];
-					if(route_1[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 4:
-				u8 route_2[50] = {C4, C8, C7, N14, C3, N9, N10, N8, N5, N6, P4, N6, N5, N4, B3, N2, P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_2[i];
-					if(route_2[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 5:
-				u8 route_3[50] = {C4, C8, C7, N14, C3, N9, B9,N10, N11, N12, N13, P6, N13, N12,N8, N5, N4, B3, N2, P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_3[i];
-					if(route_3[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N10,N11,N12,N13,P6,N13,N12,N8,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 6:
-				u8 route_4[50] = {C4, C8, C7, N14, C3, N9, B9,N7,P5,N7,B8, N9,N10, N8, N5, N4, B3, N2, P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_4[i];
-					if(route_4[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 2:
-				u8 route_5[50] = {C4,C8,C7,N14,C3,N9,N10,N8,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_5[i];
-					if(route_5[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; copy_route(r); break; }
 			default:
 
                 break;	
@@ -1748,50 +1510,15 @@ void update_rout_by_treasure_8(void)
 		switch (treasure)
 		{
 			case 3:
-				u8 route_1[50] = {C4,C8,C7,N14,C3,N9,N10,N8, N3, P3, N3, N4, B3, N2, P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_1[i];
-					if(route_1[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N3,P3,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 4:
-				u8 route_2[50] = {C4,C8,C7,N14,C3,N9,N10,N8, N3,N4,N5, N6, P4, N6, N5, N4, B3, N2, P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_2[i];
-					if(route_2[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 5:
-				u8 route_3[50] = {C4, C8, C7, N14, C3, N9, N10, N11, N12, N13, P6, N13, N12, N8,N3,N4, B3, N2, P2 ,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_3[i];
-					if(route_3[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N11,N12,N13,P6,N13,N12,N8,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 6:
-				u8 route_4[50] = {C4, C8, C7, N14, C3, N9, B9, N7, P5, N7, B8, N9, N10, N8, N3, N4, B3, N2, P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_4[i];
-					if(route_4[i]==0xff)
-						break;
-				}
-				   break;	
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 2:
-				u8 route_5[50] = {C4,C8,C7,N14,C3,N9,N10,N8,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_5[i];
-					if(route_5[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; copy_route(r); break; }
 			default:
 
                 break;	
@@ -1802,50 +1529,15 @@ void update_rout_by_treasure_8(void)
 		switch (treasure)
 		{
 			case 3:
-				u8 route_1[50] = {C4,C8,C7,N14,C3,N9,N10,N3,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_1[i];
-					if(route_1[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; copy_route(r); break; }
 			case 4:
-				u8 route_2[50] = {C4,C8,C7,N14,C3,N9,N10,N3 ,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_2[i];
-					if(route_2[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; copy_route(r); break; }
 			case 5:
-				u8 route_3[50] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N13,P6,N13,N12,N11,N10,N3, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_3[i];
-					if(route_3[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N13,P6,N13,N12,N11,N10,N3,0XFF}; copy_route(r); break; }
 			case 6:
-				u8 route_4[50] = {C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_4[i];
-					if(route_4[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,0XFF}; copy_route(r); break; }
 			case 2:
-				u8 route_5[50] = {C4,C8,C7,N14,C3,N9,N10,N3,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_5[i];
-					if(route_5[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; copy_route(r); break; }
 			default:
 
                 break;	
@@ -1856,50 +1548,15 @@ void update_rout_by_treasure_8(void)
 		switch (treasure)
 		{
 			case 3:
-				uint8_t route_1[50] = {C4,C8,C7,N14,C3,N9,N10,N3,P3,N3,N4,B3,N2,P2,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_1[i];
-					if(route_1[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,P3,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 4:
-				u8 route_2[50] = {C4,C8,C7,N14,C3,N9,N10,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_2[i];
-					if(route_2[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 5:
-				u8 route_3[50] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N13,P6,N13,N12,N11,N10,N3,N4,B3,N2,P2,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_3[i];
-					if(route_3[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N13,P6,N13,N12,N11,N10,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 6:
-				u8 route_4[50] = {C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2, 0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_4[i];
-					if(route_4[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
 			case 2:
-				u8 route_5[50] = {C4,C8,C7,N14,C3,N9,N10,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF};
-				for(uint8_t i = 0;i<50;i++)
-				{
-					route[map.point+i] = route_5[i];
-					if(route_5[i]==0xff)
-						break;
-				}
-				   break;
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; copy_route(r); break; }
 			default:
 
                 break;	

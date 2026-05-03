@@ -30,7 +30,7 @@ void main_task(void *pvParameters)
 	portTickType xLastWakeTime;
 	xLastWakeTime = xTaskGetTickCount();   //获取系统节拍、
 	//zhunbei(); // 启动流程//注意有挡板 会卡在这
-	encoder_clear(); // 路程记录清零
+	//encoder_clear(); // 路程记录清零
 	//Motor_Control(is_Line, SPEED0, SPEED0, 0);
 	
 	
@@ -54,16 +54,16 @@ void main_task(void *pvParameters)
 		// }
 		
 		
- 		if(test_flag)
+ 		if(test_flag==1)
  		{
 			 vTaskDelay(100);
 			  Chassis_SetTrackMode(TRACK_LIUSHUI);
 			////直线循迹
-			 Chassis_DriveDistance_Blocking(is_Line,200,SPEED1,0,0);
+			 Chassis_DriveDistance_Blocking(is_Line,200,SPEED25,0,0);
 			 
 			 Chassis_Brake();
  			
-
+										 
 			////偏左循迹
 			// Chassis_SetTrackMode(TRACK_LEFT_EDGE);
 			// Chassis_DriveDistance_Blocking(is_Line,50,25,0,0);
@@ -103,7 +103,13 @@ void main_task(void *pvParameters)
 			//Turn_Angle360();
 			test_flag=0;
 		}			
-		
+		if(test_flag==2)
+		{
+			//转180度
+			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ());
+			Chassis_Brake();
+			test_flag=0;
+		}
 //		/*节点间处理*/
 		//Cross();
 //		
