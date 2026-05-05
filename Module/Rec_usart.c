@@ -17,6 +17,7 @@ static uint8_t command[64];
 
 extern DMA_HandleTypeDef hdma_uart4_rx;
 extern uint8_t test_flag ;
+extern float temp_speed;
 
 volatile int center_x =50;
 volatile int center_y =50;
@@ -85,7 +86,7 @@ void get_PIDdata()
 			if(strcmp(param,"target")==0)
 		 	{  
 		 		
-		 		motor_all.Cspeed = atof(value);
+				temp_speed = atof(value);
 				
 		 	}
 		 	if(strcmp(param,"turn")==0)

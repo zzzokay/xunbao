@@ -40,4 +40,5 @@ void handle_mode_switch(uint8_t target_mode);
 void handle_led_mouse(void);
 void handle_target_speed(void);
 void handle_pid_control(void);
+void handle_now_mode(uint8_t mode);
 #endif

@@ -57,7 +57,7 @@ void motor_set_pwm(uint8_t motor, int32_t pid_out)
 		switch (motor)
 		{	
 //			case 4: TIM12->CCR1 = 0; TIM12->CCR2 = ccr;	break;  //右前	R0
-			case 1: TIM9->CCR2 = 0; TIM9->CCR1 = ccr;	break;  //左前	L0//TIM9->CCR2
+			case 1: TIM9->CCR1 = 0; TIM9->CCR2 = ccr;	break;  //左前	L0//TIM9->CCR2
 			case 2: TIM8->CCR3 = 0; TIM8->CCR4 = ccr;	break;  //左后	L1
 			case 3: TIM4->CCR4 = 0; TIM4->CCR3 = ccr;	break;  //右前
 			case 4: TIM4->CCR2 = 0; TIM4->CCR1 = ccr;	break;  //右后	
@@ -75,7 +75,7 @@ void motor_set_pwm(uint8_t motor, int32_t pid_out)
 		
 		switch (motor)
 		{
-			case 1: TIM9->CCR1 = 0; TIM9->CCR2 = ccr;	break;  //左前	L0//TIM9->CCR1
+			case 1: TIM9->CCR2 = 0; TIM9->CCR1 = ccr;	break;  //左前	L0//TIM9->CCR1
 			case 2: TIM8->CCR4 = 0; TIM8->CCR3 = ccr;	break;  //左后	L1	
 			case 3: TIM4->CCR3 = 0; TIM4->CCR4 = ccr;	break;  //右前
 			case 4: TIM4->CCR1 = 0; TIM4->CCR2 = ccr;	break; //右后

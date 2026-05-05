@@ -25,11 +25,15 @@ float TC_speed = 0, TG_speed = 0;
 typedef struct {
     //以下主要是记录底盘状态的变量，不直接参与控制，不是全局变量
     LineTrackMode_e     track_mode;
-    uint8_t             target_speed; 
-    
+    uint8_t             target_speed;
+
     // 游龙防护算法相关变量（从 map 剥离出来）
     int16_t             anti_snake_err_count;
     uint8_t             anti_snake_flag;
+
+    // 丢线保护
+    int16_t             line_lost_count;      // 连续丢线计数（每5ms +1）
+    uint8_t             line_lost_enabled;    // 1=使能，0=关闭
 } ChassisState_t;
 
 static ChassisState_t chassis = {0};
@@ -45,6 +49,8 @@ void Chassis_Init(void)
     chassis.target_speed=0;
     chassis.anti_snake_err_count = 0;
     chassis.anti_snake_flag = 0;
+    chassis.line_lost_count = 0;
+    chassis.line_lost_enabled = 0;
 
     motor_all.Lspeed = 0;   
 	motor_all.Rspeed = 0;
@@ -87,25 +93,25 @@ void Chassis_SetTargetSpeed(float speed)
 			{
                 case SPEED5:
 				case SPEED4:
-					line_pid_param.kp = 4.0;//5.0
-					line_pid_param.ki = 0;//0
-					line_pid_param.kd = 300;//260
+					//line_pid_param.kp = 4.0;//5.0
+					//line_pid_param.ki = 0;//0
+					//line_pid_param.kd = 300;//260
 					break;		
-				case SPEED3:
-					line_pid_param.kp = 7;//8.0
-					line_pid_param.ki = 0;//0
-					line_pid_param.kd = 300;//300
+				case SPEED3://60 7 115
+					//line_pid_param.kp = 7;//8.0
+					//line_pid_param.ki = 0;//0
+					//line_pid_param.kd = 300;//300
 					break;
-				case SPEED25:	
-				case SPEED2:
-					line_pid_param.kp = 7.0;//8.0
-					//line_pid_param.ki = 0.008;//0.008
-					//line_pid_param.kd = 400;//60
+				case SPEED25://55 8 140	
+				case SPEED2://45 7 80
+					//line_pid_param.kp = 7.0;
+					//line_pid_param.ki = 0.008;
+					//line_pid_param.kd = 400;
 					break;		
-				case SPEED0:
-				case SPEED1:
-					line_pid_param.kp = 7.0;//6.0
-					line_pid_param.ki = 0;//0
+				case SPEED0://36 7 90
+				case SPEED1://25 7 90
+					//line_pid_param.kp = 7.0;//6.0
+					//line_pid_param.ki = 0;//0
 					//line_pid_param.kd = 0;//90
 					break;
 				default:
@@ -211,12 +217,25 @@ void Chassis_EnableAntiSnake(void)
     chassis.anti_snake_err_count = 0;
 }
 
+void Chassis_EnableLineLostProtection(void)
+{
+    chassis.line_lost_enabled = 1;
+    chassis.line_lost_count = 0;
+}
+
+void Chassis_DisableLineLostProtection(void)
+{
+    chassis.line_lost_enabled = 0;
+    chassis.line_lost_count = 0;
+}
+
 void Chassis_Brake(void)//更安全的急刹
 {
+    motor_all.CDOWNincrement = 1.0f; // 增加减速加速度，快速降速
 	Chassis_SetTargetSpeed(0);
-	vTaskDelay(200);
+	vTaskDelay(400);
+    motor_all.CDOWNincrement = 0.5f;
     CarBrake(); // 调用原有的底层急刹
-    vTaskDelay(100);//100ms
 }
 
 void Chassis_ClearMileage(void)
@@ -431,6 +450,18 @@ void Chassis_SetEdgeIgnore(uint8_t num)
 /* -------------------------- 提供给 Motor_Task 刷新的 ---------------------- */
 /* ========================================================================= */
 
+#define LINE_LOST_THRESHOLD  200   // 200 * 5ms = 1秒
+
+static uint8_t is_line_completely_lost(void)
+{
+    for (uint8_t i = 0; i < HISTORY_SIZE; i++)
+    {
+        if (line_data[i].truth == TRUTH_VALID)
+            return 0;
+    }
+    return 1;
+}
+
 // 在 motor_task.c 的 while(1) 中调用：Chassis_Periodic_Update_5ms();
 void Chassis_Periodic_Update_5ms(void)
 {
@@ -471,7 +502,27 @@ void Chassis_Periodic_Update_5ms(void)
         {
             motor_all.Cspeed = chassis.target_speed / 2; // 直接减半速度，增强稳定
             Chassis_OverrideLinePid(12.0f, 0.0f, 200.0f, motor_all.Cspeed); // 直接覆盖当前速度限制，确保稳定性
-        
+
+        }
+
+        /* ========= 丢线保护 ========= */
+        if (chassis.line_lost_enabled)
+        {
+            if (is_line_completely_lost())
+            {
+                chassis.line_lost_count++;
+                if (chassis.line_lost_count >= LINE_LOST_THRESHOLD)
+                {
+                    chassis.line_lost_count = 0;
+                    chassis.line_lost_enabled = 0;  // 一次性触发
+                    Chassis_Brake();
+                    return;
+                }
+            }
+            else
+            {
+                chassis.line_lost_count = 0;
+            }
         }
     }
 }   
@@ -531,6 +582,16 @@ void pid_mode_switch(uint8_t target_mode)
 	{
 		chassis.anti_snake_err_count = 0;
 		chassis.anti_snake_flag = 0;
+		chassis.line_lost_count = 0;
+		// 不清 line_lost_enabled，转弯后回到巡线时保护仍然生效
+
+		// 清零 line_data[]，避免陈旧数据干扰回到巡线后的判断
+		for (int i = 0; i < HISTORY_SIZE; i++)
+		{
+			line_data[i].pos = 0.0f;
+			line_data[i].error = 0.0f;
+			line_data[i].truth = TRUTH_ALL_ERR;
+		}
 	}
 }
 

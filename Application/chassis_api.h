@@ -100,6 +100,18 @@ void Chassis_MotorControl(uint8_t target_mode, float LSPEED, float RSPEED, float
 void Chassis_EnableAntiSnake(void);
 
 /**
+ * @brief 开启丢线保护
+ * 当 line_data[] 全部无效持续 LINE_LOST_THRESHOLD 个周期后调用 Chassis_Brake()
+ * 一次性触发后自动禁用
+ */
+void Chassis_EnableLineLostProtection(void);
+
+/**
+ * @brief 关闭丢线保护并重置计数器
+ */
+void Chassis_DisableLineLostProtection(void);
+
+/**
  * @brief 刹车制动
  */
 void Chassis_Brake(void);

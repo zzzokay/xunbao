@@ -24,6 +24,7 @@
 #include "motor.h"
 #include "chassis_api.h"
 uint8_t test_flag =1;
+float temp_speed=25;
 /*主任务*/
 void main_task(void *pvParameters)
 {
@@ -52,14 +53,14 @@ void main_task(void *pvParameters)
 		// 	encoder_clear(); // 路程记录清零
 		// 	Motor_Control(is_Line, SPEED0, SPEED0, 0);
 		// }
-		
+		Chassis_EnableLineLostProtection();
 		
  		if(test_flag==1)
  		{
 			 vTaskDelay(100);
 			  Chassis_SetTrackMode(TRACK_LIUSHUI);
 			////直线循迹
-			 Chassis_DriveDistance_Blocking(is_Line,200,SPEED25,0,0);
+			 Chassis_DriveDistance_Blocking(is_Line,300,temp_speed,0,0);
 			 
 			 Chassis_Brake();
  			

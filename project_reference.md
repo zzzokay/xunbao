@@ -352,8 +352,10 @@ DOOR      → door()          // 开门
 | `Chassis_MoveDistance_Blocking(dist)` | 阻塞走指定距离 | chassis_api内部 |
 | `Chassis_DriveDistance_Blocking(mode,dist,speed,aim,edge)` | 临时模式行驶固定距离 | map.c |
 | `Chassis_OverrideLinePid(kp,ki,kd,max)` | 临时覆盖巡线PID | map.c |
-| `Chassis_Periodic_Update_5ms()` | 游龙防护等周期更新 | motor_task (每5ms) |
+| `Chassis_Periodic_Update_5ms()` | 游龙防护 + 丢线保护等周期更新 | motor_task (每5ms) |
 | `Chassis_EnableAntiSnake()` | 激活游龙防护 | map.c |
+| `Chassis_EnableLineLostProtection()` | 开启丢线保护（一次性触发后自动禁用） | map.c |
+| `Chassis_DisableLineLostProtection()` | 关闭丢线保护并重置计数器 | map.c |
 
 ---
 
@@ -559,3 +561,35 @@ Flash 使用 66,648 字节超出 65,536 字节限制（STM32F750V8 仅 64KB Flas
 ### 18.3 优化结果
 
 预估节省 3-3.5KB，解决 Flash 溢出问题。
+
+---
+
+## 十九、丢线保护（2026-05-04）
+
+### 19.1 功能说明
+
+当 `is_Line` 巡线模式下，`line_data[5]` 全部无效（无 `TRUTH_VALID`）持续超过阈值时，调用 `Chassis_Brake()` 停车，防止小车跑飞。
+
+### 19.2 实现位置
+
+- 检测逻辑：`Chassis_Periodic_Update_5ms()` 内 `if (PIDMode == is_Line)` 块末尾
+- 辅助函数：`is_line_completely_lost()` 检查 `line_data[]` 是否全无效
+- 状态变量：`ChassisState_t.line_lost_count` / `line_lost_enabled`
+
+### 19.3 关键参数
+
+- `LINE_LOST_THRESHOLD = 500`（500 × 5ms = 2.5 秒）
+- 一次性触发：触发后自动禁用，需重新调用 `Chassis_EnableLineLostProtection()`
+
+### 19.4 模式切换处理
+
+- 离开 `is_Line` 时：清零 `line_lost_count` + 清零 `line_data[]`（避免陈旧数据干扰）
+- `line_lost_enabled` 不清除：转弯后回到巡线时保护持续生效
+- 回到 `is_Line` 时：count 从 0 开始，首周期 `handle_line_mode()` 写新数据
+
+### 19.5 API
+
+| 函数 | 功能 |
+|------|------|
+| `Chassis_EnableLineLostProtection()` | 开启丢线保护 |
+| `Chassis_DisableLineLostProtection()` | 关闭丢线保护并重置计数器 |

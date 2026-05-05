@@ -72,14 +72,8 @@ void motor_task(void *pvParameters)
 		/*3. 模式切换逻辑 - 确保模式切换平滑过渡*/
 		handle_mode_switch(PIDMode);
 
-		// 处理巡线模式
-		handle_line_mode();  
-
-		// 处理转弯模式
-		handle_turn_mode();   
-
-		// 处理陀螺仪模式
-		handle_gyro_mode();   
+		/*4. 根据当前模式执行对应的控制逻辑*/
+		handle_now_mode(PIDMode);   
 
 		/*5. 处理目标速度 基于内环目标值计算*/
 		handle_target_speed();
@@ -135,7 +129,23 @@ void handle_motor_speed(void)
 	motor_all.Distance += ((motor_all.encoder_avg * 10.4f * PI)/5720.0f)/0.362f;
 }
 
-
+void handle_now_mode(uint8_t mode)
+{
+	switch (mode)
+	{
+		case is_Line:
+			handle_line_mode();
+			break;
+		case is_Turn:
+			handle_turn_mode();
+			break;
+		case is_Gyro:
+			handle_gyro_mode();
+			break;
+		default:
+			break;
+	}
+}
 
 /*处理巡线模式主体*/
 /*
