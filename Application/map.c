@@ -454,6 +454,10 @@ void Cross(void)
 	{
 		nodesr.flag&=~0x04;//	清除路径点标志，确保该处理只执行一次
 
+		// DEBUG: 打印route相关值
+		printf("[DEBUG] map.point=%d, route[point-1]=0x%02X, route[point]=0x%02X, nowNode=%d, nextNode=%d\n",
+			map.point, route[map.point-1], route[map.point], nodesr.nowNode.nodenum, nodesr.nextNode.nodenum);
+
 		//节点刷新衔接处理
 		if(route[map.point-1] != 0xFF)// route[map.point-1]=>nodesr.nextNode	/*判断路径终点 - 0xFF表示路径结束，只有执行完路径终点时才执行该处理*/
 		{ 
@@ -531,6 +535,8 @@ void Cross(void)
 				// 切换节点关系
 				nodesr.lastNode = nodesr.nowNode;
 				nodesr.nowNode = nodesr.nextNode;
+				// DEBUG: 打印即将读取的route值
+				printf("[DEBUG] switching node, reading route[%d]=0x%02X\n", map.point, route[map.point]);
 				nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point++])];
 			
 				nodesr.flag&=~0x04;  // 清除路径点标志
@@ -538,6 +544,7 @@ void Cross(void)
 		else if(route[map.point-1] == 0xFF)// route[map.point-1]=>nodesr.nextNode
 		{	
 			// 停止小车并设置相关状态
+			printf("Reached final destination, stopping chassis\n");
 			Chassis_SetTargetSpeed(0);
 			Chassis_Brake();  // 急刹
 			vTaskDelay(2);

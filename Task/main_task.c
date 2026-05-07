@@ -119,7 +119,8 @@ void main_task(void *pvParameters)
 		test_flag=0;
 		}
 //		/*节点间处理*/
-		Cross();
+		if(map.routetime == 0)
+			Cross();
 //		
 //		/*二轮结束处理*/
 //		if(map.routetime==3)

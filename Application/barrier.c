@@ -457,98 +457,136 @@ void Stage_P2()
 /*长桥*/
 void Barrier_Bridge(void)
 {
-	//打印：执行过桥流程
+	enum {
+		BRIDGE_APPROACH,    // 近桥：寻迹前进，检测到桥条件后切换
+		BRIDGE_ASCEND,      // 上桥：陀螺仪模式，等待pitch升高
+		BRIDGE_WAIT_TOP,    // 等待桥顶：pitch下降到阈值以下
+		BRIDGE_CORRECT,     // 姿态校准：红外校正
+		BRIDGE_ACCELERATE,  // 加速：定距离行驶
+		BRIDGE_ON_BRIDGE,   // 桥上：等待pitch下降（下坡检测）
+		BRIDGE_DESCEND,     // 下坡：等待pitch恢复到地面
+		BRIDGE_DONE         // 完成
+	} state = BRIDGE_APPROACH;
+
+	uint8_t stable_times = 0;
+	uint8_t infrared_done = 0;
+
 	printf("Executing bridge crossing procedure\n");
 	Chassis_MotorControl(is_Line, GoStage_Speed, GoStage_Speed, 0);
 	Chassis_ClearMileage();
-	static uint8_t stable_times = 0;
-	while (fabsf(Chassis_GetMileage()) < 25)
+
+	while (state != BRIDGE_DONE)
 	{
-		Cross_getline(&Cross_Scaner);
-		
-		if((Cross_Scaner.detail & 0X0180) == 0X0180)		//如果在最中间位置
+		switch (state)
 		{
-			stable_times++;
-			if (stable_times>= 5)		//如果连续多次检测到在最中间位置，认为检测稳定，进行陀螺仪校正
+		case BRIDGE_APPROACH:
+			Cross_getline(&Cross_Scaner);
+			if ((Cross_Scaner.detail & 0X0180) == 0X0180)
 			{
-			mpuZreset(get_latest_yaw(), nodesr.nowNode.angle);     	//获取补偿角Z;
-			printf("gyro reset\n");
+				stable_times++;
+				if (stable_times >= 5)
+				{
+					mpuZreset(get_latest_yaw(), nodesr.nowNode.angle);
+					printf("gyro reset\n");
+				}
 			}
 			else
 			{
 				stable_times = 0;
-			}		
-		}
-			
-		if (Scaner.ledNum >= 4 || Scaner.lineNum >= 2 || Scaner.lineNum == 0 || Scaner.ledNum == 0)
+			}
+
+			if (fabsf(Chassis_GetMileage()) >= 25 ||
+				Scaner.ledNum >= 4 || Scaner.lineNum >= 2 ||
+				Scaner.lineNum == 0 || Scaner.ledNum == 0)
+			{
+				printf("Bridge detected, preparing to ascend\n");
+				Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, 0);
+				state = BRIDGE_ASCEND;
+			}
 			break;
+
+		case BRIDGE_ASCEND:
+			if (imu.pitch >= Up_pitch)
+			{
+				printf("On ramp, waiting for bridge top\n");
+				state = BRIDGE_WAIT_TOP;
+			}
+			break;
+
+		case BRIDGE_WAIT_TOP:
+			if (imu.pitch <= After_up)
+			{
+				printf("At bridge, preparing to cross\n");
+				Chassis_ClearMileage();
+				infrared_done = 0;
+				state = BRIDGE_CORRECT;
+			}
+			break;
+
+		case BRIDGE_CORRECT:
+			get_Infrared();
+			if (infrared.head_left == 1 || infrared.head_right == 1)
+			{
+				Chassis_CorrectByInfrared(0.1f);
+			}
+			else
+			{
+				infrared_done = 1;
+			}
+			if (infrared_done)
+			{
+				Chassis_MotorControl(is_Gyro, SPEED0, SPEED0, 0);
+				Chassis_ClearMileage();
+				state = BRIDGE_ACCELERATE;
+			}
+			break;
+
+		case BRIDGE_ACCELERATE:
+			get_Infrared();
+			if (infrared.head_left == 1 || infrared.head_right == 1)
+			{
+				Chassis_CorrectByInfrared(0.1f);
+			}
+			else
+			{
+				infrared_done = 1;
+			}
+			if (infrared_done)
+			{
+				Chassis_MotorControl(is_Gyro, SPEED1, SPEED1, 0);
+				infrared_done=0;
+			}
+			
+			if (fabsf(Chassis_GetMileage()) >= 75)
+			{
+				Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, 0);
+				state = BRIDGE_ON_BRIDGE;
+			}
+			break;
+
+		case BRIDGE_ON_BRIDGE:
+			if (imu.pitch <= basic_p - 5)
+			{
+				state = BRIDGE_DESCEND;
+			}
+			break;
+
+		case BRIDGE_DESCEND:
+			if (imu.pitch >= basic_p -5)
+			{
+				Chassis_MotorControl(is_Line, Rubbish_Speed, Rubbish_Speed, 0);
+				nodesr.nowNode.function = 0;
+				nodesr.flag |= 0X04;
+				state = BRIDGE_DONE;
+			}
+			break;
+
+		default:
+			state = BRIDGE_DONE;
+			break;
+		}
 		vTaskDelay(2);
 	}
-	//Chassis_Brake();
-	//打印：检测到桥，准备上桥
-	printf("Bridge detected, preparing to ascend\n");
-
- // 	/*准备上桥*/
-  	Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, getAngleZ());
- 	//还没上桥
-  	while (imu.pitch < Up_pitch)
- 		vTaskDelay(2);
-	
- 	//打印：上坡中，等待到达桥顶
- 	printf("On ramp, waiting for bridge top\n");
-  	while (imu.pitch > After_up)
-  	{
-     	vTaskDelay(2);
-  	}
-
- 	//Chassis_Brake();
- 	//打印：已到达桥上，准备过桥
- 	printf("At bridge, preparing to cross\n");
-
- 	Chassis_ClearMileage();
- 	//姿态校准
-	//打印angle.AngleG,getAngleZ()，imu.yaw，nodesr.nowNode.angle
-	
- 	get_Infrared();
-  	while (infrared.head_left == 1 || infrared.head_right == 1)
-  	{
-		
- 		Chassis_CorrectByInfrared(0.1f);
-  		vTaskDelay(2);
- 	}
-	
- 	//姿态校准完成退出循环
-
-	Chassis_Brake();
-// 	//加速
-// 	Chassis_MotorControl(is_Gyro, SPEED0, SPEED0, getAngleZ());
-// 	while(fabsf(Chassis_GetMileage()) < 80)
-// 	{	
-// 		Chassis_CorrectByInfrared(2.7f);
-// 		vTaskDelay(2);
-//  	}
-// 	//加速完定距离退出循环
-
-// 	Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, getAngleZ());
-// 	//车还在桥上
-// 	while (imu.pitch > basic_p - 5)
-// 	{
-// 		Chassis_CorrectByInfrared(2.7f);
-// 		vTaskDelay(2);
-// 	}
-// 	//车检测到下坡跳出循环
-	
-// 	while(imu.pitch < basic_p - 15)
-// 	{
-// 		Chassis_CorrectByInfrared(2.7f);
-// 		vTaskDelay(2);
-// 	}	
-// 	//车检测到地面跳出循环
-
-// 	Chassis_MotorControl(is_Line, Rubbish_Speed, Rubbish_Speed, 0);
-// 	nodesr.nowNode.function = 0;
-// 	nodesr.flag |= 0X04;// 到达路口 
-
 }
 
 /*楼梯*/
