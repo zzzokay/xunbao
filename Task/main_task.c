@@ -23,17 +23,18 @@
 #include "scaner.h"
 #include "motor.h"
 #include "chassis_api.h"
-uint8_t test_flag =1;
+uint8_t test_flag =0;
 float temp_speed=25;
 /*主任务*/
 void main_task(void *pvParameters)
 {
 	portTickType xLastWakeTime;
 	xLastWakeTime = xTaskGetTickCount();   //获取系统节拍、
-	//zhunbei(); // 启动流程//注意有挡板 会卡在这
-	//encoder_clear(); // 路程记录清零
-	//Motor_Control(is_Line, SPEED0, SPEED0, 0);
-	
+	mapInit();
+	zhunbei(); // 启动流程//注意有挡板 会卡在这
+	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
+	printf("Preparation complete, waiting for start signal...\n");
+	vTaskDelay(100);
 	
 	
 	while (1)
@@ -53,16 +54,16 @@ void main_task(void *pvParameters)
 		// 	encoder_clear(); // 路程记录清零
 		// 	Motor_Control(is_Line, SPEED0, SPEED0, 0);
 		// }
-		Chassis_EnableLineLostProtection();
+		
 		
  		if(test_flag==1)
  		{
-			 vTaskDelay(100);
-			  Chassis_SetTrackMode(TRACK_LIUSHUI);
+			     
+			Chassis_EnableLineLostProtection();
+			Chassis_SetTrackMode(TRACK_LIUSHUI);
 			////直线循迹
-			 Chassis_DriveDistance_Blocking(is_Line,300,temp_speed,0,0);
-			 
-			 Chassis_Brake();
+			Chassis_DriveDistance_Blocking(is_Line,200,temp_speed,0,0);
+			Chassis_Brake();
  			
 										 
 			////偏左循迹
@@ -111,8 +112,14 @@ void main_task(void *pvParameters)
 			Chassis_Brake();
 			test_flag=0;
 		}
+		if(test_flag==3)
+		{
+		//过桥
+		Barrier_Bridge();
+		test_flag=0;
+		}
 //		/*节点间处理*/
-		//Cross();
+		Cross();
 //		
 //		/*二轮结束处理*/
 //		if(map.routetime==3)

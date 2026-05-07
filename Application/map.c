@@ -45,7 +45,7 @@ NODESR nodesr;   	//节点flag和各个节点信息
 
 uint8_t isAllRoute = 1;    /*是否全图,选择路径*/
 //u8 route[100] = {B1, N1, P1, N1, B2, N4, N5, N6, P4, N6, N5, N12, 0XFF};  //调试时的初始路径
-u8 route[100] = {B1, N1, P1, 0XFF};  //调试时的初始路径
+u8 route[100] = {B1, 0XFF};  //调试时的初始路径
 
 /*简单*/
 //uint8_t isAllRoute = 0;
@@ -334,6 +334,8 @@ void Cross(void)
 	{		
 			if(route_state == 0)//路径开始
 			{		
+				//打印当前路径信息：开始
+				printf("Starting new path\n");
 					//清零里程
 					Chassis_ClearMileage();
 					 
@@ -358,13 +360,15 @@ void Cross(void)
 
 					else{
 						Chassis_SetTrackMode(TRACK_ALL);}
-					route_state=1;
+					route_state=1;//TODO:标志位可以优化
+					
 
 			}		
 		 /*前方路径判断 - 未超过50%路径*/ 				
-		    if(fabsf(Chassis_GetMileage()) < 0.5f * nodesr.nowNode.step && route_state == 1)
+		    if( route_state == 1)
 			{	
 
+				printf("In the first half of the path\n");
 					//设置当前节点的目标速度
 					Chassis_SetTargetSpeed(nodesr.nowNode.speed);
 
@@ -382,6 +386,8 @@ void Cross(void)
 			/*过半50%路径，执行巡线模式切换*/
 			if(fabsf(Chassis_GetMileage()) >= 0.5f*nodesr.nowNode.step && route_state == 2)
 			{
+				//打印：走完一半路径，切换巡线模式
+					printf("Passed 50%% of the path, switching line following mode\n");
 					if((nodesr.nowNode.flag & Temp_L) == Temp_L)
 					{
 						Chassis_SetTrackMode(TRACK_LEFT_EDGE);
@@ -397,9 +403,10 @@ void Cross(void)
 					route_state = 3; // 标记已完成巡线模式切换，确保该处理只执行一次
 			}
 			/*节点后半段 - 超过70%路径*/
-			if(fabsf(Chassis_GetMileage()) >= 0.7f*nodesr.nowNode.step && route_state == 2 )
+			if(fabsf(Chassis_GetMileage()) >= 0.7f*nodesr.nowNode.step && route_state == 3 )
 			{
 					
+				printf("Passed 70%% of the path, preparing for node endpoint check\n");
 					if ((fabsf(need2turn(getAngleZ(), nodesr.nextNode.angle)) < 10.0f) || (fabsf(need2turn(nodesr.nowNode.angle, nodesr.nextNode.angle)) < 10.0f) || (nodesr.nowNode.flag & NOTURN) == NOTURN)
 					{}//角度差小，保持原速	
 
@@ -418,6 +425,9 @@ void Cross(void)
 	/*路径终点处理*/
 	else if(is_near_end == 1)
 	{ 		
+		//打印：接近路径终点，执行到达检查
+			printf("Approaching path endpoint, executing arrival check\n");
+				//关闭巡线，进入坐标计算
 			// 执行当前节点功能，如爬坡、过桥等,执行完后nodesr.flag|0x40（跳过到达检查）
 			map_function(nodesr.nowNode.function);
 			

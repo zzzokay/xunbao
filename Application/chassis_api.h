@@ -190,6 +190,13 @@ void Chassis_Turn_By_LeftLine_Blocking(float target_angle, float current_angle, 
 void Chassis_Turn_By_RightLine_Blocking(float target_angle, float current_angle, float speed);
 
 void Chassis_SetEdgeIgnore(uint8_t num);
+
+/**
+ * @brief 红外+扫描仪陀螺仪角度修正
+ * 检测到单侧红外或扫描仪偏移时，调整陀螺仪目标角度
+ * @param correct_angle 修正角度（度）
+ */
+void Chassis_CorrectByInfrared(float correct_angle);
 /* ===================== 提供给 motor_task.c 的底层刷新接口 ===================== */
 
 /**

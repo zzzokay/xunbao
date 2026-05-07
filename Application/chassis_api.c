@@ -93,29 +93,38 @@ void Chassis_SetTargetSpeed(float speed)
 			{
                 case SPEED5:
 				case SPEED4:
-					//line_pid_param.kp = 4.0;//5.0
-					//line_pid_param.ki = 0;//0
-					//line_pid_param.kd = 300;//260
+					line_pid_param.kp = 4.0f;//5.0
+					line_pid_param.ki = 0;//0
+					line_pid_param.kd = 250;//200
 					break;		
 				case SPEED3://60 7 115
-					//line_pid_param.kp = 7;//8.0
-					//line_pid_param.ki = 0;//0
-					//line_pid_param.kd = 300;//300
+					line_pid_param.kp = 7.0f;
+                    line_pid_param.ki = 0;
+                    line_pid_param.kd = 115;
 					break;
 				case SPEED25://55 8 140	
+                    line_pid_param.kp = 8.0f;
+                    line_pid_param.ki = 0;
+                    line_pid_param.kd = 140;
+                    break;
 				case SPEED2://45 7 80
-					//line_pid_param.kp = 7.0;
-					//line_pid_param.ki = 0.008;
-					//line_pid_param.kd = 400;
+					line_pid_param.kp = 7.0f;
+                    line_pid_param.ki = 0;
+                    line_pid_param.kd = 80;
 					break;		
-				case SPEED0://36 7 90
-				case SPEED1://25 7 90
-					//line_pid_param.kp = 7.0;//6.0
-					//line_pid_param.ki = 0;//0
-					//line_pid_param.kd = 0;//90
-					break;
+				case SPEED0://25 7 90
+				case SPEED1://36 7 90
+					line_pid_param.kp = 7.0f;
+					line_pid_param.ki = 0;
+					line_pid_param.kd = 90;
+					break;   
+				case 12:
+					line_pid_param.kp = 20.0f;
+					line_pid_param.ki = 0;
+					line_pid_param.kd = 60;
 				default:
 					break;
+                
 			}
     }
     else if (PIDMode == is_Gyro)
@@ -653,4 +662,14 @@ void CarBrake_Stop(void)
 		Chassis_Brake();
 		vTaskDelay(2);
 	}
+}
+
+/*红外+扫描仪陀螺仪角度修正*/
+void Chassis_CorrectByInfrared(float correct_angle)
+{
+    get_Infrared();
+	if ((infrared.head_left == 0 && infrared.head_right == 1) || (Scaner.detail & 0X00FF))
+		angle.AngleG += correct_angle;
+	else if ((infrared.head_left == 1 && infrared.head_right == 0) || (Scaner.detail & 0XFF00))
+		angle.AngleG -= correct_angle;
 }

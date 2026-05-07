@@ -83,13 +83,19 @@ void motor_task(void *pvParameters)
 
 		/*7. 底盘API周期更新 - 调用防游龙算法*/
 		Chassis_Periodic_Update_5ms();
-
+		{
+			static uint16_t print_cnt = 0;
+			if(++print_cnt >= 10) {
+				print_cnt = 0;
 		// 调试信息（被注释掉的部分）
 		/*陀螺仪模式*/ //printf("Gyro:%.2f LSP:%.2f RSP:%.2f L0:%.2f L1:%.2f R0:%.2f R1:%.2f\r\n", imu.yaw,motor_all.Lspeed,motor_all.Rspeed,motor_L0.output,motor_L1.output,motor_R0.output,motor_R1.output);
-		/*巡线值*/ //printf_byte(Scaner.detail);
+		/*巡线值*/// printf_byte(Scaner.detail);
+		printf("angleG: %.2f,getAngleZ: %.2f, imu.yaw: %.2f, nodesr.nowNode.angle: %.2f\n", angle.AngleG, getAngleZ(), imu.yaw, nodesr.nowNode.angle);
 		
-		//打印寻迹测量值，目标值，输出值，小车速度，kp，ki，kd,test_flag
-		printf("%.1f,%.1f,%.1f,%.1f,%.1f,%.2f,%.1f, %d\r\n", line_pid_obj.measure, line_pid_obj.target, line_pid_obj.output, motor_all.Cspeed, line_pid_param.kp, line_pid_param.ki, line_pid_param.kd, (int)test_flag);
+		//打印寻迹测量值，目标值，输出值，小车速度，kp，ki，kd,test_flag (500ms一次)
+		
+		//printf("%.1f,%.1f,%.1f,%.1f,%.1f,%.2f,%.1f, %d\r\n", line_pid_obj.measure, line_pid_obj.target, line_pid_obj.output, motor_all.Cspeed, line_pid_param.kp, line_pid_param.ki, line_pid_param.kd, (int)test_flag);
+		
 		//printf("Cspeed:%.2f Gspeed:%.2f\r\n", motor_all.Cspeed, motor_all.Gspeed);
 		/*当前角度信息*/ //printf("yaw:%.2f\troll:%.2f\tpitch:%.2f\tbasic:%.2f\r\n", imu.yaw, imu.roll, imu.pitch, basic_p);
 		/*当前目的节点*/ //printf("%d\r\n",nodesr.nowNode.nodenum);
@@ -100,7 +106,9 @@ void motor_task(void *pvParameters)
 		/*编码器目标值*///printf("L0tar:%.2f\tL1tar:%.2f\tR0tar:%.2f\tR1tar:%.2f\r\n", motor_L0.target, motor_L1.target, motor_R0.target, motor_R1.target);
 		/*编码器PID*/// printf("LSP:%.2f RSP:%.2f L0:%.2f L1:%.2f R0:%.2f R1:%.2f\r\n", motor_all.Lspeed,motor_all.Rspeed,motor_L0.output,motor_L1.output,motor_R0.output,motor_R1.output);
 
-		/*打印识别结果*/ //printf("%d\r\n", Clue_Num);
+		/*打印识别结果*/ //printf("%d\r\n", Clue_Num);	
+			}
+		}
 		vTaskDelayUntil(&xLastWakeTime, (5 / portTICK_RATE_MS)); // 周期5ms，确保执行频率稳定
 	}
 }
@@ -209,7 +217,10 @@ void handle_gyro_mode(void)
 {
 	if (PIDMode == is_Gyro)
 	{
-		// 获取陀螺仪传感器数值用于判断完成：
+		// 中断获取陀螺仪传感器数值：
+
+		//陀螺仪模式下的红外修正
+		//get_Infrared();
 
 		// 计算平均速度，左右电机速度和给减速速度，
 		gradual_cal(&TG_speed, motor_all.Gspeed, motor_all.Gincrement, motor_all.GDOWNincrement);
