@@ -1,8 +1,8 @@
 test1\openmv.o: ..\Module\openmv.c
 test1\openmv.o: ..\Module\openmv.h
 test1\openmv.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
-test1\openmv.o: C:\keil\ARM\ARMCC\Bin\..\include\stddef.h
-test1\openmv.o: C:\keil\ARM\ARMCC\Bin\..\include\stdint.h
+test1\openmv.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stddef.h
+test1\openmv.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdint.h
 test1\openmv.o: ../Core/Inc/FreeRTOSConfig.h
 test1\openmv.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
 test1\openmv.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
@@ -51,8 +51,8 @@ test1\openmv.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h
 test1\openmv.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h
 test1\openmv.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
 test1\openmv.o: ../Core/Inc/usart.h
-test1\openmv.o: C:\keil\ARM\ARMCC\Bin\..\include\math.h
-test1\openmv.o: C:\keil\ARM\ARMCC\Bin\..\include\stdio.h
+test1\openmv.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\math.h
+test1\openmv.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h
 test1\openmv.o: ../USMAT/uart.h
 test1\openmv.o: ../USMAT/sys.h
 test1\openmv.o: ../Motor/speed_ctrl.h

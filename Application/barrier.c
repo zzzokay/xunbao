@@ -470,6 +470,8 @@ void Barrier_Bridge(void)
 
 	uint8_t stable_times = 0;
 	uint8_t infrared_done = 0;
+	float Tar_angle = 0.0f;
+	float origin_angle = 0.0f;
 
 	printf("Executing bridge crossing procedure\n");
 	Chassis_MotorControl(is_Line, GoStage_Speed, GoStage_Speed, 0);
@@ -499,8 +501,9 @@ void Barrier_Bridge(void)
 				Scaner.ledNum >= 4 || Scaner.lineNum >= 2 ||
 				Scaner.lineNum == 0 || Scaner.ledNum == 0)
 			{
+				origin_angle = getAngleZ();
 				printf("Bridge detected, preparing to ascend\n");
-				Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, 0);
+				Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, origin_angle);
 				state = BRIDGE_ASCEND;
 			}
 			break;
@@ -529,52 +532,46 @@ void Barrier_Bridge(void)
 			{
 				Chassis_CorrectByInfrared(0.1f);
 			}
-			else
-			{
-				infrared_done = 1;
-			}
+			else{infrared_done = 1;}
+			
 			if (infrared_done)
 			{
-				Chassis_MotorControl(is_Gyro, SPEED0, SPEED0, 0);
-				Chassis_ClearMileage();
+				//如果0度完全正确，获得的angleG也会是0，Tar_angle也是0，如果0有偏差，真实目标角度就在0与angleG之间
+				Tar_angle = getAngleZ()/10.0f+origin_angle*9.0f/10.0f;
+				Chassis_MotorControl(is_Gyro, SPEED1, SPEED1, Tar_angle);				
+				infrared_done = 0;
 				state = BRIDGE_ACCELERATE;
 			}
 			break;
 
 		case BRIDGE_ACCELERATE:
-			get_Infrared();
-			if (infrared.head_left == 1 || infrared.head_right == 1)
-			{
-				Chassis_CorrectByInfrared(0.1f);
+				
+			if (fabsf(Chassis_GetMileage()) >= 60 && fabsf(Chassis_GetMileage()) < 70)
+			{		
+				get_Infrared();
+				if (infrared.head_left == 1 || infrared.head_right == 1){
+					Chassis_CorrectByInfrared(0.1f);
+				}
+
 			}
-			else
-			{
-				infrared_done = 1;
-			}
-			if (infrared_done)
-			{
-				Chassis_MotorControl(is_Gyro, SPEED1, SPEED1, 0);
-				infrared_done=0;
-			}
-			
 			if (fabsf(Chassis_GetMileage()) >= 75)
 			{
-				Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, 0);
+				Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, getAngleZ());
 				state = BRIDGE_ON_BRIDGE;
 			}
 			break;
 
 		case BRIDGE_ON_BRIDGE:
-			if (imu.pitch <= basic_p - 5)
+			if (imu.pitch <= Down_pitch)
 			{
 				state = BRIDGE_DESCEND;
 			}
 			break;
 
 		case BRIDGE_DESCEND:
-			if (imu.pitch >= basic_p -5)
+			if (imu.pitch >= After_down)
 			{
-				Chassis_MotorControl(is_Line, Rubbish_Speed, Rubbish_Speed, 0);
+				Chassis_MotorControl(is_Line, Rubbish_Speed, Rubbish_Speed,  getAngleZ());
 				nodesr.nowNode.function = 0;
 				nodesr.flag |= 0X04;
 				state = BRIDGE_DONE;

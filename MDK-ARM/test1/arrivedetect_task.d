@@ -1,8 +1,8 @@
 test1\arrivedetect_task.o: ..\Task\ArriveDetect_task.c
 test1\arrivedetect_task.o: ..\Task\ArriveDetect_task.h
 test1\arrivedetect_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
-test1\arrivedetect_task.o: C:\keil\ARM\ARMCC\Bin\..\include\stddef.h
-test1\arrivedetect_task.o: C:\keil\ARM\ARMCC\Bin\..\include\stdint.h
+test1\arrivedetect_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stddef.h
+test1\arrivedetect_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdint.h
 test1\arrivedetect_task.o: ../Core/Inc/FreeRTOSConfig.h
 test1\arrivedetect_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
 test1\arrivedetect_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
@@ -68,4 +68,4 @@ test1\arrivedetect_task.o: ../Application/map.h
 test1\arrivedetect_task.o: ../Application/map_message.h
 test1\arrivedetect_task.o: ../Application/map.h
 test1\arrivedetect_task.o: ../Core/Inc/usart.h
-test1\arrivedetect_task.o: C:\keil\ARM\ARMCC\Bin\..\include\stdio.h
+test1\arrivedetect_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h

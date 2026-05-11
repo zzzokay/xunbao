@@ -1,8 +1,8 @@
 test1\motor_task.o: ..\Task\motor_task.c
 test1\motor_task.o: ..\Task\motor_task.h
 test1\motor_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
-test1\motor_task.o: C:\keil\ARM\ARMCC\Bin\..\include\stddef.h
-test1\motor_task.o: C:\keil\ARM\ARMCC\Bin\..\include\stdint.h
+test1\motor_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stddef.h
+test1\motor_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdint.h
 test1\motor_task.o: ../Core/Inc/FreeRTOSConfig.h
 test1\motor_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
 test1\motor_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
@@ -56,7 +56,7 @@ test1\motor_task.o: ../Core/Inc/tim.h
 test1\motor_task.o: ../Motor/motor.h
 test1\motor_task.o: ../Math/pid.h
 test1\motor_task.o: ../USMAT/uart.h
-test1\motor_task.o: C:\keil\ARM\ARMCC\Bin\..\include\stdio.h
+test1\motor_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h
 test1\motor_task.o: ../Application/turn.h
 test1\motor_task.o: ../Application/sys.h
 test1\motor_task.o: ../Module/imu.h
@@ -77,14 +77,14 @@ test1\motor_task.o: ../Module/QR.h
 test1\motor_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\motor_task.o: ../Application/delay.h
 test1\motor_task.o: ../Module/bsp_led.h
-test1\motor_task.o: C:\keil\ARM\ARMCC\Bin\..\include\math.h
+test1\motor_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\math.h
 test1\motor_task.o: ../Application/barrier.h
 test1\motor_task.o: ../Module/K210.h
 test1\motor_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\motor_task.o: ../Core/Inc/usart.h
 test1\motor_task.o: ../Application/gray.h
 test1\motor_task.o: ../Module/Rec_usart.h
-test1\motor_task.o: C:\keil\ARM\ARMCC\Bin\..\include\string.h
-test1\motor_task.o: C:\keil\ARM\ARMCC\Bin\..\include\stdlib.h
+test1\motor_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\string.h
+test1\motor_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdlib.h
 test1\motor_task.o: ../Core/Inc/stm32f7xx_it.h
 test1\motor_task.o: ../Motor/speed_ctrl.h

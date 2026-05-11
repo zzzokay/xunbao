@@ -1,7 +1,7 @@
 test1\freertos.o: ../Core/Src/freertos.c
 test1\freertos.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
-test1\freertos.o: C:\keil\ARM\ARMCC\Bin\..\include\stddef.h
-test1\freertos.o: C:\keil\ARM\ARMCC\Bin\..\include\stdint.h
+test1\freertos.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stddef.h
+test1\freertos.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdint.h
 test1\freertos.o: ../Core/Inc/FreeRTOSConfig.h
 test1\freertos.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
 test1\freertos.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
@@ -49,7 +49,7 @@ test1\freertos.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h
 test1\freertos.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h
 test1\freertos.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h
 test1\freertos.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
-test1\freertos.o: C:\keil\ARM\ARMCC\Bin\..\include\stdio.h
+test1\freertos.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h
 test1\freertos.o: ../Core/Inc/usart.h
 test1\freertos.o: ../Task/motor_task.h
 test1\freertos.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h

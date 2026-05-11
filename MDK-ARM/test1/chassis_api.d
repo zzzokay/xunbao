@@ -1,9 +1,9 @@
 test1\chassis_api.o: ..\Application\chassis_api.c
 test1\chassis_api.o: ..\Application\chassis_api.h
-test1\chassis_api.o: C:\keil\ARM\ARMCC\Bin\..\include\stdint.h
+test1\chassis_api.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdint.h
 test1\chassis_api.o: ../Task/motor_task.h
 test1\chassis_api.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
-test1\chassis_api.o: C:\keil\ARM\ARMCC\Bin\..\include\stddef.h
+test1\chassis_api.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stddef.h
 test1\chassis_api.o: ../Core/Inc/FreeRTOSConfig.h
 test1\chassis_api.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
 test1\chassis_api.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
@@ -60,7 +60,7 @@ test1\chassis_api.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis
 test1\chassis_api.o: ..\Application\chassis_api.h
 test1\chassis_api.o: ..\Application\scaner.h
 test1\chassis_api.o: ../Module/bsp_linefollower.h
-test1\chassis_api.o: C:\keil\ARM\ARMCC\Bin\..\include\math.h
+test1\chassis_api.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\math.h
 test1\chassis_api.o: ../Motor/encoder.h
 test1\chassis_api.o: ../Core/Inc/tim.h
 test1\chassis_api.o: ..\Application\delay.h

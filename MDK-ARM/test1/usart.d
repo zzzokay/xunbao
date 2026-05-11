@@ -8,7 +8,7 @@ test1\usart.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_def.h
 test1\usart.o: ../Drivers/CMSIS/Device/ST/STM32F7xx/Include/stm32f7xx.h
 test1\usart.o: ../Drivers/CMSIS/Device/ST/STM32F7xx/Include/stm32f750xx.h
 test1\usart.o: ../Drivers/CMSIS/Include/core_cm7.h
-test1\usart.o: C:\keil\ARM\ARMCC\Bin\..\include\stdint.h
+test1\usart.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdint.h
 test1\usart.o: ../Drivers/CMSIS/Include/cmsis_version.h
 test1\usart.o: ../Drivers/CMSIS/Include/cmsis_compiler.h
 test1\usart.o: ../Drivers/CMSIS/Include/cmsis_armcc.h
@@ -16,7 +16,7 @@ test1\usart.o: ../Drivers/CMSIS/Include/mpu_armv7.h
 test1\usart.o: ../Drivers/CMSIS/Device/ST/STM32F7xx/Include/system_stm32f7xx.h
 test1\usart.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal.h
 test1\usart.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h
-test1\usart.o: C:\keil\ARM\ARMCC\Bin\..\include\stddef.h
+test1\usart.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stddef.h
 test1\usart.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_rcc_ex.h
 test1\usart.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_exti.h
 test1\usart.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_gpio.h
@@ -36,7 +36,7 @@ test1\usart.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_tim.h
 test1\usart.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_tim_ex.h
 test1\usart.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart.h
 test1\usart.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart_ex.h
-test1\usart.o: C:\keil\ARM\ARMCC\Bin\..\include\stdio.h
+test1\usart.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h
 test1\usart.o: ../Module/Rec_usart.h
 test1\usart.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
 test1\usart.o: ../Core/Inc/FreeRTOSConfig.h
@@ -47,11 +47,11 @@ test1\usart.o: ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/
 test1\usart.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h
 test1\usart.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h
 test1\usart.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h
-test1\usart.o: C:\keil\ARM\ARMCC\Bin\..\include\string.h
-test1\usart.o: C:\keil\ARM\ARMCC\Bin\..\include\stdlib.h
+test1\usart.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\string.h
+test1\usart.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdlib.h
 test1\usart.o: ../Core/Inc/stm32f7xx_it.h
 test1\usart.o: ../Motor/speed_ctrl.h
-test1\usart.o: C:\keil\ARM\ARMCC\Bin\..\include\math.h
+test1\usart.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\math.h
 test1\usart.o: ../Application/turn.h
 test1\usart.o: ../Application/sys.h
 test1\usart.o: ../Module/imu.h
