@@ -34,7 +34,10 @@ void main_task(void *pvParameters)
 	zhunbei(); // 启动流程//注意有挡板 会卡在这
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
 	printf("Preparation complete, waiting for start signal...\n");
-	vTaskDelay(100);
+	//IMU_CalibrateZero(&basic_y,&basic_p);
+	//vTaskDelay(100);
+	//mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); 
+	//vTaskDelay(1000);
 	
 	
 	while (1)
@@ -59,13 +62,15 @@ void main_task(void *pvParameters)
  		if(test_flag==1)
  		{
 			     
-			Chassis_EnableLineLostProtection();
-			Chassis_SetTrackMode(TRACK_LIUSHUI);
-			////直线循迹
-			Chassis_DriveDistance_Blocking(is_Line,200,temp_speed,0,0);
-			Chassis_Brake();
+			// Chassis_EnableLineLostProtection();
+			// Chassis_SetTrackMode(TRACK_LIUSHUI);
+			// ////直线循迹
+			// Chassis_DriveDistance_Blocking(is_Line,200,temp_speed,0,0);
+			// Chassis_Brake();
  			
-										 
+			//Chassis_DriveDistance_Blocking(is_Gyro,2,-12,getAngleZ(),0);
+			//CarBrake();
+			//Chassis_Brake();
 			////偏左循迹
 			// Chassis_SetTrackMode(TRACK_LEFT_EDGE);
 			// Chassis_DriveDistance_Blocking(is_Line,50,25,0,0);
@@ -118,6 +123,7 @@ void main_task(void *pvParameters)
 		Barrier_Bridge();
 		test_flag=0;
 		}
+		
 //		/*节点间处理*/
 		if(map.routetime == 0)
 			Cross();

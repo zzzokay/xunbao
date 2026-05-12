@@ -15,7 +15,7 @@
 #define Rubbish_Speed  13               //Rubbish
 #define Stop_T_Speed   15               //原地转
 #define UnderMou_Speed 20
-#define GoStage_Speed  12   //16
+#define GoStage_Speed  15   //16
 #define Low_Speed      20 
 #define Gyro_Speed     25  //25  
 #define Award_Speed    25
