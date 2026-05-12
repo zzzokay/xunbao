@@ -22,11 +22,23 @@ Dialog DLL:      TCM.DLL V1.56.1.0
  
 <h2>Project:</h2>
 C:\Users\14166\Desktop\MC_32\robotcup\xunbao\MDK-ARM\test1.uvprojx
-Project File Date:  05/11/2026
+Project File Date:  05/12/2026
 
 <h2>Output:</h2>
 *** Using Compiler 'V5.06 update 7 (build 960)', folder: 'D:\KEIL5\Core\ARM\version5\Bin'
 Build target 'test1'
+compiling chassis_api.c...
+../Task/motor_task.h(26): warning:  #375-D: declaration requires a typedef name
+  };
+..\Application\turn.h(17): warning:  #231-D: declaration is not visible outside of function
+  uint8_t Go_Angle(float angle_want, float speed,volatile struct Motors *motor);
+..\Application\chassis_api.c(39): warning:  #188-D: enumerated type mixed with another type
+  static ChassisState_t chassis = {0};
+..\Application\chassis_api.c(660): warning:  #223-D: function "buzzer_on" declared implicitly
+  	buzzer_on();
+..\Application\chassis_api.c(676): warning:  #1-D: last line of file ends without a newline
+  }
+..\Application\chassis_api.c: 5 warnings, 0 errors
 compiling barrier.c...
 ../Task/motor_task.h(26): warning:  #375-D: declaration requires a typedef name
   };
@@ -257,9 +269,9 @@ compiling barrier.c...
   static void Stage_ScanAndRead(void)
 ..\Application\barrier.c: 91 warnings, 0 errors
 linking...
-Program Size: Code=58708 RO-data=3540 RW-data=4368 ZI-data=21312  
+Program Size: Code=58996 RO-data=3540 RW-data=4368 ZI-data=21312  
 FromELF: creating hex file...
-"test1\test1.axf" - 0 Error(s), 91 Warning(s).
+"test1\test1.axf" - 0 Error(s), 96 Warning(s).
 
 <h2>Software Packages used:</h2>
 

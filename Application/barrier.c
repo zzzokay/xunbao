@@ -8,6 +8,7 @@
 #include "turn.h"
 #include "map.h"
 #include "motor_task.h"
+#include "chassis_api.h"
 #include "pid.h"
 #include "math.h"
 #include "bsp_buzzer.h"
@@ -78,7 +79,7 @@ static void Stage_CollectTreasure(void)
 	Robot_Work(LARM, UP);
 	Robot_Work(RARM, UP);
 	send_play_specified_command(9);
-	Turn_Angle360();
+	Chassis_Turn360_Blocking();
 	Robot_Work(LARM, DOWN);
 	Robot_Work(RARM, DOWN);
 }
@@ -188,7 +189,7 @@ void Stage(void)
 			{		
 				mpuZreset(get_latest_yaw(), nodesr.nowNode.angle);
 				// 后退一段距离
-				// printf("Chassis_DriveDistance_Blocking\n");
+				 printf("Chassis_DriveDistance_Blocking\n");
 				
 				vTaskDelay(100);
 				Chassis_DriveDistance_Blocking(is_Gyro,10,-12,getAngleZ(),0);
@@ -214,46 +215,45 @@ void Stage(void)
 			// }
 			
 			Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, getAngleZ());
-			sub_stage = 0;
 			state = STAGE_DESCEND;
 			break;
 
-		// case STAGE_DESCEND:
-		// 	if (sub_stage == 0)
-		// 	{
-		// 		// 下坡检测
-		// 		if (imu.pitch <= basic_p - 5)
-		// 		{
-		// 			sub_stage = 1;
-		// 		}
-		// 	}
-		// 	else if (sub_stage == 1)
-		// 	{
-		// 		if (imu.pitch <= basic_p - 20)
-		// 		{
-		// 			sub_stage = 2;
-		// 		}
-		// 	}
-		// 	else if (sub_stage == 2)
-		// 	{
-		// 		if (imu.pitch >= basic_p - 20)
-		// 		{
-		// 			Chassis_MotorControl(is_Gyro, SPEED0, SPEED0, getAngleZ());
-		// 			sub_stage = 3;
-		// 		}
-		// 	}
-		// 	else if(sub_stage == 3)	
-		// 	{
-		// 		if (imu.pitch >= basic_p - 5)
-		// 		{
-		// 			Chassis_MotorControl(is_Line, SPEED1, SPEED1, 0);
-		// 			sub_stage = 0;
-		// 			state = STAGE_DONE;	
-		// 		}
-		// 	}					
+		case STAGE_DESCEND:
+			if (sub_stage == 0)
+			{
+				// 下坡检测
+				if (imu.pitch <= basic_p - 5)
+				{
+					sub_stage = 1;
+				}
+			}
+			else if (sub_stage == 1)
+			{
+				if (imu.pitch <= basic_p - 20)
+				{
+					sub_stage = 2;
+				}
+			}
+			else if (sub_stage == 2)
+			{
+				if (imu.pitch >= basic_p - 20)
+				{
+					Chassis_MotorControl(is_Gyro, SPEED0, SPEED0, getAngleZ());
+					sub_stage = 3;
+				}
+			}
+			else if(sub_stage == 3)	
+			{
+				if (imu.pitch >= basic_p - 5)
+				{
+					Chassis_MotorControl(is_Line, SPEED1, SPEED1, 0);
+					sub_stage = 0;
+					state = STAGE_DONE;	
+				}
+			}					
 					
 			
-		// 	break;
+			break;
 
 		default:
 			state = STAGE_DONE;

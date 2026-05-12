@@ -258,7 +258,7 @@ float Chassis_GetMileage(void)
 }
 
 // 封装等待逻辑，避免 map.c 到处都是 while(fabsf) 循环
-void Chassis_TurnToAngle_Blocking(float target_angle, float origin_angle, float wait_ratio)
+static  void Chassis_TurnToAngle_Blocking(float target_angle, float origin_angle, float wait_ratio)
 {
     // 调用实际控制（如果需要发送给底层状态机的话）
     while (fabsf(need2turn(target_angle, getAngleZ())) > 3.0f)
@@ -289,7 +289,7 @@ static struct PID_param saved_gyroG_pid_param = {0};
 static float saved_GyroG_speedMax = 0.0f;
 static uint8_t gyro_pid_override_active = 0;
 
-void Chassis_MoveDistance_Blocking(float distance)
+static void Chassis_MoveDistance_Blocking(float distance)
 {
     float num = motor_all.Distance;
 	while (fabsf(motor_all.Distance - num) < distance)
@@ -421,8 +421,22 @@ void Chassis_Turn_By_StopGyro_Blocking(float target_angle, float current_angle)
 
     Chassis_SetMode(is_Turn);//进入转弯模式			
 
-    Chassis_TurnToAngle_Blocking(target_angle, current_angle, 0.15f);
+    Chassis_TurnToAngle_Blocking(target_angle, current_angle, 0.02f);
 
+    CarBrake();
+
+}
+
+void Chassis_Turn360_Blocking(void)
+{
+    if(fabsf(motor_all.Lspeed) > 1.0f || fabsf(motor_all.Rspeed) > 1.0f)
+    {
+        Chassis_Brake();
+    }
+
+    Turn_Angle360();
+
+    CarBrake();
 }
 
 void Chassis_Turn_By_Gyro_Blocking(float target_angle, float current_angle)
@@ -614,10 +628,10 @@ void Want2Go(float Dis)
 
 
 /**
- * @brief: 刹车制动
+ * @brief: 开环刹车，适合低速瞬间刹停
  * @return {*}
  */
-void CarBrake(void)
+void car(void)
 {
 	// 开环
 	pid_mode_switch(is_Free);
@@ -653,7 +667,7 @@ void gradual_cal(float *gradual, float target, float increment1, float increment
 }
 
 /*卡死停车*/
-void CarBrake_Stop(void)
+void CarBrake(void)
 {
 	buzzer_on();
 	while(1)

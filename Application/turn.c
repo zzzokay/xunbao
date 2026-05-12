@@ -69,7 +69,10 @@ static uint8_t Turn_Angle_Base(float Angle, float right_ratio)
 		Angle += 360;
 
 	now_angle = getAngleZ();
-	if (fabsf(Angle - now_angle) < 2)
+	gyroT_pid.measure = need2turn(now_angle, Angle);
+	gyroT_pid.target = 0;
+
+	if (fabsf(gyroT_pid.measure) < 1.0f)
 	{
 		motor_all.Lspeed = motor_all.Rspeed = 0;
 		gyroT_pid.integral = 0;
@@ -77,10 +80,13 @@ static uint8_t Turn_Angle_Base(float Angle, float right_ratio)
 		return 1;
 	}
 
-	gyroT_pid.measure = need2turn(now_angle, Angle);
-	gyroT_pid.target = 0;
-
 	GTspeed = positional_PID(&gyroT_pid, &gyroT_pid_param);
+
+	// 死区补偿：输出太小但误差仍存在时，强制最小输出克服摩擦
+	if (fabsf(GTspeed) < 5.0f && fabsf(gyroT_pid.measure) > 1.0f)
+	{
+		GTspeed += (GTspeed > 0) ? 5.0f : -5.0f;
+	}
 
 	if (GTspeed >= motor_all.GyroT_speedMax)
 		GTspeed = motor_all.GyroT_speedMax;
@@ -97,52 +103,7 @@ uint8_t Stage_turn_Angle(float Angle)
 {
 	return Turn_Angle_Base(Angle, 1.3f);
 }
-//未被调用
-// /*开环转圈*/
-// void Turn_Angle_Relative_Open(float Angle1) // 左180到右-180,速度必须是正的，
-// {
-// 	float Turn_Angle_Before = 0, Turn_Angle_Targe = 0;
-// 	float Left = 0;
-// 	float Right = 0;
-// 	Turn_Angle_Before = getAngleZ();			   // 读取当前的角度
-// 	Turn_Angle_Targe = Turn_Angle_Before + Angle1; // 目标角度设为绝对坐标
-// 	/*******************如果存在临界状态，把目标角度转化为绝对坐标******180 0 -180*************/
-// 	if (Turn_Angle_Targe > 180)
-// 	{
-// 		Turn_Angle_Targe = Turn_Angle_Targe - 360;
-// 	}
-// 	else if (Turn_Angle_Targe < -180)
-// 	{
-// 		Turn_Angle_Targe = Turn_Angle_Targe + 360;
-// 	}
 
-// 	angle.AngleT = Turn_Angle_Targe;
-
-// 	switch (nodesr.nowNode.nodenum)
-// 	{
-// 	case P7:
-// 		Left = 2500/1.2;	Right = 2500/1.2; break;
-// 	case P6:
-// 		Left = 2500;		Right = 2500; break;
-// 	case P8:
-// 		Left = 2500;		Right = 2500; break;
-// 	case P3:
-// 		Left = 2500/1.1;	Right = 2500/1.1; break;
-// 	case P5:
-// 		Left = 2500;		Right = 2500; break;
-// 	case P4:
-// 		Left = 2500;		Right = 2500; break;
-// 	case P2:
-// 		Left = 2500;		Right = 2500; break;
-// 	case P1:
-// 		Left = 2500/1.2;	Right = 2500/1.2; break;
-// 	default:
-// 		Left = 2500;		Right = 2500 ; break;
-// 	}
-// 	FreeTurn(angle.AngleT, Left, Right);
-
-// 	pid_mode_switch(is_Turn); // 进入转弯  记得close cirle
-// }
 
 /*闭环转圈*/
 void Turn_Angle_Relative(float Angle1) // 左180到右-180,速度必须是正的，

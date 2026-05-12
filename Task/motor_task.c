@@ -200,7 +200,7 @@ void handle_turn_mode(void)
 		// 平台辅助
 		else if (nodesr.nowNode.function == UpStage || nodesr.nowNode.function == BSoutPole || nodesr.nowNode.function == BHM)
 		{
-			if (Stage_turn_Angle(angle.AngleT))  // 执行平台转弯
+			if (Turn_Angle(angle.AngleT))  // 执行平台转弯
 				gyroT_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0};  // 清零转弯PID
 		}
 		// 普通角度

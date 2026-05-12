@@ -3,7 +3,7 @@
 <title>Static Call Graph - [test1\test1.axf]</title></head>
 <body><HR>
 <H1>Static Call Graph for image test1\test1.axf</H1><HR>
-<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060960: Last Updated: Tue May 12 22:30:03 2026
+<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060960: Last Updated: Tue May 12 22:53:28 2026
 <BR><P>
 <H3>Maximum Stack Usage =        480 bytes + Unknown(Cycles, Untraceable Function Pointers)</H3><H3>
 Call chain for Maximum Stack Depth:</H3>
@@ -890,6 +890,7 @@ Global Symbols
 <LI><a href="#[178]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;South_Pole
 <LI><a href="#[173]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;QQB_1
 <LI><a href="#[bb]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Barrier_HighMountain
+<LI><a href="#[df]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Chassis_Turn_By_StopGyro_Blocking
 <LI><a href="#[c9]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Chassis_Brake
 </UL>
 
@@ -1139,15 +1140,17 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[e6]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Cross
 </UL>
 
-<P><STRONG><a name="[df]"></a>Chassis_Turn_By_StopGyro_Blocking</STRONG> (Thumb, 94 bytes, Stack size 16 bytes, chassis_api.o(i.Chassis_Turn_By_StopGyro_Blocking))
+<P><STRONG><a name="[df]"></a>Chassis_Turn_By_StopGyro_Blocking</STRONG> (Thumb, 98 bytes, Stack size 16 bytes, chassis_api.o(i.Chassis_Turn_By_StopGyro_Blocking))
 <BR><BR>[Stack]<UL><LI>Max Depth = 208<LI>Call Chain = Chassis_Turn_By_StopGyro_Blocking &rArr; Chassis_TurnToAngle_Blocking &rArr; getAngleZ &rArr; get_latest_yaw &rArr; xQueueGenericSend &rArr; xTaskResumeAll &rArr; xTaskIncrementTick
 </UL>
 <BR>[Calls]<UL><LI><a href="#[c6]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;pid_mode_switch
+<LI><a href="#[bf]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;CarBrake
 <LI><a href="#[c9]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Chassis_Brake
 <LI><a href="#[d9]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Chassis_TurnToAngle_Blocking
 <LI><a href="#[e0]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Chassis_SetGyroAngle_Turn
 </UL>
-<BR>[Called By]<UL><LI><a href="#[e6]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Cross
+<BR>[Called By]<UL><LI><a href="#[17a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Stage
+<LI><a href="#[e6]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Cross
 <LI><a href="#[81]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;main_task
 </UL>
 
@@ -2340,14 +2343,15 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[ea]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;map_function
 </UL>
 
-<P><STRONG><a name="[17a]"></a>Stage</STRONG> (Thumb, 390 bytes, Stack size 40 bytes, barrier.o(i.Stage))
-<BR><BR>[Stack]<UL><LI>Max Depth = 256<LI>Call Chain = Stage &rArr; Chassis_DriveDistance_Blocking &rArr; Chassis_MotorControl &rArr; Turn_Angle_Relative &rArr; getAngleZ &rArr; get_latest_yaw &rArr; xQueueGenericSend &rArr; xTaskResumeAll &rArr; xTaskIncrementTick
+<P><STRONG><a name="[17a]"></a>Stage</STRONG> (Thumb, 634 bytes, Stack size 48 bytes, barrier.o(i.Stage))
+<BR><BR>[Stack]<UL><LI>Max Depth = 264<LI>Call Chain = Stage &rArr; Chassis_DriveDistance_Blocking &rArr; Chassis_MotorControl &rArr; Turn_Angle_Relative &rArr; getAngleZ &rArr; get_latest_yaw &rArr; xQueueGenericSend &rArr; xTaskResumeAll &rArr; xTaskIncrementTick
 </UL>
 <BR>[Calls]<UL><LI><a href="#[af]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Chassis_GetMileage
 <LI><a href="#[cb]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Chassis_DriveDistance_Blocking
 <LI><a href="#[ad]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Chassis_ClearMileage
 <LI><a href="#[bf]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;CarBrake
 <LI><a href="#[a9]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;vTaskDelay
+<LI><a href="#[df]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Chassis_Turn_By_StopGyro_Blocking
 <LI><a href="#[ac]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Chassis_MotorControl
 <LI><a href="#[b1]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;mpuZreset
 <LI><a href="#[b0]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;get_latest_yaw

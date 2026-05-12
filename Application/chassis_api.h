@@ -126,17 +126,7 @@ void Chassis_ClearMileage(void);
  */
 float Chassis_GetMileage(void);
 
-/**
- * @brief 阻塞型高级接口：陀螺仪阻塞转弯到指定角度（整合了原来的等待循环）
- * @param target_angle 目标角度
- * @param wait_ratio 等待容差比例（原先用0.25f之类）
- */
-void Chassis_TurnToAngle_Blocking(float target_angle, float origin_angle, float wait_ratio);
 
-/**
- * @brief 阻塞型高级接口：固定距离行驶 (完全替代原来的 Want2Go)
- */
-void Chassis_MoveDistance_Blocking(float distance);
 
 /**
  * @brief 临时模式行驶：切换模式、行驶固定距离、退出后恢复巡线并清零边缘忽略
@@ -180,6 +170,8 @@ void Chassis_OverrideGyroPid(float kp, float ki, float kd, float gyroSpeedMax);
 void Chassis_RestoreGyroPid(void);
 
 void Chassis_Turn_By_StopGyro_Blocking(float target_angle, float current_angle);
+
+void Chassis_Turn360_Blocking(void);
 
 void Chassis_Turn_By_Gyro_Blocking(float target_angle, float current_angle);
 
