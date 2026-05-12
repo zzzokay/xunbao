@@ -66,8 +66,6 @@ void Stage(void)
 {
 	/*参数调整*/
 	isStage = 1;
-	struct PID_param origin_param1 = gyroG_pid_param;
-	struct PID_param origin_param2 = line_pid_param;
 	uint32_t add_time = 0 ;
 	uint8_t getZ = 0;
 	float get_angle = 0;
@@ -76,67 +74,67 @@ void Stage(void)
 	uint16_t break_time = 0;
 	uint8_t P5_flag=0;
 
-	gyroG_pid_param.kp = 3.5;	//4.5
-	gyroG_pid_param.ki = 0;
-	gyroG_pid_param.kd = 30;
-	
-//	line_pid_param.kp = 12*2;
-//	line_pid_param.ki = 0;
-//	line_pid_param.kd = 400;
-//	
-	select_speed_stage();
-//  if(nodesr.nowNode.nodenum == P3 )
-//	{
-//		line_pid_param.kp = 6.0;
-//		line_pid_param.ki = 0;
-//		line_pid_param.kd = 260;
-//	}
-//	 if(nodesr.nowNode.nodenum == P4 )
-//	{
-//		line_pid_param.kp = 6.0;
-//		line_pid_param.ki = 0;
-//		line_pid_param.kd = 260;
-//	}
 	
 	/*设置起始模式速度*/
-	Chassis_ClearMileage();
-//	//改成灰度循迹
-	if(nodesr.nowNode.nodenum == P1||nodesr.nowNode.nodenum == P5)
-		{
-			line_pid_param.kp = 30.0;//50.0
-			line_pid_param.ki = 0;
-			line_pid_param.kd = 250;
-			ScanerMode_Switch(Gray);
-		}
+	// Cross_getline(&Cross_Scaner);
+	// 	if (((nodesr.nowNode.nodenum == P1||nodesr.nowNode.nodenum == P5)&&(Scaner.detail_gray & 0x18))||((Cross_Scaner.detail & 0x180) == 0x180))
+	// 	{
+	// 		mpuZreset(get_latest_yaw(), getAngleZ());
+	// 		angle.AngleG = getAngleZ();
+	// 		//buzzer_on();
+	// 		getZ = 1;
+	// 	}
 	if(nodesr.nowNode.nodenum == P3)
 	{
 		open_qiang_jiao = 1;
 		Chassis_MotorControl(is_Line,UpStage_Speed-10,UpStage_Speed-10,0);
 	}else
 	{
-		Chassis_MotorControl(is_Line,UpStage_Speed-5,UpStage_Speed-5,0);//UpStage_Speed-5
+		Chassis_MotorControl(is_Line,SPEED0,SPEED0,0);
 	}
-	scaner_set.EdgeIgnore = 2;//3
-//	Cross_getline(&Cross_Scaner);
-//	if ((Cross_Scaner.detail & 0x180) == 0x180)
-//		mpuZreset(imu.yaw, getAngleZ());
+	float origin_angle = getAngleZ();
+	Chassis_ClearMileage();
+//	while (1)
+//	{
+//		/* code */
+//		if (
+//				Scaner.ledNum >= 4 || Scaner.lineNum >= 2 ||
+//				Scaner.lineNum == 0 || Scaner.ledNum == 0)
+//			{
+//				origin_angle = getAngleZ();
+//				Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, origin_angle);
+//				break;
+//			}
+//		vTaskDelay(2) ;
+//	}
 
 	
+		
+	
+	while(1){
+			
+		if (imu.pitch >= Up_pitch){
+			Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, origin_angle);
+			break;
+			}
+		 vTaskDelay(2) ;
+	} 
+
+
+
 	uint8_t breakflag = 0;
 	
 
-	while (imu.pitch < (basic_p + 8))
-	{
-		Cross_getline(&Cross_Scaner);
-		if (((nodesr.nowNode.nodenum == P1||nodesr.nowNode.nodenum == P5)&&(Scaner.detail_gray & 0x18))||((Cross_Scaner.detail & 0x180) == 0x180))
-		{
-			mpuZreset(get_latest_yaw(), getAngleZ());
-			angle.AngleG = getAngleZ();
-			buzzer_on();
-			getZ = 1;
-		}
+	while (1)
+	{	
+		if(imu.pitch < (basic_p + 5)){break;}
 		vTaskDelay(2);
 	}
+
+	Chassis_DriveDistance_Blocking(is_Gyro,5,12,getAngleZ(),0);
+
+	Chassis_Brake();
+
 /*********************改****************************/
 //	while (imu.pitch < (basic_p + 8))
 //	{
@@ -193,194 +191,195 @@ void Stage(void)
 //		vTaskDelay(2);
 //	}
 /***************************************************/
-	if(getZ == 0)
-	{
-		if(nodesr.nowNode.nodenum == P1)
-		{
-			angle.AngleG = nodesr.nowNode.angle;
-		}
-		else
-		{
-				for(add_time;add_time<5;add_time++)
-			{
-				get_angle = getAngleZ();
-				sum_angle += get_angle;
-			}
-			angle.AngleG = sum_angle/add_time;
-  }
-	}
+// 	if(getZ == 0)
+// 	{
+// 		if(nodesr.nowNode.nodenum == P1)
+// 		{
+// 			angle.AngleG = nodesr.nowNode.angle;
+// 		}
+// 		else
+// 		{
+// 				for(add_time;add_time<5;add_time++)
+// 			{
+// 				get_angle = getAngleZ();
+// 				sum_angle += get_angle;
+// 			}
+// 			angle.AngleG = sum_angle/add_time;
+//   }
 
 
-	while (1)
-	{
-		Cross_getline(&Cross_Scaner);
 
-		if (Cross_Scaner.ledNum > 5 || Cross_Scaner.lineNum >= 2)
-		{
-			breakflag++;
-			if (breakflag >= 3)	//3
-				break;
-		}
+
+
+// 	while (1)
+// 	{
+// 		Cross_getline(&Cross_Scaner);
+
+// 		if (Cross_Scaner.ledNum > 5 || Cross_Scaner.lineNum >= 2)
+// 		{
+// 			breakflag++;
+// 			if (breakflag >= 3)	//3
+// 				break;
+// 		}
 		
-		vTaskDelay(2);
-	}
-	scaner_set.EdgeIgnore = 0;
-	line_pid_param = origin_param2;
-	buzzer_on();
-	/*设置自平衡速度*/
-	Robot_Work(BODY, UP); 	// 人站起来
+// 		vTaskDelay(2);
+// 	}
+// 	scaner_set.EdgeIgnore = 0;
+// 	line_pid_param = origin_param2;
+// 	buzzer_on();
+// 	/*设置自平衡速度*/
+// 	Robot_Work(BODY, UP); 	// 人站起来
 
-	/*设置自平衡速度*/	
-	Chassis_MotorControl(is_Gyro,GoStage_Speed,GoStage_Speed,angle.AngleG);
-	Chassis_ClearMileage();
+// 	/*设置自平衡速度*/	
+// 	Chassis_MotorControl(is_Gyro,GoStage_Speed,GoStage_Speed,angle.AngleG);
+// 	Chassis_ClearMileage();
 	
-	/*检测挡板*/
-	while (Infrared_ahead == 0)
-		vTaskDelay(5);
+// 	/*检测挡板*/
+// 	while (Infrared_ahead == 0)
+// 		vTaskDelay(5);
 	
-	buzzer_off();
+// 	buzzer_off();
 	
-	motor_all.Gspeed = IMPACT_SPEED;
-	Want2Go(17);
+// 	motor_all.Gspeed = IMPACT_SPEED;
+// 	Want2Go(17);
 	
-	Chassis_MotorControl(is_Free,-1500,-1500,0);
-	Want2Go(0.5);
+// 	Chassis_MotorControl(is_Free,-1500,-1500,0);
+// 	Want2Go(0.5);
 	
-	Chassis_ClearMileage();
-	K210_Rece = 0;
-	open_OCR_mode();
-	CarBrake();
-	ScanerMode_Switch(RF);//切回激光循迹
-	vTaskDelay(500);
-	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); 		//陀螺仪校正
-	back_angle = getAngleZ();//转身后的目标角度
+// 	Chassis_ClearMileage();
+// 	K210_Rece = 0;
+// 	open_OCR_mode();
+// 	CarBrake();
+// 	ScanerMode_Switch(RF);//切回激光循迹
+// 	vTaskDelay(500);
+// 	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); 		//陀螺仪校正
+// 	back_angle = getAngleZ();//转身后的目标角度
 
-//	mpuZreset(imu.yaw, nodesr.nowNode.angle); 		//陀螺仪校正
+// //	mpuZreset(imu.yaw, nodesr.nowNode.angle); 		//陀螺仪校正
 
-	/*后退一段距离*/
-	Chassis_MotorControl(is_Free,-1500,-1500,0);
-	Want2Go(1);//3
-	Chassis_ClearMileage();
-	CarBrake();
-	vTaskDelay(100);
+// 	/*后退一段距离*/
+// 	Chassis_MotorControl(is_Free,-1500,-1500,0);
+// 	Want2Go(1);//3
+// 	Chassis_ClearMileage();
+// 	CarBrake();
+// 	vTaskDelay(100);
 
-	/*平台动作*/
-	switch (nodesr.nowNode.nodenum)
-	{
-	case P1:	//2
-		send_play_specified_command(5);
-		break;
-	case P3:	//3
-		send_play_specified_command(4);
-		break;
-	case P4:	//4
-		send_play_specified_command(3);
-		break;
-	case P5:	//6
-		send_play_specified_command(1);
-		break;
-	case P6:	//5
-		send_play_specified_command(2);
-		break;
-	default:
-		break;
-	}
-	Arrived_Stage();
-	vTaskDelay(500);
+// 	/*平台动作*/
+// 	switch (nodesr.nowNode.nodenum)
+// 	{
+// 	case P1:	//2
+// 		send_play_specified_command(5);
+// 		break;
+// 	case P3:	//3
+// 		send_play_specified_command(4);
+// 		break;
+// 	case P4:	//4
+// 		send_play_specified_command(3);
+// 		break;
+// 	case P5:	//6
+// 		send_play_specified_command(1);
+// 		break;
+// 	case P6:	//5
+// 		send_play_specified_command(2);
+// 		break;
+// 	default:
+// 		break;
+// 	}
+// 	Arrived_Stage();
+// 	vTaskDelay(500);
 	
 	
-		/*扫描二维码获取平台以及线索点*/
-//	if(treasure == 0 &&nodesr.nowNode.nodenum != P1)
-	if(treasure == 0 &&(nodesr.nowNode.nodenum == P5 ||nodesr.nowNode.nodenum == P6 ||nodesr.nowNode.nodenum == P7 ||nodesr.nowNode.nodenum == P8))
-		WaitFor_OCR();
+// 		/*扫描二维码获取平台以及线索点*/
+// //	if(treasure == 0 &&nodesr.nowNode.nodenum != P1)
+// 	if(treasure == 0 &&(nodesr.nowNode.nodenum == P5 ||nodesr.nowNode.nodenum == P6 ||nodesr.nowNode.nodenum == P7 ||nodesr.nowNode.nodenum == P8))
+// 		WaitFor_OCR();
 	
-	if(nodesr.nowNode.nodenum == P1 && get_cude == 0)
-	{
-		open_QR_mode();//切换至二维码识别模式
-		WaitFor_QR();
-		update_route_for_stage34();//选择去四号平台还是三号平台
-	}
-///*扫描二维码获取平台以及线索点*/
-//	if(treasure == 0 &&nodesr.nowNode.nodenum != P1&&map.routetime==0)
-//		WaitFor_OCR();
-//	
-//	if(nodesr.nowNode.nodenum == P1 && get_cude == 0&& map.routetime==0)
-//		WaitFor_QR();
+// 	if(nodesr.nowNode.nodenum == P1 && get_cude == 0)
+// 	{
+// 		open_QR_mode();//切换至二维码识别模式
+// 		WaitFor_QR();
+// 		update_route_for_stage34();//选择去四号平台还是三号平台
+// 	}
+// ///*扫描二维码获取平台以及线索点*/
+// //	if(treasure == 0 &&nodesr.nowNode.nodenum != P1&&map.routetime==0)
+// //		WaitFor_OCR();
+// //	
+// //	if(nodesr.nowNode.nodenum == P1 && get_cude == 0&& map.routetime==0)
+// //		WaitFor_QR();
 	
 	
-	/*转身*/
-	Turn_Angle_Relative(179);
-	while (fabs(angle.AngleT - getAngleZ()) > 2)
-		vTaskDelay(2);
+// 	/*转身*/
+// 	Turn_Angle_Relative(179);
+// 	while (fabs(angle.AngleT - getAngleZ()) > 2)
+// 		vTaskDelay(2);
 
-	CarBrake();
-	vTaskDelay(100);
+// 	CarBrake();
+// 	vTaskDelay(100);
 
-	/*发现宝藏流程*/
-	//宝物只在2到6号平台
-	if ((nodesr.nowNode.nodenum == P1 && treasure == 2)||
-		(nodesr.nowNode.nodenum == P3 && treasure == 3) ||
-		(nodesr.nowNode.nodenum == P4 && treasure == 4) ||
-		(nodesr.nowNode.nodenum == P5 && treasure == 6) ||
-		(nodesr.nowNode.nodenum == P6 && treasure == 5))
-	{
+// 	/*发现宝藏流程*/
+// 	//宝物只在2到6号平台
+// 	if ((nodesr.nowNode.nodenum == P1 && treasure == 2)||
+// 		(nodesr.nowNode.nodenum == P3 && treasure == 3) ||
+// 		(nodesr.nowNode.nodenum == P4 && treasure == 4) ||
+// 		(nodesr.nowNode.nodenum == P5 && treasure == 6) ||
+// 		(nodesr.nowNode.nodenum == P6 && treasure == 5))
+// 	{
 		
-		Chassis_MotorControl(is_No, FORWARD_SPEED, FORWARD_SPEED, 0);
-		Want2Go(5);
-		CarBrake();
-		Chassis_ClearMileage();
+// 		Chassis_MotorControl(is_No, FORWARD_SPEED, FORWARD_SPEED, 0);
+// 		Want2Go(5);
+// 		CarBrake();
+// 		Chassis_ClearMileage();
 		
-		motor_pid_clear();
-		Robot_Work(LARM, UP);
-		//vTaskDelay(500);
-		Robot_Work(RARM, UP);
-		send_play_specified_command(9);
-		Turn_Angle360();
-		Robot_Work(LARM, DOWN);
-		//vTaskDelay(500);
-		Robot_Work(RARM, DOWN);
-	}
+// 		motor_pid_clear();
+// 		Robot_Work(LARM, UP);
+// 		//vTaskDelay(500);
+// 		Robot_Work(RARM, UP);
+// 		send_play_specified_command(9);
+// 		Turn_Angle360();
+// 		Robot_Work(LARM, DOWN);
+// 		//vTaskDelay(500);
+// 		Robot_Work(RARM, DOWN);
+// 	}
 	
 
-	motor_pid_clear();
+// 	motor_pid_clear();
 	
-	/*下平台*/
-//	line_pid_param.kp = 20;
-//	line_pid_param.ki = 0;
-//	line_pid_param.kd = 300;
-	Chassis_MotorControl(is_Line, Rubbish_Speed-2, Rubbish_Speed-2, 0);
-	while (imu.pitch > basic_p - 8)
-		vTaskDelay(2);
+// 	/*下平台*/
+// //	line_pid_param.kp = 20;
+// //	line_pid_param.ki = 0;
+// //	line_pid_param.kd = 300;
+// 	Chassis_MotorControl(is_Line, Rubbish_Speed-2, Rubbish_Speed-2, 0);
+// 	while (imu.pitch > basic_p - 8)
+// 		vTaskDelay(2);
 	
 	
-	if ((nodesr.nowNode.nodenum == P1 && treasure == 2)||
-	(nodesr.nowNode.nodenum == P3 && treasure == 3) ||
-	(nodesr.nowNode.nodenum == P4 && treasure == 4) ||
-	(nodesr.nowNode.nodenum == P5 && treasure == 6) ||
-	(nodesr.nowNode.nodenum == P6 && treasure == 5))
-	{
-		Chassis_MotorControl(is_Gyro, Rubbish_Speed, Rubbish_Speed, getAngleZ());
-	}
-	else
-	{
-		Chassis_MotorControl(is_Gyro, Rubbish_Speed, Rubbish_Speed, back_angle-180.0);//back_angle-180.0gyroG_pid_param = origin_param1;
-	}
-	LiuShuiRate = LiuShuiRate_ST;
-	DownLiuShui = 1;
-	while (imu.pitch < After_down)
-		vTaskDelay(2);
-	LiuShuiRate = LiuShuiRate_Default;
-	DownLiuShui = 0;
-	/*下完平台*/
-	//Want2Go(30);//一直巡线，下平台的固定距离	
-	Chassis_ClearMileage();
-	Chassis_MotorControl(is_Line, Rubbish_Speed, Rubbish_Speed, 0);
-	if(nodesr.nowNode.nodenum==P5)
-		Want2Go(2);
-	else
-		Want2Go(10);																																																																																																																																																																																																																																																																																																																																																																																																							
+// 	if ((nodesr.nowNode.nodenum == P1 && treasure == 2)||
+// 	(nodesr.nowNode.nodenum == P3 && treasure == 3) ||
+// 	(nodesr.nowNode.nodenum == P4 && treasure == 4) ||
+// 	(nodesr.nowNode.nodenum == P5 && treasure == 6) ||
+// 	(nodesr.nowNode.nodenum == P6 && treasure == 5))
+// 	{
+// 		Chassis_MotorControl(is_Gyro, Rubbish_Speed, Rubbish_Speed, getAngleZ());
+// 	}
+// 	else
+// 	{
+// 		Chassis_MotorControl(is_Gyro, Rubbish_Speed, Rubbish_Speed, back_angle-180.0);//back_angle-180.0gyroG_pid_param = origin_param1;
+// 	}
+// 	LiuShuiRate = LiuShuiRate_ST;
+// 	DownLiuShui = 1;
+// 	while (imu.pitch < After_down)
+// 		vTaskDelay(2);
+// 	LiuShuiRate = LiuShuiRate_Default;
+// 	DownLiuShui = 0;
+// 	/*下完平台*/
+// 	//Want2Go(30);//一直巡线，下平台的固定距离	
+// 	Chassis_ClearMileage();
+// 	Chassis_MotorControl(is_Line, Rubbish_Speed, Rubbish_Speed, 0);
+// 	if(nodesr.nowNode.nodenum==P5)
+// 		Want2Go(2);
+// 	else
+// 		Want2Go(10);																																																																																																																																																																																																																																																																																																																																																																																																							
 	Robot_Work(BODY,DOWN);		 		// 人躺下
-	line_pid_param = origin_param2;
 	nodesr.nowNode.function = 0;		// 清除障碍标志
 	nodesr.flag |= 0x04;		 		// 到达路口
 }
