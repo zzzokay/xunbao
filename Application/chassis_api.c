@@ -85,11 +85,11 @@ void Chassis_SetMode(uint8_t mode)
 
 void Chassis_SetTargetSpeed(float speed)
 {
-    chassis.target_speed = (uint8_t)(speed+0.5f); // 四舍五入取整
+    chassis.target_speed = (uint8_t)(fabsf(speed)+0.5f); // 四舍五入取整（取绝对值用于PID参数选择）
     if(PIDMode == is_Line)
     {
-        motor_all.Cspeed = chassis.target_speed;
-        switch (chassis.target_speed) 
+        motor_all.Cspeed = speed;
+        switch (chassis.target_speed)
 			{
                 case SPEED5:
 				case SPEED4:
@@ -129,7 +129,7 @@ void Chassis_SetTargetSpeed(float speed)
     }
     else if (PIDMode == is_Gyro)
     {
-        motor_all.Gspeed = chassis.target_speed;
+        motor_all.Gspeed = speed;
     }
 }
 
@@ -240,7 +240,7 @@ void Chassis_DisableLineLostProtection(void)
 
 void Chassis_Brake(void)//更安全的急刹
 {
-    motor_all.CDOWNincrement = 1.0f; // 增加减速加速度，快速降速
+    motor_all.CDOWNincrement = 1.0; // 增加减速加速度，快速降速
 	Chassis_SetTargetSpeed(0);
 	vTaskDelay(400);
     motor_all.CDOWNincrement = 0.5f;
@@ -258,10 +258,10 @@ float Chassis_GetMileage(void)
 }
 
 // 封装等待逻辑，避免 map.c 到处都是 while(fabsf) 循环
-void Chassis_TurnToAngle_Blocking(float target_angle, float origin_angle, float wait_ratio)
+static  void Chassis_TurnToAngle_Blocking(float target_angle, float origin_angle, float wait_ratio)
 {
     // 调用实际控制（如果需要发送给底层状态机的话）
-    while (fabsf(need2turn(target_angle, getAngleZ())) > 3.0f)
+    while (fabsf(need2turn(target_angle, getAngleZ())) > 2.0f)
     {
         vTaskDelay(2); // RTOS 延时交出 CPU 权限
         Cross_getline(&Cross_Scaner);
@@ -289,7 +289,7 @@ static struct PID_param saved_gyroG_pid_param = {0};
 static float saved_GyroG_speedMax = 0.0f;
 static uint8_t gyro_pid_override_active = 0;
 
-void Chassis_MoveDistance_Blocking(float distance)
+static void Chassis_MoveDistance_Blocking(float distance)
 {
     float num = motor_all.Distance;
 	while (fabsf(motor_all.Distance - num) < distance)
@@ -299,9 +299,9 @@ void Chassis_MoveDistance_Blocking(float distance)
 void Chassis_DriveDistance_Blocking(uint8_t mode, float distance, float speed, float aim, uint8_t edge_ignore)
 {
     scaner_set.EdgeIgnore = edge_ignore;
+    Chassis_ClearMileage();
     Chassis_MotorControl(mode, speed, speed, aim);
     Chassis_MoveDistance_Blocking(distance);
-    Chassis_MotorControl(is_Line, speed, speed, 0.0f);
     scaner_set.EdgeIgnore = 0;
 }
 
@@ -415,15 +415,26 @@ void Chassis_Turn_By_StopGyro_Blocking(float target_angle, float current_angle)
     if(fabsf(motor_all.Lspeed) > 1.0f || fabsf(motor_all.Rspeed) > 1.0f)
     {
         Chassis_Brake(); // 先停车，确保转弯稳定性
-    }
-	
+    }	
     
     Chassis_SetGyroAngle_Turn(target_angle);
 
     Chassis_SetMode(is_Turn);//进入转弯模式			
 
-    Chassis_TurnToAngle_Blocking(target_angle, current_angle, 0.15f);
+    Chassis_TurnToAngle_Blocking(target_angle, current_angle, 0.01f);
 
+}
+
+void Chassis_Turn360_Blocking(void)
+{
+    if(fabsf(motor_all.Lspeed) > 1.0f || fabsf(motor_all.Rspeed) > 1.0f)
+    {
+        Chassis_Brake();
+    }
+
+    Turn_Angle360();
+
+    CarBrake();
 }
 
 void Chassis_Turn_By_Gyro_Blocking(float target_angle, float current_angle)
@@ -615,7 +626,7 @@ void Want2Go(float Dis)
 
 
 /**
- * @brief: 刹车制动
+ * @brief: 开环刹车，适合低速瞬间刹停
  * @return {*}
  */
 void CarBrake(void)

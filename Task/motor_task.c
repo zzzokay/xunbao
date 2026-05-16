@@ -85,7 +85,7 @@ void motor_task(void *pvParameters)
 		Chassis_Periodic_Update_5ms();
 		{
 			static uint16_t print_cnt = 0;
-			if(++print_cnt >= 20) {
+			if(++print_cnt >= 100) {
 				print_cnt = 0;
 		// 调试信息（被注释掉的部分）
 		/*陀螺仪模式*/ //printf("Gyro:%.2f LSP:%.2f RSP:%.2f L0:%.2f L1:%.2f R0:%.2f R1:%.2f\r\n", imu.yaw,motor_all.Lspeed,motor_all.Rspeed,motor_L0.output,motor_L1.output,motor_R0.output,motor_R1.output);
@@ -97,7 +97,9 @@ void motor_task(void *pvParameters)
 		//printf("%.1f,%.1f,%.1f,%.1f,%.1f,%.2f,%.1f, %d\r\n", line_pid_obj.measure, line_pid_obj.target, line_pid_obj.output, motor_all.Cspeed, line_pid_param.kp, line_pid_param.ki, line_pid_param.kd, (int)test_flag);
 		
 		//printf("Cspeed:%.2f Gspeed:%.2f\r\n", motor_all.Cspeed, motor_all.Gspeed);
-		/*当前角度信息*/ printf("yaw:%.2f\troll:%.2f\tpitch:%.2f\t,basicp:%.2f\r\n", imu.yaw, imu.roll, imu.pitch, basic_p);
+		/*当前角度信息*/// printf("yaw:%.2f\troll:%.2f\tpitch:%.2f\t,basicp:%.2f\r\n", imu.yaw, imu.roll, imu.pitch, basic_p);
+		//打印路程 
+		//printf("%.2f\n",motor_all.Distance);
 		/*当前目的节点*/ //printf("%d\r\n",nodesr.nowNode.nodenum);
 		/*巡线错误*/ //printf("前%d 左%d 右%d\r\n", Infrared_ahead, infrared.head_left, infrared.head_right);
 
