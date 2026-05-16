@@ -261,7 +261,7 @@ float Chassis_GetMileage(void)
 static  void Chassis_TurnToAngle_Blocking(float target_angle, float origin_angle, float wait_ratio)
 {
     // 调用实际控制（如果需要发送给底层状态机的话）
-    while (fabsf(need2turn(target_angle, getAngleZ())) > 3.0f)
+    while (fabsf(need2turn(target_angle, getAngleZ())) > 2.0f)
     {
         vTaskDelay(2); // RTOS 延时交出 CPU 权限
         Cross_getline(&Cross_Scaner);
@@ -421,9 +421,7 @@ void Chassis_Turn_By_StopGyro_Blocking(float target_angle, float current_angle)
 
     Chassis_SetMode(is_Turn);//进入转弯模式			
 
-    Chassis_TurnToAngle_Blocking(target_angle, current_angle, 0.02f);
-
-    CarBrake();
+    Chassis_TurnToAngle_Blocking(target_angle, current_angle, 0.01f);
 
 }
 
@@ -631,7 +629,7 @@ void Want2Go(float Dis)
  * @brief: 开环刹车，适合低速瞬间刹停
  * @return {*}
  */
-void car(void)
+void CarBrake(void)
 {
 	// 开环
 	pid_mode_switch(is_Free);
@@ -667,7 +665,7 @@ void gradual_cal(float *gradual, float target, float increment1, float increment
 }
 
 /*卡死停车*/
-void CarBrake(void)
+void CarBrake_Stop(void)
 {
 	buzzer_on();
 	while(1)

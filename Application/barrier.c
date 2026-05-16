@@ -180,7 +180,7 @@ void Stage(void)
 		case STAGE_TOP:
 			if (sub_stage == 0)
 			{
-				Chassis_DriveDistance_Blocking(is_Gyro,27,12,getAngleZ(),0);
+				Chassis_DriveDistance_Blocking(is_Gyro,27,15,getAngleZ(),0);
 				CarBrake();
 				sub_stage = 1;
 				
@@ -192,7 +192,7 @@ void Stage(void)
 				 printf("Chassis_DriveDistance_Blocking\n");
 				
 				vTaskDelay(100);
-				Chassis_DriveDistance_Blocking(is_Gyro,10,-12,getAngleZ(),0);
+				Chassis_DriveDistance_Blocking(is_Gyro,10,-15,getAngleZ(),0);
 				CarBrake();
 				sub_stage=0;
 				state = STAGE_SCAN;
@@ -204,7 +204,7 @@ void Stage(void)
 
 			// 转身180
 			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ());
-	
+			printf("turn finish\n");
 			state = STAGE_TREASURE;
 			break;
 
@@ -213,7 +213,9 @@ void Stage(void)
 			// {
 			// 	Stage_CollectTreasure();
 			// }
-			
+			vTaskDelay(100);
+			Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, getAngleZ());
+			printf("godowm\n");
 			Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, getAngleZ());
 			state = STAGE_DESCEND;
 			break;
@@ -224,6 +226,7 @@ void Stage(void)
 				// 下坡检测
 				if (imu.pitch <= basic_p - 5)
 				{
+					printf("slowing down\n");
 					sub_stage = 1;
 				}
 			}
@@ -231,6 +234,7 @@ void Stage(void)
 			{
 				if (imu.pitch <= basic_p - 20)
 				{
+					printf("slowing down2\n");
 					sub_stage = 2;
 				}
 			}
@@ -247,16 +251,14 @@ void Stage(void)
 				if (imu.pitch >= basic_p - 5)
 				{
 					Chassis_MotorControl(is_Line, SPEED1, SPEED1, 0);
-					sub_stage = 0;
+					sub_stage = 0;	
+					printf("stage done\n");
 					state = STAGE_DONE;	
+				
 				}
-			}					
-					
-			
+			}						
 			break;
-
 		default:
-			state = STAGE_DONE;
 			break;
 		}
 		vTaskDelay(2);
@@ -355,7 +357,7 @@ void Barrier_Bridge(void)
 	float origin_angle = 0.0f;
 
 	printf("Executing bridge crossing procedure\n");
-	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);//TODO:速度改了
+	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
 	Chassis_ClearMileage();
 
 	while (state != BRIDGE_DONE)
@@ -367,10 +369,11 @@ void Barrier_Bridge(void)
 			if ((Cross_Scaner.detail & 0X0180) == 0X0180)
 			{
 				stable_times++;
-				if (stable_times >= 5)
+				if (stable_times == 10)
 				{
 					mpuZreset(get_latest_yaw(), nodesr.nowNode.angle);
 					printf("gyro reset\n");
+
 				}
 			}
 			else
@@ -392,11 +395,11 @@ void Barrier_Bridge(void)
 		case BRIDGE_ASCEND:
 			if (imu.pitch >= Up_pitch && imu.pitch < Up_pitch+15)
 			{
-				printf("On ramp, waiting for bridge top\n");
 				Chassis_MotorControl(is_Gyro, SPEED0, SPEED0, origin_angle);			
 			}
 			if(imu.pitch >= Up_pitch+15)
 			{
+				printf("On ramp, waiting for bridge top\n");
 				Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, origin_angle);
 				state = BRIDGE_WAIT_TOP;
 			}
@@ -422,7 +425,7 @@ void Barrier_Bridge(void)
 			
 			if (infrared_done)
 			{
-				//如果0度完全正确，获得的angleG也会是0，Tar_angle也是0，如果0有偏差，真实目标角度就在0与angleG之间
+				//如果origin_angle完全正确，获得的angleG也会是origin_angle，Tar_angle也是origin_angle，如果origin_angle有偏差，真实目标角度就在origin_angle与angleG之间
 				Tar_angle = getAngleZ()*2.0f/10.0f+origin_angle*8.0f/10.0f;
 				Chassis_MotorControl(is_Gyro, SPEED1, SPEED1, Tar_angle);				
 				infrared_done = 0;

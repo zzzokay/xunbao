@@ -85,19 +85,19 @@ void motor_task(void *pvParameters)
 		Chassis_Periodic_Update_5ms();
 		{
 			static uint16_t print_cnt = 0;
-			if(++print_cnt >= 20) {
+			if(++print_cnt >= 100) {
 				print_cnt = 0;
 		// 调试信息（被注释掉的部分）
 		/*陀螺仪模式*/ //printf("Gyro:%.2f LSP:%.2f RSP:%.2f L0:%.2f L1:%.2f R0:%.2f R1:%.2f\r\n", imu.yaw,motor_all.Lspeed,motor_all.Rspeed,motor_L0.output,motor_L1.output,motor_R0.output,motor_R1.output);
 		/*巡线值*/// printf_byte(Scaner.detail);
-		printf("angleG: %.2f,getAngleZ: %.2f, imu.yaw: %.2f, nodesr.nowNode.angle: %.2f\n", angle.AngleG, getAngleZ(), imu.yaw, nodesr.nowNode.angle);
+		//printf("angleG: %.2f,getAngleZ: %.2f, imu.yaw: %.2f, nodesr.nowNode.angle: %.2f\n", angle.AngleG, getAngleZ(), imu.yaw, nodesr.nowNode.angle);
 		
 		//打印寻迹测量值，目标值，输出值，小车速度，kp，ki，kd,test_flag (500ms一次)
 		
 		//printf("%.1f,%.1f,%.1f,%.1f,%.1f,%.2f,%.1f, %d\r\n", line_pid_obj.measure, line_pid_obj.target, line_pid_obj.output, motor_all.Cspeed, line_pid_param.kp, line_pid_param.ki, line_pid_param.kd, (int)test_flag);
 		
 		//printf("Cspeed:%.2f Gspeed:%.2f\r\n", motor_all.Cspeed, motor_all.Gspeed);
-		/*当前角度信息*/ //printf("yaw:%.2f\troll:%.2f\tpitch:%.2f\t,basicp:%.2f\r\n", imu.yaw, imu.roll, imu.pitch, basic_p);
+		/*当前角度信息*/// printf("yaw:%.2f\troll:%.2f\tpitch:%.2f\t,basicp:%.2f\r\n", imu.yaw, imu.roll, imu.pitch, basic_p);
 		//打印路程 
 		//printf("%.2f\n",motor_all.Distance);
 		/*当前目的节点*/ //printf("%d\r\n",nodesr.nowNode.nodenum);
@@ -200,7 +200,7 @@ void handle_turn_mode(void)
 		// 平台辅助
 		else if (nodesr.nowNode.function == UpStage || nodesr.nowNode.function == BSoutPole || nodesr.nowNode.function == BHM)
 		{
-			if (Turn_Angle(angle.AngleT))  // 执行平台转弯
+			if (Stage_turn_Angle(angle.AngleT))  // 执行平台转弯
 				gyroT_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0};  // 清零转弯PID
 		}
 		// 普通角度

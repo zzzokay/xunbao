@@ -335,7 +335,7 @@ void Cross(void)
 			if(route_state == 0)//路径开始
 			{		
 				//打印当前路径信息：开始
-				printf("Starting new path\n");
+				////printf("Starting new path\n");
 					//清零里程
 					Chassis_ClearMileage();
 					 
@@ -368,7 +368,7 @@ void Cross(void)
 		    if( route_state == 1)
 			{	
 
-				printf("In the first half of the path\n");
+				//printf("In the first half of the path\n");
 					//设置当前节点的目标速度
 					Chassis_SetTargetSpeed(nodesr.nowNode.speed);
 
@@ -387,7 +387,7 @@ void Cross(void)
 			if(fabsf(Chassis_GetMileage()) >= 0.5f*nodesr.nowNode.step && route_state == 2)
 			{
 				//打印：走完一半路径，切换巡线模式
-					printf("Passed 50%% of the path, switching line following mode\n");
+					//printf("Passed 50%% of the path, switching line following mode\n");
 					if((nodesr.nowNode.flag & Temp_L) == Temp_L)
 					{
 						Chassis_SetTrackMode(TRACK_LEFT_EDGE);
@@ -406,7 +406,7 @@ void Cross(void)
 			if(fabsf(Chassis_GetMileage()) >= 0.7f*nodesr.nowNode.step && route_state == 3 )
 			{
 					
-				printf("Passed 70%% of the path, preparing for node endpoint check\n");
+				//printf("Passed 70%% of the path, preparing for node endpoint check\n");
 					if ((fabsf(need2turn(getAngleZ(), nodesr.nextNode.angle)) < 10.0f) || (fabsf(need2turn(nodesr.nowNode.angle, nodesr.nextNode.angle)) < 10.0f) || (nodesr.nowNode.flag & NOTURN) == NOTURN)
 					{}//角度差小，保持原速	
 
@@ -426,7 +426,7 @@ void Cross(void)
 	else if(is_near_end == 1)
 	{ 		
 		//打印：接近路径终点，执行到达检查
-			printf("Approaching path endpoint, executing arrival check\n");
+			//printf("Approaching path endpoint, executing arrival check\n");
 				//关闭巡线，进入坐标计算
 			// 执行当前节点功能，如爬坡、过桥等,执行完后nodesr.flag|0x40（跳过到达检查）
 			map_function(nodesr.nowNode.function);
@@ -455,8 +455,8 @@ void Cross(void)
 		nodesr.flag&=~0x04;//	清除路径点标志，确保该处理只执行一次
 
 		// DEBUG: 打印route相关值
-		printf("[DEBUG] map.point=%d, route[point-1]=0x%02X, route[point]=0x%02X, nowNode=%d, nextNode=%d\n",
-			map.point, route[map.point-1], route[map.point], nodesr.nowNode.nodenum, nodesr.nextNode.nodenum);
+		//printf("[DEBUG] map.point=%d, route[point-1]=0x%02X, route[point]=0x%02X, nowNode=%d, nextNode=%d\n",
+		//	map.point, route[map.point-1], route[map.point], nodesr.nowNode.nodenum, nodesr.nextNode.nodenum);
 
 		//节点刷新衔接处理
 		if(route[map.point-1] != 0xFF)// route[map.point-1]=>nodesr.nextNode	/*判断路径终点 - 0xFF表示路径结束，只有执行完路径终点时才执行该处理*/
@@ -536,7 +536,7 @@ void Cross(void)
 				nodesr.lastNode = nodesr.nowNode;
 				nodesr.nowNode = nodesr.nextNode;
 				// DEBUG: 打印即将读取的route值
-				printf("[DEBUG] switching node, reading route[%d]=0x%02X\n", map.point, route[map.point]);
+				//printf("[DEBUG] switching node, reading route[%d]=0x%02X\n", map.point, route[map.point]);
 				nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point++])];
 			
 				nodesr.flag&=~0x04;  // 清除路径点标志
@@ -544,9 +544,9 @@ void Cross(void)
 		else if(route[map.point-1] == 0xFF)// route[map.point-1]=>nodesr.nextNode
 		{	
 			// 停止小车并设置相关状态
-			printf("Reached final destination, stopping chassis\n");
-			Chassis_SetTargetSpeed(0);
-			Chassis_Brake();  // 急刹
+			//printf("Reached final destination, stopping chassis\n");
+			CarBrake();//TODO
+			//Chassis_Brake();  // 急刹
 			vTaskDelay(2);
 			map.routetime += 1;  // 地图运行次数+1	
 		}

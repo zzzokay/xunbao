@@ -60,6 +60,7 @@ float getAngleZ(void)
 /*原地转（内部基函数，right_ratio 控制左右电机速比，平台转弯用 1.3 补偿阻力）*/
 static uint8_t Turn_Angle_Base(float Angle, float right_ratio)
 {
+	static uint8_t inited = 0;
 	float GTspeed;
 	float now_angle;
 
@@ -92,7 +93,9 @@ static uint8_t Turn_Angle_Base(float Angle, float right_ratio)
 		GTspeed = motor_all.GyroT_speedMax;
 	else if (GTspeed <= -motor_all.GyroT_speedMax)
 		GTspeed = -motor_all.GyroT_speedMax;
-
+	//打印转速和当前角度误差
+	if(inited++ % 10 == 0)
+	printf("Turn_Angle_Base GTspeed: %.2f, Angle Error: %.2f\n", GTspeed, gyroT_pid.measure);
 	motor_all.Lspeed = GTspeed;
 	motor_all.Rspeed = -GTspeed * right_ratio;
 	return 0;
@@ -101,7 +104,7 @@ static uint8_t Turn_Angle_Base(float Angle, float right_ratio)
 /*平台转（右电机 x1.3 补偿平台阻力）*/
 uint8_t Stage_turn_Angle(float Angle)
 {
-	return Turn_Angle_Base(Angle, 1.3f);
+	return Turn_Angle_Base(Angle, 1.1f);
 }
 
 
