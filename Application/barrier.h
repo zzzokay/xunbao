@@ -3,29 +3,40 @@
 
 #include "sys.h"
 
-#define Up_pitch   basic_p+5   //while(imu.pitch<Up_pitch)  出循环 刚上桥
+#define Begin_up   basic_p+5   //while(imu.pitch<Begin_up)  出循环 刚上桥
+#define up_pitch   basic_p+20  //while(imu.pitch<up_pitch) 出循环 上完桥
 #define After_up   basic_p+5    //while(imu.pitch>After_up)出循环上完 在平地
 
-#define Down_pitch basic_p-5    //while(imu.pitch>Down_pitch)出循环 刚下桥 
+#define Begin_down basic_p-5    //while(imu.pitch>Begin_down)出循环 刚下桥 
+#define down_pitch basic_p-20   //while(imu.pitch>down_pitch)出循环 下完桥
 #define After_down basic_p-5    //while(imu.pitch<After_down)出循环下完 在平地
 
-#define Old_M_Speed    6                //老爷爷
-#define QQB_Out_Speed  8                //出跷跷板
-#define BL_Speed 	   12               //波浪板
-#define Rubbish_Speed  13               //Rubbish
-#define Stop_T_Speed   15               //原地转
-#define UnderMou_Speed 20
-#define GoStage_Speed  15   //16
-#define Low_Speed      20 
-#define Gyro_Speed     25  //25  
-#define Award_Speed    25
-#define UpStage_Speed  20
-#define Bridge_Speed   45   //38
-#define Mount_Speed	   22
-#define DownBHM_Speed  32
-#define Mid_Speed      35
-#define High_Speed     45
-#define Champion_Speed 64
+/*坡道控制*/
+typedef enum { RAMP_ASCEND, RAMP_DESCEND } RampDir_t;
+void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
+                       float thresh1, float speed1,
+                       float thresh2, float speed2,
+                       float done_thresh);
+
+#define Old_M_Speed         6                //老爷爷
+#define QQB_Out_Speed       8                //出跷跷板
+#define BL_Speed 	        12               //波浪板
+#define Rubbish_Speed       13               //Rubbish
+#define Stop_T_Speed        15               //原地转
+#define UnderMou_Speed      20
+#define GoStage_Speed       15   //16
+#define Low_Speed           20 
+#define Gyro_Speed          25  //25  
+#define Award_Speed         25
+#define UpStage_Speed       20
+#define UpDownStage_Speed_low   12
+#define UpDownStage_Speed_high  25
+#define Bridge_Speed        45   //38
+#define Mount_Speed	        22
+#define DownBHM_Speed       32
+#define Mid_Speed           35
+#define High_Speed          45
+#define Champion_Speed      64
 
 #define Green 1
 #define Yellow 2

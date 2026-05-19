@@ -306,7 +306,7 @@ void handle_mode_switch(uint8_t target_mode)
 		{
 			gyroG_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
 			TG_speed = 0;
-			motor_all.Gspeed = 0;
+			// 不清 motor_all.Gspeed：调用者已通过 Chassis_SetTargetSpeed 设好目标速度
 		}
 		else if (current_pid_mode == is_Turn)
 		{

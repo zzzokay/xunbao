@@ -104,7 +104,7 @@ static uint8_t Turn_Angle_Base(float Angle, float right_ratio)
 /*平台转（右电机 x1.3 补偿平台阻力）*/
 uint8_t Stage_turn_Angle(float Angle)
 {
-	return Turn_Angle_Base(Angle, 1.1f);
+	return Turn_Angle_Base(Angle, 1.3f);
 }
 
 

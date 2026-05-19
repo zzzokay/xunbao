@@ -23,7 +23,7 @@
 #include "scaner.h"
 #include "motor.h"
 #include "chassis_api.h"
-uint8_t test_flag =0;
+uint8_t test_flag = 0;
 float temp_speed=25;
 /*主任务*/
 void main_task(void *pvParameters)
@@ -33,11 +33,7 @@ void main_task(void *pvParameters)
 	mapInit();
 	zhunbei(); // 启动流程//注意有挡板 会卡在这
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
-	printf("Preparation complete, waiting for start signal...\n");
-	//IMU_CalibrateZero(&basic_y,&basic_p);
 	//vTaskDelay(100);
-	//mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); 
-	//vTaskDelay(1000);
 	
 	
 	while (1)
