@@ -54,7 +54,7 @@ void user_init(void)
 //	uart_init(115200); // 初始化重定向串口
 	Encoder_init();
 //	IIC_Init();
-	Gray_Init();
+	//Gray_Init();
 //	Rudder_Init(9600); // 舵机初始化
 	Maxicam_Enable();
 	imu_receive_init();

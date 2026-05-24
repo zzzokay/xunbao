@@ -487,7 +487,7 @@ void Barrier_Bridge(void)
 /*楼梯*/
 void Barrier_Hill(void)
 {
-	CarBrake();
+	
 // 	struct PID_param origin_param1 = line_pid_param;
 // 	motor_all.Cspeed = Gyro_Speed;
 // 	infrare_open = 1;

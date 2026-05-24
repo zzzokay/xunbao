@@ -113,11 +113,11 @@ int main(void)
   MX_TIM11_Init();
   MX_UART5_Init();
   MX_UART8_Init();
-  MX_ADC1_Init();
   MX_TIM12_Init();
   MX_UART7_Init();
   MX_UART4_Init();
   MX_USART1_UART_Init();
+  MX_ADC2_Init();
   /* USER CODE BEGIN 2 */
 	
   /* USER CODE END 2 */
@@ -240,7 +240,7 @@ void MPU_Config(void)
 //void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 //{
 //  /* USER CODE BEGIN Callback 0 */
-
+//////////	//TODO
 //  /* USER CODE END Callback 0 */
 //  if (htim->Instance == TIM14)
 //  {

@@ -23,7 +23,8 @@
 #include "scaner.h"
 #include "motor.h"
 #include "chassis_api.h"
-uint8_t test_flag = 0;
+#include "gray.h"
+uint8_t test_flag = 1;
 float temp_speed=25;
 /*主任务*/
 void main_task(void *pvParameters)
@@ -31,10 +32,9 @@ void main_task(void *pvParameters)
 	portTickType xLastWakeTime;
 	xLastWakeTime = xTaskGetTickCount();   //获取系统节拍、
 	mapInit();
-	zhunbei(); // 启动流程//注意有挡板 会卡在这
-	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
-	//vTaskDelay(100);
-	
+	//zhunbei(); // 启动流程//注意有挡板 会卡在这
+	//Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
+	vTaskDelay(100);
 	
 	while (1)
 	{
@@ -54,10 +54,11 @@ void main_task(void *pvParameters)
 		// 	Motor_Control(is_Line, SPEED0, SPEED0, 0);
 		// }
 		
-		
+		Gray_GetLine(); 
  		if(test_flag==1)
  		{
-			     
+			
+			   
 			// Chassis_EnableLineLostProtection();
 			// Chassis_SetTrackMode(TRACK_LIUSHUI);
 			// ////直线循迹
@@ -121,8 +122,8 @@ void main_task(void *pvParameters)
 		}
 		
 //		/*节点间处理*/
-		if(map.routetime == 0)
-			Cross();
+		//if(map.routetime == 0)
+			//Cross();
 //		
 //		/*二轮结束处理*/
 //		if(map.routetime==3)

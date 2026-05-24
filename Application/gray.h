@@ -31,7 +31,9 @@
 //uint8_t I2C_WriteByte(uint8_t id,uint8_t SA,uint8_t RA,uint8_t data);
 //uint8_t I2C_ReadByte(uint8_t id,uint8_t SA,uint8_t RA,uint8_t *REG_data,uint8_t length);
 
-void Gray_Init(void);
+//void Gray_Init(void);
+void Gray_Open(void);
+void Gray_Close(void);
 uint8_t Gray_GetLine(void);
 void Calculate_Error(volatile SCANER *scaner);
 void ScanerMode_Switch(uint8_t mode);

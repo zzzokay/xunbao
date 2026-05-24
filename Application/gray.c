@@ -10,21 +10,19 @@
 
 uint8_t ScanerMode = RF;        //当前循迹模式
 uint16_t AD_Value_Gray[4];//定义一个数组
-#define THRESHOLD 1000  // 设置阈值
-#define SENSOR_NUM 8  // 4 路灰度传感器
-/*灰度初始化*/
-void Gray_Init(void) 
-{
-    GPIO_InitTypeDef GPIO_InitStruct = {0};
-    __HAL_RCC_GPIOE_CLK_ENABLE();
-    GPIO_InitStruct.Pin = GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_12|GPIO_PIN_13;
-    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-    GPIO_InitStruct.Pull = GPIO_PULLUP;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-    ScanerMode_Switch(RF);
+void Gray_Open(void)
+{
+	HAL_ADC_Start_DMA(&hadc2,(uint32_t *)AD_Value_Gray, 4);
 }
+
+void Gray_Close(void)
+{
+	HAL_DMA_Abort(&hdma_adc2);
+	HAL_ADC_Stop(&hadc2);
+}
+#define THRESHOLD 500  // 设置阈值
+#define SENSOR_NUM 8  // 4 路灰度传感器
 
 /*切换循迹模式*/
 void ScanerMode_Switch(uint8_t mode)
@@ -41,8 +39,7 @@ void ScanerMode_Switch(uint8_t mode)
     {
         ScanerMode = RF;
 		 // 停止 DMA
-		HAL_DMA_Abort(&hdma_adc1);
- 		HAL_ADC_Stop(&hadc1);
+		Gray_Close();
         for (uint8_t i = 0; i < 16; i++)
         {
             line_weight[i] = line_weight_default[i];
@@ -51,16 +48,9 @@ void ScanerMode_Switch(uint8_t mode)
     else if(mode == Gray)
     {
         ScanerMode = Gray;
-		HAL_ADC_Start(&hadc1);
-		HAL_ADC_Start_DMA(&hadc1,(uint32_t *)AD_Value_Gray, 4);
-//        for (uint8_t i = 0; i < 16; i++)
-//        {
-//            line_weight[i] = lineG_weight_default[i];
-//        }
+		Gray_Open();
     }
-    
-    // CarBrake();
-    // memset(&line_pid_obj, 0, sizeof(line_pid_obj));
+
 }
 
 /*SDA模式转换*/
@@ -467,13 +457,7 @@ uint8_t I2C_ReadOnce(uint8_t id, uint8_t SA, uint8_t RA, uint8_t *REG_data, uint
 /*灰度获取一次二进制循线值*/
 uint8_t Gray_GetLine(void)
 {
-	/*
-//    uint8_t temp;
-//    uint16_t data = 0;
-//    I2C_ReadOnce(RIGHT, 0x98, 0xdd, &temp, sizeof(temp));
-//    data |= temp;
-//    I2C_ReadOnce(LEFT, 0x98, 0xdd, &temp, sizeof(temp));
-//    data |= (uint16_t)(temp) << 8;
+
 	*/
 	 // 通过判断 ADC 值与阈值的大小来设置对应位的数据
 	uint8_t data = 0;  // 初始化为 00000000
@@ -490,9 +474,9 @@ uint8_t Gray_GetLine(void)
     }
 	// 输出调试数据，可以根据实际需要移除
 //    printf("data: %02X\r\n", data);
-		printf("%d %d %d %d\r\n",AD_Value_Gray[0],AD_Value_Gray[1],AD_Value_Gray[2],AD_Value_Gray[3]);
+		printf("%d,%d,%d,%d\r\n",AD_Value_Gray[0],AD_Value_Gray[1],AD_Value_Gray[2],AD_Value_Gray[3]);
     return data;
-}
+}	
 
 // 假设 scaner.detail 存储了 4 路传感器的二进制数据
 void Calculate_Error(volatile SCANER *scaner) {

@@ -1,7 +1,7 @@
 test1\port.o: ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/r0p1/port.c
 test1\port.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
-test1\port.o: C:\keil\ARM\ARMCC\Bin\..\include\stddef.h
-test1\port.o: C:\keil\ARM\ARMCC\Bin\..\include\stdint.h
+test1\port.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stddef.h
+test1\port.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdint.h
 test1\port.o: ../Core/Inc/FreeRTOSConfig.h
 test1\port.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
 test1\port.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
