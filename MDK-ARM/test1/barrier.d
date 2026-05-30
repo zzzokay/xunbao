@@ -70,6 +70,7 @@ test1\barrier.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\math.h
 test1\barrier.o: ../Module/bsp_buzzer.h
 test1\barrier.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\barrier.o: ../Module/bsp_led.h
+test1\barrier.o: ..\Application\gray.h
 test1\barrier.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h
 test1\barrier.o: ../Module/QR.h
 test1\barrier.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
@@ -87,4 +88,3 @@ test1\barrier.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.
 test1\barrier.o: ../Core/Inc/usart.h
 test1\barrier.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\string.h
 test1\barrier.o: ../Core/Inc/adc.h
-test1\barrier.o: ..\Application\gray.h

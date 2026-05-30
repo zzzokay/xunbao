@@ -24,7 +24,7 @@
 #include "motor.h"
 #include "chassis_api.h"
 #include "gray.h"
-uint8_t test_flag = 1;
+uint8_t test_flag = 3;
 float temp_speed=25;
 /*主任务*/
 void main_task(void *pvParameters)
@@ -34,6 +34,16 @@ void main_task(void *pvParameters)
 	mapInit();
 	//zhunbei(); // 启动流程//注意有挡板 会卡在这
 	//Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
+	IMU_CalibrateZero(&basic_y,&basic_p);
+	vTaskDelay(100);
+	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); // 用稳定后的实际角度计算补偿
+	while (Infrared_ahead == 0)
+		vTaskDelay(5);
+
+	/*等待移除挡板*/
+	while(Infrared_ahead == 1)
+		vTaskDelay(5);
+	
 	vTaskDelay(100);
 	
 	while (1)
@@ -54,7 +64,7 @@ void main_task(void *pvParameters)
 		// 	Motor_Control(is_Line, SPEED0, SPEED0, 0);
 		// }
 		
-		Gray_GetLine(); 
+		//Gray_GetLine(); 
  		if(test_flag==1)
  		{
 			
@@ -117,13 +127,14 @@ void main_task(void *pvParameters)
 		if(test_flag==3)
 		{
 		//过桥
-		Barrier_Bridge();
+		//Barrier_Bridge();
+		Barrier_Hill();
 		test_flag=0;
 		}
 		
 //		/*节点间处理*/
 		//if(map.routetime == 0)
-			//Cross();
+		//	Cross();
 //		
 //		/*二轮结束处理*/
 //		if(map.routetime==3)

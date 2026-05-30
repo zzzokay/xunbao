@@ -93,6 +93,15 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
 30. **scaner.c Line_Scan** — 扁平化，用 early return 消除嵌套，减少重复的 error 平均计算
 31. **scaner.c** — `R_` 宏重命名为 `POS_CLUSTER_RADIUS`；`pos_detect`/`Update_line_data` 改为 static；从 header 移除内部函数声明
 
+**2026-05-26 — 灰度板封装 + 坡道灰度修正 + Barrier_Hill 状态机重构**
+
+32. **gray.c/h** — 新增 `Gray_Open()` / `Gray_Close()` 封装 DMA 启停，替代裸 HAL 调用
+33. **gray.c/h** — 删除全部 I2C 相关代码（I2C_Judge/Start/Stop/SendACK/WaitAck/SendByte/ReceiveByte/ReadOnce）及 I2C 宏定义，header guard 改为 `_GRAY_H_`
+34. **gray.c/h** — 新增 `Gray_GetAngle()` 坡道灰度角度修正函数，找最大 ADC 值并判断是否明显高于其他传感器，输出对应角度偏移；`DIFF_THRESH` 作为宏定义
+35. **barrier.c/h** — `RampCtrl_Blocking` 新增 `uint8_t use_gray` 参数，为 1 时开启灰度 DMA、循环内叠加 `Gray_GetAngle()` 修正角度、退出时关闭灰度
+36. **barrier.c** — `Barrier_Hill` 重构为状态机（HILL_APPROACH / HILL_ASCEND / HILL_DESCEND / HILL_DONE），上坡下坡均开启灰度修正，新增 `GyroStableReset` 航向校准
+37. **barrier.c** — 5 处 `RampCtrl_Blocking` 调用方补上 `use_gray=0` 参数，保持原行为
+
 ---
 
 ## 小车导航逻辑
@@ -126,19 +135,46 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
 
 ### 路径决策点
 
-#### 1. 门检测（D2~D5）
+#### 1. 门检测（D2~D5）— door() 状态机
 `door()` 函数在到达门节点时执行。机器人停在门前，用颜色传感器逐个读取 4 道门的灯：
 - 红灯 = 门关，绿灯/黄灯 = 门开
 
-根据 4 道门的开关组合，从 12 条预定义路线（`door1route`~`door12route`）中选择一条，覆盖所有 2^4 种情况。
+**状态机设计**：`door()` 使用 `static enum DoorState` 变量，每次调用只读一个灯的颜色，然后返回。下一次进入 `door()` 时继续从上次的状态执行。
 
-#### 2. 旋转平台颜色检测
+```c
+enum DoorState {
+    DOOR_D2 = 0,   // 看D2（第一次）
+    DOOR_D3,        // 看D3（D2红）
+    DOOR_D4,        // 看D4（D2红 D3红）
+    DOOR_D5,        // 看D5（D2黄 或 D2红D3黄）
+    DOOR_D4_AGAIN   // 看D4回退（D2黄 D5红）
+};
+```
+
+**状态转移逻辑**：
+```
+D2绿 → 路线确定（DOOR_D2），调用 update_route_by_QR()
+D2黄 → 还要看D5（DOOR_D5），调用 update_route_by_QR()
+D2红 → 看D3（DOOR_D3）
+  D3绿/黄 → 路线确定（DOOR_D2），调用 update_route_by_QR()
+  D3红 → 看D4（DOOR_D4）
+    D4绿/黄 → 路线确定（DOOR_D2），调用 update_route_by_QR()
+D5绿 → 路线确定（DOOR_D2），调用 update_route_by_door_1()
+D5红 + D2黄 → 回去看D4（DOOR_D4_AGAIN）
+  D4绿 → 路线确定，调用 update_route_by_door_3()
+  D4红 → 路线确定，调用 update_route_by_door_4()
+D5红 + D2红D3黄 → 路线确定，调用 update_route_by_door_2()
+```
+
+根据 4 道门的开关组合，从 12 条预定义路线（`door1route`~`door12route`）中选择一条。
+
+#### 2. 旋转平台颜色检测 — Stage()
 到达平台节点（N12/N5）后，`Stage()` 读取灯颜色：
 - **红灯**：退回，`flag |= 0x20`，更新 `lastNode` 和 `nextNode`，换方向
 - **绿灯/黄灯**：确认 QR 码，`flag |= 0x80`，更新 `nowNode` 和 `nextNode`，规划去宝物平台的路线
 
 #### 3. QR 码路线规划
-`update_route_by_QR()` 根据线索位置（`clue_A_stage`、`clue_B_stage`）选择路线：
+`update_route_by_QR()` 根据线索位置（`flag_clue_stage_A`、`flag_clue_stage_B`）选择路线：
 - 线索在 5 号和 7 号平台 → `rout_57`
 - 线索在 5 号和 8 号平台 → `rout_58`
 - 线索在 6 号和 7 号平台 → `rout_67`
@@ -150,20 +186,77 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
   ↓
 默认路线: B1→N1→P1（第一个平台）
   ↓
-门检测: 读 D2~D5 颜色 → 选 doorXroute
+Stage() 读 QR 码 → flag_line_clue, flag_clue_stage_A, flag_clue_stage_B
   ↓
-沿路线走到旋转平台（N12/N5）
+update_route_for_stage34() 根据 flag_line_clue 规划路线：
+  0 → 跳过P3/P4，直接走门
+  3 → 先去P3，再去门
+  4 → 先去P4，再去门
   ↓
-读 QR 码 → 知道宝物在哪个平台
+门检测: door() 状态机读 D2~D5 颜色 → 选 doorXroute
   ↓
-读灯颜色:
-  红灯 → 退回，走另一条路（flag|=0x20）
-  绿灯/黄灯 → 确认路线，调用 update_route_by_QR()（flag|=0x80）
+update_route_by_QR() 根据 flag_clue_stage_A/B 规划去线索平台的路线
   ↓
-沿 rout_XX 路线到达宝物平台，取宝物
+沿路线走到线索平台（P5/P6 读 clue_A，P7/P8 读 clue_B）
+  ↓
+treasure = flag_clue_A + flag_clue_B → 宝物平台编号
+  ↓
+update_rout_by_treasure_7/8() 更新回家路线
+  ↓
+沿路线到达宝物平台，取宝物
   ↓
 按路线返回终点
 ```
+
+### 路由修改点（共 4 次）
+
+| 修改点 | 函数 | 触发条件 | 修改内容 |
+|--------|------|----------|----------|
+| 1 | `update_route_for_stage34()` | Stage() 读到 QR 码后 | 根据 flag_line_clue 规划是否先去 P3/P4 |
+| 2 | `door()` + `update_route_by_QR()` | 门检测完成后 | 根据门颜色选择路线，根据 QR 码选择去哪个线索平台 |
+| 3 | `update_rout_by_treasure_7()` | Sword_Mountain() 中，`flag_clue_stage_B == 7` | 在 P7/P8 读完线索后更新回家路线 |
+| 4 | `update_rout_by_treasure_8()` | Barrier_HighMountain() 中，`flag_clue_stage_B == 8` | 在 P7/P8 读完线索后更新回家路线 |
+
+### 标志位说明
+
+#### QR 码三位数格式
+- **百位** → `flag_line_clue`：0=跳过P3/P4直接走门，3=先去P3，4=先去P4
+- **十位** → `flag_clue_stage_A`：5=P5（原P6），6=P6（原P5）
+- **个位** → `flag_clue_stage_B`：7=P7，8=P8
+
+#### 线索与宝物
+- `flag_clue_A`：P5/P6 平台读到的线索数字（OCR）
+- `flag_clue_B`：P7/P8 平台读到的线索数字（OCR）
+- `treasure = flag_clue_A + flag_clue_B`：宝物平台编号
+
+#### 门检测颜色标志
+- `color_flag[0]`：D2 颜色
+- `color_flag[1]`：D3 颜色
+- `color_flag[2]`：D4 颜色
+- `color_flag[3]`：D5 颜色
+- `color_flag[4]`：D1 颜色（未使用）
+
+### P5/P6 名称交换
+**问题**：物理布局中，P5 和 P6 的位置与代码中的枚举名称不一致，导致小车走到错误的平台。
+
+**解决方案**：交换 `map.h` 中的枚举名称：
+- 原 `P5`（位置16）→ 改为 `P6`
+- 原 `P6`（位置27）→ 改为 `P5`
+
+同时更新：
+- `map_message.c` 中的节点表（位置17和28的数据交换）
+- `map.c` 中所有路线数组（doorXroute、rout_XX）
+- `barrier.c/h` 中的注释
+
+### S 节点（直立式景点）碰撞分析
+S 节点（S1-S5）是直立式景点，连接关系：
+- S1 ← N3
+- S2 ← N6
+- S3 ← N14
+- S4 ← N15
+- S5 ← N16
+
+**当前路线分析**：在获取宝藏前的路线中，小车不会经过 S 节点。路线设计已确保在完成线索平台访问前，不会误入直立式景点区域。
 
 ### 到达检测 — arrive_detect_task
 独立任务，通过 FreeRTOS 通知与 main_task 同步。根据 `nodesr.nowNode.flag` 中的标志位判断到达条件：

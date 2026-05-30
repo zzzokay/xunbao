@@ -58,12 +58,12 @@ u8 route[100] = {B1, N1,P1, N1,B2,0XFF};  //调试时的初始路径
  
 /***************任务***************/
 //u8 route[100] = {P7,N20,0XFF};
-//u8 route[100] = {B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,0XFF};//任务二
+//u8 route[100] = {B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,0XFF};//任务二
 /***************假山***************/
 //u8 route[100] = {B6,N20,0XFF};
 
 /***************跷跷板***************/
-//u8 route[100] = {B9,N7,P5,N7,B8,N9,C3,N14,0XFF};
+//u8 route[100] = {B9,N7,P6,N7,B8,N9,C3,N14,0XFF};
 /***************旋转平台***************/
 // u8 route[100] = {N12,N16,N18,B5,N19,C6,B7,N22,B6,N20,P7,N20,0XFF};
  
@@ -74,14 +74,14 @@ u8 route[100] = {B1, N1,P1, N1,B2,0XFF};  //调试时的初始路径
 /*D2开D3关，暂时去掉D4*/
 u8 door1route[100] = {N4, N3, N8, 0XFF};
 /*D2开 D3开*/
-u8 door2route[100] = {N12, N13, P6, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8,0xFF};
+u8 door2route[100] = {N12, N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8,0xFF};
 /*D2开*/
-u8 door3_1route[50] = {N13, P6, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8,0xFF};
+u8 door3_1route[50] = {N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8,0xFF};
 	
 /*D2开 D3开 D4开*/
-u8 door4route[100] = {N12, N13, P6, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8, C9, N22, B6, N20, P7, N20, C4, C8, C7, N14, C3, N9, B9, N7, P5, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N8, N3, N4, B3, N2, P2, 0XFF};
+u8 door4route[100] = {N12, N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8, C9, N22, B6, N20, P7, N20, C4, C8, C7, N14, C3, N9, B9, N7, P6, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N8, N3, N4, B3, N2, P2, 0XFF};
 /*D2开 D3关，暂时去掉D5*/
-u8 door5route[100] = {N12, N13, P6, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8, C9, N22, B6, N20, P7, N20, C4, C8, C7, N14, C3, N9, B9, N7, P5, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, 0XFF};
+u8 door5route[100] = {N12, N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8, C9, N22, B6, N20, P7, N20, C4, C8, C7, N14, C3, N9, B9, N7, P6, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, 0XFF};
 /*D5开*/
 u8 door6route[100] = {N4, B3, N2, P2, 0XFF};
 /*D2开 D3开 D5开*/
@@ -89,23 +89,23 @@ u8 door7route[100] = {N8, N3, N4, B3, N2, P2, 0xFF};
 /*D2开 D5开 D4开*/
 u8 door8route[100] = {N4, B3, N2, P2, 0XFF};
 /*D2开 D3开 D4开 D5开全*/
-u8 door9route[100] = {N12, N13, P6, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8, C9, N22, B6, N20, P7, N20, C4, C8, C7, N14, C3, N9, B9, N7, P5, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, N4, B3, N2, P2, 0XFF}; // 没去P3
+u8 door9route[100] = {N12, N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8, C9, N22, B6, N20, P7, N20, C4, C8, C7, N14, C3, N9, B9, N7, P6, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, N4, B3, N2, P2, 0XFF}; // 没去P3
 /*D2开 D3关，暂时去掉D5*/
-u8 door10route[100] = {N12, N13, P6, N13, N12, N16, N18, B5, N19, C6, B7, N22, C9, P8, C9, N22, B6, N20, P7, N20, C4, C8, C7, N14, C3, N9, B9, N7, P5, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, 0XFF}; // N3前没写，没P3
+u8 door10route[100] = {N12, N13, P5, N13, N12, N16, N18, B5, N19, C6, B7, N22, C9, P8, C9, N22, B6, N20, P7, N20, C4, C8, C7, N14, C3, N9, B9, N7, P6, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, 0XFF}; // N3前没写，没P3
 /*D2开 D5开 D4开*/
 u8 door11route[100] = {N5, N4,B3, N2, P2, 0XFF};
 /*D2开*/
-u8 door12route[100] = {N13, P6, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8, C9, N22, B6, N20, P7, N20, C4, C8, C7, N14, C3, N9, B9, N7, P5, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, 0XFF};
+u8 door12route[100] = {N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8, C9, N22, B6, N20, P7, N20, C4, C8, C7, N14, C3, N9, B9, N7, P6, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, 0XFF};
 
 	
 /*平台5到平台7*/
-u8 rout_57[50] = {N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9, 0XFF};
+u8 rout_57[50] = {N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9, 0XFF};
 /*平台5到平台8*/
-u8 rout_58[50] = {N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,B6,N20,P7,N20,0XFF};
+u8 rout_58[50] = {N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,B6,N20,P7,N20,0XFF};
 /*平台6到平台8*/
-u8 rout_68[50] = {N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20, 0XFF};
+u8 rout_68[50] = {N9,B9,N7,P6,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20, 0XFF};
 /*平台6到平台7*/
-u8 rout_67[50] = {N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,B6,N22,C9,P8,C9, 0XFF};
+u8 rout_67[50] = {N9,B9,N7,P6,N7,B8,N9,C3,N14,C7,C8,C4,N20,B6,N22,C9,P8,C9, 0XFF};
 
 /*******************************************************************************************************************************************************************************************************************************************************/
 
@@ -193,8 +193,8 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 	if (last == C8 && now == C7 && next == N14) return 20.0f;
 	if (last == C9 && now == N22 && next == B6) return 20.0f;
 	if (last == B3 && now == N2 && next == P2) return 30.0f;
-	if (last == B9 && now == N7 && next == P5) return 18.0f;
-	if (last == P5 && now == N7 && next == B8) return 25.0f;
+	if (last == B9 && now == N7 && next == P6) return 18.0f;
+	if (last == P6 && now == N7 && next == B8) return 25.0f;
 	if (last == P7 && now == N20 && next == C4) return 30.0f;
 	if (last == N8 && now == N5 && next == N4) return 30.0f;
 	if (last == N8 && now == N3 && next == P3) return 15.0f;
@@ -254,7 +254,7 @@ static void Handle_NoTurn_StraightPath(void)
 	{
 		Chassis_DriveDistance_Blocking(is_Gyro, 20.0f, nodesr.nextNode.speed, getAngleZ(), 0);
 	}
-	else if (nodesr.nowNode.nodenum == N13 && nodesr.nextNode.nodenum == P6) 
+	else if (nodesr.nowNode.nodenum == N13 && nodesr.nextNode.nodenum == P5) 
 	{
 		Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodesr.nextNode.speed, 0.0f, 6);
 	}
@@ -271,7 +271,7 @@ static void Handle_NoTurn_StraightPath(void)
 	{
 		Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodesr.nextNode.speed, 0.0f, 7);
 	}
-	else if ((nodesr.nowNode.nodenum == P6 && nodesr.nextNode.nodenum == N13)||(nodesr.nowNode.nodenum == N13 && nodesr.nextNode.nodenum == P6))
+	else if ((nodesr.nowNode.nodenum == P5 && nodesr.nextNode.nodenum == N13)||(nodesr.nowNode.nodenum == N13 && nodesr.nextNode.nodenum == P5))
 	{
 		Chassis_DriveDistance_Blocking(is_Line, 25.0f, nodesr.nextNode.speed, 0.0f, 7);
 	}

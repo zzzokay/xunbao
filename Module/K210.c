@@ -89,9 +89,9 @@ void Process_QR_Data(uint8_t line, uint8_t stageA, uint8_t stageB) {
     
     // 达到连续次数要求
     if(consecutive_count >= REQUIRED_CONSECUTIVE) {
-        line_clue = line;
-        clue_A_stage = stageA;
-        clue_B_stage = stageB;
+        flag_line_clue = line;
+        flag_clue_stage_A = stageA;
+        flag_clue_stage_B = stageB;
 //        buzzer_flag = 1;
         get_cude = 1;
         close_Maxicam();

@@ -114,11 +114,13 @@ void Chassis_SetTargetSpeed(float speed)
 					break;		
 				case SPEED0://25 7 90
 				case SPEED1://36 7 90
+                case 20://20 7 90
 					line_pid_param.kp = 7.0f;
 					line_pid_param.ki = 0;
 					line_pid_param.kd = 90;
 					break;   
 				case 12:
+                case 15:
 					line_pid_param.kp = 20.0f;
 					line_pid_param.ki = 0;
 					line_pid_param.kd = 60;

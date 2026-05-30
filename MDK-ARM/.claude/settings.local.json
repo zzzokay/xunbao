@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Read(//c/Users/14166/Desktop/MC_32/robotcup/xunbao/Math/**)",
-      "Read(//c/Users/14166/Desktop/MC_32/robotcup/xunbao/Motor/**)"
+      "Read(//c/Users/14166/Desktop/MC_32/robotcup/xunbao/Motor/**)",
+      "Read(//c/Users/14166/Desktop/MC_32/robotcup/raw_xunbao/**)"
     ]
   }
 }

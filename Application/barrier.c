@@ -13,6 +13,7 @@
 #include "math.h"
 #include "bsp_buzzer.h"
 #include "bsp_led.h"
+#include "gray.h"
 #include "stdio.h"
 #include "motor_task.h"
 #include "QR.h"
@@ -44,18 +45,29 @@ uint8_t WavePlateLeft_Flag = 0;
 uint8_t WavePlateRight_Flag = 0;
 uint8_t color_flag[5] = {0, 0, 0, 0, 0}; // 0:D2、1:D3、2:D4、3:D5、4:D1
 uint8_t isStage = 0;
-uint8_t treasure = 0;				 // 宝藏
+/*===== 导航标志位（无摄像头时手动预设）=====*/
+// QR 码三位数：百位→flag_line_clue，十位→flag_clue_stage_A，个位→flag_clue_stage_B
+// 例：QR 码 458 → flag_line_clue=4, flag_clue_stage_A=5, flag_clue_stage_B=8
+uint8_t flag_line_clue    = 0;	// 百位：0=跳过P3/P4直接走门，3=先去P3，4=先去P4
+								// 调用：update_route_for_stage34() → Stage() STAGE_SCAN 状态
+uint8_t flag_clue_stage_A = 5;	// 十位：5=P5（原P6），6=P6（原P5）
+uint8_t flag_clue_stage_B = 8;	// 个位：7=P7，8=P8
+								// 调用：update_route_by_QR() → door() 过门后规划路线
+// OCR 线索：P5/P6读clue_A，P7/P8读clue_B，treasure=clue_A+clue_B → 宝物平台编号
+uint8_t flag_clue_A = 0;		// P5/P6 线索数字
+								// 调用：Sword_Mountain() / South_Pole() → treasure 计算
+uint8_t flag_clue_B = 0;		// P7/P8 线索数字
+								// 调用：Sword_Mountain() / South_Pole() → treasure 计算
+uint8_t treasure = 0;			// 宝物平台编号 = flag_clue_A + flag_clue_B，自动计算
+								// 调用：update_rout_by_treasure_7/8() → door() 确定宝物平台后回家路线
+								//       Stage_HasTreasure() → Stage() 判断当前平台是否是宝物平台
+
 uint8_t value;							 // openmv接口
 uint8_t DownLiuShui = 0;				 // 流水下坡标志位
 float 	LiuShuiRate = LiuShuiRate_Default; // 流水下坡前轮速度倍率
 uint8_t special_arrive = 0;
 
 uint16_t QR_code = 0;
-uint8_t line_clue = 4;//3
-uint8_t clue_A_stage = 5;//5
-uint8_t clue_B_stage = 8;//8
-uint8_t clue_A = 0;
-uint8_t clue_B = 0;
 uint8_t get_cude = 0;
 uint8_t get_a = 0;
 uint8_t get_b = 0;
@@ -125,11 +137,12 @@ static uint8_t Stage_DetectedRamp(float distance)
 void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
                        float thresh1, float speed1,
                        float thresh2, float speed2,
-                       float done_thresh)
+                       float done_thresh, uint8_t use_gray)
 {
-	enum { RAMP_INIT, RAMP_PHASE1, RAMP_PHASE2 } 
-	
+	enum { RAMP_INIT, RAMP_PHASE1, RAMP_PHASE2 }
 	state = RAMP_INIT;
+
+	if (use_gray) Gray_Open();
 
 	Chassis_MotorControl(is_Gyro, init_speed, init_speed, angle);
 
@@ -137,6 +150,8 @@ void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
 	{
 		float pitch = imu.pitch;
 
+		if (use_gray)
+			angle += Gray_GetCorrectAngle();
 		if (dir == RAMP_ASCEND)
 		{
 			switch (state)
@@ -154,8 +169,10 @@ void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
 				}
 				break;
 			case RAMP_PHASE2:
-				if (pitch <= done_thresh)
+				if (pitch <= done_thresh) {
+					if (use_gray) Gray_Close();
 					return;
+				}
 				break;
 			}
 		}
@@ -176,12 +193,14 @@ void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
 				}
 				break;
 			case RAMP_PHASE2:
-				if (pitch >= done_thresh)
+				if (pitch >= done_thresh) {
+					if (use_gray) Gray_Close();
 					return;
+				}
 				break;
 			}
 		}
-		vTaskDelay(5);
+		vTaskDelay(2);
 	}
 }
 
@@ -200,16 +219,13 @@ static void Stage_ScanAndRead(void)
 	Arrived_Stage();
 	vTaskDelay(500);
 
-	// 扫描二维码/OCR
-	if (treasure == 0 && (nodesr.nowNode.nodenum == P5 || nodesr.nowNode.nodenum == P6 || nodesr.nowNode.nodenum == P7 || nodesr.nowNode.nodenum == P8))
-		WaitFor_OCR();
+	// 宝物线索：由标志位计算
+	if (treasure == 0)
+		treasure = flag_clue_A + flag_clue_B;
 
-	if (nodesr.nowNode.nodenum == P1 && get_cude == 0)
-	{
-		open_QR_mode();
-		WaitFor_QR();
+	// P1 路线更新
+	if (nodesr.nowNode.nodenum == P1)
 		update_route_for_stage34();
-	}
 }
 
 /*平台 - 不包括P2*/
@@ -242,7 +258,7 @@ void Stage(void)
 				// init=UpStage_Speed, pitch>=basic_p+5→speed12, pitch>=basic_p+20→speed12, pitch<=basic_p+5→done
 					
 				RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_high, target_angle,
-					Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up);
+					Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0);
 
 				Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, getAngleZ());
 				printf("On bridge surface\n");
@@ -274,7 +290,9 @@ void Stage(void)
 			break;
 
 		case STAGE_SCAN:
-			//Stage_ScanAndRead();
+			// P1 路线更新：根据 flag_line_clue 标志位决定去 P3/P4 或跳过
+			if (nodesr.nowNode.nodenum == P1)
+				update_route_for_stage34();
 
 			// 转身180
 			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ());
@@ -286,7 +304,7 @@ void Stage(void)
 			printf("Descending platform\n");
 			// init=UpDownStage_Speed_low(12), pitch<=basic_p-5→speed12, pitch<=basic_p-20→speed20, pitch>=basic_p-5→done
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, getAngleZ(),
-				Begin_down, UpDownStage_Speed_low, down_pitch, UpDownStage_Speed_high, After_down);
+				Begin_down, UpDownStage_Speed_low, down_pitch, UpDownStage_Speed_high, After_down, 0);
 
 			Chassis_MotorControl(is_Line, SPEED1, SPEED1, 0);
 			printf("stage done\n");
@@ -412,7 +430,7 @@ void Barrier_Bridge(void)
 			printf("Ascending bridge\n");
 			// init=UpStage_Speed, pitch>=basic_p+5→speed12, pitch>=basic_p+20→speed12, pitch<=basic_p+5→done
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_high, origin_angle,
-				Begin_up, UpDownStage_Speed_high, up_pitch, UpDownStage_Speed_low, After_up);
+				Begin_up, UpDownStage_Speed_high, up_pitch, UpDownStage_Speed_low, After_up, 0);
 
 			printf("At bridge top, preparing to cross\n");
 			Chassis_ClearMileage();
@@ -469,7 +487,7 @@ void Barrier_Bridge(void)
 			printf("Descending bridge\n");
 			// init=SPEED0, pitch<=Begin_down→SPEED0, pitch<=Begin_down-15→SPEED0, pitch>=After_down→done
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, getAngleZ(),
-				Begin_down, UpDownStage_Speed_low, down_pitch, SPEED0, After_down);
+				Begin_down, UpDownStage_Speed_low, down_pitch, SPEED0, After_down, 0);
 			Chassis_MotorControl(is_Line, SPEED1, SPEED1, 0);
 			nodesr.nowNode.function = 0;
 			nodesr.flag |= 0X04;
@@ -487,53 +505,59 @@ void Barrier_Bridge(void)
 /*楼梯*/
 void Barrier_Hill(void)
 {
-	
-// 	struct PID_param origin_param1 = line_pid_param;
-// 	motor_all.Cspeed = Gyro_Speed;
-// 	infrare_open = 1;
-// 	uint16_t break_times = 0;
-// 	while (infrared.head_left == 1 && infrared.head_right == 1)
-// 	{
-// 		break_times++;
-// 		if(break_times > 1000)
-// 			break;
-// 		Cross_getline(&Cross_Scaner);
-// 		if ((Cross_Scaner.detail & 0X180) == 0X180)
-// 			mpuZreset(get_latest_yaw(), nodesr.nowNode.angle);
-// 		vTaskDelay(2);
-// 	}
+	enum {
+		HILL_APPROACH,   // 接近：寻迹+陀螺仪校准，检测坡道
+		HILL_ASCEND,     // 上坡：灰度修正
+		HILL_DESCEND,    // 下坡：灰度修正
+		HILL_DONE        // 完成
+	} state = HILL_APPROACH;
 
-// 	line_pid_param.kp = 20;
-// 	line_pid_param.ki = 0.004;
-// 	line_pid_param.kd = 0;
-// 	scaner_set.EdgeIgnore = 3;
-// 	Chassis_MotorControl(is_Line, 12, 12, 0);
-// 	/*平地*/
-// 	while (imu.pitch < basic_p + 8)
-// 	{
-// 		//CGChange(GoStage_Speed);
-		
-// 		vTaskDelay(2);
-// 	}
-// 	/*平地->上平台*/
-// 	buzzer_on();
-// 	while (imu.pitch > basic_p - 8)
-// 	{
-// //		CGChange(GoStage_Speed);
-// 		vTaskDelay(2);
-// 	}
-// 	/*下平台*/
-// 	while (imu.pitch < basic_p - 5)
-// 	{
-// //		CGChange(GoStage_Speed);
-// 		vTaskDelay(2);
-// 	}
-// 	/*下完平台到平地*/
-// 	buzzer_off();
-// 	scaner_set.EdgeIgnore = 0;
-// 	Chassis_MotorControl(is_Line, Rubbish_Speed+6, Rubbish_Speed+6, 0);
-// 	Want2Go(10);					// 往前走一点防止弹射起步
-// 	Chassis_ClearMileage();
+	float origin_angle = 0.0f;
+
+	Chassis_MotorControl(is_Line, 20, 20, 0);
+	printf("is_line\n");
+	Chassis_ClearMileage();
+	while (state != HILL_DONE)
+	{
+		switch (state)
+		{
+		case HILL_APPROACH:
+			GyroStableReset(50, &origin_angle);
+
+			if (Stage_DetectedRamp(20.0f))
+			{
+				printf("Hill detected, preparing to ascend\n");
+				if (origin_angle == 0) origin_angle = getAngleZ();
+				printf("origin_angle: %.2f\n", origin_angle);
+				Chassis_MotorControl(is_Gyro, 15, 15, origin_angle);
+				printf("is_gyro\n");
+				state = HILL_ASCEND;
+			}
+			break;
+
+		case HILL_ASCEND:
+			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, origin_angle,
+				Begin_up, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, After_up, 1);
+				printf("New angle: %.2f\n", angle.AngleG);
+				printf("Hill ascend complete, preparing to descend\n");
+			state = HILL_DESCEND;
+			break;
+
+		case HILL_DESCEND:
+			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, getAngleZ(),
+				Begin_down, UpDownStage_Speed_low, basic_p-10, UpDownStage_Speed_low, After_down, 1);
+				printf("New angle: %.2f\n", angle.AngleG);
+				printf("Hill descend complete\n");
+			state = HILL_DONE;
+			break;
+
+		default:
+			state = HILL_DONE;
+			break;
+		}
+		vTaskDelay(2);
+	}
+	CarBrake();
 	nodesr.nowNode.function = 0; 	// 清除障碍标志
 	nodesr.flag |= 0x04;		 	// 到达路口
 }
@@ -764,18 +788,15 @@ void Barrier_HighMountain(float speed)
 	Want2Go(0.5);
 	
 	Chassis_ClearMileage();
-	K210_Rece = 0;
-	open_OCR_mode();
 	CarBrake();
-	vTaskDelay(250);
 	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); // 陀螺仪校正
-	//Arrived_Stage();
-		//获取宝物线索B
-	if(treasure == 0 && map.routetime==0)
-		WaitFor_OCR();
+	// 宝物线索：由标志位计算，不依赖摄像头
+	if(treasure == 0)
+		treasure = flag_clue_A + flag_clue_B;
 	
 	//如果宝物线索B在平台8,已经拿完所有线索重新规划路线
-	if(map.routetime == 0&&map.routetime==0)
+	//只有当P8是最后一个线索平台时才覆盖路线
+	if(map.routetime == 0 && flag_clue_stage_B == 8)
 		update_rout_by_treasure_8();
 	
 	
@@ -1199,10 +1220,7 @@ void South_Pole(void)
 	Want2Go(0.5);
 	
 	Chassis_ClearMileage();
-  K210_Rece = 0;
-	open_OCR_mode();
 	CarBrake();
-	vTaskDelay(200);
 	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); // 陀螺仪校正
 	//Arrived_Stage();
 
@@ -1218,15 +1236,14 @@ void South_Pole(void)
 	Arrived_Stage();
 	//vTaskDelay(500);
 	
-	/*扫描二维码获取平台以及线索点*/
-		//获取宝物线索B，若已知线索则不开
-	if(treasure == 0 &&map.routetime==0)
-		WaitFor_OCR();
+	/*宝物线索：由标志位计算，不依赖摄像头*/
+	if(treasure == 0)
+		treasure = flag_clue_A + flag_clue_B;
 	
 	//如果宝物线索B在平台7,已经拿完所有线索重新规划路线
-	if(map.routetime == 0&&map.routetime==0)
+	//只有当P7是最后一个线索平台时才覆盖路线，否则继续走rout_58去P7/P8
+	if(map.routetime == 0 && flag_clue_stage_B == 7)
 	{
-		//buzzer_off();
 		update_rout_by_treasure_7();
 	}
 	
@@ -1712,501 +1729,332 @@ void QQB_1(void)
 	nodesr.flag |= 0X04;
 }
 
-/*看灯*/
+/*读颜色传感器，返回1成功，0超时*/
+static uint8_t Door_ReadColor(uint8_t use_left)
+{
+	Color_Right = Color_Left = 0;
+	use_left ? Open_COLOR_L() : Open_COLOR_R();
+
+	uint16_t outtime = 0;
+	while (Color_Right == 0 && Color_Left == 0)
+	{
+		if (++outtime >= 750) return 0;
+		vTaskDelay(2);
+	}
+	return 1;
+}
+
+/*看红绿灯 — 状态机*/
 void door()
 {
-	static uint8_t flag = 0;
+	enum DoorState {
+		DOOR_D2 = 0,   // 看D2（第一次）
+		DOOR_D3,        // 看D3（D2红）
+		DOOR_D4,        // 看D4（D2红 D3红）
+		DOOR_D5,        // 看D5（D2黄 或 D2红D3黄）
+		DOOR_D4_AGAIN   // 看D4回退（D2黄 D5红）
+	};
+	static enum DoorState state = DOOR_D2;
 	static uint8_t wait_cnt = 0;
+
+	/*头转向传感器方向*/
+	Robot_Work(HEAD, (state <= DOOR_D4) ? HEAD_RIGHT : HEAD_LEFT);
 	buzzer_on();
 
-	if (flag <= 10) // 去
-			{
-				Robot_Work(HEAD,HEAD_RIGHT);
-			}
-			else
-			{
-				Robot_Work(HEAD,HEAD_LEFT);
-			}
-	
-	while (1)
+	/*等到灯前*/
+	while (Scaner.ledNum < 8)
+		vTaskDelay(2);
+
+	buzzer_off();
+	CarBrake();
+
+	/*读颜色传感器*/
+	if (!Door_ReadColor(state > DOOR_D4))
 	{
-		/*走到灯前*/
-		if (Scaner.ledNum >= 8)
+		if (++wait_cnt >= 50)
 		{
-			buzzer_off();
-			Chassis_MotorControl(is_No, 0, 0, 0);
-			/*判断开哪边的MV*/
-			Color_Right = Color_Left = 0;
-			if (flag <= 10) // 去
+			wait_cnt = 0;
+			Door_ReadColor(state > DOOR_D4);  // 超时重开一次
+		}
+		return;
+	}
+
+	switch (state)
+	{
+	/* ============ 看D2 ============ */
+	case DOOR_D2:
+		color_flag[0] = Color_Right;
+		map.point = 0;
+
+		if (Color_Right == Red)
+		{
+			send_play_specified_command(11);
+			route[0] = N8;
+			Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 180, getAngleZ());
+
+			nodesr.nowNode = Node[getNextConnectNode(N12, N5)];
+			nodesr.nowNode.step = 70;
+			nodesr.nowNode.flag = STOPTURN | DRIGHT | DLEFT;
+			nodesr.nowNode.speed = SPEED4;
+			nodesr.flag |= 0x20;
+			state = DOOR_D3;
+		}
+		else if (Color_Right == Green)
+		{
+			send_play_specified_command(8);
+			nodesr.nowNode = Node[getNextConnectNode(N5, N12)];
+			nodesr.nowNode.flag = DLEFT | DRIGHT | LEFT_LINE;
+			nodesr.nowNode.step = 120;
+			nodesr.nowNode.speed = SPEED2;
+			nodesr.nowNode.function = NONE;
+			update_route_by_QR();
+
+			pid_mode_switch(is_Line);
+			line_pid_obj = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
+			TC_speed = 0;
+			nodesr.flag |= 0x80;
+			state = DOOR_D2;  // 路线确定
+		}
+		else // Yellow
+		{
+			send_play_specified_command(10);
+			nodesr.nowNode = Node[getNextConnectNode(N5, N12)];
+			nodesr.nowNode.flag = DLEFT | DRIGHT | CRIGHT | MUL2SING | LEFT_LINE;
+			nodesr.nowNode.step = 120;
+			nodesr.nowNode.speed = SPEED2;
+			nodesr.nowNode.function = NONE;
+			update_route_by_QR();
+
+			pid_mode_switch(is_Line);
+			line_pid_obj = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
+			TC_speed = 0;
+			nodesr.flag |= 0x80;
+			state = DOOR_D5;  // 还要看D5
+		}
+		Chassis_SetTargetSpeed(nodesr.nowNode.speed);
+		break;
+
+	/* ============ 看D3（D2红） ============ */
+	case DOOR_D3:
+		color_flag[1] = Color_Right;
+		map.point = 0;
+
+		if (Color_Right == Red)
+		{
+			send_play_specified_command(11);
+			Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 180, getAngleZ());
+
+			nodesr.nowNode = Node[getNextConnectNode(N8, N5)];
+			nodesr.nowNode.flag |= CLEFT | CRIGHT;
+			nodesr.nowNode.step = 70;
+			nodesr.nowNode.speed = SPEED4;
+			nodesr.nowNode.function = NONE;
+
+			for (uint8_t i = 0; i < 100; i++)
 			{
-				Open_COLOR_R();}
+				route[i] = door1route[i];
+				if (door1route[i] == 0xff) break;
+			}
+			nodesr.flag |= 0x20;
+			state = DOOR_D4;
+		}
+		else // Green 或 Yellow
+		{
+			nodesr.nowNode = Node[getNextConnectNode(N5, N8)];
+			nodesr.nowNode.flag = DLEFT | LEFT_LINE | DRIGHT;
+			nodesr.nowNode.step = 60;
+			nodesr.nowNode.speed = SPEED2;
+			nodesr.nowNode.function = NONE;
+
+			Node[getNextConnectNode(N8, N5)].function = NONE;
+			Node[getNextConnectNode(N8, N5)].speed = SPEED4;
+			Node[getNextConnectNode(N8, N5)].step = 150;
+
+			update_route_by_QR();
+
+			if (Color_Right == Green)
+			{
+				send_play_specified_command(8);
+				state = DOOR_D2;
+			}
 			else
 			{
-				Open_COLOR_L();}
-
-			/*等看完灯*/
-			uint16_t outtime = 0;
-
-//			 if (nodesr.nowNode.nodenum == N12)
-//			 	Color_Right = Red;
-//			 if (nodesr.nowNode.nodenum == N3)
-//			 	Color_Right = Green;
-			
-			while (Color_Right == 0 && Color_Left == 0)
-			{
-				outtime++;
-				if (outtime >= 750)
-					break;
-				vTaskDelay(2);
+				send_play_specified_command(10);
+				state = DOOR_D5;
 			}
+			nodesr.flag |= 0x80;
+		}
+		Chassis_SetTargetSpeed(nodesr.nowNode.speed);
+		pid_mode_switch(is_Line);
+		break;
 
-			/*第一次看灯 - 看D2*/
-			if (flag == 0)
+	/* ============ 看D4（D2红 D3红） ============ */
+	case DOOR_D4:
+		color_flag[2] = Color_Right;
+		map.point = 0;
+
+		if (Color_Right == Green)
+		{
+			send_play_specified_command(8);
+			Node[getNextConnectNode(N8, N3)].function = NONE;
+			Node[getNextConnectNode(N8, N3)].speed = SPEED4;
+			Node[getNextConnectNode(N8, N3)].step = 140;
+		}
+		else // Yellow（D5必定绿）
+		{
+			send_play_specified_command(10);
+			Node[getNextConnectNode(N10, N3)].function = NONE;
+			Node[getNextConnectNode(N10, N3)].speed = SPEED4;
+			Node[getNextConnectNode(N10, N3)].step = 200;
+		}
+		update_route_by_QR();
+
+		nodesr.nowNode = Node[getNextConnectNode(N3, N8)];
+		nodesr.nowNode.flag = DLEFT | DRIGHT;
+		nodesr.nowNode.step = 60;
+		nodesr.nowNode.speed = SPEED3;
+		nodesr.nowNode.function = 1;
+		nodesr.flag |= 0x80;
+		Chassis_SetTargetSpeed(nodesr.nowNode.speed);
+		pid_mode_switch(is_Line);
+		state = DOOR_D2;  // 门检测完成
+		break;
+
+	/* ============ 看D5（D2黄 或 D2红D3黄） ============ */
+	case DOOR_D5:
+		color_flag[3] = Color_Left;
+		map.point = 0;
+
+		if (Color_Left == Green)
+		{
+			send_play_specified_command(8);
+			nodesr.nowNode = Node[getNextConnectNode(N10, N3)];
+			nodesr.nowNode.flag = DRIGHT | RIGHT_LINE;
+			nodesr.nowNode.step = 65;
+			nodesr.nowNode.speed = SPEED4;
+			nodesr.nowNode.function = NONE;
+			nodesr.flag |= 0x80;
+			update_route_by_door_1();
+			state = DOOR_D2;
+		}
+		else // Red
+		{
+			send_play_specified_command(11);
+
+			if (color_flag[0] == Yellow)
 			{
-				while (1)
-				{
-					/*红灯 - 回去准备看D3*/
-					if (Color_Right == Red)
-					{
-						color_flag[0] = Color_Right;
-						send_play_specified_command(11);
-						map.point = 0;
-						route[map.point] = N8;
+				// D2黄 D5红 → 回去看D4
+				map.point -= 2;
+				route[map.point] = N8;
+				route[map.point + 1] = N3;
 
-						Turn_Angle_Relative(181);
-						while (fabs(angle.AngleT - getAngleZ()) > 2)
-						{
-							getline_error();
-							if (Scaner.lineNum == 1 && ((Scaner.detail & 0x3C0)) != 0 && (fabs(need2turn(angle.AngleT, getAngleZ())) < 27))
-							{
-								break;
-							}
-							vTaskDelay(2);
-						}
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 181, getAngleZ());
 
-						nodesr.nowNode = Node[getNextConnectNode(N12, N5)];
-						nodesr.nowNode.step = 70;	
-						nodesr.nowNode.flag = STOPTURN | DRIGHT | DLEFT;
-						nodesr.nowNode.speed = SPEED4;
-						
-						motor_all.Cspeed = nodesr.nowNode.speed;
-						pid_mode_switch(is_Line);
-						nodesr.flag |= 0x20;
-						flag = 1;
-						close_Maxicam();
-						//看完头回正
-						Robot_Work(HEAD,HEAD_MID);
-						return;
-					}
-					/*绿灯 - 继续前进*/
-					else if (Color_Right == Green)
-					{
-						color_flag[0] = Color_Right;
-						send_play_specified_command(8);
-						map.point = 0;
-						nodesr.nowNode = Node[getNextConnectNode(N5, N12)]; // 重新设置nowNode
-						nodesr.nowNode.flag = DLEFT | DRIGHT | LEFT_LINE;
-						nodesr.nowNode.step = 120 /*100*/;
-						nodesr.nowNode.speed = SPEED2;
-						nodesr.nowNode.function = NONE;
-						//更新路径
-						update_route_by_QR();
-						
-						motor_all.Cspeed = nodesr.nowNode.speed;
-						
-						pid_mode_switch(is_Line);
-						line_pid_obj = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
-						TC_speed = 0;
-						
-						nodesr.flag |= 0x80;
-						flag = 0;	//确定路线
-						close_Maxicam();
-						//看完头回正
-						Robot_Work(HEAD,HEAD_MID);
-						return;
-					}
-					/*黄灯 - 继续前进，需要看D5*/
-					else if (Color_Right == Yellow)
-					{
-						send_play_specified_command(10);
-						color_flag[0] = Color_Right;
-						map.point = 0;
-						nodesr.nowNode = Node[getNextConnectNode(N5, N12)]; // 重新设置nowNode
-						nodesr.nowNode.flag = DLEFT |DRIGHT|CRIGHT|MUL2SING|LEFT_LINE;
-						nodesr.nowNode.step = 120;//90
-						nodesr.nowNode.speed = SPEED2;
-						nodesr.nowNode.function = NONE;
-						//更新路径
-						update_route_by_QR();
-						
-						line_pid_obj = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
-						TC_speed = 0;
-						
-						motor_all.Cspeed = nodesr.nowNode.speed;
-						pid_mode_switch(is_Line);
-						nodesr.flag |= 0x80;
-						flag = 11;	//需要看D5
-						close_Maxicam();
-						//看完头回正
-						Robot_Work(HEAD,HEAD_MID);
-						return;
-					}
-					/*错误*/
-					else
-					{
-						CarBrake();
-					}
-					vTaskDelay(2);
-
-					/*超时还没看完灯就再开一次*/
-					wait_cnt++;
-					if (wait_cnt == 50)
-					{
-						wait_cnt = 0;
-						Open_COLOR_R();
-					}
-				}
+				nodesr.nowNode = Node[getNextConnectNode(N3, N10)];
+				nodesr.nowNode.step = 70;
+				nodesr.nowNode.flag = DRIGHT | DLEFT;
+				nodesr.nowNode.speed = SPEED3;
+				nodesr.flag |= 0x20;
+				state = DOOR_D4_AGAIN;
 			}
-			/*第二次看灯 - D2红,看D3*/
-			if (flag == 1)
+			else if (color_flag[0] == Red && color_flag[1] == Yellow)
 			{
-				while (1)
-				{
-					/*红灯 - 回去*/
-					if (Color_Right == Red)
-					{
-						color_flag[1] = Color_Right;
-						send_play_specified_command(11);
-						map.point = 0;
-						Turn_Angle_Relative(181);
-						while (fabs(angle.AngleT - getAngleZ()) > 2)
-						{
-							vTaskDelay(2);
-						}
-						
-						nodesr.nowNode = Node[getNextConnectNode(N8, N5)]; // 重新设置nowNode
-						nodesr.nowNode.flag |= CLEFT | CRIGHT;
-						nodesr.nowNode.step = 70;
-						nodesr.nowNode.speed = SPEED4;
-						nodesr.nowNode.function = NONE;
-						
-						for(uint8_t i = 0;i<100;i++)
-						{
-							route[i] = door1route[i];
-							if(door1route[i]==0xff)
-							{
-								break;
-							}
-						}
-						//route_reset(1);
-						motor_all.Cspeed = nodesr.nowNode.speed;
-						pid_mode_switch(is_Line);
-						nodesr.flag |= 0x20;
-						flag = 2;
-						close_Maxicam();
-						//看完头回正
-						Robot_Work(HEAD,HEAD_MID);
-						return;
-					}
-					/*非红灯 - 继续走*/
-					else if (Color_Right == Green | Color_Right == Yellow)
-					{
-						nodesr.nowNode = Node[getNextConnectNode(N5, N8)]; // 重新设置nowNode
-						nodesr.nowNode.flag = DLEFT | LEFT_LINE | DRIGHT;
-						nodesr.nowNode.step = 60;//60
-						nodesr.nowNode.speed = SPEED2;
-						nodesr.nowNode.function = NONE;
-						map.point = 0;
-						if (Color_Right == Green)
-						{
-							color_flag[1] = Color_Right;
-							send_play_specified_command(8);
-							Node[getNextConnectNode(N8, N5)].function = NONE;
-							Node[getNextConnectNode(N8, N5)].speed = SPEED4;
-							Node[getNextConnectNode(N8, N5)].step = 150;
-							
-							//更新路径
-							update_route_by_QR();
-							
-							flag = 0;	//确定路线
-						}
-						else if (Color_Right == Yellow)
-						{
-							color_flag[1] = Color_Right;
-							send_play_specified_command(10);
-							nodesr.flag |= 0x80;
-							
-							//更新路径
-							update_route_by_QR();
-							
-							flag = 11;	//要看D5
-						}
-						Chassis_MotorControl(is_Line, nodesr.nowNode.speed, nodesr.nowNode.speed, 0);
-						close_Maxicam();
-						nodesr.flag |= 0x80;
-						//看完头回正
-						Robot_Work(HEAD,HEAD_MID);
-						return;
-					}
-					else
-						CarBrake();
-					vTaskDelay(2);
-					wait_cnt++;
-					if (wait_cnt == 50)
-					{
-						wait_cnt = 0;
-						Open_COLOR_R();
-					}
-				}
-			}
-			/*第三次看灯 - D2红,D3红,看D4*/
-			if (flag == 2)
-			{
-				flag = 0;
-				while (1)
-				{
-					/*绿灯 - 继续前进*/
-					if (Color_Right == Green)
-					{
-						send_play_specified_command(8);
-						color_flag[2] = Color_Right;
-			
-						Node[getNextConnectNode(N8, N3)].function = NONE;
-						Node[getNextConnectNode(N8, N3)].speed = SPEED4;
-						Node[getNextConnectNode(N8, N3)].step = 140;
-						
-						//更新路径
-						update_route_by_QR();
-						
-						//route_reset(4);
-						close_Maxicam();
-						break;
-					}
-					/*黄灯 - 继续前进*/
-					//则D5必为绿色
-					else if (Color_Right == Yellow)
-					{
-						send_play_specified_command(10);
-						color_flag[2] = Color_Right;
-						Node[getNextConnectNode(N10, N3)].function = NONE;		//D5必定绿，不用看
-						Node[getNextConnectNode(N10, N3)].speed = SPEED4;//SPEED4
-						Node[getNextConnectNode(N10, N3)].step = 200;
-						
-						//更新路径
-						update_route_by_QR();
-						
-						//route_reset(9);
-						close_Maxicam();
-						break;
-					}
-					else
-					{
-						CarBrake();
-					}
-					vTaskDelay(2);
-					wait_cnt++;
-					if (wait_cnt == 50)
-					{
-						wait_cnt = 0;
-						Open_COLOR_R();
-					}
-				}
-				map.point = 0;
-				nodesr.nowNode = Node[getNextConnectNode(N3, N8)]; // 重新设置nowNode
+				// D2红 D3黄 D5红 → 剩下必定全绿
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 181, getAngleZ());
+
+				nodesr.nowNode = Node[getNextConnectNode(N3, N10)];
 				nodesr.nowNode.flag = DLEFT | DRIGHT;
-				nodesr.nowNode.step = 60;
+				nodesr.nowNode.step = 70;
 				nodesr.nowNode.speed = SPEED3;
 				nodesr.nowNode.function = NONE;
-				nodesr.flag |= 0x80;
-				
-				motor_all.Cspeed = nodesr.nowNode.speed;
-				pid_mode_switch(is_Line);
-				nodesr.nowNode.function = 1;
-				//看完头回正
-				Robot_Work(HEAD,HEAD_MID);
-				return;
-			}
-			/*看D5 - 两种情况：1.D2黄 2.D2红 D3黄*/
-			if (flag == 11)
-			{
-				while (1)
-				{
-					/*绿灯 - 继续前进*/
-					if (Color_Left == Green)
-					{
-						send_play_specified_command(8);
-						color_flag[3] = Color_Left;
-						map.point = 0;
-						nodesr.nowNode = Node[getNextConnectNode(N10, N3)]; // 重新设置nowNode
-						nodesr.nowNode.flag = DRIGHT | RIGHT_LINE;
-						nodesr.nowNode.step = 65;
-						nodesr.nowNode.speed = SPEED4;
-						nodesr.nowNode.function = NONE;
-						nodesr.flag |= 0x80;
-						update_route_by_door_1();
-						
-						break;
-					}
-					/*红灯 - 返回看情况*/
-					else if (Color_Left == Red)
-					{
-						send_play_specified_command(11);
-						color_flag[3] = Color_Left;
-						
-						/*D2黄，D5红，去看D4*/
-						if (color_flag[0] == Yellow)
-						{
-							map.point -= 2;
-							route[map.point] = N8;
-							route[map.point + 1] = N3;
 
-							Turn_Angle_Relative(181);
-							while (fabs(angle.AngleT - getAngleZ()) > 2)
-							{
-								vTaskDelay(2);
-							}
+				Node[getNextConnectNode(N8, N3)].function = NONE;
+				Node[getNextConnectNode(N8, N3)].speed = SPEED4;
+				Node[getNextConnectNode(N8, N3)].step = 150;
 
-							nodesr.nowNode = Node[getNextConnectNode(N3, N10)];
-							nodesr.nowNode.step = 70;
-							nodesr.nowNode.flag = DRIGHT | DLEFT;
-							nodesr.nowNode.speed = SPEED3;
-							flag = 12;
-						}
-						/*D2红，D3黄，D5红，剩下的必定都是绿*/
-						else if ((color_flag[0] == Red) && (color_flag[1] == Yellow))
-						{
-							Turn_Angle_Relative(181);
-							while (fabs(angle.AngleT - getAngleZ()) > 2)
-							{
-								vTaskDelay(2);
-							}
-
-							map.point = 0;
-							nodesr.nowNode = Node[getNextConnectNode(N3, N10)]; // 重新设置nowNode
-							nodesr.nowNode.flag = DLEFT | DRIGHT;
-							nodesr.nowNode.step = 70;
-							nodesr.nowNode.speed = SPEED3;
-							nodesr.nowNode.function = NONE;
-							
-							Node[getNextConnectNode(N8, N3)].function = NONE;
-							Node[getNextConnectNode(N8, N3)].speed = SPEED4;
-							Node[getNextConnectNode(N8, N3)].step = 150;
-							
-							update_route_by_door_2();
-							//route_reset(7);
-							flag = 0;
-						}
-						nodesr.flag |= 0x20;
-						break;
-					}
-					else
-					{
-						CarBrake();
-					}
-					vTaskDelay(2);
-					wait_cnt++;
-					if (wait_cnt == 50)
-					{
-						wait_cnt = 0;
-						Open_COLOR_L();
-					}
-				}
-				
-				close_Maxicam();
-				pid_mode_switch(is_Line);
-				motor_all.Cspeed = nodesr.nowNode.speed;
-				nodesr.nowNode.function = 1;
-				//看完头回正
-				Robot_Work(HEAD,HEAD_MID);
-				return;
-			}
-			/*看D4 - D2黄，D5红，需要看D4确认*/
-			if (flag == 12)
-			{
-				while (1)
-				{
-					/*绿灯 - 继续前进*/
-					if (Color_Left == Green)
-					{
-						send_play_specified_command(8);
-						color_flag[2] = Color_Left;
-						map.point = 0;
-						nodesr.nowNode = Node[getNextConnectNode(N8, N3)]; // 重新设置nowNode
-						nodesr.nowNode.flag = LEFT_LINE | MUL2MUL | STOPTURN;
-						nodesr.nowNode.step = 10;
-						nodesr.nowNode.speed = SPEED3;
-						nodesr.nowNode.function = 1;
-						nodesr.flag |= 0x80;
-						
-						update_route_by_door_3();
-						//route_reset(8);
-						motor_pid_clear();
-						break;
-					}
-					/*红灯 - 剩下的都是绿灯*/
-					else if (Color_Left == Red)
-					{
-						send_play_specified_command(11);
-						color_flag[2] = Color_Left;
-						Turn_Angle_Relative(181); //	转到当前结点方向
-						while (fabs(angle.AngleT - getAngleZ()) > 2)
-						{
-							vTaskDelay(2);
-						}
-
-						Node[getNextConnectNode(N8, N5)].function = NONE;
-						Node[getNextConnectNode(N8, N5)].speed = SPEED4;
-						Node[getNextConnectNode(N8, N5)].step = 150;
-						
-						map.point = 0;
-						nodesr.nowNode = Node[getNextConnectNode(N3, N8)];
-						nodesr.nowNode.flag = STOPTURN | CLEFT | CRIGHT | DRIGHT | DLEFT;
-						nodesr.nowNode.speed = SPEED3;
-						motor_all.Cspeed = nodesr.nowNode.speed;
-
-						update_route_by_door_4();
-						//route_reset(11);
-						nodesr.flag |= 0x20;
-						close_Maxicam();
-						break;
-					}
-					else
-					{
-						CarBrake();
-					}
-					vTaskDelay(2);
-					wait_cnt++;
-					if (wait_cnt == 50)
-					{
-						wait_cnt = 0;
-						Open_COLOR_L();
-					}
-				}
-				flag = 0;
-				close_Maxicam();
-				pid_mode_switch(is_Line);
-				motor_all.Cspeed = nodesr.nowNode.speed;
-				nodesr.nowNode.function = NONE;
-				//看完头回正
-				Robot_Work(HEAD,HEAD_MID);
-				return;
+				update_route_by_door_2();
+				nodesr.flag |= 0x20;
+				state = DOOR_D2;
 			}
 		}
+		Chassis_SetTargetSpeed(nodesr.nowNode.speed);
+		pid_mode_switch(is_Line);
+		nodesr.nowNode.function = 1;
+		break;
+
+	/* ============ 看D4回退（D2黄 D5红） ============ */
+	case DOOR_D4_AGAIN:
+		color_flag[2] = Color_Left;
+		map.point = 0;
+
+		if (Color_Left == Green)
+		{
+			send_play_specified_command(8);
+			nodesr.nowNode = Node[getNextConnectNode(N8, N3)];
+			nodesr.nowNode.flag = LEFT_LINE | MUL2MUL | STOPTURN;
+			nodesr.nowNode.step = 10;
+			nodesr.nowNode.speed = SPEED3;
+			nodesr.nowNode.function = 1;
+			nodesr.flag |= 0x80;
+			update_route_by_door_3();
+			motor_pid_clear();
+		}
+		else // Red
+		{
+			send_play_specified_command(11);
+			Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 181, getAngleZ());
+
+			Node[getNextConnectNode(N8, N5)].function = NONE;
+			Node[getNextConnectNode(N8, N5)].speed = SPEED4;
+			Node[getNextConnectNode(N8, N5)].step = 150;
+
+			nodesr.nowNode = Node[getNextConnectNode(N3, N8)];
+			nodesr.nowNode.flag = STOPTURN | CLEFT | CRIGHT | DRIGHT | DLEFT;
+			nodesr.nowNode.speed = SPEED3;
+			nodesr.flag |= 0x20;
+			update_route_by_door_4();
+		}
+		Chassis_SetTargetSpeed(nodesr.nowNode.speed);
+		pid_mode_switch(is_Line);
+		nodesr.nowNode.function = NONE;
+		state = DOOR_D2;  // 门检测完成
+		break;
 	}
-		//看完头回正
-		Robot_Work(HEAD,HEAD_MID);
+
+	close_Maxicam();
+	Robot_Work(HEAD, HEAD_MID);
 }
 
 void update_route_for_stage34(void)
 {
-	//u8 route[100] = {B1, N1, P1, N1, B2, N4, N5, N6, P4, N6, N5, N12, 0XFF};
-	if(line_clue == 3)
+	if(flag_line_clue == 3)
 	{
 		u8 route_to_2[15] = {B1, N1, P1, N1, B2, N4, N3, P3, N3, N4, N5, N12, 0XFF};
 		for(uint8_t i = 0;i<15;i++)
 		{
 			route[i] = route_to_2[i];
 			if(route_to_2[i]==0xff)
+				break;
+		}
+	}
+	else if(flag_line_clue == 4)
+	{
+		u8 route_to_4[15] = {B1, N1, P1, N1, B2, N4, N5, N6, P4, N6, N5, N12, 0XFF};
+		for(uint8_t i = 0;i<15;i++)
+		{
+			route[i] = route_to_4[i];
+			if(route_to_4[i]==0xff)
+				break;
+		}
+	}
+	else if(flag_line_clue == 0)
+	{
+		// 跳过 P3/P4，直接去门区
+		u8 route_skip[10] = {B1, N1, P1, N1, B2, N4, N5, N12, 0XFF};
+		for(uint8_t i = 0;i<10;i++)
+		{
+			route[i] = route_skip[i];
+			if(route_skip[i]==0xff)
 				break;
 		}
 	}
@@ -2408,7 +2256,7 @@ void update_route_by_door_4(void)
 void update_route_by_QR(void)
 {
 	//若线索在57号平台
-	if (clue_A_stage == 5&&clue_B_stage == 7)
+	if (flag_clue_stage_A == 5&&flag_clue_stage_B == 7)
 	{  
 		if(color_flag[1] == Green || color_flag[1] == Yellow||color_flag[2] == Green || color_flag[2] == Yellow)
 		{
@@ -2431,7 +2279,7 @@ void update_route_by_QR(void)
 		 }
 	}							
 	//若线索在58号平台
-	if (clue_A_stage == 5&&clue_B_stage == 8)
+	if (flag_clue_stage_A == 5&&flag_clue_stage_B == 8)
 	{
 		if(color_flag[1] == Green || color_flag[1] == Yellow||color_flag[2] == Green || color_flag[2] == Yellow)
 		{
@@ -2454,7 +2302,7 @@ void update_route_by_QR(void)
 		 }
 	}
 	//若线索在67号平台
-	if (clue_A_stage == 6&&clue_B_stage == 7)
+	if (flag_clue_stage_A == 6&&flag_clue_stage_B == 7)
 	{
 		if(color_flag[1] == Green || color_flag[1] == Yellow||color_flag[2] == Green || color_flag[2] == Yellow)
 		{
@@ -2479,7 +2327,7 @@ void update_route_by_QR(void)
 		 }
 	}
 	//若线索在68号平台
-	if (clue_A_stage == 6&&clue_B_stage == 8)
+	if (flag_clue_stage_A == 6&&flag_clue_stage_B == 8)
 	{
 		if(color_flag[1] == Green || color_flag[1] == Yellow||color_flag[2] == Green || color_flag[2] == Yellow)
 		{
@@ -3109,12 +2957,12 @@ uint8_t WaitFor_OCR(void)
 		HAL_UART_AbortReceive_IT(&huart5);
 		close_Maxicam();
 		Maxicam_Enable();
-		clue_A = Clue_Num;
+		flag_clue_A = Clue_Num;
 		K210_Rece = 0;
-		if (clue_A == 0)
+		if (flag_clue_A == 0)
 			send_play_specified_command(29);
 		else
-			send_play_specified_command(22+clue_A);
+			send_play_specified_command(22+flag_clue_A);
 //		for(uint8_t i = 0;i<clue_A;i++)
 //		{
 //			buzzer_on();
@@ -3130,9 +2978,9 @@ uint8_t WaitFor_OCR(void)
 		HAL_UART_AbortReceive_IT(&huart5);
 		close_Maxicam();
 		Maxicam_Enable();
-		clue_B = Clue_Num;
+		flag_clue_B = Clue_Num;
 		K210_Rece = 0;
-		send_play_specified_command(16+clue_B);
+		send_play_specified_command(16+flag_clue_B);
 //		for(uint8_t i = 0;i<clue_B;i++)
 //		{
 //			buzzer_on();
@@ -3140,7 +2988,7 @@ uint8_t WaitFor_OCR(void)
 //			buzzer_off();
 //			vTaskDelay(500);
 //		}
-		treasure = clue_A+clue_B;//获取宝物平台位置
+		treasure = flag_clue_A+flag_clue_B;//获取宝物平台位置
 		Clue_Num = 0;
 	}
 
@@ -3180,8 +3028,8 @@ uint8_t WaitFor_QR(void)
 	}
 //	if (nodesr.nowNode.nodenum == P1)
 //	{
-//		clue_A_stage = (QR_code/10)%10;//获取十位上的数字
-//		clue_B_stage = QR_code%10;//获取个位上数字
+//		flag_clue_stage_A = (QR_code/10)%10;//获取十位上的数字
+//		flag_clue_stage_B = QR_code%10;//获取个位上数字
 //	}
 }
 	
@@ -3275,7 +3123,7 @@ void zhunbei(void)
 	if(isAllRoute || map.routetime!=0)
 	{
 		RampCtrl_Blocking(RAMP_DESCEND, GoStage_Speed, getAngleZ(),
-				Begin_down, GoStage_Speed, down_pitch, UpDownStage_Speed_high, After_down-10);
+				Begin_down, GoStage_Speed, down_pitch, UpDownStage_Speed_high, After_down-10, 0);
 		/*下桥完毕*/
 		printf("Finished crossing the bridge\n");
 

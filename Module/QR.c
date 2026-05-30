@@ -40,9 +40,9 @@ void QR_receive_init(void)
  	 		Clue_Stage[1] = QR_rx_buf[5]-'0';
  	 		Clue_Stage[2] = QR_rx_buf[6]-'0';
 			buzzer_flag = 1;
-			line_clue = Clue_Stage[0];
-			clue_A_stage = Clue_Stage[1];
-			clue_B_stage = Clue_Stage[2];
+			flag_line_clue = Clue_Stage[0];
+			flag_clue_stage_A = Clue_Stage[1];
+			flag_clue_stage_B = Clue_Stage[2];
 			get_cude = 1;
  	 	}
  	 	memset(QR_rx_buf,0,QR_rx_len);

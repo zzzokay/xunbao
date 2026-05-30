@@ -27,20 +27,16 @@ Project File Date:  05/24/2026
 <h2>Output:</h2>
 *** Using Compiler 'V5.06 update 7 (build 960)', folder: 'D:\KEIL5\Core\ARM\version5\Bin'
 Build target 'test1'
-assembling startup_stm32f750xx.s...
-compiling adc.c...
-compiling main.c...
-../Task/motor_task.h(26): warning:  #375-D: declaration requires a typedef name
-  };
-../Core/Src/main.c: 1 warning, 0 errors
-compiling stm32f7xx_it.c...
-../Task/motor_task.h(26): warning:  #375-D: declaration requires a typedef name
+compiling motor_task.c...
+..\Task\motor_task.h(26): warning:  #375-D: declaration requires a typedef name
   };
 ../Module/Rec_usart.h(34): warning:  #1295-D: Deprecated declaration get_PIDdata - give arg types
   void get_PIDdata();
-../Core/Src/stm32f7xx_it.c: 2 warnings, 0 errors
+..\Task\motor_task.c(451): warning:  #1-D: last line of file ends without a newline
+  }
+..\Task\motor_task.c: 3 warnings, 0 errors
 linking...
-Program Size: Code=41852 RO-data=776 RW-data=3660 ZI-data=21052  
+Program Size: Code=41680 RO-data=712 RW-data=3656 ZI-data=21048  
 FromELF: creating hex file...
 "test1\test1.axf" - 0 Error(s), 3 Warning(s).
 
