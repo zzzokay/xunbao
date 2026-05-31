@@ -9,6 +9,7 @@
 #include "pid.h"
 #include "turn.h"
 #include "motor.h"
+#include "gray.h"
 
 /* 
  * ==========================================================
@@ -72,7 +73,8 @@ void Chassis_Init(void)
     PIDMode = is_No;
     LEFT_RIGHT_LINE = 0;
     MOTOR_PWM_MAX = 5000;
-
+    
+	ScanerMode_Switch(RF);
     motor_init();
     pid_init();
 }

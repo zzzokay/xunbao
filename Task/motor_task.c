@@ -97,8 +97,8 @@ void motor_task(void *pvParameters)
 		//printf("%.1f,%.1f,%.1f,%.1f,%.1f,%.2f,%.1f, %d\r\n", line_pid_obj.measure, line_pid_obj.target, line_pid_obj.output, motor_all.Cspeed, line_pid_param.kp, line_pid_param.ki, line_pid_param.kd, (int)test_flag);
 		
 		//printf("Cspeed:%.2f Gspeed:%.2f\r\n", motor_all.Cspeed, motor_all.Gspeed);
-		/*当前角度信息*/ //printf("yaw:%.2f\troll:%.2f\tpitch:%.2f\t,basicp:%.2f\r\n", imu.yaw, imu.roll, imu.pitch, basic_p);
-		printf("%.2f\r\n", imu.pitch);
+		/*当前角度信息*/// printf("%.2f,%.2f\r\n", imu.pitch, basic_p);
+		//printf("%.2f\r\n", imu.pitch);
 		//打印路程 
 		//printf("%.2f\n",motor_all.Distance);
 		/*当前目的节点*/ //printf("%d\r\n",nodesr.nowNode.nodenum);
@@ -169,12 +169,14 @@ void handle_line_mode(void)
 {
 	if (PIDMode == is_Line)
 	{
+		//printf("is_Line\r\n");
 		/* 获取巡线error - 显式传入循迹对象与参数 */
 		getline_error_ex(&Scaner,ScanerMode, scaner_set.EdgeIgnore, LEFT_RIGHT_LINE);
 
 		// 平滑速度
 		gradual_cal(&TC_speed, motor_all.Cspeed, motor_all.Cincrement, motor_all.CDOWNincrement);
 
+		//printf("go_line\r\n");
 		// 执行巡线任务
 		Go_Line(TC_speed, &motor_all);
 	

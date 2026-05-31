@@ -76,7 +76,7 @@ uint8_t Gray_GetLine(void)
 // 坡道灰度角度修正：找最大值，若明显高于其他传感器则输出对应角度
 // 返回值：检测到线时返回角度偏移，未检测到返回 0
 // AD_Value_Gray[0]=左  [1]=中左  [2]=中右  [3]=右
-float Gray_GetCorrectAngle(void)
+float Gray_GetCorrectAngle(float base_angle)
 {
 	uint16_t max_val = 0;
 	uint8_t max_idx = 0;
@@ -98,10 +98,10 @@ float Gray_GetCorrectAngle(void)
 
 	// 根据最大值位置输出角度
 	switch (max_idx) {
-		case 0: return 0.2f;   // 最左 → 偏右，向左修正
-		case 1: return 0.1f;   // 中左
-		case 2: return -0.1f;   // 中右
-		case 3: return -0.2f;   // 最右 → 向右修正
+		case 0: return base_angle*2;   // 最左 → 偏右，向左修正
+		case 1: return base_angle;   // 中左
+		case 2: return -base_angle;   // 中右
+		case 3: return -base_angle*2;   // 最右 → 向右修正
 		default: return 0.0f;
 	}
 }

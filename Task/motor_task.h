@@ -24,6 +24,7 @@ typedef enum {
 	is_Gyro,   //自平衡4
 	
 };
+
 extern uint8_t open_qiang_jiao;
 extern uint8_t Nosmall;
 extern int MOTOR_PWM_MAX;

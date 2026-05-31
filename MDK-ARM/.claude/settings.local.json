@@ -3,7 +3,8 @@
     "allow": [
       "Read(//c/Users/14166/Desktop/MC_32/robotcup/xunbao/Math/**)",
       "Read(//c/Users/14166/Desktop/MC_32/robotcup/xunbao/Motor/**)",
-      "Read(//c/Users/14166/Desktop/MC_32/robotcup/raw_xunbao/**)"
+      "Read(//c/Users/14166/Desktop/MC_32/robotcup/raw_xunbao/**)",
+      "Read(//c/Users/14166/.claude/projects/c--Users-14166-Desktop-MC-32-robotcup-xunbao/memory/**)"
     ]
   }
 }

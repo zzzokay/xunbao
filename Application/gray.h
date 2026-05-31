@@ -10,7 +10,7 @@
 void Gray_Open(void);
 void Gray_Close(void);
 uint8_t Gray_GetLine(void);
-float Gray_GetCorrectAngle(void);
+float Gray_GetCorrectAngle(float base_angle);
 void Calculate_Error(volatile SCANER *scaner);
 void ScanerMode_Switch(uint8_t mode);
 

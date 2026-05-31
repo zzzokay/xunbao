@@ -16,7 +16,7 @@ typedef enum { RAMP_ASCEND, RAMP_DESCEND } RampDir_t;
 void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
                        float thresh1, float speed1,
                        float thresh2, float speed2,
-                       float done_thresh, uint8_t use_gray);
+                       float done_thresh, float GrayCorrectAngle);
 
 #define Old_M_Speed         6                //老爷爷
 #define QQB_Out_Speed       8                //出跷跷板

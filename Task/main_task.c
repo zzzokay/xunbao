@@ -24,7 +24,7 @@
 #include "motor.h"
 #include "chassis_api.h"
 #include "gray.h"
-uint8_t test_flag = 3;
+uint8_t test_flag = 0;
 float temp_speed=25;
 /*主任务*/
 void main_task(void *pvParameters)
@@ -32,19 +32,19 @@ void main_task(void *pvParameters)
 	portTickType xLastWakeTime;
 	xLastWakeTime = xTaskGetTickCount();   //获取系统节拍、
 	mapInit();
-	//zhunbei(); // 启动流程//注意有挡板 会卡在这
-	//Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
-	IMU_CalibrateZero(&basic_y,&basic_p);
-	vTaskDelay(100);
-	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); // 用稳定后的实际角度计算补偿
-	while (Infrared_ahead == 0)
-		vTaskDelay(5);
+	zhunbei(); // 启动流程//注意有挡板 会卡在这
+	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
+//	IMU_CalibrateZero(&basic_y,&basic_p);
+//	vTaskDelay(100);
+//	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); // 用稳定后的实际角度计算补偿
+//	while (Infrared_ahead == 0)
+//		vTaskDelay(5);
 
-	/*等待移除挡板*/
-	while(Infrared_ahead == 1)
-		vTaskDelay(5);
-	
-	vTaskDelay(100);
+//	/*等待移除挡板*/
+//	while(Infrared_ahead == 1)
+//		vTaskDelay(5);
+//	
+//	vTaskDelay(100);
 	
 	while (1)
 	{
@@ -65,10 +65,15 @@ void main_task(void *pvParameters)
 		// }
 		
 		//Gray_GetLine(); 
+		
  		if(test_flag==1)
  		{
-			
-			   
+//			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
+//				Begin_up, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, After_up, 0.04);
+			ScanerMode_Switch(RF);
+			Chassis_SetTrackMode(TRACK_ALL);
+			Chassis_DriveDistance_Blocking(is_Line,200,15,0,0);
+			CarBrake();   
 			// Chassis_EnableLineLostProtection();
 			// Chassis_SetTrackMode(TRACK_LIUSHUI);
 			// ////直线循迹
@@ -133,8 +138,8 @@ void main_task(void *pvParameters)
 		}
 		
 //		/*节点间处理*/
-		//if(map.routetime == 0)
-		//	Cross();
+		if(map.routetime == 0)
+			Cross();
 //		
 //		/*二轮结束处理*/
 //		if(map.routetime==3)

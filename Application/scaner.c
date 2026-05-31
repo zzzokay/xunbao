@@ -127,6 +127,7 @@ void Go_Line(float speed, volatile struct Motors *motor)
 {
 	if(isFilter && ScanerMode == RF)
 	{
+		//printf("RF\r\n");
 		line_pid_obj.measure = Get_scaner_error();
 		// printf("mea:%.2f\r\n", line_pid_obj.measure);
 	}
@@ -143,11 +144,7 @@ void Go_Line(float speed, volatile struct Motors *motor)
 		Fspeed = -motor_all.Line_speedMax;
 		
 	Fspeed *= fabsf(speed) / 50;
-	// //打印line_data历史数据
-	//  for (int i = 0; i < 5; i++)
-	//  {
-	//  	printf("line_data[%d]: pos=%.2f, error=%.2f, truth=%d\r\n", i, line_data[i].pos, line_data[i].error, line_data[i].truth);
-	//  }
+
 	motor->Lspeed = speed - Fspeed;
 	motor->Rspeed = speed + Fspeed;
 }
@@ -320,7 +317,8 @@ static float calc_track_all(volatile SCANER *scaner, int8_t edge_ignore, uint8_t
 	float pos = 0;
 	if (scaner->ledNum >= 4 && scaner->lineNum >= 2)
 		edge_ignore = 4;
-
+	printf("TRACK_ALL det=0x%04X led=%d line=%d ei=%d\r\n",
+        scaner->detail, scaner->ledNum, scaner->lineNum, edge_ignore);
 	for (uint8_t i = edge_ignore; i < sensorNum - edge_ignore; i++)
 	{
 		*lednum += (scaner->detail >> (sensorNum - 1 - i)) & 0X01;
@@ -440,8 +438,10 @@ float Get_scaner_error(void)
 		for (int i = 0; i < nums; i++)
 		{
 			error += line_data[idex[i]].error;
+			// printf("  idx=%d val=%.2f\r\n", idex[i], line_data[idex[i]].error);
 		}
 		error /= (float)nums;
+		// printf("nums=%d avg=%.2f\r\n", nums, error);
 	}
 	else if (nums == 0) // 没有正确值
 	{
@@ -533,6 +533,7 @@ float Get_scaner_error(void)
 	}
 	if (error != 0)
 		last_valid_error = error;
+	//printf("error:%.2f\r\n",error);
 	return error;
 }
 
@@ -590,6 +591,7 @@ uint8_t Line_Scan(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_
 	/*取误差平均值，记录到历史*/
 	error /= (float)lednum_tmp;
 	scaner->error = error;
+	//printf("raw_scaner_error=%.2f lednum_tmp=%d track_mode=%d\n\r", scaner->error, lednum_tmp, track_mode);
 	uint8_t truth = pos_detect(pos) ? TRUTH_VALID : TRUTH_POS_ERR;
 	Update_line_data(truth, pos, scaner->error);
 	return 0;

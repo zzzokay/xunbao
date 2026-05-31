@@ -128,8 +128,7 @@ static uint8_t GyroStableReset(uint8_t required, float *reset_angle)
 
 static uint8_t Stage_DetectedRamp(float distance)
 {
-	return (imu.pitch - basic_p >= 5 ||
-		fabsf(Chassis_GetMileage()) >= distance ||
+	return (fabsf(Chassis_GetMileage()) >= distance ||
 		Scaner.ledNum >= 4 || Scaner.lineNum >= 2 ||
 		Scaner.lineNum == 0 || Scaner.ledNum == 0);
 }
@@ -137,40 +136,43 @@ static uint8_t Stage_DetectedRamp(float distance)
 void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
                        float thresh1, float speed1,
                        float thresh2, float speed2,
-                       float done_thresh, uint8_t use_gray)
+                       float done_thresh, float GrayCorrectAngle)
 {
 	enum { RAMP_INIT, RAMP_PHASE1, RAMP_PHASE2 }
 	state = RAMP_INIT;
 
-	if (use_gray) Gray_Open();
+	if (GrayCorrectAngle!=0) Gray_Open();
 
 	Chassis_MotorControl(is_Gyro, init_speed, init_speed, angle);
-
 	while (1)
 	{
 		float pitch = imu.pitch;
 
-		if (use_gray)
-			angle += Gray_GetCorrectAngle();
+		if (GrayCorrectAngle!=0)angle += Gray_GetCorrectAngle(GrayCorrectAngle); 
+			// 灰度修正，参数可调节
 		if (dir == RAMP_ASCEND)
 		{
 			switch (state)
 			{
 			case RAMP_INIT:
+				Chassis_SetGyroAngle_Go(angle);
 				if (pitch >= thresh1) {
-					Chassis_MotorControl(is_Gyro, speed1, speed1, angle);
+					Chassis_SetTargetSpeed(speed1);
 					state = RAMP_PHASE1;
 				}
 				break;
 			case RAMP_PHASE1:
+				Chassis_SetGyroAngle_Go(angle);
 				if (pitch >= thresh2) {
-					Chassis_MotorControl(is_Gyro, speed2, speed2, angle);
+					Chassis_SetTargetSpeed(speed2);
 					state = RAMP_PHASE2;
 				}
 				break;
-			case RAMP_PHASE2:
+			case RAMP_PHASE2: 
+				Chassis_SetGyroAngle_Go(angle);
 				if (pitch <= done_thresh) {
-					if (use_gray) Gray_Close();
+					
+					if (GrayCorrectAngle!=0) Gray_Close();
 					return;
 				}
 				break;
@@ -181,26 +183,29 @@ void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
 			switch (state)
 			{
 			case RAMP_INIT:
+				Chassis_SetGyroAngle_Go(angle);
 				if (pitch <= thresh1) {
-					Chassis_MotorControl(is_Gyro, speed1, speed1, angle);
+					Chassis_SetTargetSpeed(speed1);
 					state = RAMP_PHASE1;
 				}
 				break;
 			case RAMP_PHASE1:
+				Chassis_SetGyroAngle_Go(angle);
 				if (pitch <= thresh2) {
-					Chassis_MotorControl(is_Gyro, speed2, speed2, angle);
+					Chassis_SetTargetSpeed(speed2);
 					state = RAMP_PHASE2;
 				}
 				break;
 			case RAMP_PHASE2:
+				Chassis_SetGyroAngle_Go(angle);
 				if (pitch >= done_thresh) {
-					if (use_gray) Gray_Close();
+					if (GrayCorrectAngle!=0) Gray_Close();
 					return;
 				}
 				break;
 			}
 		}
-		vTaskDelay(2);
+		vTaskDelay(5);
 	}
 }
 
@@ -430,9 +435,18 @@ void Barrier_Bridge(void)
 			printf("Ascending bridge\n");
 			// init=UpStage_Speed, pitch>=basic_p+5→speed12, pitch>=basic_p+20→speed12, pitch<=basic_p+5→done
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_high, origin_angle,
-				Begin_up, UpDownStage_Speed_high, up_pitch, UpDownStage_Speed_low, After_up, 0);
-
-			printf("At bridge top, preparing to cross\n");
+				Begin_up, UpDownStage_Speed_high, up_pitch, UpDownStage_Speed_low, up_pitch+20, 0);
+			Chassis_ClearMileage();
+			get_Infrared();
+			while (fabsf(Chassis_GetMileage()) < 15)
+			{
+				Chassis_CorrectByInfrared(0.08f);
+				vTaskDelay(5);
+			}
+			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
+				0, UpDownStage_Speed_low, 0, UpDownStage_Speed_low, After_up, 0);	
+			origin_angle = getAngleZ();	
+  			printf("At bridge top, preparing to cross\n");
 			Chassis_ClearMileage();
 			infrared_done = 0;
 			state = BRIDGE_CORRECT;
@@ -514,7 +528,8 @@ void Barrier_Hill(void)
 
 	float origin_angle = 0.0f;
 
-	Chassis_MotorControl(is_Line, 20, 20, 0);
+	Chassis_MotorControl(is_Line, 12, 12, 0);
+	vTaskDelay(10);//刚进入is_line,scanner可能还没数据，先等motortask
 	printf("is_line\n");
 	Chassis_ClearMileage();
 	while (state != HILL_DONE)
@@ -523,12 +538,14 @@ void Barrier_Hill(void)
 		{
 		case HILL_APPROACH:
 			GyroStableReset(50, &origin_angle);
-
-			if (Stage_DetectedRamp(20.0f))
+			//if(Chassis_GetMileage() >= 20){CarBrake(); vTaskDelay(1000);}
+				
+			if (Stage_DetectedRamp(40.0f))
 			{
+	
 				printf("Hill detected, preparing to ascend\n");
 				if (origin_angle == 0) origin_angle = getAngleZ();
-				printf("origin_angle: %.2f\n", origin_angle);
+ 			printf("origin_angle: %.2f\n", origin_angle);
 				Chassis_MotorControl(is_Gyro, 15, 15, origin_angle);
 				printf("is_gyro\n");
 				state = HILL_ASCEND;
@@ -537,16 +554,16 @@ void Barrier_Hill(void)
 
 		case HILL_ASCEND:
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, origin_angle,
-				Begin_up, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, After_up, 1);
-				printf("New angle: %.2f\n", angle.AngleG);
+				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.05);
+	
 				printf("Hill ascend complete, preparing to descend\n");
 			state = HILL_DESCEND;
 			break;
 
 		case HILL_DESCEND:
-			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, getAngleZ(),
-				Begin_down, UpDownStage_Speed_low, basic_p-10, UpDownStage_Speed_low, After_down, 1);
-				printf("New angle: %.2f\n", angle.AngleG);
+			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
+				basic_p, UpDownStage_Speed_low, basic_p-8, UpDownStage_Speed_low, basic_p-3, 0.05);
+
 				printf("Hill descend complete\n");
 			state = HILL_DONE;
 			break;
@@ -3043,21 +3060,21 @@ void zhunbei(void)
 	/*停车*/
 	Chassis_MotorControl(is_No, 0, 0, 0);
 
-	/*机器人动作*/
-	Robot_Work(BODY, UP); 	//人站起来
-	vTaskDelay(1000);
-	Robot_Work(PIG, HEAD_LEFT); //转头
-	vTaskDelay(500);		
-	Robot_Work(PIG, HEAD_RIGHT); 	
-	vTaskDelay(500);
-	/*蜂鸣器提示初始化完成 - 调试用*/
-	buzzer_on();
-	
-	// i = HAL_GPIO_ReadPin(GPIOC,GPIO_PIN_13);
-	vTaskDelay(100);
-	buzzer_off();
+//	/*机器人动作*/
+//	Robot_Work(BODY, UP); 	//人站起来
+//	vTaskDelay(1000);
+//	Robot_Work(PIG, HEAD_LEFT); //转头
+//	vTaskDelay(500);		
+//	Robot_Work(PIG, HEAD_RIGHT); 	
+//	vTaskDelay(500);
+//	/*蜂鸣器提示初始化完成 - 调试用*/
+//	buzzer_on();
+//	
+//	// i = HAL_GPIO_ReadPin(GPIOC,GPIO_PIN_13);
+//	vTaskDelay(100);
+//	buzzer_off();
 
-	close_Maxicam();
+//	close_Maxicam();
 	IMU_CalibrateZero(&basic_y,&basic_p);
 	vTaskDelay(100);
 	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); // 用稳定后的实际角度计算补偿

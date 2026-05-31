@@ -65,3 +65,4 @@ test1\chassis_api.o: ../Motor/encoder.h
 test1\chassis_api.o: ../Core/Inc/tim.h
 test1\chassis_api.o: ..\Application\delay.h
 test1\chassis_api.o: ../Motor/motor.h
+test1\chassis_api.o: ..\Application\gray.h
