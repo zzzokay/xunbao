@@ -102,6 +102,12 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
 36. **barrier.c** — `Barrier_Hill` 重构为状态机（HILL_APPROACH / HILL_ASCEND / HILL_DESCEND / HILL_DONE），上坡下坡均开启灰度修正，新增 `GyroStableReset` 航向校准
 37. **barrier.c** — 5 处 `RampCtrl_Blocking` 调用方补上 `use_gray=0` 参数，保持原行为
 
+**2026-06-09 — 无传感器调试模式**
+
+38. **barrier.c/h** — `Door_ReadColor()` 新增 `#if DEBUG` 分支，通过 `debug_door_color_right/left` 全局变量模拟门颜色传感器，无需硬件即可调试 door() 状态机
+39. **main_task.c** — 新增独立 `MAIN_DEBUG` 宏（与 barrier 的 `DEBUG` 分开控制），`MAIN_DEBUG=1` 时走 `test_flag/debug_test_item` 测试项，不执行依赖传感器的 `Cross()` 导航
+40. **barrier.c/h** — `Door_ReadColor()` 重构：返回颜色值而非通过全局变量传递；DEBUG 路径改为预设数组 `debug_door_colors[5]`；`door()` 通过局部变量 `door_color` 直接使用返回值
+
 ---
 
 ## 小车导航逻辑

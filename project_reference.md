@@ -593,3 +593,57 @@ Flash 使用 66,648 字节超出 65,536 字节限制（STM32F750V8 仅 64KB Flas
 |------|------|
 | `Chassis_EnableLineLostProtection()` | 开启丢线保护 |
 | `Chassis_DisableLineLostProtection()` | 关闭丢线保护并重置计数器 |
+
+---
+
+## 二十、无传感器调试模式（2026-06-09）
+
+### 20.1 独立调试开关
+
+各模块有各自的调试宏，互不影响：
+
+| 模块 | 宏 | 定义位置 | 功能 |
+|------|-----|----------|------|
+| 门颜色模拟 | `DEBUG` | [barrier.h](Application/barrier.h):45 | `Door_ReadColor()` 改用全局变量 |
+| main_task | `MAIN_DEBUG` | [main_task.c](Task/main_task.c):29 | 跳过 `Cross()`，执行测试项 |
+
+### 20.2 door() 门颜色模拟
+
+**文件**: [barrier.c](Application/barrier.c), [barrier.h](Application/barrier.h)
+
+`DEBUG == 1` 时 `Door_ReadColor()` 不再调用传感器，而是从预设数组 `debug_door_colors[5]` 按门序号取颜色：
+
+```c
+// 开局预设 5 个门颜色，然后正常调 door()
+// 值: Green=1, Yellow=2, Red=3; 0=未设置（读回 0，触发超时）
+extern uint8_t debug_door_colors[5];
+
+// 示例：D2黄 D3红 D4绿 D5红
+debug_door_colors[0] = Yellow;  // D2
+debug_door_colors[1] = Red;     // D3
+debug_door_colors[2] = Green;   // D4
+debug_door_colors[3] = Red;     // D5
+debug_door_colors[4] = 0;       // D1（未使用）
+```
+
+| 数组下标 | 对应的门 | 常量 |
+|----------|----------|------|
+| `[0]` | D2 | `DOOR_D2` |
+| `[1]` | D3 | `DOOR_D3` |
+| `[2]` | D4 | `DOOR_D4` / `DOOR_D4_AGAIN` |
+| `[3]` | D5 | `DOOR_D5` |
+| `[4]` | D1（未用） | — |
+
+`Door_ReadColor()` 直接在 `return debug_door_colors[idx]` 返回颜色值，不再经过 `Color_Left/Right` 全局变量，`door()` 通过局部变量 `door_color` 直接使用返回值。
+
+### 20.3 main_task 调试控制
+
+**文件**: [main_task.c](Task/main_task.c)
+
+`DEBUG == 1` 时 `Cross()` 被跳过，改为执行 `test_flag` / `debug_test_item` 指定的测试项：
+
+```c
+extern uint8_t debug_test_item;  // 1=直线, 2=转180, 3=过坡
+```
+
+优先级：`debug_test_item` > `test_flag`（外部 UART 设置的测试标志），执行后自动清零。

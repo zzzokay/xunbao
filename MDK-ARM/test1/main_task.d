@@ -67,10 +67,6 @@ test1\main_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_o
 test1\main_task.o: ../Application/chassis_api.h
 test1\main_task.o: ..\Task\temporary_task.h
 test1\main_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
-test1\main_task.o: ../Module/rudder_control.h
-test1\main_task.o: ../Application/iic.h
-test1\main_task.o: ../Application/delay.h
-test1\main_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\main_task.o: ../USMAT/uart.h
 test1\main_task.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h
 test1\main_task.o: ../Application/map.h

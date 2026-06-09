@@ -71,7 +71,7 @@ u8 route[100] = {B1, N1,P1, N1,B2,0XFF};  //调试时的初始路径
 // u8 route[100] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,0XFF};
 
 /************************************************************    *地图路径*    **********************************************************************************************************************************************88 */
-/*D2开D3关，暂时去掉D4*/
+/*D2关D3关，去D4*/
 u8 door1route[100] = {N4, N3, N8, 0XFF};
 /*D2开 D3开*/
 u8 door2route[100] = {N12, N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8,0xFF};
@@ -211,8 +211,8 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 /* 获取对应节点的陀螺仪不停车转弯前的前进距离判断 */
 static float GetForwardDistanceBeforeGyroTurn(u8 last, u8 now, u8 next)
 {
-	if ((last == B2 && now == N4 && next == N5) ||
-		(last == B6 && now == N20 && next == C4) ||
+	if (last == B2 && now == N4 && next == N5)return 5.0f; 
+	if((last == B6 && now == N20 && next == C4) ||
 		(last == C4 && now == N20 && next == B6) ||
 		(last == B2 && now == N1 && next == P1)) return 9.0f;
 	if (last == B3 && now == N2 && next == P2) return 15.0f;
@@ -379,6 +379,7 @@ void Cross(void)
 					Chassis_SetMode(is_Line);	
 					// 防游龙算法已移至底盘API
 					Chassis_EnableAntiSnake(); // 激活游龙防护标志
+					Chassis_EnableLineLostProtection();// 激活丢线保护标志
 
 					route_state = 2; // 标记已过半程，确保该处理只执行一次
 			}		        
@@ -498,7 +499,7 @@ void Cross(void)
 						float forwardDist =GetForwardDistanceBeforeTurn(nodesr.lastNode.nodenum, nodesr.nowNode.nodenum, nodesr.nextNode.nodenum);	
 						Chassis_DriveDistance_Blocking(is_Gyro, forwardDist, Stop_T_Speed, getAngleZ(), 0); 	
 
-						Chassis_Brake();//急刹
+						CarBrake(); // 急刹，确保转弯时车完全停稳
 						
 						if(nodesr.lastNode.nodenum == B3 && nodesr.nowNode.nodenum == N2 && nodesr.nextNode.nodenum == P2)
 						{
@@ -510,7 +511,7 @@ void Cross(void)
 						}
 
 
-						Chassis_Turn_By_StopGyro_Blocking(nodesr.nextNode.angle, nodesr.nowNode.angle); // 转到目标角度后可能有一段偏差，继续陀螺转可以更快回正
+						Chassis_Turn_By_StopGyro_Blocking(nodesr.nextNode.angle,  getAngleZ()); // 转到目标角度后可能有一段偏差，继续陀螺转可以更快回正
 
 						Chassis_RestoreTurnPid();
 					}
@@ -522,7 +523,7 @@ void Cross(void)
 						
 						Chassis_DriveDistance_Blocking(is_Gyro, forwardDist, Gyro_Speed, getAngleZ(), 0); // 前进一段距离，确保在节点处转弯	
 
-						Chassis_Turn_By_Gyro_Blocking(nodesr.nextNode.angle, nodesr.nowNode.angle);
+						Chassis_Turn_By_Gyro_Blocking(nodesr.nextNode.angle, getAngleZ());
 
 					}
 				
@@ -554,8 +555,7 @@ void Cross(void)
 	
 	/*看到红灯*/
 	if(nodesr.flag&0x20)
-	{
-		
+	{		
 		// 切换节点关系，进入下一个平台节点
 		nodesr.lastNode = nodesr.nowNode;
 		nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point++])];  // 获取新的下一个节点	

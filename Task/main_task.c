@@ -1,5 +1,4 @@
 #include "main_task.h"
-#include "rudder_control.h"
 #include "uart.h"
 #include "imu.h"
 #include "uart.h"
@@ -15,7 +14,7 @@
 #include "motor_task.h"
 #include "openmv.h"
 #include "math.h"
-#include "barrier.h"
+#include "barrier.h"                                                                                                                                   
 #include "sin_generate.h"
 #include "gray.h"
 #include "QR.h"
@@ -24,129 +23,91 @@
 #include "motor.h"
 #include "chassis_api.h"
 #include "gray.h"
-uint8_t test_flag = 0;
+
+/*===== 独立调试开关（与 barrier.h 的 DEBUG 无关）=====*/
+#define MAIN_DEBUG 0
+
+uint8_t test_flag = 1;
 float temp_speed=25;
+
+#if MAIN_DEBUG
+/*调试控制：赋值来选择测试项目（1=直线, 2=转180, 3=过坡）*/
+uint8_t debug_test_item = 0;
+#endif
+
 /*主任务*/
 void main_task(void *pvParameters)
 {
 	portTickType xLastWakeTime;
-	xLastWakeTime = xTaskGetTickCount();   //获取系统节拍、
-	mapInit();
-	zhunbei(); // 启动流程//注意有挡板 会卡在这
-	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
-//	IMU_CalibrateZero(&basic_y,&basic_p);
-//	vTaskDelay(100);
-//	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); // 用稳定后的实际角度计算补偿
-//	while (Infrared_ahead == 0)
-//		vTaskDelay(5);
+	xLastWakeTime = xTaskGetTickCount();
 
-//	/*等待移除挡板*/
-//	while(Infrared_ahead == 1)
-//		vTaskDelay(5);
-//	
-//	vTaskDelay(100);
+#if MAIN_DEBUG
+	/*调试模式：跳过传感器初始化，只做基本的地图加载*/
+	IMU_CalibrateZero(&basic_y,&basic_p);
+	vTaskDelay(100);
+	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); // 用稳定后的实际角度计算补偿
 	
+	/*等待挡板*/
+	while (Infrared_ahead == 0)
+		vTaskDelay(5);
+
+	/*等待移除挡板*/
+	while(Infrared_ahead == 1)
+		vTaskDelay(5);
+
+#else
+	/*正常模式：完整初始化流程*/
+	mapInit();
+	zhunbei(); // 启动流程（红外等待、IMU校准）
+	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
+#endif
+
 	while (1)
 	{
-
-		// /*二轮处理*/
-		// if(map.routetime == 1)
-		// {
-		// 	map.routetime = 2;
-		// 	get_newroute();
-
-		// 	// 陀螺仪角度复位，采样10次取平均值
-		// 	IMU_CalibrateZero(&basic_y,&basic_p);
-		// 	mpuZreset(basic_y, nodesr.nowNode.angle); // 把此时角度变为此结点角度
-		// 	zhunbei();
-
-		// 	encoder_clear(); // 路程记录清零
-		// 	Motor_Control(is_Line, SPEED0, SPEED0, 0);
-		// }
-		
-		//Gray_GetLine(); 
-		
- 		if(test_flag==1)
- 		{
-//			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
-//				Begin_up, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, After_up, 0.04);
-			ScanerMode_Switch(RF);
-			Chassis_SetTrackMode(TRACK_ALL);
-			Chassis_DriveDistance_Blocking(is_Line,200,15,0,0);
-			CarBrake();   
-			// Chassis_EnableLineLostProtection();
-			// Chassis_SetTrackMode(TRACK_LIUSHUI);
-			// ////直线循迹
-			// Chassis_DriveDistance_Blocking(is_Line,200,temp_speed,0,0);
-			// Chassis_Brake();
- 			
-			//Chassis_DriveDistance_Blocking(is_Gyro,2,-12,getAngleZ(),0);
-			//CarBrake();
-			//Chassis_Brake();
-			////偏左循迹
-			// Chassis_SetTrackMode(TRACK_LEFT_EDGE);
-			// Chassis_DriveDistance_Blocking(is_Line,50,25,0,0);
-			// Chassis_Brake();
-			
-			
-			////偏右循迹
-			// Chassis_SetTrackMode(TRACK_RIGHT_EDGE);
-			// Chassis_DriveDistance_Blocking(is_Line,50,25,0,0);
-			// Chassis_Brake();
-		
-
-			////流水循迹
-			 
-			// Chassis_DriveDistance_Blocking(is_Line,50,25,0,0);
-			// Chassis_Brake();
-		
-			
-			////固定角度直行
-			//Chassis_DriveDistance_Blocking(is_Gyro,100,20,getAngleZ(),0);
-			// Chassis_SetMode(is_Gyro);
-			// Chassis_SetGyroAngle_Go(getAngleZ());
-			// Chassis_SetTargetSpeed(25);
-			// vTaskDelay(5000);
-			// Chassis_Brake();
-
-
-			////固定角度转弯			 
-			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+90, getAngleZ());
-			
-			
-			////循迹转向
-			//Chassis_SetMode(is_Gyro);
-			//Chassis_SetTargetSpeed(15);
-			//Chassis_Turn_By_Gyro_Blocking(getAngleZ()+90, getAngleZ());
-			//Chassis_Brake();
-			//Turn_Angle360();
-			test_flag=0;
-		}			
-		if(test_flag==2)
+#if MAIN_DEBUG
+		/*========== 调试模式：debug_test_item 控制 ==========*/
+		if (test_flag == 1)
 		{
-			//转180度
+			//ScanerMode_Switch(RF);
+			Chassis_SetTrackMode(TRACK_LIUSHUI);
+			Chassis_DriveDistance_Blocking(is_Line,100,-36,0,0);
+			CarBrake();
+			test_flag = 0;
+		}
+		if (test_flag == 2)
+		{
 			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ());
 			Chassis_Brake();
-			test_flag=0;
+			test_flag = 0;
 		}
-		if(test_flag==3)
+		if (test_flag == 3)
 		{
-		//过桥
-		//Barrier_Bridge();
-		Barrier_Hill();
-		test_flag=0;
+			Barrier_Hill();
+			test_flag = 0;
 		}
-		
-//		/*节点间处理*/
+		/*调试模式下不执行 Cross()，避免无传感器跑飞*/
+#else
+		/*========== 正常运行模式 ==========*/
+
+		/*二轮处理*/
+//		if(map.routetime == 1)
+//		{
+//			map.routetime = 2;
+//			get_newroute();
+
+//			// 陀螺仪角度复位，采样10次取平均值
+//			IMU_CalibrateZero(&basic_y,&basic_p);
+//			mpuZreset(basic_y, nodesr.nowNode.angle); // 把此时角度变为此结点角度
+//			zhunbei();
+
+//			encoder_clear(); // 路程记录清零
+//			Motor_Control(is_Line, SPEED0, SPEED0, 0);
+//		}
+
 		if(map.routetime == 0)
 			Cross();
-//		
-//		/*二轮结束处理*/
-//		if(map.routetime==3)
-//			CarBrake_Stop();
-	
-		
-		
-		vTaskDelayUntil(&xLastWakeTime, (5/portTICK_RATE_MS));//绝对休眠5ms // INCLUDE_vTaskDelayUntil 1
+#endif
+
+		vTaskDelayUntil(&xLastWakeTime, (5/portTICK_RATE_MS));
 	}
 }

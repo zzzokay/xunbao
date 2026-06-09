@@ -539,7 +539,9 @@ void Chassis_Periodic_Update_5ms(void)
                 {
                     chassis.line_lost_count = 0;
                     chassis.line_lost_enabled = 0;  // 一次性触发
-                    Chassis_Brake();
+                    CarBrake(); // 紧急刹车
+                    printf("Line lost! Emergency brake activated.\n");
+                    while(1){};
                     return;
                 }
             }
@@ -686,5 +688,5 @@ void Chassis_CorrectByInfrared(float correct_angle)
 	if ((infrared.head_left == 0 && infrared.head_right == 1) || (Scaner.detail & 0X00FF))
 		angle.AngleG += correct_angle;
 	else if ((infrared.head_left == 1 && infrared.head_right == 0) || (Scaner.detail & 0XFF00))
-		angle.AngleG -= correct_angle;
+		angle.AngleG -= correct_angle*1.4;
 }

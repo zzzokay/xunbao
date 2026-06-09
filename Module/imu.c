@@ -148,17 +148,16 @@ void IMU_CalibrateZero(float* yaw_out, float* pitch_out)
 // 新增一个获取最新yaw的函数，封装锁逻辑
 float get_latest_yaw(void)
 {
-    static float last_yaw = 0;  // 静态变量缓存上次值
     struct Imu temp;
-    
-    // 非阻塞获取锁，成功则更新last_yaw
-    if (imu_mutex != NULL && xSemaphoreTake(imu_mutex, 0) == pdTRUE) {
+
+    if (imu_mutex != NULL) {
+        /*阻塞等待锁（中断仅持有几微秒，代价可忽略）*/
+        xSemaphoreTake(imu_mutex, portMAX_DELAY);
         temp = imu_shared_data;
-        last_yaw = temp.yaw;
         xSemaphoreGive(imu_mutex);
+        return temp.yaw;
     }
-    
-    return last_yaw;  // 返回最新值或上次缓存值
+    return 0;
 }
 /*原中断*/
 //void USART3_IRQHandler(void)

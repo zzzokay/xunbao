@@ -44,6 +44,11 @@ void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
 
 #define DEBUG 0
 extern uint8_t treasure;
+
+/*调试：预设5个门颜色（无传感器时）*/
+#if DEBUG
+extern uint8_t debug_door_colors[5];
+#endif
 extern uint8_t DownLiuShui;
 extern uint8_t isStage;
 extern uint8_t special_arrive;

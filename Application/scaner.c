@@ -145,6 +145,8 @@ void Go_Line(float speed, volatile struct Motors *motor)
 		
 	Fspeed *= fabsf(speed) / 50;
 
+	// 后退时舵向反转（传感器在车头，后退时是尾随端）
+	if (speed < 0) Fspeed = -Fspeed;
 	motor->Lspeed = speed - Fspeed;
 	motor->Rspeed = speed + Fspeed;
 }
@@ -225,7 +227,7 @@ void printf_byte(uint16_t data)
 /*循迹滤波*/
 #define MAX_LED	4
 
-/*--- 左循线：从左往右取第一段连续亮灯 ---*/
+/*--- 左循线：从左往右取第一段连续亮灯，最多2个灯 ---*/
 static float calc_left_edge(volatile SCANER *scaner, int8_t edge_ignore, uint8_t sensorNum, float *error, uint8_t *lednum)
 {
 	float pos = 0;
@@ -236,17 +238,17 @@ static float calc_left_edge(volatile SCANER *scaner, int8_t edge_ignore, uint8_t
 			*lednum += 1;
 			*error += line_weight[i];
 			pos += i;
-			if (i == sensorNum - 1 || !((scaner->detail >> ((sensorNum - i - 1) - 1)) & 0x01))
+			if (i == sensorNum - 1 || !((scaner->detail >> ((sensorNum - i - 1) - 1)) & 0x01) || *lednum >= 2)
 				break;
 		}
 	}
-	if (*lednum > MAX_LED || *lednum == 0)
+	if (*lednum == 0)
 		return -1;
 	pos /= (float)(*lednum);
 	return pos;
 }
 
-/*--- 右循线：从右往左取第一段连续亮灯 ---*/
+/*--- 右循线：从右往左取第一段连续亮灯，最多2个灯 ---*/
 static float calc_right_edge(volatile SCANER *scaner, int8_t edge_ignore, uint8_t sensorNum, float *error, uint8_t *lednum)
 {
 	float pos = 0;
@@ -257,11 +259,11 @@ static float calc_right_edge(volatile SCANER *scaner, int8_t edge_ignore, uint8_
 			*lednum += 1;
 			*error += line_weight[sensorNum - 1 - i];
 			pos += sensorNum - 1 - i;
-			if (i == sensorNum - 1 || !((scaner->detail >> (i + 1)) & 0x01))
+			if (i == sensorNum - 1 || !((scaner->detail >> (i + 1)) & 0x01) || *lednum >= 2)
 				break;
 		}
 	}
-	if (*lednum > MAX_LED || *lednum == 0)
+	if (*lednum == 0)
 		return -1;
 	pos /= (float)(*lednum);
 	return pos;
