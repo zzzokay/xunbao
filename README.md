@@ -102,6 +102,19 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
 36. **barrier.c** — `Barrier_Hill` 重构为状态机（HILL_APPROACH / HILL_ASCEND / HILL_DESCEND / HILL_DONE），上坡下坡均开启灰度修正，新增 `GyroStableReset` 航向校准
 37. **barrier.c** — 5 处 `RampCtrl_Blocking` 调用方补上 `use_gray=0` 参数，保持原行为
 
+**2026-06-10 — 边缘循线优化 + 后退循迹 + 桥下坡修正**
+
+41. **scaner.c calc_left_edge/calc_right_edge** — 边缘循线模式找到第一段连续亮灯后，break 条件加 `|| *lednum >= 2`，最多取 2 个灯。解决交叉线融合点处线宽增加导致位置偏移的问题
+42. **scaner.c Go_Line** — 后退时舵向反转（`if (speed < 0) Fspeed = -Fspeed`），传感器在车头为尾随端，方向需取反
+43. **barrier.c BRIDGE_ON_BRIDGE** — 桥下坡从单段 `RampCtrl_Blocking` 改为两段 + 中间 15cm 红外修正（`Chassis_CorrectByInfrared`），模仿上桥的红外修正模式
+
+**2026-06-11 — 横滚角超限保护与 IMU 校准扩展**
+
+44. **imu.c/h** — `IMU_CalibrateZero` 新增 `float* roll_out` 参数，同步累计 roll 并输出 10 次采样平均值；新增 `extern float basic_r` 全局零偏值
+45. **chassis_api.c** — `Chassis_Periodic_Update_5ms()` 开头增加横滚角超限保护：`imu.roll - basic_r > 40°` 时立即 `CarBrake()` + `while(1)` 死停（受 `roll_protect_enabled` 开关控制）
+46. **chassis_api.c/h** — 新增 `Chassis_EnableRollProtection()` / `Chassis_DisableRollProtection()`，与丢线保护 API 风格一致
+47. **barrier.c / main_task.c** — `IMU_CalibrateZero` 调用更新为 `(&basic_y, &basic_p, &basic_r)`
+
 **2026-06-09 — 无传感器调试模式**
 
 38. **barrier.c/h** — `Door_ReadColor()` 新增 `#if DEBUG` 分支，通过 `debug_door_color_right/left` 全局变量模拟门颜色传感器，无需硬件即可调试 door() 状态机

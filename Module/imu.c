@@ -24,6 +24,7 @@ SemaphoreHandle_t imu_mutex;
 UART_HandleTypeDef gyro;//UART句柄
 float basic_p = 0;
 float basic_y = 0;
+float basic_r = 0;
 
 void gyro_init(uint32_t bound)
 { 
@@ -114,10 +115,11 @@ void USART3_IRQHandler(void)
 }
 
 
-void IMU_CalibrateZero(float* yaw_out, float* pitch_out)
+void IMU_CalibrateZero(float* yaw_out, float* pitch_out, float* roll_out)
 {
     float sum_yaw = 0;
     float sum_pitch = 0;
+    float sum_roll = 0;
     struct Imu imu_copy;
 
     for (uint8_t i = 0; i < 10; i++)
@@ -136,14 +138,17 @@ void IMU_CalibrateZero(float* yaw_out, float* pitch_out)
 
         sum_yaw   += imu_copy.yaw;
         sum_pitch += imu_copy.pitch;
+        sum_roll  += imu_copy.roll;
     }
 
     float avg_yaw   = sum_yaw / 10.0f;
     float avg_pitch = sum_pitch / 10.0f;
+    float avg_roll  = sum_roll / 10.0f;
 
     if (yaw_out)   *yaw_out   = avg_yaw;
     if (pitch_out) *pitch_out = avg_pitch;
-	
+    if (roll_out)  *roll_out  = avg_roll;
+
 }
 // 新增一个获取最新yaw的函数，封装锁逻辑
 float get_latest_yaw(void)

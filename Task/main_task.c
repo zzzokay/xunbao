@@ -27,7 +27,7 @@
 /*===== 独立调试开关（与 barrier.h 的 DEBUG 无关）=====*/
 #define MAIN_DEBUG 0
 
-uint8_t test_flag = 1;
+uint8_t test_flag = 4;
 float temp_speed=25;
 
 #if MAIN_DEBUG
@@ -43,7 +43,7 @@ void main_task(void *pvParameters)
 
 #if MAIN_DEBUG
 	/*调试模式：跳过传感器初始化，只做基本的地图加载*/
-	IMU_CalibrateZero(&basic_y,&basic_p);
+	IMU_CalibrateZero(&basic_y, &basic_p, &basic_r);
 	vTaskDelay(100);
 	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); // 用稳定后的实际角度计算补偿
 	
@@ -54,7 +54,7 @@ void main_task(void *pvParameters)
 	/*等待移除挡板*/
 	while(Infrared_ahead == 1)
 		vTaskDelay(5);
-
+	ScanerMode_Switch(Gray);
 #else
 	/*正常模式：完整初始化流程*/
 	mapInit();
@@ -64,10 +64,12 @@ void main_task(void *pvParameters)
 
 	while (1)
 	{
+		
 #if MAIN_DEBUG
 		/*========== 调试模式：debug_test_item 控制 ==========*/
 		if (test_flag == 1)
 		{
+			
 			//ScanerMode_Switch(RF);
 			Chassis_SetTrackMode(TRACK_LIUSHUI);
 			Chassis_DriveDistance_Blocking(is_Line,100,-36,0,0);
@@ -85,6 +87,15 @@ void main_task(void *pvParameters)
 			Barrier_Hill();
 			test_flag = 0;
 		}
+		if(test_flag == 4)
+		{
+			// Gray_GetLine();
+			// float correct_angle = Gray_GetCorrectAngle(1);
+			// printf(" %.2f\n", correct_angle);
+			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
+				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.09);
+		}
+	
 		/*调试模式下不执行 Cross()，避免无传感器跑飞*/
 #else
 		/*========== 正常运行模式 ==========*/
@@ -96,7 +107,7 @@ void main_task(void *pvParameters)
 //			get_newroute();
 
 //			// 陀螺仪角度复位，采样10次取平均值
-//			IMU_CalibrateZero(&basic_y,&basic_p);
+//			IMU_CalibrateZero(&basic_y, &basic_p, &basic_r);
 //			mpuZreset(basic_y, nodesr.nowNode.angle); // 把此时角度变为此结点角度
 //			zhunbei();
 

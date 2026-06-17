@@ -126,6 +126,9 @@ struct Motors {
 extern volatile struct Motors motor_all;
 extern float TC_speed, TG_speed;  // 巡线/陀螺仪渐变速度
 extern volatile uint8_t PIDMode;  // 当前模式: is_No/is_Free/is_Line/is_Turn/is_Gyro
+
+// 底盘内部状态（ChassisState_t，静态于 chassis_api.c）
+//   roll_protect_enabled    // 1=使能横滚角超限保护，0=关闭
 ```
 
 ### 4.3 地图导航 ([map.h](Application/map.h))
@@ -250,10 +253,12 @@ TIM5_CNT → Speed[3] → motor_R1.measure (右后，取反)
 - `ScanerMode_Switch()` 切换模式时会清零 `line_data`，避免旧模式数据污染
 - Gray 模式不写入 `line_data`（`Update_line_data` 已注释），直接用 `Scaner.gray_error`
 - `Get_scaner_error()` 丢线时保持上次有效误差（`last_valid_error`），不会直行
+- `Go_Line()` 后退舵向反转（2026-06-10）：后退时传感器在车头（尾随端），`if (speed < 0) Fspeed = -Fspeed`，方向取反后正确纠偏
 
 巡线函数结构（scaner.c）:
 - `getline_error_ex()` → RF: `UpdateScanerFromRf` → `Line_Scan`（粗滤→计算→位置验证→写历史）；Gray: `UpdateScanerFromGray` → `Calculate_Error`
 - `value_calculation()` 为 switch 分发器，实际逻辑在 4 个 static 函数：`calc_left_edge`/`calc_right_edge`/`calc_liushui`/`calc_track_all`
+- 边缘循线限宽（2026-06-10）：`calc_left_edge`/`calc_right_edge` 的 break 条件新增 `|| *lednum >= 2`，找到连续亮灯段后最多取 2 个灯。防止交叉线融合点线宽增加导致位置偏移
 - `coarse_filter()` 粗滤：灯数≥10 / 线数≥4 / 无灯 / 平均每线≥4灯 → 丢弃
 - `pos_detect()` 位置连续性：新 pos 与最近正确值差 < 1.5（`POS_CLUSTER_RADIUS`）才算通过
 - 内部函数（`coarse_filter`/`pos_detect`/`Update_line_data`/`value_calculation`）均为 static，不对外暴露
@@ -281,6 +286,8 @@ BLBL      → Barrier_WavedPlate(160) // 红波动板
 BHM       → Barrier_HighMountain()  // 高山
 DOOR      → door()          // 开门
 ```
+
+**Barrier_Bridge 下坡修正（2026-06-10）**：BRIDGE_ON_BRIDGE 状态从单段 `RampCtrl_Blocking` 改为两段 + 中间 15cm 红外修正（`Chassis_CorrectByInfrared(0.09f)`），复刻上坡的红外修正模式，防止下坡偏航。
 
 ---
 
@@ -314,6 +321,8 @@ DOOR      → door()          // 开门
 - `imu.yaw -= basic_y` 归零校正
 - `imu_shared_data` 通过互斥锁保护（中断中用 FromISR 版本）
 - `getAngleZ() = get_latest_yaw() + imu.compensateZ` 返回带补偿的偏航角
+- `IMU_CalibrateZero(&basic_y, &basic_p, &basic_r)` — 新增 `roll` 参数，10 次采样平均，`basic_r` 为横滚角零偏
+- `basic_r` (extern) — 横滚角零偏值，在 `Chassis_Periodic_Update_5ms` 中用作超限保护基准
 
 ---
 
@@ -352,10 +361,12 @@ DOOR      → door()          // 开门
 | `Chassis_MoveDistance_Blocking(dist)` | 阻塞走指定距离 | chassis_api内部 |
 | `Chassis_DriveDistance_Blocking(mode,dist,speed,aim,edge)` | 临时模式行驶固定距离 | map.c |
 | `Chassis_OverrideLinePid(kp,ki,kd,max)` | 临时覆盖巡线PID | map.c |
-| `Chassis_Periodic_Update_5ms()` | 游龙防护 + 丢线保护等周期更新 | motor_task (每5ms) |
+| `Chassis_Periodic_Update_5ms()` | 游龙防护 + 丢线保护 + 横滚角超限保护等周期更新 | motor_task (每5ms) |
 | `Chassis_EnableAntiSnake()` | 激活游龙防护 | map.c |
 | `Chassis_EnableLineLostProtection()` | 开启丢线保护（一次性触发后自动禁用） | map.c |
 | `Chassis_DisableLineLostProtection()` | 关闭丢线保护并重置计数器 | map.c |
+| `Chassis_EnableRollProtection()` | 使能横滚角超限保护（imu.roll 与 basic_r 偏差 > 40° 时死停） | map.c / barrier.c |
+| `Chassis_DisableRollProtection()` | 关闭横滚角超限保护 | map.c / barrier.c |
 
 ---
 
@@ -647,3 +658,35 @@ extern uint8_t debug_test_item;  // 1=直线, 2=转180, 3=过坡
 ```
 
 优先级：`debug_test_item` > `test_flag`（外部 UART 设置的测试标志），执行后自动清零。
+
+---
+
+## 二十一、横滚角超限保护（2026-06-11）
+
+### 21.1 功能说明
+
+在 `Chassis_Periodic_Update_5ms()` 中增加安全保护：当 `imu.roll` 与零偏值 `basic_r` 的偏差超过 40° 时，立即刹车并 `while(1)` 死停，防止车身严重侧翻后继续运行。
+
+### 21.2 实现位置
+
+- 检测逻辑：`Chassis_Periodic_Update_5ms()` 函数最开头（所有模式均生效）
+- 状态变量：`ChassisState_t.roll_protect_enabled`
+- 基准值：`basic_r`（`IMU_CalibrateZero` 采集 10 次 roll 平均值）
+
+### 21.3 API
+
+| 函数 | 功能 |
+|------|------|
+| `Chassis_EnableRollProtection()` | 使能横滚角超限保护 |
+| `Chassis_DisableRollProtection()` | 关闭横滚角超限保护 |
+
+### 21.4 相关修改
+
+| 文件 | 修改内容 |
+|------|----------|
+| [imu.h](Module/imu.h) | 新增 `extern float basic_r`；`IMU_CalibrateZero` 增加 `roll_out` 参数 |
+| [imu.c](Module/imu.c) | 新增 `float basic_r = 0`，函数体增加 sum_roll 累加和 avg_roll 输出 |
+| [chassis_api.c](Application/chassis_api.c) | 新增 `roll_protect_enabled` 字段；`Chassis_Periodic_Update_5ms` 中加入超限判断；新增 `Chassis_EnableRollProtection/DisableRollProtection` |
+| [chassis_api.h](Application/chassis_api.h) | 声明 `Chassis_EnableRollProtection` 和 `Chassis_DisableRollProtection` |
+| [barrier.c](Application/barrier.c) | 调用 `IMU_CalibrateZero(&basic_y, &basic_p, &basic_r)` |
+| [main_task.c](Task/main_task.c) | 同上 |

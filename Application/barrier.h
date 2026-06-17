@@ -42,7 +42,7 @@ void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
 #define Yellow 2
 #define Red 3
 
-#define DEBUG 0
+#define DEBUG 1
 extern uint8_t treasure;
 
 /*调试：预设5个门颜色（无传感器时）*/

@@ -72,7 +72,7 @@ u8 route[100] = {B1, N1,P1, N1,B2,0XFF};  //调试时的初始路径
 
 /************************************************************    *地图路径*    **********************************************************************************************************************************************88 */
 /*D2关D3关，去D4*/
-u8 door1route[100] = {N4, N3, N8, 0XFF};
+u8 door1route[100] = {N3, N8, 0XFF};
 /*D2开 D3开*/
 u8 door2route[100] = {N12, N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8,0xFF};
 /*D2开*/
@@ -185,7 +185,7 @@ u8 getNextConnectNode(u8 nownode,u8 nextnode)
 
 
 
-/* 获取对应节点的原始转弯前的前进距离判断 */
+/* 获取对应节点的原地转弯前的前进距离判断 */
 static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 {
 	if (last == P8 && now == C9 && next == N22) return 28.0f;
@@ -211,10 +211,10 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 /* 获取对应节点的陀螺仪不停车转弯前的前进距离判断 */
 static float GetForwardDistanceBeforeGyroTurn(u8 last, u8 now, u8 next)
 {
-	if (last == B2 && now == N4 && next == N5)return 5.0f; 
+	if (last == B2 && now == N4 && next == N5)return 7.0f; 
 	if((last == B6 && now == N20 && next == C4) ||
 		(last == C4 && now == N20 && next == B6) ||
-		(last == B2 && now == N1 && next == P1)) return 9.0f;
+		(last == B2 && now == N1 && next == P1)) return 5.0f;
 	if (last == B3 && now == N2 && next == P2) return 15.0f;
 	if (last == P3 && now == N3 && next == N8) return 5.0f;
 	if (last == P8 && now == C9 && next == N22) return 3.0f;
@@ -229,6 +229,7 @@ static float GetForwardDistanceBeforeGyroTurn(u8 last, u8 now, u8 next)
 	if (last == N10 && now == N3 && next == S1) return 4.0f;
 	if (last == N15 && now == N10 && next == N8) return 5.0f;
 	if (last == C7 && now == C8 && next == C4) return 15.0f;
+	if (last == P1 && now == N1 && next == B2)return 4.0f; 
 	return 0.0f; // 默认不前进，走原逻辑未修改
 }
 
@@ -369,17 +370,20 @@ void Cross(void)
 			{	
 
 				//printf("In the first half of the path\n");
+					//巡线
+					Chassis_SetMode(is_Line);	
+					
 					//设置当前节点的目标速度
 					Chassis_SetTargetSpeed(nodesr.nowNode.speed);
-
+					
 					//检测并应用直线路径加速（特定长直线加速）
 					Check_And_Apply_SpeedUp();
 
-					//巡线
-					Chassis_SetMode(is_Line);	
+					
 					// 防游龙算法已移至底盘API
 					Chassis_EnableAntiSnake(); // 激活游龙防护标志
 					Chassis_EnableLineLostProtection();// 激活丢线保护标志
+					Chassis_EnableRollProtection(); // 激活翻滚保护标志
 
 					route_state = 2; // 标记已过半程，确保该处理只执行一次
 			}		        
@@ -457,11 +461,11 @@ void Cross(void)
 
 		// DEBUG: 打印route相关值
 		//printf("[DEBUG] map.point=%d, route[point-1]=0x%02X, route[point]=0x%02X, nowNode=%d, nextNode=%d\n",
-		//	map.point, route[map.point-1], route[map.point], nodesr.nowNode.nodenum, nodesr.nextNode.nodenum);
-
+		//	map.point, route[map.point-1], route[map.point], nodesr.nowNode.nodenum, nodesr.nextNode.nodenum);                           
 		//节点刷新衔接处理
 		if(route[map.point-1] != 0xFF)// route[map.point-1]=>nodesr.nextNode	/*判断路径终点 - 0xFF表示路径结束，只有执行完路径终点时才执行该处理*/
 		{ 
+
 			// 无需转弯，直接进入下节点
 			if ((fabsf(need2turn(getAngleZ(),nodesr.nextNode.angle))<10.0f) ||//当前角度与目标角度差小于10度
 				(fabsf(need2turn(nodesr.nowNode.angle,nodesr.nextNode.angle))<10.0f)//角度差小于10度 
@@ -555,20 +559,24 @@ void Cross(void)
 	
 	/*看到红灯*/
 	if(nodesr.flag&0x20)
-	{		
-		// 切换节点关系，进入下一个平台节点
-		nodesr.lastNode = nodesr.nowNode;
-		nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point++])];  // 获取新的下一个节点	
-
+	{
+		 // 获取新的下一个节点（带0xFF保护，防止空读越界）
+		if (route[map.point] != 0xFF) {
+			nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point])];
+		}
+		map.point++;
 		nodesr.flag&=~0x20;  // 清除旋转平台标志
 	}
 
 	/*看到非红灯*/
 	if(nodesr.flag&0x80)  // 检测到标志
 	{		
-		// 获取新的下一个节点
-		nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point++])];	//疑问：为什么这里不更新lastNode和nowNode？
-
+		// 获取新的下一个节点（带0xFF保护，防止空读越界）
+		if (route[map.point] != 0xFF){
+			nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point])];
+		}
+			//疑问：为什么这里不更新lastNode和nowNode？（原来是Door内部更新）
+		map.point++ ;
 		nodesr.flag&=~0x80;  // 清除标志
 	}
 }

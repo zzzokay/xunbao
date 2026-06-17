@@ -112,6 +112,16 @@ void Chassis_EnableLineLostProtection(void);
 void Chassis_DisableLineLostProtection(void);
 
 /**
+ * @brief 使能横滚角超限保护（imu.roll 与 basic_r 偏差 > 40° 时死停）
+ */
+void Chassis_EnableRollProtection(void);
+
+/**
+ * @brief 关闭横滚角超限保护
+ */
+void Chassis_DisableRollProtection(void);
+
+/**
  * @brief 刹车制动
  */
 void Chassis_Brake(void);
@@ -187,8 +197,10 @@ void Chassis_SetEdgeIgnore(uint8_t num);
  * @brief 红外+扫描仪陀螺仪角度修正
  * 检测到单侧红外或扫描仪偏移时，调整陀螺仪目标角度
  * @param correct_angle 修正角度（度）
+ * @param multiplier 左偏修正倍率（左修正 = correct_angle * multiplier）
+ * @param K 右偏修正倍率（右修正 = correct_angle * K / correct_angle * multiplier * K）
  */
-void Chassis_CorrectByInfrared(float correct_angle);
+void Chassis_CorrectByInfrared(float correct_angle, float multiplier, float K);
 /* ===================== 提供给 motor_task.c 的底层刷新接口 ===================== */
 
 /**

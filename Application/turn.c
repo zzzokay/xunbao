@@ -58,7 +58,7 @@ float getAngleZ(void)
 }
 
 /*原地转（内部基函数，right_ratio 控制左右电机速比，平台转弯用 1.3 补偿阻力）*/
-static uint8_t Turn_Angle_Base(float Angle, float right_ratio)
+static uint8_t Turn_Angle_Base(float Angle, float right_ratio, uint8_t force_right)
 {
 	static uint8_t inited = 0;
 	float GTspeed;
@@ -69,9 +69,13 @@ static uint8_t Turn_Angle_Base(float Angle, float right_ratio)
 	else if (Angle < -180)
 		Angle += 360;
 
+	gyroT_pid.target = 0;
 	now_angle = getAngleZ();
 	gyroT_pid.measure = need2turn(now_angle, Angle);
-	gyroT_pid.target = 0;
+	// 强制右转：如果最短路径是左转，绕 360° 走右转（正的向右负的向左）
+	if (force_right && gyroT_pid.measure > 0)
+		gyroT_pid.measure -= 360.0f;
+	
 
 	if (fabsf(gyroT_pid.measure) < 1.0f)
 	{
@@ -101,10 +105,14 @@ static uint8_t Turn_Angle_Base(float Angle, float right_ratio)
 	return 0;
 }
 
-/*平台转（右电机 x1.3 补偿平台阻力）*/
+/*平台转（右电机 x1.3 补偿内侧轮阻力；仅大角度≈180°强制右转）*/
 uint8_t Stage_turn_Angle(float Angle)
 {
-	return Turn_Angle_Base(Angle, 1.3f);
+	float now = getAngleZ();
+	float diff = need2turn(now, Angle);
+	// 仅平台 180° 掉头强制右转，小角度修正不强制方向
+	uint8_t force = (fabsf(diff) > 150.0f) ? 1 : 0;
+	return Turn_Angle_Base(Angle, 1.2f, force);
 }
 
 
@@ -132,7 +140,7 @@ void Turn_Angle_Relative(float Angle1) // 左180到右-180,速度必须是正的
 /*陀螺仪原地转（左右对称）*/
 uint8_t Turn_Angle(float Angle)
 {
-	return Turn_Angle_Base(Angle, 1.0f);
+	return Turn_Angle_Base(Angle, 1.0f, 0);
 }
 
 

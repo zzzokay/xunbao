@@ -35,6 +35,9 @@ typedef struct {
     // 丢线保护
     int16_t             line_lost_count;      // 连续丢线计数（每5ms +1）
     uint8_t             line_lost_enabled;    // 1=使能，0=关闭
+
+    // 横滚角超限保护
+    uint8_t             roll_protect_enabled; // 1=使能，0=关闭
 } ChassisState_t;
 
 static ChassisState_t chassis = {0};
@@ -52,8 +55,9 @@ void Chassis_Init(void)
     chassis.anti_snake_flag = 0;
     chassis.line_lost_count = 0;
     chassis.line_lost_enabled = 0;
+    chassis.roll_protect_enabled = 0;
 
-    motor_all.Lspeed = 0;   
+    motor_all.Lspeed = 0;
 	motor_all.Rspeed = 0;
     motor_all.Cspeed = 0;
   
@@ -62,10 +66,10 @@ void Chassis_Init(void)
 	motor_all.GyroG_speedMax = 100;	// 自平衡左右偏差最大值10000
 	motor_all.GyroT_speedMax = 25;  	// 自转最大速度34//--->5760 //35
 	motor_all.Line_speedMax = 50;		// 巡线差速最大值
-	motor_all.Cincrement = 0.5;	   	// 循迹加速度 0.5
-	motor_all.CDOWNincrement = 0.5;	//循迹减速0.5
-    motor_all.Gincrement = 0.5;	   	// 非循迹加速度0.5
-    motor_all.GDOWNincrement=0.5;	// 非循迹减速0.5
+	motor_all.Cincrement = 0.7;	   	// 循迹加速度 0.5
+	motor_all.CDOWNincrement = 0.7;	//循迹减速0.5
+    motor_all.Gincrement = 0.7;	   	// 陀螺仪加速度0.5
+    motor_all.GDOWNincrement=0.7;	// 陀螺仪减速度0.5
 
 
     TC_speed = 0;
@@ -242,12 +246,23 @@ void Chassis_DisableLineLostProtection(void)
     chassis.line_lost_count = 0;
 }
 
+void Chassis_EnableRollProtection(void)
+{
+    chassis.roll_protect_enabled = 1;
+}
+
+void Chassis_DisableRollProtection(void)
+{
+    chassis.roll_protect_enabled = 0;
+}
+
 void Chassis_Brake(void)//更安全的急刹
 {
-    motor_all.CDOWNincrement = 1.0; // 增加减速加速度，快速降速
+    float original_CDOWNincrement = motor_all.CDOWNincrement;
+    motor_all.CDOWNincrement = 2.0; // 增加减速加速度，快速降速
 	Chassis_SetTargetSpeed(0);
-	vTaskDelay(400);
-    motor_all.CDOWNincrement = 0.5f;
+	vTaskDelay(200);
+    motor_all.CDOWNincrement = original_CDOWNincrement;
     CarBrake(); // 调用原有的底层急刹
 }
 
@@ -474,7 +489,7 @@ void Chassis_SetEdgeIgnore(uint8_t num)
 /* -------------------------- 提供给 Motor_Task 刷新的 ---------------------- */
 /* ========================================================================= */
 
-#define LINE_LOST_THRESHOLD  200   // 200 * 5ms = 1秒
+#define LINE_LOST_THRESHOLD  80   // 80 * 5ms = 0.4秒
 
 static uint8_t is_line_completely_lost(void)
 {
@@ -489,9 +504,19 @@ static uint8_t is_line_completely_lost(void)
 // 在 motor_task.c 的 while(1) 中调用：Chassis_Periodic_Update_5ms();
 void Chassis_Periodic_Update_5ms(void)
 {
+    /* ========= 横滚角超限保护 ========= */
+    // 如果车身倾斜过大（imu.roll 与标定值 basic_r 相差 > 40°），直接死停
+    if (chassis.roll_protect_enabled && fabsf(imu.roll - basic_r) > 40.0f)
+    {
+        CarBrake();
+        send_play_specified_command(7);
+        printf("ROLL OVER! roll=%.1f basic_r=%.1f, emergency stop!\n", imu.roll, basic_r);
+        while (1);
+    }
+
     /* ========= 游龙防抖自适应 PID 算法 ========= */
     // 将原 map.c 的游龙检测剥离进真正的电机循环反馈，5ms 检测一次，真正发挥自适应作用
-    
+
     if (PIDMode == is_Line)
     {
         // 由于 5ms 循环非常紧凑，不要在这里调用可能会阻塞的 Cross_getline(&Cross_Scaner) 等指令
@@ -539,7 +564,9 @@ void Chassis_Periodic_Update_5ms(void)
                 {
                     chassis.line_lost_count = 0;
                     chassis.line_lost_enabled = 0;  // 一次性触发
+                    
                     CarBrake(); // 紧急刹车
+                    send_play_specified_command(7);
                     printf("Line lost! Emergency brake activated.\n");
                     while(1){};
                     return;
@@ -682,11 +709,15 @@ void CarBrake_Stop(void)
 }
 
 /*红外+扫描仪陀螺仪角度修正*/
-void Chassis_CorrectByInfrared(float correct_angle)
+void Chassis_CorrectByInfrared(float correct_angle, float multiplier, float K)
 {
     get_Infrared();
-	if ((infrared.head_left == 0 && infrared.head_right == 1) || (Scaner.detail & 0X00FF))
+	if ((infrared.head_left == 0 && infrared.head_right == 1) )
 		angle.AngleG += correct_angle;
-	else if ((infrared.head_left == 1 && infrared.head_right == 0) || (Scaner.detail & 0XFF00))
-		angle.AngleG -= correct_angle*1.4;
+    else if ((Scaner.detail & 0X00FF))
+        angle.AngleG += correct_angle * multiplier;
+    else if ((infrared.head_left == 1 && infrared.head_right == 0) )
+        angle.AngleG -= correct_angle*K;
+	else if ((Scaner.detail & 0XFF00))
+		angle.AngleG -= correct_angle * multiplier*K;
 }
