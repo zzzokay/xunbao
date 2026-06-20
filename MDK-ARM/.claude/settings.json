@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ' *)",
+      "Bash(python3)",
+      "Bash(sed -i '1179,1358{ *)",
+      "Bash(rm __new_sp.c)",
+      "Bash(git checkout *)"
+    ]
+  }
+}

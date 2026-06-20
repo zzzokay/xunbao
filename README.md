@@ -115,6 +115,20 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
 46. **chassis_api.c/h** — 新增 `Chassis_EnableRollProtection()` / `Chassis_DisableRollProtection()`，与丢线保护 API 风格一致
 47. **barrier.c / main_task.c** — `IMU_CalibrateZero` 调用更新为 `(&basic_y, &basic_p, &basic_r)`
 
+**2026-06-18 — update_route_by_QR 重构**
+
+48. **barrier.c** — 新增 `load_route_at(offset, src)` 辅助函数 + `is_green_or_yellow()`，将 `update_route_by_QR()` 中 8 段重复的 route 拷贝循环简化为 `if/else if` 分支 + 两行调用。原函数从 ~100 行缩至 ~30 行
+
+**2026-06-18 — P7/P8 枚举名称交换**
+
+49. **map.h** — 交换 `enum MapNode` 中 P7(原42) 与 P8(原49) 的名称，使名称与物理位置一致（C9→P7, C7/N14→P8）。仅交换枚举名，编译时自动修正所有 route 数组和条件判断中的引用
+50. **map_message.c** — 同步更新节点表注释标签（`/*P7*/`↔`/*P8*/`）
+51. **barrier.h / barrier.c** — 更新 `flag_clue_stage_B` 注释标注交换历史
+
+**2026-06-18 — Barrier_Bridge 桥面连续修正重构**
+
+52. **barrier.c** — 合并 BRIDGE_CORRECT + BRIDGE_ACCELERATE 为 BRIDGE_ON_BRIDGE_TOP 三级连续循环：巡线板最外侧紧急硬跳修正 ±5°(第1层) → 红外增量修正(第2层) → 居中连续计数达标后加速到 SPEED2(第3层)。改用 `Chassis_SetTargetSpeed()` 调速（不覆盖 `angle.AngleG`），去掉硬编码角度融合。75mm 最大里程保险兜底。
+
 **2026-06-09 — 无传感器调试模式**
 
 38. **barrier.c/h** — `Door_ReadColor()` 新增 `#if DEBUG` 分支，通过 `debug_door_color_right/left` 全局变量模拟门颜色传感器，无需硬件即可调试 door() 状态机

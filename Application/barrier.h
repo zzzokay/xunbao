@@ -16,7 +16,8 @@ typedef enum { RAMP_ASCEND, RAMP_DESCEND } RampDir_t;
 void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
                        float thresh1, float speed1,
                        float thresh2, float speed2,
-                       float done_thresh, float GrayCorrectAngle);
+                       float done_thresh, float GrayCorrectAngle,
+                       float max_correction);
 
 #define Old_M_Speed         6                //老爷爷
 #define QQB_Out_Speed       8                //出跷跷板
@@ -59,7 +60,7 @@ extern uint8_t WavePlateRight_Flag;
 extern uint16_t QR_code;
 extern uint8_t flag_line_clue;     // QR百位：0=跳过P3/P4，3=P3，4=P4
 extern uint8_t flag_clue_stage_A;  // QR十位：5=P5（原P6），6=P6（原P5）
-extern uint8_t flag_clue_stage_B;  // QR个位：7=P7，8=P8
+extern uint8_t flag_clue_stage_B;  // QR个位：7=P7（原P8），8=P8（原P7）
 extern uint8_t flag_clue_A;        // P5/P6 线索数字
 extern uint8_t flag_clue_B;        // P7/P8 线索数字
 extern uint8_t get_cude;

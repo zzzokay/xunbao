@@ -525,7 +525,7 @@ void Chassis_Periodic_Update_5ms(void)
         {
             // motor_all.Cspeed 减半已放到高速上设置，在底层此处：如果发现大偏移加计时
             // 通过 Scaner.detail 直接检测偏离特征
-            if(Scaner.detail & 0xFC3F) // 偏移过大 (使用 Scaner.detail 避免重复获取耗时)
+            if(fabsf(Scaner.error) > 1.5f) // 偏移过大 (使用 Scaner.detail 避免重复获取耗时)
             {
                 chassis.anti_snake_err_count++; 
             }
@@ -550,7 +550,7 @@ void Chassis_Periodic_Update_5ms(void)
         if (chassis.anti_snake_err_count)
         {
             motor_all.Cspeed = chassis.target_speed / 2; // 直接减半速度，增强稳定
-            Chassis_OverrideLinePid(12.0f, 0.0f, 200.0f, motor_all.Cspeed); // 直接覆盖当前速度限制，确保稳定性
+            Chassis_OverrideLinePid(15.0f, 0.0f, 200.0f, motor_all.Cspeed); // 直接覆盖当前速度限制，确保稳定性
 
         }
 
@@ -712,12 +712,13 @@ void CarBrake_Stop(void)
 void Chassis_CorrectByInfrared(float correct_angle, float multiplier, float K)
 {
     get_Infrared();
+	Cross_getline(&Cross_Scaner);	// 陀螺仪模式下 Scaner 不更新，主动拍快照
 	if ((infrared.head_left == 0 && infrared.head_right == 1) )
 		angle.AngleG += correct_angle;
-    else if ((Scaner.detail & 0X00FF))
+    else if ((Cross_Scaner.detail & 0X00FF))
         angle.AngleG += correct_angle * multiplier;
     else if ((infrared.head_left == 1 && infrared.head_right == 0) )
         angle.AngleG -= correct_angle*K;
-	else if ((Scaner.detail & 0XFF00))
+	else if ((Cross_Scaner.detail & 0XFF00))
 		angle.AngleG -= correct_angle * multiplier*K;
 }

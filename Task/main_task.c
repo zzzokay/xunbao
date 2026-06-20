@@ -27,7 +27,7 @@
 /*===== 独立调试开关（与 barrier.h 的 DEBUG 无关）=====*/
 #define MAIN_DEBUG 0
 
-uint8_t test_flag = 4;
+uint8_t test_flag = 5;
 float temp_speed=25;
 
 #if MAIN_DEBUG
@@ -93,7 +93,11 @@ void main_task(void *pvParameters)
 			// float correct_angle = Gray_GetCorrectAngle(1);
 			// printf(" %.2f\n", correct_angle);
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
-				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.09);
+				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.09,10);
+		}
+		if(test_flag == 5)
+		{
+			get_Infrared();
 		}
 	
 		/*调试模式下不执行 Cross()，避免无传感器跑飞*/

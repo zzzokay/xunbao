@@ -289,6 +289,14 @@ DOOR      → door()          // 开门
 
 **Barrier_Bridge 下坡修正（2026-06-10）**：BRIDGE_ON_BRIDGE 状态从单段 `RampCtrl_Blocking` 改为两段 + 中间 15cm 红外修正（`Chassis_CorrectByInfrared(0.09f)`），复刻上坡的红外修正模式，防止下坡偏航。
 
+**桥面红外修正原理**：车最外侧装有两个独立于循迹板的红外传感器，分别指向左右——桥面两侧各有一条红线。车完全居中时两个红外均无信号；偏左 → 左侧扫到红线 → 微量向右修正目标角度；偏右 → 右侧扫到红线 → 微量向左修正。每次修正确认有信号才执行（`infrared.head_left == 1 || infrared.head_right == 1`），系数 0.04~0.07，通过反复微调归中。
+
+**Barrier_Bridge 桥面连续修正重构（2026-06-18）**：合并 BRIDGE_CORRECT + BRIDGE_ACCELERATE 为单一状态 BRIDGE_ON_BRIDGE_TOP，三级连续循环——
+  - **第1层（紧急）**：巡线板最外侧（`Scaner.detail & 0xF800` / `0x007F`）扫到红线 → 硬跳角度修正 ±5° + 降速到 `UpDownStage_Speed_low`
+  - **第2层（正常）**：红外扫到红线 → `Chassis_CorrectByInfrared(0.04f, 2.0f, 1.4f)` 增量修正，中速 SPEED1
+  - **第3层（居中）**：两个红外均无信号持续 `BRIDGE_CENTERED_THRESHOLD`（10次 ≈ 20-100ms）次后加速到 SPEED2
+  改用 `Chassis_SetTargetSpeed()` 调速（不覆盖 `angle.AngleG`），去掉硬编码 `Tar_angle = getAngleZ()*0.8f + origin_angle*0.2f`。75mm 最大里程保险兜底。
+
 ---
 
 ## 九、Cross() 流程 ([map.c:318-556](Application/map.c#L318-L556))
@@ -562,6 +570,21 @@ Flash 使用 66,648 字节超出 65,536 字节限制（STM32F750V8 仅 64KB Flas
 - `update_rout_by_treasure_7` 和 `update_rout_by_treasure_8` 各有 25 处完全相同的 for 循环复制代码
 - 提取 `static void copy_route(const u8* src)` 函数，每个 case 从 ~40 字节降至 ~10 字节
 - 使用 `const u8 r[]` 确保路由数据存放在 ROM（Flash），不额外占 RAM
+
+**map.h — P7/P8 枚举名称交换（2026-06-18）**
+
+- 交换  中 (原42) 与 (原49) 的名称，使名称与物理位置一致
+- C9 后连的是 P7（修正前代码中 C9 → P8），C7/N14 旁边是 P8（修正前 P7 → N20）
+- 仅交换枚举名，不修改任何数值或逻辑代码，编译时自动修正所有引用
+- 同步更新  节点表注释标签和  注释
+- 附带修正 pre-existing 注释错误：S3(39→29)、N16(49→39)、P8(59→49)
+
+**barrier.c — 新增 load_route_at 与 update_route_by_QR 重构（2026-06-18）**
+
+- 新增 `static void load_route_at(uint8_t offset, const u8* src)`，从 `route[offset]` 开始拷贝（与 `copy_route` 的区别：不叠加 `map.point`）
+- 新增 `static uint8_t is_green_or_yellow(uint8_t c)`，消除 `color_flag[i]==Green||color_flag[i]==Yellow` 的重复书写
+- `update_route_by_QR()` 从 4 组 × 2 条 = 8 段重复 for 循环 + if 条件，简化为 `if/else if` 分支 + `load_route_at` 调用
+- 原函数 ~100 行 → ~30 行，逻辑等价（D2 绿/黄优先级高于 D3/D4 绿/黄）
 
 **Rec_usart.c — 替换 sscanf（省 ~1.6KB）**
 

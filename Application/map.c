@@ -417,7 +417,8 @@ void Cross(void)
 
 					//大角度
 					else  {Chassis_SetTargetSpeed(Gyro_Speed);}//25低速转弯速度
-					
+
+
 					//特殊速度选择
 					if(nodesr.lastNode.nodenum == C7 && nodesr.nowNode.nodenum == N14 && nodesr.nextNode.nodenum == C3)   
 					{Chassis_SetTargetSpeed(SPEED1);}	
