@@ -99,7 +99,7 @@ u8 door12route[100] = {N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B
 
 	
 /*平台5到平台7*/
-u8 rout_57[50] = {N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9, 0XFF};
+u8 rout_57[50] = {N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9, 0XFF};
 /*平台5到平台8*/
 u8 rout_58[50] = {N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,B6,N20,P7,N20,0XFF};
 /*平台6到平台8*/
@@ -205,6 +205,7 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 	if (now == N20 && next == P7) return 30.0f;
 	if (last == N10 && now == N9 && next == B9) return 40.0f;
 	if (last == B8 && now == N9 && next == N10) return 25.0f;
+	if (last == N5 && now == N8 && next == N12) return 10.0f;
 	return 20.0f;
 }
 
@@ -321,14 +322,6 @@ void Cross(void)
 	static uint8_t route_state = 0;           //是否过半程
 	static uint8_t is_near_end = 0;          //是否接近终点超过70%   默认为0表示没超过70%
 
-	/*坐标计算处理 - 路径开始时的初始化*/
-	 /***************执行简单路径，调试时使用******************/
-	if(map.point == 0)
-	{	   	
-		if (isAllRoute == 0) 
-			Chassis_SetTargetSpeed(nodesr.nowNode.speed); // 设定初始速度	
-	}
-  	/**********************************************************/
 
 	/*前半段 - 执行巡线*/
 	if(is_near_end == 0)
@@ -382,8 +375,8 @@ void Cross(void)
 					
 					// 防游龙算法已移至底盘API
 					Chassis_EnableAntiSnake(); // 激活游龙防护标志
-					Chassis_EnableLineLostProtection();// 激活丢线保护标志
-					Chassis_EnableRollProtection(); // 激活翻滚保护标志
+					// Chassis_EnableLineLostProtection();// 激活丢线保护标志
+					// Chassis_EnableRollProtection(); // 激活翻滚保护标志
 
 					route_state = 2; // 标记已过半程，确保该处理只执行一次
 			}		        

@@ -25,15 +25,16 @@
 #include "gray.h"
 
 /*===== 独立调试开关（与 barrier.h 的 DEBUG 无关）=====*/
-#define MAIN_DEBUG 0
+#define MAIN_DEBUG 1
 
-uint8_t test_flag = 5;
+
+uint8_t test_flag = 3;
 float temp_speed=25;
-
 #if MAIN_DEBUG
 /*调试控制：赋值来选择测试项目（1=直线, 2=转180, 3=过坡）*/
-uint8_t debug_test_item = 0;
-#endif
+uint8_t debug_test_item = 0; 
+
+#endif                          
 
 /*主任务*/
 void main_task(void *pvParameters)
@@ -54,7 +55,7 @@ void main_task(void *pvParameters)
 	/*等待移除挡板*/
 	while(Infrared_ahead == 1)
 		vTaskDelay(5);
-	ScanerMode_Switch(Gray);
+	//ScanerMode_Switch(Gray);
 #else
 	/*正常模式：完整初始化流程*/
 	mapInit();
@@ -84,7 +85,9 @@ void main_task(void *pvParameters)
 		}
 		if (test_flag == 3)
 		{
-			Barrier_Hill();
+			//Barrier_Hill();
+			Sword_Mountain();
+			CarBrake();
 			test_flag = 0;
 		}
 		if(test_flag == 4)
@@ -99,7 +102,11 @@ void main_task(void *pvParameters)
 		{
 			get_Infrared();
 		}
-	
+		if(test_flag == 6)//灰度测试
+		{
+			Gray_GetLine();
+				// Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+90, getAngleZ());
+		}
 		/*调试模式下不执行 Cross()，避免无传感器跑飞*/
 #else
 		/*========== 正常运行模式 ==========*/

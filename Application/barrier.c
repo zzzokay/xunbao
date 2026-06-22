@@ -52,7 +52,7 @@ uint8_t isStage = 0;
 // 值: Green=1, Yellow=2, Red=3, 0=未设置(会超时)
 
 #endif      
-uint8_t debug_door_colors[5] = {Red, Red, Green, Green, Yellow};  // D2、D3、D4、D5、D1
+uint8_t debug_door_colors[5] = {Red, Green, Green, Green, Yellow};  // D2、D3、D4、D5、D1
 
 /*===== 导航标志位（无摄像头时手动预设）=====*/
 // QR 码三位数：百位→flag_line_clue，十位→flag_clue_stage_A，个位→flag_clue_stage_B
@@ -533,7 +533,7 @@ void Barrier_Bridge(void)
 		case BRIDGE_ON_BRIDGE:
 
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, getAngleZ(),
-				Begin_down, UpDownStage_Speed_low, down_pitch+5, SPEED0, down_pitch-20,0, 10.0f);//下坡下一半
+				Begin_down, UpDownStage_Speed_low, down_pitch+5, SPEED0, down_pitch-20,0, 0);//下坡下一半
 
 			//加一点修正
 			Chassis_ClearMileage();
@@ -546,7 +546,7 @@ void Barrier_Bridge(void)
 
 			//下坡结束检测
 			RampCtrl_Blocking(RAMP_DESCEND, SPEED0, getAngleZ(),
-				0, SPEED0, 0, SPEED0, After_down,0, 10.0f);
+				0, SPEED0, 0, SPEED0, After_down,0, 0);
 
 			Chassis_MotorControl(is_Line, SPEED1, SPEED1, 0);
 			nodesr.nowNode.function = 0;
@@ -597,7 +597,7 @@ void Barrier_Hill(void)
 
 		case HILL_ASCEND:
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, origin_angle,
-				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.1, 10.0f);
+				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.1, 15.0f);
 	
 				printf("Hill ascend complete, preparing to descend\n");
 			state = HILL_DESCEND;
@@ -605,7 +605,7 @@ void Barrier_Hill(void)
 
 		case HILL_DESCEND:
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
-				basic_p, UpDownStage_Speed_low, basic_p-8, UpDownStage_Speed_low, basic_p-5, 0.10, 10.0f);
+				basic_p, UpDownStage_Speed_low, basic_p-8, UpDownStage_Speed_low, basic_p-5, 0.1, 15.0f);
 
 				printf("Hill descend complete\n");   
 			state = HILL_DONE;
@@ -623,90 +623,120 @@ void Barrier_Hill(void)
 	nodesr.flag |= 0x04;		 	// 到达路口
 }
 
-/*刀山*/
+/* 刀山专属定中修正：检测左/右起第3、4个传感器触碰红线 */
+static void Sword_CorrectByScanner(float correct_angle)
+{
+	Cross_getline(&Cross_Scaner);
+
+	// 偏右 → 向左修
+	if (Cross_Scaner.detail & 0x00F0)
+		angle.AngleG += correct_angle;
+	// 偏左 → 向右修
+	else if (Cross_Scaner.detail & 0x0F00)
+		angle.AngleG -= correct_angle;
+}
+
+/*刀山 — */
 void Sword_Mountain(void)
 {
-	float num;
-	uint8_t getZ = 0;
-	struct PID_param origin_param = line_pid_param;
-	struct PID_param origin_param1 = gyroG_pid_param;
-	uint32_t add_time = 0 ;
-	float get_angle = 0;
-	float sum_angle = 0;
-	motor_all.Cspeed = Gyro_Speed - 10;
-	line_pid_param.kp = 35;//10
-	line_pid_param.ki = 0.004;
-	line_pid_param.kd = 300;//85
-	
-	Chassis_ClearMileage();
-//	Want2Go(10);
-	
-	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle);
-	
-	scaner_set.EdgeIgnore = 5;//试试看能不能忽略红线
+	enum {
+		SM_APPROACH,	// 0. 低速巡线接近，定中录角
+		SM_CLIMB_UP,	// 1. 上坡（陀螺仪 + 循迹板修正）
+		SM_ON_TOP,		// 2. 平台行驶（陀螺仪 + 循迹板修正）
+		SM_DESCEND,		// 3. 下坡（陀螺仪 + 循迹板修正）
+		SM_DONE
+	} state = SM_APPROACH;
 
-				Cross_getline(&Cross_Scaner);
-	buzzer_on();
-	while (Cross_Scaner.ledNum <= 3)
+	float recorded_angle = 0;
+	uint8_t angle_recorded = 0,is_up = 0;
+	uint16_t approach_timeout = 0;
+
+	/* 初始：低速强巡线，忽略两侧红线 */
+	Chassis_OverrideLinePid(25.0f,0, 200.0f, Gyro_Speed);
+	Chassis_MotorControl(is_Line, 15, 15, 0);
+	vTaskDelay(10);
+	//buzzer_on();
+
+	while (state != SM_DONE)
 	{
-				Cross_getline(&Cross_Scaner);
-		if((Cross_Scaner.detail & 0X180) == 0X180)
+		switch (state)
 		{
-			//mpuZreset(imu.yaw, nodesr.nowNode.angle);		
-		/*****************改*****************/
-			//再进行一次确认
-			vTaskDelay(2);
-				Cross_getline(&Cross_Scaner);
-			if((Cross_Scaner.detail & 0X180) == 0X180)
+		case SM_APPROACH:
+		{
+			// 连续 50 次中心传感器确认 → 记录角度
+			if (!angle_recorded)
 			{
-				angle.AngleG = getAngleZ();
-				buzzer_off();
-				getZ = 1;
-
+				if(GyroStableReset(100, &recorded_angle))
+				{
+					angle_recorded = 1;
+					//buzzer_off();
+				}
 			}
-		/*****************改*****************/			
-//			angle.AngleG = getAngleZ();
-//			getZ = 1;
+
+			// 检测到刀山
+			Cross_getline(&Cross_Scaner);
+			if (Cross_Scaner.ledNum > 3)
+			{
+				if (!angle_recorded)
+					recorded_angle = getAngleZ();
+
+				Chassis_MotorControl(is_Gyro, Gyro_Speed , Gyro_Speed , recorded_angle);
+				Chassis_ClearMileage();
+				state = SM_CLIMB_UP;
+				break;
+			}
+			break;
+		}
+
+		case SM_CLIMB_UP:
+			// pitch 回落 or 超时 → 到顶
+			if (imu.pitch >= After_up)
+			{
+				is_up = 1;
+			}
+			if (is_up && imu.pitch < After_up )
+			{
+				state = SM_ON_TOP;
+			}
+			break;
+
+		case SM_ON_TOP:
+			if(fabsf(Chassis_GetMileage()) < 30.0f ){
+				Sword_CorrectByScanner(0.03f);
+			}
+			else if(fabsf(Chassis_GetMileage()) >= 30.0f&&fabsf(Chassis_GetMileage()) < 45.0f)
+			{
+				//Chassis_MotorControl(is_No, Gyro_Speed, Gyro_Speed, 0);
+			}
+			else
+			{
+				Chassis_MotorControl(is_Gyro, Gyro_Speed , Gyro_Speed , recorded_angle);
+			}
+			// 平台走完 or pitch 变负（开始下坡）
+			if (fabsf(Chassis_GetMileage()) > 70.0f || imu.pitch < After_down)
+			{
+				state = SM_DESCEND;
+			}
+			break;
+
+		case SM_DESCEND:
+
+			// pitch 回升 or 超时 → 到底
+			if (fabsf(Chassis_GetMileage()) > 70.0f ||imu.pitch >= After_down)
+			{
+				state = SM_DONE;
+			}
+			
+			break;		
 		}
 		vTaskDelay(2);
 	}
-	
-//	for(add_time;add_time<5;add_time++)
-//	{
-//		get_angle = getAngleZ();
-//		sum_angle += get_angle;
-//	}
-//	angle.AngleG = sum_angle/5;
-	
-	if(getZ == 0)
-		angle.AngleG = nodesr.nowNode.angle;
-	
-//	buzzer_on();
-	motor_all.Gspeed = Gyro_Speed - 3;
-	pid_mode_switch(is_Gyro);
-	num = motor_all.Distance;
-	while (imu.pitch < After_up) 		// 出循环上刀山
-	{
-		vTaskDelay(2);
-		if (fabsf(motor_all.Distance - num) > 30)
-			break;
-	}
-	scaner_set.EdgeIgnore = 0;//修改回原来忽略的灯
-	
-	Chassis_ClearMileage();
-	num = motor_all.Distance;
-	while (imu.pitch > After_down+2) 	// 出循环下刀山
-	{
-		vTaskDelay(2);
-		if (fabsf(motor_all.Distance - num) > 80)
-			break;
-	}
 
-//	buzzer_off();
-	line_pid_param = origin_param;
-	gyroG_pid_param = origin_param1;
-	nodesr.nowNode.function = 0; 		// 清除障碍标志
-	nodesr.flag |= 0x04;		 		// 到达路口
+	/* 收尾 */
+	Chassis_RestoreLinePid();
+	Chassis_MotorControl(is_Line, SPEED1, SPEED1, 0);
+	nodesr.nowNode.function = 0;
+	nodesr.flag |= 0x04;
 }
 
 /*上珠峰 - 已接下珠峰*/
@@ -1186,7 +1216,7 @@ void Barrier_WavedPlate(float lenght)
 
 /*南极*/
 void South_Pole(void)
-{
+{	
 	enum {
 		SP_APPROACH,   // 巡线接近，检测坡底
 		SP_ASCEND,     // RampCtrl_Blocking 上坡 + 灰度修正
@@ -1196,7 +1226,6 @@ void South_Pole(void)
 	} state = SP_APPROACH;
 
 	float origin_angle = 0.0f;
-	float origin_turnM = motor_all.GyroT_speedMax;
 	uint8_t sub_stage = 0;
 
 	Chassis_OverrideGyroPid(4, 0, 70, 50);
@@ -1216,8 +1245,8 @@ void South_Pole(void)
 			break;
 
 		case SP_ASCEND:
-			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, origin_angle,
-				Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.05f, 10.0f);
+			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_high, origin_angle,
+				Begin_up, UpDownStage_Speed_high, up_pitch, UpDownStage_Speed_low, After_up, 0.05f, 10.0f);
 			state = SP_IMPACT;
 			break;
 
@@ -1247,7 +1276,7 @@ void South_Pole(void)
 
 		case SP_DESCEND:
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, getAngleZ(),
-				Begin_down, UpDownStage_Speed_low, down_pitch, UpDownStage_Speed_high, After_down, 0.05f, 10.0f);
+				Begin_down, UpDownStage_Speed_low, down_pitch, UpDownStage_Speed_high, After_down, 0.04f, 10.0f);
 			Chassis_MotorControl(is_Line, SPEED1, SPEED1, 0);
 			state = SP_DONE;
 			break;
@@ -1260,7 +1289,6 @@ void South_Pole(void)
 	}
 
 	Chassis_RestoreGyroPid();
-	motor_all.GyroT_speedMax = origin_turnM;
 	nodesr.nowNode.function = 0;
 	nodesr.flag |= 0x04;
 }
@@ -1774,7 +1802,7 @@ void door()
 			nodesr.nowNode = Node[getNextConnectNode(N5, N12)];
 			nodesr.nowNode.step = 60;
 			nodesr.nowNode.speed = SPEED2;
-			//nodesr.nowNode.function = NONE;//D2绿灯(下半段直接走别卡这了)
+			
 			update_route_by_QR();
 
 
@@ -1792,8 +1820,8 @@ void door()
 			nodesr.nowNode.flag = DLEFT | DRIGHT | CRIGHT | LEFT_LINE;
 			nodesr.nowNode.step = 60;
 			nodesr.nowNode.speed = SPEED2;
-			//nodesr.nowNode.function = NONE;//D2黄灯(下半段直接走别卡这了)
-			//update_route_by_QR();
+			
+			update_route_by_QR();
 
 
 			nodesr.flag |= 0x80;
@@ -1834,12 +1862,12 @@ void door()
 			Node[getNextConnectNode(N5, N8)].step = 120;
 
 			nodesr.nowNode = Node[getNextConnectNode(N5, N8)];
-			nodesr.nowNode.step = 60;
+			nodesr.nowNode.step = 40;
 			nodesr.nowNode.speed = SPEED2;
 			//nodesr.nowNode.function = NONE;//D3绿灯(下半段直接走别卡这了)
 			
 
-			//update_route_by_QR();
+			update_route_by_QR();
 
 			if (color_flag[1] == Green)
 			{

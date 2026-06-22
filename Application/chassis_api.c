@@ -79,6 +79,8 @@ void Chassis_Init(void)
     MOTOR_PWM_MAX = 5000;
     
 	ScanerMode_Switch(RF);
+    //Chassis_EnableLineLostProtection();// 激活丢线保护标志
+	Chassis_EnableRollProtection(); // 激活翻滚保护标志
     motor_init();
     pid_init();
 }
@@ -459,7 +461,7 @@ void Chassis_Turn360_Blocking(void)
 void Chassis_Turn_By_Gyro_Blocking(float target_angle, float current_angle)
 {
    
-    Chassis_OverrideGyroPid(12.0f, 0.0f, 180.0f, need2turn(target_angle, current_angle) > 0 ? 30.0f : 39.0f); //左转还是右转
+    Chassis_OverrideGyroPid(12.0f, 0.0f, 180.0f, 50.0f); //左转还是右转
     //直接转相对角度
     float target_g = getAngleZ() + need2turn(current_angle, target_angle);
     if(target_g > 180.0f)
@@ -525,7 +527,7 @@ void Chassis_Periodic_Update_5ms(void)
         {
             // motor_all.Cspeed 减半已放到高速上设置，在底层此处：如果发现大偏移加计时
             // 通过 Scaner.detail 直接检测偏离特征
-            if(fabsf(Scaner.error) > 1.5f) // 偏移过大 (使用 Scaner.detail 避免重复获取耗时)
+            if(fabsf(Scaner.error) > 1.3f) // 偏移过大 (使用 Scaner.detail 避免重复获取耗时)
             {
                 chassis.anti_snake_err_count++; 
             }

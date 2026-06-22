@@ -291,6 +291,12 @@ S 节点（S1-S5）是直立式景点，连接关系：
 
 **当前路线分析**：在获取宝藏前的路线中，小车不会经过 S 节点。路线设计已确保在完成线索平台访问前，不会误入直立式景点区域。
 
+**2026-06-21 — Sword_Mountain 状态机重构**
+
+53. **barrier.c** — `Sword_Mountain()` 从顺序 while 循环重写为状态机（SM_INIT → SM_WAIT_LINE → SM_CLIMB_UP → SM_CLIMB_DOWN → SM_DONE），消除散落变量（`add_time/get_angle/sum_angle`），`getZ` 改名为 `center_confirmed`，`EdgeIgnore=0` 移至上坡前，注释掉的代码块删除
+54. **barrier.c** — `Sword_Mountain()` 基于 Chassis API 重写：`Chassis_OverrideLinePid/RestoreLinePid` 替代直接修改 `line_pid_param` 及手动保存恢复；内层 `while(imu.pitch...)` 死等改为状态机单次判断（SM_CLIMB_UP/SM_CLIMB_DOWN 每个外循环只检查一次 pitch）；过渡准备（切 Gyro 模式、设速度、清里程）前移到 SM_WAIT_LINE→SM_CLIMB_UP 转换点；`angle.AngleG` 直接赋值改为 `Chassis_SetGyroAngle_Go()`
+55. **barrier.c** — `Sword_Mountain()` 全面重写：新增 `Sword_CorrectByScanner()` 利用左/右起第3、4个循迹传感器（`0x3000`/`0x000C`）检测红线做定中修正；`GyroStableReset(50)` 替代手动中心确认录角；状态流改为 SM_APPROACH → SM_CLIMB_UP → SM_ON_TOP → SM_DESCEND → SM_DONE；上坡/下坡 pitch 阈值逻辑对齐 `RampCtrl_Blocking` 语义；新增 SM_ON_TOP 平台行驶状态；每轮修正量 0.03° 起步
+
 ### 到达检测 — arrive_detect_task
 独立任务，通过 FreeRTOS 通知与 main_task 同步。根据 `nodesr.nowNode.flag` 中的标志位判断到达条件：
 - DLEFT/DRIGHT：左/右半边 6 灯中 5 个亮
