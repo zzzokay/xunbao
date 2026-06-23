@@ -79,7 +79,7 @@ void Chassis_Init(void)
     MOTOR_PWM_MAX = 5000;
     
 	ScanerMode_Switch(RF);
-    //Chassis_EnableLineLostProtection();// 激活丢线保护标志
+    Chassis_EnableLineLostProtection();// 激活丢线保护标志
 	Chassis_EnableRollProtection(); // 激活翻滚保护标志
     motor_init();
     pid_init();
@@ -461,7 +461,7 @@ void Chassis_Turn360_Blocking(void)
 void Chassis_Turn_By_Gyro_Blocking(float target_angle, float current_angle)
 {
    
-    Chassis_OverrideGyroPid(12.0f, 0.0f, 180.0f, 50.0f); //左转还是右转
+    Chassis_OverrideGyroPid(10.0f, 0.0f, 180.0f, 50.0f); //左转还是右转
     //直接转相对角度
     float target_g = getAngleZ() + need2turn(current_angle, target_angle);
     if(target_g > 180.0f)
@@ -511,7 +511,7 @@ void Chassis_Periodic_Update_5ms(void)
     if (chassis.roll_protect_enabled && fabsf(imu.roll - basic_r) > 40.0f)
     {
         CarBrake();
-        send_play_specified_command(7);
+        send_play_specified_command(31);
         printf("ROLL OVER! roll=%.1f basic_r=%.1f, emergency stop!\n", imu.roll, basic_r);
         while (1);
     }
@@ -568,7 +568,7 @@ void Chassis_Periodic_Update_5ms(void)
                     chassis.line_lost_enabled = 0;  // 一次性触发
                     
                     CarBrake(); // 紧急刹车
-                    send_play_specified_command(7);
+                    send_play_specified_command(30);
                     printf("Line lost! Emergency brake activated.\n");
                     while(1){};
                     return;
@@ -599,7 +599,12 @@ void pid_mode_switch(uint8_t target_mode)
 {
 	if (PIDMode == target_mode)  // 若目标模式与当前模式相同则不执行切换
 		return;
-
+    if(target_mode == is_Line && PIDMode == is_Gyro) {
+       motor_all.Cspeed = motor_all.Gspeed;
+    }
+    else if(target_mode == is_Gyro && PIDMode == is_Line) {
+        motor_all.Gspeed = motor_all.Cspeed;
+    }
 
 	switch (target_mode)
 	{

@@ -25,7 +25,7 @@
 #include "gray.h"
 
 /*===== 独立调试开关（与 barrier.h 的 DEBUG 无关）=====*/
-#define MAIN_DEBUG 1
+#define MAIN_DEBUG 0
 
 
 uint8_t test_flag = 3;

@@ -72,7 +72,7 @@ void Barrier_Hill(void) ;
 void back(void);
 void view1(void);//打景点	
 void Sword_Mountain(void);
-void Barrier_HighMountain(float speed);
+void Barrier_HighMountain(void);
 void Barrier_Down_HighMountain(float speed);
 void view(void);
 void Barrier_WavedPlate(float lenght);

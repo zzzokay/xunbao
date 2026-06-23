@@ -281,18 +281,14 @@ void handle_mode_switch(uint8_t target_mode)
 		/* 只在巡线/陀螺仪互切时迁移状态，避免外部再额外打标志 */
 		if (last_pid_mode == is_Gyro && current_pid_mode == is_Line)
 		{
-			line_pid_obj = gyroG_pid;
 			TC_speed = TG_speed;
-			motor_all.Cspeed = motor_all.Gspeed;  // 将陀螺仪给速直接赋值给巡线给速，确保切换平滑
 			gyroG_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
 			TG_speed = 0;
 			motor_all.Gspeed = 0;// 清除陀螺仪模式的PID状态
 		}
 		else if (last_pid_mode == is_Line && current_pid_mode == is_Gyro)
 		{
-			gyroG_pid = line_pid_obj;
 			TG_speed = TC_speed;
-			motor_all.Gspeed = motor_all.Cspeed;  // 将巡线给速直接赋值给陀螺仪给速，确保切换平滑
 			line_pid_obj = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
 			TC_speed = 0;
 			motor_all.Cspeed = 0;

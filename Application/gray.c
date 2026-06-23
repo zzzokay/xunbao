@@ -24,7 +24,7 @@ void Gray_Close(void)
 
 #define THRESHOLD 1000  // 设置阈值
 #define SENSOR_NUM 8  // 4 路灰度传感器
-#define DIFF_THRESH 400 // 灰度最大值与其他传感器的最小差值
+#define DIFF_THRESH 500 // 灰度最大值与其他传感器的最小差值
 
 /*切换循迹模式*/
 void ScanerMode_Switch(uint8_t mode)

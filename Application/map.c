@@ -101,7 +101,7 @@ u8 door12route[100] = {N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B
 /*平台5到平台7*/
 u8 rout_57[50] = {N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9, 0XFF};
 /*平台5到平台8*/
-u8 rout_58[50] = {N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,B6,N20,P7,N20,0XFF};
+u8 rout_58[50] = {N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,B6,N20,P8,N20,0XFF};
 /*平台6到平台8*/
 u8 rout_68[50] = {N9,B9,N7,P6,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20, 0XFF};
 /*平台6到平台7*/
@@ -501,11 +501,11 @@ void Cross(void)
 						
 						if(nodesr.lastNode.nodenum == B3 && nodesr.nowNode.nodenum == N2 && nodesr.nextNode.nodenum == P2)
 						{
-							Chassis_OverrideTurnPid(2.0f, 0.0f, 20.0f, 9.0f);
+							Chassis_OverrideTurnPid(2.0f, 0.0f, 20.0f, 20.0f);
 						}
 						else
 						{
-							Chassis_OverrideTurnPid(6.5f, 0.0f, 70.0f, 20.0f);
+							Chassis_OverrideTurnPid(7.0f, 0.0f, 70.0f, 35.0f);
 						}
 
 
@@ -529,7 +529,7 @@ void Cross(void)
 
 			/*转弯完成切换巡线模式，进入下节点，清除相关值*/
 				isStage = 0;
-				buzzer_off();  // 关闭蜂鸣器
+				//buzzer_off();  // 关闭蜂鸣器
 							
 				// 切换节点关系
 				nodesr.lastNode = nodesr.nowNode;
@@ -595,7 +595,7 @@ void map_function(u8 fun)
 		case BLBS       : Barrier_WavedPlate(87);	    		break;			//蓝波动板 速度：调试 80//85
 		case BLBL	    : Barrier_WavedPlate(160);	  		break;			//红波动板 速度：调试	//180
 		case DOOR	    : door();		                   	break;			//开门
-		case BHM        : Barrier_HighMountain(Mount_Speed);		break;    //高山
+		case BHM        : Barrier_HighMountain();		break;    //高山
 		//case IGNORE       :ignore_node(); 	break;   	          //忽略该节点
 		case UNDER      : undermou();	                 	break;
 		//case Special_node :Special_Node();	break;
