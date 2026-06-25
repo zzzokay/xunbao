@@ -134,7 +134,7 @@ void Turn_Angle_Relative(float Angle1) // 左180到右-180,速度必须是正的
 	}
 
 	angle.AngleT = Turn_Angle_Targe;
-	pid_mode_switch(is_Turn); // 进入转弯
+	Chassis_SetMode(is_Turn); // 进入转弯
 }
 
 /*陀螺仪原地转（左右对称）*/
@@ -221,7 +221,7 @@ void Turn_Angle360(void)
 	turn360_prev_yaw = get_latest_yaw();
 	turn360_accumulated = 0;
 	Turn360_Flag = 1;
-	pid_mode_switch(is_Turn);
+	Chassis_SetMode(is_Turn);
 	while(Turn360_Flag)
 		vTaskDelay(2);
 }
@@ -258,7 +258,7 @@ uint8_t Go_Angle(float angle_want, float speed,volatile struct Motors *motor)//T
 /*开环转*/
 void FreeTurn(float Angle, float L, float R)
 {
-	pid_mode_switch(is_Free);
+	Chassis_SetMode(is_Free);
 	if (Turn360_Flag == 1)
 	{
 		motor_set_pwm(1, -L);

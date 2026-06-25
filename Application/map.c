@@ -105,7 +105,7 @@ u8 rout_58[50] = {N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,B6,N20,P8,N20,0XFF};
 /*平台6到平台8*/
 u8 rout_68[50] = {N9,B9,N7,P6,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20, 0XFF};
 /*平台6到平台7*/
-u8 rout_67[50] = {N9,B9,N7,P6,N7,B8,N9,C3,N14,C7,C8,C4,N20,B6,N22,C9,P8,C9, 0XFF};
+u8 rout_67[50] = {N9,B9,N7,P6,N7,B8,N9,C3,N14,C7,C8,C4,N20,B6,N22,C9,P7,C9, 0XFF};
 
 /*******************************************************************************************************************************************************************************************************************************************************/
 
@@ -136,7 +136,7 @@ void mapInit()
 //	nodesr.nowNode = Node[getNextConnectNode(N10, N9)];//跷跷板
 //	nodesr.nowNode = Node[getNextConnectNode(P8, C9)];//旋转平台波动板	
 	/***************简单***************/
-	nodesr.nowNode.nodenum = N2;        //起点(终点)    		//N2
+	nodesr.nowNode.nodenum = N2;        //起始目标点    		//N2
 	nodesr.nowNode.angle = 0;           //起始角度    	//0
 	nodesr.nowNode.function = NONE;        //起始功能    	//1
 	nodesr.nowNode.speed = SPEED1;
@@ -205,7 +205,7 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 	if (now == N20 && next == P7) return 30.0f;
 	if (last == N10 && now == N9 && next == B9) return 40.0f;
 	if (last == B8 && now == N9 && next == N10) return 25.0f;
-	if (last == N5 && now == N8 && next == N12) return 10.0f;
+	if (last == N5 && now == N8 && next == N12) return 5.0f;
 	return 20.0f;
 }
 
@@ -477,13 +477,13 @@ void Cross(void)
 			/*需要转弯处理 - 根据节点标志位选择不同转弯方式*/
 			else
 			{	
-				//左巡线加强kp的转弯，适用于小角度
+				//左巡线加强kp的转弯，适用于小角度（实际好像并未用到）
 				if(nodesr.nowNode.flag&L_follow)			
 				{
 						Chassis_Turn_By_LeftLine_Blocking(nodesr.nextNode.angle, nodesr.nowNode.angle ,0.75f * nodesr.nowNode.speed); // 转弯后继续左巡线，过弯后可能会有一段偏差，继续左巡线可以更快回正
 						
 				}
-				//右巡线加强kp的转弯，适用于小角度
+				//右巡线加强kp的转弯，适用于小角度（实际好像并未用到）
 				else if(nodesr.nowNode.flag&R_follow)			
 				{
 						Chassis_Turn_By_RightLine_Blocking(nodesr.nextNode.angle, nodesr.nowNode.angle, 0.75f * nodesr.nowNode.speed);
@@ -550,7 +550,9 @@ void Cross(void)
 			map.routetime += 1;  // 地图运行次数+1	
 		}
 	}	
-	
+
+	//疑问：为什么这里不更新lastNode和nowNode？（原来是Door内部更新）
+	//历史残留导致两个标志位不同，我感觉是可以合并的
 	/*看到红灯*/
 	if(nodesr.flag&0x20)
 	{
@@ -569,7 +571,7 @@ void Cross(void)
 		if (route[map.point] != 0xFF){
 			nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point])];
 		}
-			//疑问：为什么这里不更新lastNode和nowNode？（原来是Door内部更新）
+		
 		map.point++ ;
 		nodesr.flag&=~0x80;  // 清除标志
 	}

@@ -713,3 +713,31 @@ extern uint8_t debug_test_item;  // 1=直线, 2=转180, 3=过坡
 | [chassis_api.h](Application/chassis_api.h) | 声明 `Chassis_EnableRollProtection` 和 `Chassis_DisableRollProtection` |
 | [barrier.c](Application/barrier.c) | 调用 `IMU_CalibrateZero(&basic_y, &basic_p, &basic_r)` |
 | [main_task.c](Task/main_task.c) | 同上 |
+
+## 二十二、QQB_1() 跷跷板状态机重构（2026-06-24）
+
+### 22.1 改动
+
+`QQB_1()` 从 215 行顺序阻塞函数重写为 door 风格状态机，~135 行：
+
+| 原版问题 | 新版方案 |
+|----------|----------|
+| `while(pitch<basic_p+6)` 死等抬升 | `QQB_WAIT_PITCH` 状态，每次 Cross 调一次检查 pitch，if 条件满足才推进 |
+| 距离爬行 70/74cm + 停车等板砸下 | 恒速 `QQB_Speed` + 长桥三层修正，pitch 走完 0→正→负→0 自动退出 |
+| `Chassis_MotorControl+while` 手动对齐 | 直接 `Chassis_SetMode` + `angle.AngleG` 设目标角 |
+| 强转 120°：手动 `Chassis_MotorControl+while` | `Chassis_Turn_By_Gyro_Blocking(getAngleZ()+120, getAngleZ())` |
+| 蜂鸣器+EdgeIgnore 切换+千奇百怪的延时 | 简化删除，全程修正不停车 |
+
+### 22.2 状态机
+
+```
+QQB_INIT → QQB_WAIT_PITCH → QQB_GYRO → QQB_DONE
+                                  ↕ 超时
+                             QQB_RECOVERY
+```
+
+### 22.3 关键技术点
+
+- 可复用 Barrier_Bridge 的 BRIDGE_ON_BRIDGE_TOP 三层修正模式（`barrier.c:471-536`）：紧急角度硬跳 + `Chassis_CorrectByInfrared` + 居中检测加速
+- 所有转向调用 `Chassis_Turn_By_Gyro_Blocking()`（`chassis_api.c:461-478`）
+- 强转恢复保持原样：120° 陀螺仪转找线 + line_pid_param 覆盖

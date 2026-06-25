@@ -24,15 +24,14 @@
 #include "chassis_api.h"
 #include "gray.h"
 
-/*===== 独立调试开关（与 barrier.h 的 DEBUG 无关）=====*/
-#define MAIN_DEBUG 0
+/*===== 独立调试开关 =====*/
+#define MAIN_DEBUG 1
 
 
 uint8_t test_flag = 3;
 float temp_speed=25;
 #if MAIN_DEBUG
-/*调试控制：赋值来选择测试项目（1=直线, 2=转180, 3=过坡）*/
-uint8_t debug_test_item = 0; 
+
 
 #endif                          
 
@@ -43,6 +42,7 @@ void main_task(void *pvParameters)
 	xLastWakeTime = xTaskGetTickCount();
 
 #if MAIN_DEBUG
+	Chassis_MotorControl(is_No, 0, 0, 0);
 	/*调试模式：跳过传感器初始化，只做基本的地图加载*/
 	IMU_CalibrateZero(&basic_y, &basic_p, &basic_r);
 	vTaskDelay(100);
@@ -86,7 +86,8 @@ void main_task(void *pvParameters)
 		if (test_flag == 3)
 		{
 			//Barrier_Hill();
-			Sword_Mountain();
+			//Sword_Mountain();
+			QQB_1();
 			CarBrake();
 			test_flag = 0;
 		}

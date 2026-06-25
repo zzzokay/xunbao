@@ -291,6 +291,12 @@ S 节点（S1-S5）是直立式景点，连接关系：
 
 **当前路线分析**：在获取宝藏前的路线中，小车不会经过 S 节点。路线设计已确保在完成线索平台访问前，不会误入直立式景点区域。
 
+**2026-06-24 — door() 红绿灯状态机精简重构**
+
+56. **barrier.c** — `door()` 函数（原 ~310 行）精简为 ~200 行：提取 `door_set_pass_node()` 和 `door_retreat()` 两个 static 辅助函数消除 14 处 `Node[getNextConnectNode]` 三连赋值和 5 处完全相同的后退转头序列；`map.point=0; route[0]=0xFF` 从各 case 首行提到 switch 前；删除未使用的 `wait_cnt` 变量和注释掉的 `Robot_Work/buzzer/close_Maxicam` 死代码。行为完全不变。
+
+57. **barrier.c** — `QQB_1()` 跷跷板函数重写为 door 风格状态机（QQB_INIT → QQB_WAIT_PITCH → QQB_GYRO → QQB_RECOVERY → QQB_DONE）：`while(pitch<basic_p+6)` 死等改为 QQB_WAIT_PITCH 状态每次调用检查一次；删除距离爬行 70/74cm+停车等板砸下逻辑，改为恒速+长桥三层修正；`Chassis_MotorControl+while` 手动对齐转向改为 `Chassis_Turn_By_Gyro_Blocking`；删除 ~30 行注释旧代码。原 215 行 → ~135 行。
+
 **2026-06-21 — Sword_Mountain 状态机重构**
 
 53. **barrier.c** — `Sword_Mountain()` 从顺序 while 循环重写为状态机（SM_INIT → SM_WAIT_LINE → SM_CLIMB_UP → SM_CLIMB_DOWN → SM_DONE），消除散落变量（`add_time/get_angle/sum_angle`），`getZ` 改名为 `center_confirmed`，`EdgeIgnore=0` 移至上坡前，注释掉的代码块删除

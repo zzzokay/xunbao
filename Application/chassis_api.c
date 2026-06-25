@@ -461,7 +461,7 @@ void Chassis_Turn360_Blocking(void)
 void Chassis_Turn_By_Gyro_Blocking(float target_angle, float current_angle)
 {
    
-    Chassis_OverrideGyroPid(10.0f, 0.0f, 180.0f, 50.0f); //左转还是右转
+    Chassis_OverrideGyroPid(10.0f, 0.0f, 110.0f, 50.0f); //左转还是右转
     //直接转相对角度
     float target_g = getAngleZ() + need2turn(current_angle, target_angle);
     if(target_g > 180.0f)
@@ -593,7 +593,7 @@ void Chassis_Periodic_Update_5ms(void)
  * is_Free  - 自由模式（取消pid计算，设置速度为ccr）
  * is_No    - 无模式（取消所有任务，停止与驱动）
  */
-#define TEMP_PWM_MAX 5000 //TODO调试用
+#define TEMP_PWM_MAX 7000 //TODO调试用
 
 void pid_mode_switch(uint8_t target_mode)
 {
@@ -672,7 +672,7 @@ void Want2Go(float Dis)
 void CarBrake(void)
 {
 	// 开环
-	pid_mode_switch(is_Free);
+	Chassis_SetMode(is_Free);
 	motor_set_pwm(1, 0); //设置 4 个电机的 PWM=0
 	motor_set_pwm(2, 0);
 	motor_set_pwm(3, 0);
