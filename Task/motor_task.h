@@ -28,18 +28,5 @@ typedef enum {
 extern uint8_t open_qiang_jiao;
 extern uint8_t Nosmall;
 extern int MOTOR_PWM_MAX;
-/*----------内部用----------------------*/
-void get_motor_speed(void);
-void handle_line_error(void);
-void handle_motor_speed(void);
-void handle_qiang_jiao(void);
-void handle_infrared(void);
-void handle_line_mode(void);
-void handle_turn_mode(void);
-void handle_gyro_mode(void);
-void handle_mode_switch(uint8_t target_mode);
-void handle_led_mouse(void);
-void handle_target_speed(void);
-void handle_pid_control(void);
-void handle_now_mode(uint8_t mode);
+/* 所有 handle_* 和 get_motor_speed 已改为 motor_task.c 内部 static，不再在此声明 */
 #endif

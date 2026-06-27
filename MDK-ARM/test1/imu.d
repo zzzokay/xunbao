@@ -60,4 +60,4 @@ test1\imu.o: ../Task/motor_task.h
 test1\imu.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\imu.o: ..\Module\bsp_buzzer.h
 test1\imu.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
-test1\imu.o: ../Application/delay.h
+test1\imu.o: ..\Application\delay.h

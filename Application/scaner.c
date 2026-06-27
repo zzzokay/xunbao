@@ -270,7 +270,7 @@ static float calc_right_edge(volatile SCANER *scaner, int8_t edge_ignore, uint8_
 }
 
 /*--- 流水巡线：取离中心最近的一段连续亮灯 ---*/
-static float calc_liushui(volatile SCANER *scaner, int8_t edge_ignore, uint8_t sensorNum, float *error, uint8_t *lednum)
+static float calc_near_center(volatile SCANER *scaner, int8_t edge_ignore, uint8_t sensorNum, float *error, uint8_t *lednum)
 {
 	float pos = 0;
 	float best_location = 0.0f;
@@ -341,7 +341,7 @@ float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned ch
 	{
 		case TRACK_LEFT_EDGE:  return calc_left_edge(scaner, edge_ignore, SensorNum, Error, LED_Num_Temp);
 		case TRACK_RIGHT_EDGE: return calc_right_edge(scaner, edge_ignore, SensorNum, Error, LED_Num_Temp);
-		case TRACK_LIUSHUI:    return calc_liushui(scaner, edge_ignore, SensorNum, Error, LED_Num_Temp);
+		case TRACK_NEAR_CENTER:    return calc_near_center(scaner, edge_ignore, SensorNum, Error, LED_Num_Temp);
 		default:               return calc_track_all(scaner, edge_ignore, SensorNum, Error, LED_Num_Temp);
 	}
 }

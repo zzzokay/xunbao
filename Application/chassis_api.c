@@ -42,6 +42,14 @@ typedef struct {
 
 static ChassisState_t chassis = {0};
 
+/* 角度归一化工具：将角度归约到 (-180, 180] */
+static inline float normalize_angle(float a)
+{
+    while (a > 180.0f)  a -= 360.0f;
+    while (a <= -180.0f) a += 360.0f;
+    return a;
+}
+
 /* ========================================================================= */
 /* -------------------------- 暴露给 Map 的高级指令 -------------------------- */
 /* ========================================================================= */
@@ -85,10 +93,76 @@ void Chassis_Init(void)
     pid_init();
 }
 
+#define TEMP_PWM_MAX 7000 //TODO调试用
+
+/*模式转换函数*/
+/*
+ * 功能：在不同PID模式之间的切换
+ * 参数：mode - 目标模式
+ * 模式说明：
+ * is_Turn  - 转弯模式（包含小车需要转弯，如90度、360度）
+ * is_Line  - 巡线模式（预判路径偏向或偏右，可移动）
+ * is_Gyro  - 陀螺仪模式（可指定角度）
+ * is_Free  - 自由模式（取消pid计算，设置速度为ccr）
+ * is_No    - 无模式（取消所有任务，停止与驱动）
+ */
 void Chassis_SetMode(uint8_t mode)
 {
-    // 映射到底层具体模式（pid_mode_switch 内部会更新 PIDMode 并清除游龙状态）
-    pid_mode_switch(mode);
+	if (PIDMode == mode)  // 若目标模式与当前模式相同则不执行切换
+		return;
+    if(mode == is_Line && PIDMode == is_Gyro) {
+       motor_all.Cspeed = motor_all.Gspeed;
+    }
+    else if(mode == is_Gyro && PIDMode == is_Line) {
+        motor_all.Gspeed = motor_all.Cspeed;
+    }
+
+	switch (mode)
+	{
+		case is_Line:  // 巡线模式
+		case is_Gyro:  // 陀螺仪模式 //处理放在motortask
+        {
+            MOTOR_PWM_MAX = TEMP_PWM_MAX;  // 调整PWM最大值，确保稳定性
+            break;
+        }
+        case is_Turn:  // 转弯模式//处理放在motortask
+		{
+			MOTOR_PWM_MAX = 5000;  // 减小PWM最大值，确保转弯稳定性。
+			break;
+		}
+		case is_Free:  // 自由模式 //直接设置PWM，不使用PID
+        case is_No:
+		{
+			MOTOR_PWM_MAX = TEMP_PWM_MAX;
+			line_pid_obj = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
+			gyroT_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
+			gyroG_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
+            motor_all.Cspeed = 0;
+            motor_all.Gspeed = 0;
+			TG_speed = 0;
+			TC_speed = 0;
+			break;
+		}
+	}
+
+	PIDMode = mode;  // 更新当前模式
+
+	// 离开巡线模式时清除游龙状态（覆盖所有切换路径）
+	if (mode != is_Line)
+	{
+		chassis.anti_snake_err_count = 0;
+		chassis.anti_snake_flag = 0;
+		chassis.line_lost_count = 0;
+		// 不清 line_lost_enabled，转弯后回到巡线时保护仍然生效
+
+		// 清零 line_data[]，避免陈旧数据干扰回到巡线后的判断
+		for (int i = 0; i < HISTORY_SIZE; i++)
+		{
+			line_data[i].pos = 0.0f;
+			line_data[i].error = 0.0f;
+			line_data[i].truth = TRUTH_ALL_ERR;
+		}
+	}
 }
 
 void Chassis_SetTargetSpeed(float speed)
@@ -157,8 +231,8 @@ void Chassis_SetTrackMode(LineTrackMode_e mode)
         case TRACK_RIGHT_EDGE:
             LEFT_RIGHT_LINE = TRACK_RIGHT_EDGE;//右边缘跟踪（忽略左侧）
             break;
-        case TRACK_LIUSHUI:
-            LEFT_RIGHT_LINE = TRACK_LIUSHUI;//中心跟踪
+        case TRACK_NEAR_CENTER:
+            LEFT_RIGHT_LINE = TRACK_NEAR_CENTER;//中心跟踪
             break;
         default:
             LEFT_RIGHT_LINE = TRACK_ALL;
@@ -166,22 +240,14 @@ void Chassis_SetTrackMode(LineTrackMode_e mode)
     }
 }
 
-void Chassis_SetGyroAngle_Go(float TargetAngle)//可考虑设为静态函数
+void Chassis_SetGyroAngle_Go(float TargetAngle)
 {
-    if(TargetAngle > 180.0f)
-        TargetAngle -= 360.0f;
-    else if(TargetAngle <= -180.0f)
-        TargetAngle += 360.0f;
-    angle.AngleG = TargetAngle;
+    angle.AngleG = normalize_angle(TargetAngle);
 }
 
 void Chassis_SetGyroAngle_Turn(float TargetAngle)
 {
-     if(TargetAngle > 180.0f)
-        TargetAngle -= 360.0f;
-    else if(TargetAngle <= -180.0f)
-        TargetAngle += 360.0f;
-    angle.AngleT = TargetAngle;
+    angle.AngleT = normalize_angle(TargetAngle);
 }
 
 
@@ -310,19 +376,12 @@ static struct PID_param saved_gyroG_pid_param = {0};
 static float saved_GyroG_speedMax = 0.0f;
 static uint8_t gyro_pid_override_active = 0;
 
-static void Chassis_MoveDistance_Blocking(float distance)
-{
-    float num = motor_all.Distance;
-	while (fabsf(motor_all.Distance - num) < distance)
-	    {vTaskDelay(2); }
-}
-
 void Chassis_DriveDistance_Blocking(uint8_t mode, float distance, float speed, float aim, uint8_t edge_ignore)
 {
     scaner_set.EdgeIgnore = edge_ignore;
     Chassis_ClearMileage();
     Chassis_MotorControl(mode, speed, speed, aim);
-    Chassis_MoveDistance_Blocking(distance);
+    Want2Go(distance);
     scaner_set.EdgeIgnore = 0;
 }
 
@@ -463,11 +522,7 @@ void Chassis_Turn_By_Gyro_Blocking(float target_angle, float current_angle)
    
     Chassis_OverrideGyroPid(10.0f, 0.0f, 110.0f, 50.0f); //左转还是右转
     //直接转相对角度
-    float target_g = getAngleZ() + need2turn(current_angle, target_angle);
-    if(target_g > 180.0f)
-        target_g -= 360.0f;
-    else if(target_g <= -180.0f)
-        target_g += 360.0f;
+    float target_g = normalize_angle(getAngleZ() + need2turn(current_angle, target_angle));
     Chassis_SetGyroAngle_Go(target_g);
 
     Chassis_SetMode(is_Gyro); // 进入陀螺仪转弯模式
@@ -582,79 +637,6 @@ void Chassis_Periodic_Update_5ms(void)
     }
 }   
     /* ========= 其他需要随底层反馈刷新的控制变量 ========= */
-/*模式转换函数*/
-/*
- * 功能：在不同PID模式之间的切换
- * 参数：target_mode - 目标模式
- * 模式说明：
- * is_Turn  - 转弯模式（包含小车需要转弯，如90度、360度）
- * is_Line  - 巡线模式（预判路径偏向或偏右，可移动）
- * is_Gyro  - 陀螺仪模式（可指定角度）
- * is_Free  - 自由模式（取消pid计算，设置速度为ccr）
- * is_No    - 无模式（取消所有任务，停止与驱动）
- */
-#define TEMP_PWM_MAX 7000 //TODO调试用
-
-void pid_mode_switch(uint8_t target_mode)
-{
-	if (PIDMode == target_mode)  // 若目标模式与当前模式相同则不执行切换
-		return;
-    if(target_mode == is_Line && PIDMode == is_Gyro) {
-       motor_all.Cspeed = motor_all.Gspeed;
-    }
-    else if(target_mode == is_Gyro && PIDMode == is_Line) {
-        motor_all.Gspeed = motor_all.Cspeed;
-    }
-
-	switch (target_mode)
-	{
-		
-		case is_Line:  // 巡线模式 
-		case is_Gyro:  // 陀螺仪模式 //处理放在motortask
-        {
-            MOTOR_PWM_MAX = TEMP_PWM_MAX;  // 调整PWM最大值，确保稳定性
-            break;
-        }
-        case is_Turn:  // 转弯模式//处理放在motortask
-		{
-			MOTOR_PWM_MAX = 5000;  // 减小PWM最大值，确保转弯稳定性。
-			break;
-		}
-		case is_Free:  // 自由模式 //直接设置PWM，不使用PID
-        case is_No:
-		{
-			MOTOR_PWM_MAX = TEMP_PWM_MAX;
-			line_pid_obj = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
-			gyroT_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
-			gyroG_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
-            motor_all.Cspeed = 0;
-            motor_all.Gspeed = 0;
-			TG_speed = 0;
-			TC_speed = 0;
-			break;
-		}
-	}
-
-	PIDMode = target_mode;  // 更新当前模式
-
-	// 离开巡线模式时清除游龙状态（覆盖所有切换路径，包括 Turn_Angle_Relative 直接调用）
-	if (target_mode != is_Line)
-	{
-		chassis.anti_snake_err_count = 0;
-		chassis.anti_snake_flag = 0;
-		chassis.line_lost_count = 0;
-		// 不清 line_lost_enabled，转弯后回到巡线时保护仍然生效
-
-		// 清零 line_data[]，避免陈旧数据干扰回到巡线后的判断
-		for (int i = 0; i < HISTORY_SIZE; i++)
-		{
-			line_data[i].pos = 0.0f;
-			line_data[i].error = 0.0f;
-			line_data[i].truth = TRUTH_ALL_ERR;
-		}
-	}
-}
-
 /*自定义距离前进*/
 void Want2Go(float Dis)
 {

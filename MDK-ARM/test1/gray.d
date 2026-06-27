@@ -57,7 +57,7 @@ test1\gray.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h
 test1\gray.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h
 test1\gray.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
 test1\gray.o: ..\Application\turn.h
-test1\gray.o: ../Module/imu.h
+test1\gray.o: ..\Module\imu.h
 test1\gray.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\gray.o: ..\Application\chassis_api.h
 test1\gray.o: ..\Application\delay.h

@@ -41,4 +41,4 @@ test1\delay.o: ../Core/Inc/tim.h
 test1\delay.o: ../Motor/motor.h
 test1\delay.o: ../Math/pid.h
 test1\delay.o: ../USMAT/sys.h
-test1\delay.o: ../Module/bsp_led.h
+test1\delay.o: ..\Module\bsp_led.h

@@ -39,6 +39,18 @@
 #include "Rec_usart.h"
 #include "chassis_api.h"
 
+/* ========== 内部函数前向声明 ========== */
+static void get_motor_speed(void);
+static void handle_motor_speed(void);
+static void handle_now_mode(uint8_t mode);
+static void handle_line_mode(void);
+static void handle_turn_mode(void);
+static void handle_gyro_mode(void);
+static void handle_mode_switch(uint8_t target_mode);
+static void handle_led_mouse(void);
+static void handle_target_speed(void);
+static void handle_pid_control(void);
+
 /*全局变量定义区*/
 TaskHandle_t motor_handler;       // 任务句柄
 volatile uint8_t PIDMode;         // 当前PID模式
@@ -127,7 +139,7 @@ void motor_task(void *pvParameters)
  * - 编码器每圈脉冲数：5720
  * - 减速比：0.362
  */
-void handle_motor_speed(void)
+static void handle_motor_speed(void)
 {
 	get_motor_speed();  // 获取编码器数值，计算电机速度
 
@@ -138,7 +150,7 @@ void handle_motor_speed(void)
 	motor_all.Distance += ((motor_all.encoder_avg * 10.4f * PI)/5720.0f)/0.362f;
 }
 
-void handle_now_mode(uint8_t mode)
+static void handle_now_mode(uint8_t mode)
 {
 	switch (mode)
 	{
@@ -163,7 +175,7 @@ void handle_now_mode(uint8_t mode)
  * 2. 计算平均速度
  * 3. 执行巡线任务
  */
-void handle_line_mode(void)
+static void handle_line_mode(void)
 {
 	if (PIDMode == is_Line)
 	{
@@ -190,7 +202,7 @@ void handle_line_mode(void)
  * 2. 平台辅助转向（包含上桥下桥等）
  * 3. 普通角度转弯
  */
-void handle_turn_mode(void)
+static void handle_turn_mode(void)
 {
 	if (PIDMode == is_Turn)
 	{
@@ -216,7 +228,7 @@ void handle_turn_mode(void)
  * 1. 计算平均速度
  * 2. 按指定角度执行给定强 gyro
  */
-void handle_gyro_mode(void)
+static void handle_gyro_mode(void)
 {
 	if (PIDMode == is_Gyro)
 	{
@@ -240,38 +252,14 @@ void handle_gyro_mode(void)
  * 功能：模式之间的平滑切换
  * 通过记录前后 PIDMode，在函数内部完成巡线/陀螺仪状态迁移
  *
- * 切换路径及处理方式：
- *
- * ┌─────────────┬──────────────┬────────────────────────────────────────────┐
- * │   来源模式   │   目标模式   │                 处理方式                    │
- * ├─────────────┼──────────────┼────────────────────────────────────────────┤
- * │ Gyro(陀螺仪) │ Line(巡线)   │ 无扰迁移：gyroG_pid→line_pid_obj，        │
- * │             │              │ TG_speed→TC_speed，Gspeed→Cspeed           │
- * │             │              │ 原因：两者都是直行控制，PID状态可复用        │
- * ├─────────────┼──────────────┼────────────────────────────────────────────┤
- * │ Line(巡线)   │ Gyro(陀螺仪) │ 无扰迁移：line_pid_obj→gyroG_pid，        │
- * │             │              │ TC_speed→TG_speed，Cspeed→Gspeed           │
- * │             │              │ 原因：同上，方向相反                        │
- * ├─────────────┼──────────────┼────────────────────────────────────────────┤
- * │ Turn(转弯)   │ Line(巡线)   │ 清零：line_pid_obj、TC_speed、Cspeed       │
- * │             │              │ 原因：转弯后传感器位置已变，旧PID状态无意义  │
- * ├─────────────┼──────────────┼────────────────────────────────────────────┤
- * │ Turn(转弯)   │ Gyro(陀螺仪) │ 清零：gyroG_pid、TG_speed、Gspeed         │
- * │             │              │ 原因：转弯后航向已变，旧PID状态无意义        │
- * ├─────────────┼──────────────┼────────────────────────────────────────────┤
- * │ Line/Gyro    │ Turn(转弯)   │ 清零：gyroT_pid                            │
- * │             │              │ 原因：进入转弯前重置转弯PID                  │
- * ├─────────────┼──────────────┼────────────────────────────────────────────┤
- * │ 任意模式     │is_No          │ 由pid_mode_switch处理（全清，停止时无需等待5ms）    │
- * └─────────────┴──────────────┴────────────────────────────────────────────┘
  *
  * 设计要点：
- * - 无扰迁移（Gyro↔Line）：直接复制PID输出和渐变速度，切换瞬间无跳变
+ * - 无扰迁移（Gyro↔Line）：渐变速度，切换瞬间无跳变
  * - 清零（Turn→Line/Gyro）：转弯后位置/航向已变，必须重新积累PID
  * - 所有PID清零均在本函数完成，保证转换逻辑在计算逻辑之前执行
- * - pid_mode_switch()仅负责PWM限幅和PIDMode赋值
+ * - Chassis_SetMode()负责PWM限幅、速度传递、PIDMode赋值和游龙清理
  */
-void handle_mode_switch(uint8_t target_mode)
+static void handle_mode_switch(uint8_t target_mode)
 {
 	static uint8_t last_pid_mode = is_No;
 	uint8_t current_pid_mode = target_mode;
@@ -320,7 +308,7 @@ void handle_mode_switch(uint8_t target_mode)
  * 功能：处理LED灯的闪烁任务状态指示
  * 闪烁频率：约2Hz，每100次循环切换一次状态，约0.5秒）
  */
-void handle_led_mouse(void)
+static void handle_led_mouse(void)
 {
 	static uint8_t mouse = 0;  		  	// 小车状态计数
 	mouse++;
@@ -338,7 +326,7 @@ void handle_led_mouse(void)
  * 1. 流水巡线模式：DownLiuShui == 1时，降低当前速度
  * 2. 普通模式：设置四个电机的目标速度
  */
-void handle_target_speed(void)
+static void handle_target_speed(void)
 {
 	if(DownLiuShui)  // 流水巡线模式
 	{
@@ -372,7 +360,7 @@ void handle_target_speed(void)
  * TIM3 -> 右前轮
  * TIM5 -> 右后轮
  */
-void get_motor_speed()
+static void get_motor_speed()
 {
 	static uint16_t last_cnt[4] = {0};
 	uint16_t curr_cnt[4];
@@ -408,7 +396,7 @@ void get_motor_speed()
  * 1. 计算四个电机PID驱动
  * 2. 设置驱动PWM值
  */
-void handle_pid_control(void)
+static void handle_pid_control(void)
 {
 	if (PIDMode != is_Free)  // 非强驱动模式时执行PID计算
 	{

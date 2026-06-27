@@ -136,7 +136,7 @@ extern volatile uint8_t PIDMode;  // 当前模式: is_No/is_Free/is_Line/is_Turn
 ```c
 typedef struct _node {      // 地图节点
     u8 nodenum;             // 节点编号
-    u32 flag;               // 标志位（转弯方式/巡线模式等）
+    u32 flag;               // 标志位（转弯方式/巡线模式等，不含运行时阶段位）
     float angle;            // 目标角度
     u16 step;               // 步长(cm)
     float speed;            // 速度
@@ -146,7 +146,12 @@ typedef struct _node {      // 地图节点
 extern NODE Node[126];      // 完整地图节点数组
 extern u8 route[100];       // 当前路径
 extern NODESR nodesr;       // lastNode/nowNode/nextNode
+extern volatile uint8_t cross_event;  // 运行时阶段/事件标志
+#define CROSS_EVENT_ARRIVED (1<<0)    // 已到达节点
+#define CROSS_EVENT_DOOR    (1<<1)    // 门结果就绪（红/绿灯统一）
 ```
+
+> **2026-06-27**: `nodesr.flag` 的阶段同步位（0x04/0x20/0x80）已拆出到独立 `cross_event` 变量。`nodesr.flag` 现仅承载节点配置标志（DLEFT/DRIGHT/STOPTURN 等配置位）。`CROSS_EVENT_RED`/`GREEN` 合并为 `CROSS_EVENT_DOOR`，两者在 `Cross_PostProcess` 中处理逻辑完全相同。
 
 ### 4.4 障碍标志 ([barrier.c](Application/barrier.c))
 
@@ -299,24 +304,27 @@ DOOR      → door()          // 开门
 
 ---
 
-## 九、Cross() 流程 ([map.c:318-556](Application/map.c#L318-L556))
+## 九、Cross() 流程 ([map.c](Application/map.c))
+
+**2026-06-27 重构**: 原 ~254 行单函数拆为 40 行主体 + 6 个 static 子函数。`route_state` + `is_near_end` 隐式状态改为 `nav_step`（`NAV_STEP_INIT/CRUISE/MID_SWITCH/PREP_ARRIVE`） + `near_end`。
 
 ```
-1. map.point==0 → 初始化路径
-2. is_near_end==0:
-   a. route_state==0: 清零里程, 设巡线模式
-   b. 里程<50%: 设速度, 调用Chassis_EnableAntiSnake()
-   c. 里程≥50%: 切换巡线模式(Temp_L/R/LiuShui)
-   d. 里程≥70%: 判断转弯角度, 降速, is_near_end=1
-3. is_near_end==1:
-   a. map_function() 执行障碍功能
-   b. 通知ArriveDetect_task, 等待到达确认
-4. 节点切换:
-   a. 无需转弯 → Handle_NoTurn_StraightPath()
-   b. L_follow → Chassis_Turn_By_LeftLine_Blocking()
-   c. R_follow → Chassis_Turn_By_RightLine_Blocking()
-   d. STOPTURN或>90° → 停车 → 原地转
-   e. 其他 → 陀螺仪不停车转弯
+Cross()
+├── near_end==0 (巡线行驶)
+│   ├── SEG_INIT:      清里程, 设巡线模式 (Cross_SegmentInit)
+│   ├── SEG_CRUISE:    设速度, 启用游龙
+│   ├── SEG_MID_SWITCH:里程≥50%, 切换巡线模式 (Cross_MidSwitch)
+│   └── SEG_PREP_ARRIVE:里程≥70%, 降速, 进入节点处理 (Cross_PrepareArrival)
+│
+└── near_end==1 (节点处理)
+    ├── Cross_NearEnd: map_function() → 等待到达 (xTaskNotifyGive ArriveDetect_task)
+    ├── Cross_TurnAndAdvance:
+    │   ├── 无需转弯 → Handle_NoTurn_StraightPath()
+    │   ├── L_follow → Chassis_Turn_By_LeftLine_Blocking()
+    │   ├── R_follow → Chassis_Turn_By_RightLine_Blocking()
+    │   ├── STOPTURN/>90° → 停车 → 原地转
+    │   └── 其他 → 陀螺仪不停车转弯
+    └── Cross_PostProcess: 检查 cross_event & CROSS_EVENT_DOOR → 推进节点
 ```
 
 ---
@@ -340,18 +348,25 @@ DOOR      → door()          // 开门
 1. **PID bias int→float** [pid.h:8](Math/pid.h#L8): `I_pid_obj.bias` 改为 `float`
 2. **barrier.c 赋值写为比较** [barrier.c:1229]: `getZ == 0` → `getZ = 0`
 3. **barrier.c 除零保护** [barrier.c:753/813/1032]: `sum_angle/add_time` 添加 `if(add_time > 0)` 保护
+4. **motor_task.h 接口泄露**: 10 个内部函数改为 static (2026-06-27)
+5. **map.c include 跨层调用**: 从 19 个精简到 5 个 (2026-06-27)
 
 ### P1（重要）
 4. **未使用的全局变量** [map.h:188-326]: ~120个 Clue*route 外部声明，占用 namespace
 5. **R1 PID初始化死代码** [pid.c:167-180]: 注释掉的初始化块，后续又重复
 6. **5ms循环中printf** [motor_task.c:95-96]: 串口输出影响实时性
-7. **Cross()函数过大** [map.c:318]: 单函数包含完整路径状态机，状态变量分散
 
 ### P2（可优化）
-8. **转弯前距离硬编码** [map.c:189-233]: if链应改用查表
-9. **main_task.c 引用 speed_ctrl.h** 需确认文件是否已删除
-10. **filter_motor_speed() 窗口过小** [filter.c:56-93]: 4点窗口，去极值后只剩2点平均
-11. **Stage_P2 死循环** [barrier.c]: `if(Backtimes==1) while(1);`
+7. **转弯前距离硬编码** [map.c:189-233]: if链应改用查表
+8. **main_task.c 引用 speed_ctrl.h** 需确认文件是否已删除
+9. **filter_motor_speed() 窗口过小** [filter.c:56-93]: 4点窗口，去极值后只剩2点平均
+10. **Stage_P2 死循环** [barrier.c]: `if(Backtimes==1) while(1);`
+
+### ✓ 已修复
+- **Cross()函数过大** [map.c]: 原 ~254 行单函数 → 40 行主体 + 6 个 static 子函数 (2026-06-27)
+- **Want2Go 和 Chassis_MoveDistance_Blocking 重复**: 删除后者，Chassis_DriveDistance_Blocking 改为调 Want2Go (2026-06-27)
+- **角度归一化代码重复3次**: 提取 `normalize_angle()` 到 chassis_api.c (2026-06-27)
+- **nodesr.flag 语义混杂**: 阶段同步位(0x04/0x20/0x80)拆出到独立 `cross_event` 变量，`nodesr.flag` 仅承载配置标志 (2026-06-27)
 
 ---
 
@@ -429,7 +444,7 @@ map.c / barrier.c
     ↓
 Chassis_MotorControl() 或 Chassis_SetMode()
     ↓
-pid_mode_switch()          ← 立即执行，设PWM_MAX，清目标模式PID
+Chassis_SetMode()              ← 立即执行，设PWM_MAX，速度传递，清目标模式PID，清游龙状态
     ↓
 PIDMode = target_mode      ← 全局状态更新
     ↓
@@ -456,10 +471,11 @@ motor_task 5ms循环:
 
 ### 16.3 待修复问题
 
-**P0: pid_mode_switch 进入 is_Turn 时清零范围过大** ✓ 已修复
-- 文件: Application/chassis_api.c, 函数: pid_mode_switch
+**P0: pid_mode_switch 进入 is_Turn 时清零范围过大** ✓ 已修复（后续已合并入 Chassis_SetMode）
+- 原文件: Application/chassis_api.c, 函数: pid_mode_switch（已删除）
 - 修复: 进入 is_Turn 只清零 gyroT_pid，删掉了对 line_pid_obj、gyroG_pid、TG_speed、TC_speed 的清零
 - 后续优化: gyroT_pid 清零也移至 handle_mode_switch，pid_mode_switch 仅负责 PWM 限幅和 PIDMode 赋值
+- 最终: pid_mode_switch 函数体已合并到 Chassis_SetMode，详见 README 条目 59
 
 **P0: Turn→Line/Gyro 缺少转换逻辑** ✓ 已修复
 - 文件: Task/motor_task.c, 函数: handle_mode_switch
@@ -467,7 +483,7 @@ motor_task 5ms循环:
 
 **P1: chassis.PID_mode 和 PIDMode 不同步** ✓ 已修复
 - 删除 chassis.PID_mode，统一使用全局 PIDMode
-- Chassis_Init/Brake 直接写 PIDMode，Chassis_SetMode 通过 pid_mode_switch 写 PIDMode
+- Chassis_Init/Brake 直接写 PIDMode，Chassis_SetMode 内部包含模式切换逻辑（原 pid_mode_switch）
 
 **P1: anti_snake 和 Override 会冲突** ✓ 已修复
 - 文件: Application/chassis_api.c, 函数: Chassis_Periodic_Update_5ms
@@ -481,15 +497,13 @@ motor_task 5ms循环:
 
 **P2: is_Turn 绕过 Chassis_SetMode** ✓ 已修复
 - 文件: Application/chassis_api.c, 函数: Chassis_MotorControl
-- 问题: is_Turn 直接调用 Turn_Angle_Relative → pid_mode_switch，跳过了 Chassis_SetMode
+- 问题: is_Turn 直接调用 Turn_Angle_Relative → pid_mode_switch（当时独立函数），跳过了 Chassis_SetMode
 - 修复: anti_snake 重置移入 pid_mode_switch，所有模式切换路径（包括 Turn_Angle_Relative 直接调用）都会清除游龙状态
+- 注: pid_mode_switch 后已合并入 Chassis_SetMode，此问题不再存在
 
-**P2: Want2Go 和 Chassis_MoveDistance_Blocking 重复**
-- 两个函数逻辑完全一样，Want2Go 应删除
+**P2: Want2Go 和 Chassis_MoveDistance_Blocking 重复** ✓ 已修复 (2026-06-27)
 
-**P2: 角度归一化代码重复3次**
-- Chassis_SetGyroAngle_Go、Chassis_SetGyroAngle_Turn、Chassis_Turn_By_Gyro_Blocking 都有 if > 180 / if <= -180
-- 应提取 normalize_angle() 工具函数
+**P2: 角度归一化代码重复3次** ✓ 已修复 (2026-06-27)
 
 **P2: anti_snake 衰减逻辑可能写反** ✓ 已修复
 - 注释说"回正后迅速衰减警戒值"

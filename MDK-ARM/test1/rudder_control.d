@@ -1,6 +1,6 @@
 test1\rudder_control.o: ..\Module\Rudder_control.c
 test1\rudder_control.o: ..\Module\Rudder_control.h
-test1\rudder_control.o: ../Application/iic.h
+test1\rudder_control.o: ..\Application\iic.h
 test1\rudder_control.o: ../Core/Inc/main.h
 test1\rudder_control.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal.h
 test1\rudder_control.o: ../Core/Inc/stm32f7xx_hal_conf.h
@@ -37,7 +37,7 @@ test1\rudder_control.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_tim.h
 test1\rudder_control.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_tim_ex.h
 test1\rudder_control.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart.h
 test1\rudder_control.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart_ex.h
-test1\rudder_control.o: ../Application/delay.h
+test1\rudder_control.o: ..\Application\delay.h
 test1\rudder_control.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
 test1\rudder_control.o: ../Core/Inc/FreeRTOSConfig.h
 test1\rudder_control.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h

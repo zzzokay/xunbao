@@ -1,27 +1,17 @@
 #include "map.h"
 #include "barrier.h"
 #include "sys.h"
-#include "usart.h"
-#include "QR.h"
-#include "delay.h"
-#include "scaner.h"
-#include "imu.h"
-#include "turn.h"
-#include "motor_task.h"
-#include "bsp_linefollower.h"
 #include "math.h"
-#include "bsp_buzzer.h"
-#include "encoder.h"
-#include "uart.h"
-#include "openmv.h"
-#include "motor.h"
-#include "task_create.h"
 #include "chassis_api.h"
+
+/* 从 task_create.h 迁入，避免 map.c 越层包含 */
+extern TaskHandle_t xHandle_ArriveDetect;
 
 /******************  记录地图状态和小车状态的全局变量  *************************/
                                             
-struct Map_State map = {0,0};   //point //routine                                
+struct Map_State map = {0,0};   //point //routine
 NODESR nodesr;   	//节点flag和各个节点信息
+volatile uint8_t cross_event = 0;	//运行时阶段/事件标志
 				/*	flag 0位为1表示需要转弯0表示直行
 					flag 1位为是否路径判断
 					flag 2位为是否到达节点
@@ -116,6 +106,7 @@ void mapInit()
 	map.routetime = 0;
 	map.point = 0;
 	nodesr.flag = 0;
+	cross_event = 0;
 	// /***************任务***************/
 	
 //	nodesr.lastNode.nodenum = N10;
@@ -150,6 +141,7 @@ void mapInit1(void)
 {
 	map.point = 0;
 	nodesr.flag = 0;
+	cross_event = 0;
 	nodesr.nowNode.nodenum = N2;                //起始点    		
 	nodesr.nowNode.angle = 0;                      //起始角度    	
 	nodesr.nowNode.function = NONE;                //起始功能    	
@@ -296,8 +288,8 @@ static void Handle_NoTurn_StraightPath(void)
  * 
  * 执行流程：
  * 1. 初始化路径（map.point == 0时）
- * 2. 节点前半段处理（is_near_end == 0时）
- * 3. 节点后半段处理（is_near_end == 1时）
+ * 2. 节点前半段处理（near_end == 0时）
+ * 3. 节点后半段处理（near_end == 1时）
  * 4. 路径点切换节点处理
  * 5. 特殊功能处理
 
@@ -317,266 +309,197 @@ static void Handle_NoTurn_StraightPath(void)
  * - map.routetime：地图运行次数
  * - nodesr：包含当前、上一个、下一个节点的信息
  */
-void Cross(void)
+enum {                     // nav_step 取值
+    NAV_STEP_INIT,         // 0  段初始化（清里程、设模式）
+    NAV_STEP_MID_SWITCH,   // 1  过半切换巡线模式
+    NAV_STEP_PREP_ARRIVE   // 2  70% 降速准备到达
+};
+
+/* ========== Cross() 子函数 ========== */
+
+static void Cross_SegmentInit(void)
 {
-	static uint8_t route_state = 0;           //是否过半程
-	static uint8_t is_near_end = 0;          //是否接近终点超过70%   默认为0表示没超过70%
+    Chassis_ClearMileage();
+    Chassis_SetCatchSensorNum(0);
+    Chassis_SetEdgeIgnore(0);
 
+    if ((nodesr.nowNode.flag & LEFT_LINE) == LEFT_LINE)
+        Chassis_SetTrackMode(TRACK_LEFT_EDGE);
+    else if ((nodesr.nowNode.flag & RIGHT_LINE) == RIGHT_LINE)
+        Chassis_SetTrackMode(TRACK_RIGHT_EDGE);
+    else if ((nodesr.nowNode.flag & NEAR_CENTER) == NEAR_CENTER)
+        Chassis_SetTrackMode(TRACK_NEAR_CENTER);
+    else
+        Chassis_SetTrackMode(TRACK_ALL);
 
-	/*前半段 - 执行巡线*/
-	if(is_near_end == 0)
-	{		
-			if(route_state == 0)//路径开始
-			{		
-				//打印当前路径信息：开始
-				////printf("Starting new path\n");
-					//清零里程
-					Chassis_ClearMileage();
-					 
-					//寻迹中心目标值
-					if(nodesr.nowNode.nodenum == N9 && nodesr.nextNode.nodenum == N10)
-						Chassis_SetCatchSensorNum(line_weight[7]);  
-					else
-						Chassis_SetCatchSensorNum(0);
-
-					//忽略边缘
-					Chassis_SetEdgeIgnore(0);
-				
-					//设置寻线实际值方式
-					if((nodesr.nowNode.flag & LEFT_LINE) == LEFT_LINE){	
-						Chassis_SetTrackMode(TRACK_LEFT_EDGE);}
-
-					else if((nodesr.nowNode.flag & RIGHT_LINE) == RIGHT_LINE){
-						Chassis_SetTrackMode(TRACK_RIGHT_EDGE);}
-
-					else if((nodesr.nowNode.flag & LiuShui) == LiuShui){
-						Chassis_SetTrackMode(TRACK_LIUSHUI);}
-
-					else{
-						Chassis_SetTrackMode(TRACK_ALL);}
-					route_state=1;//TODO:标志位可以优化
-					
-
-			}		
-		 /*前方路径判断 - 未超过50%路径*/ 				
-		    if( route_state == 1)
-			{	
-
-				//printf("In the first half of the path\n");
-					//巡线
-					Chassis_SetMode(is_Line);	
-					
-					//设置当前节点的目标速度
-					Chassis_SetTargetSpeed(nodesr.nowNode.speed);
-					
-					//检测并应用直线路径加速（特定长直线加速）
-					Check_And_Apply_SpeedUp();
-
-					
-					// 防游龙算法已移至底盘API
-					Chassis_EnableAntiSnake(); // 激活游龙防护标志
-					// Chassis_EnableLineLostProtection();// 激活丢线保护标志
-					// Chassis_EnableRollProtection(); // 激活翻滚保护标志
-
-					route_state = 2; // 标记已过半程，确保该处理只执行一次
-			}		        
-			
-			/*过半50%路径，执行巡线模式切换*/
-			if(fabsf(Chassis_GetMileage()) >= 0.5f*nodesr.nowNode.step && route_state == 2)
-			{
-				//打印：走完一半路径，切换巡线模式
-					//printf("Passed 50%% of the path, switching line following mode\n");
-					if((nodesr.nowNode.flag & Temp_L) == Temp_L)
-					{
-						Chassis_SetTrackMode(TRACK_LEFT_EDGE);
-					}
-					else if((nodesr.nowNode.flag & Temp_R) == Temp_R)
-					{
-						Chassis_SetTrackMode(TRACK_RIGHT_EDGE);
-					}
-					else if((nodesr.nowNode.flag & Temp_LiuShui) == Temp_LiuShui)
-					{
-						Chassis_SetTrackMode(TRACK_LIUSHUI);
-					}
-					route_state = 3; // 标记已完成巡线模式切换，确保该处理只执行一次
-			}
-			/*节点后半段 - 超过70%路径*/
-			if(fabsf(Chassis_GetMileage()) >= 0.7f*nodesr.nowNode.step && route_state == 3 )
-			{
-					
-				//printf("Passed 70%% of the path, preparing for node endpoint check\n");
-					if ((fabsf(need2turn(getAngleZ(), nodesr.nextNode.angle)) < 10.0f) || (fabsf(need2turn(nodesr.nowNode.angle, nodesr.nextNode.angle)) < 10.0f) || (nodesr.nowNode.flag & NOTURN) == NOTURN)
-					{}//角度差小，保持原速	
-
-					//大角度
-					else  {Chassis_SetTargetSpeed(Gyro_Speed);}//25低速转弯速度
-
-
-					//特殊速度选择
-					if(nodesr.lastNode.nodenum == C7 && nodesr.nowNode.nodenum == N14 && nodesr.nextNode.nodenum == C3)   
-					{Chassis_SetTargetSpeed(SPEED1);}	
-					
-					is_near_end = 1;
-			}
-
-		
-	}
-	/*路径终点处理*/
-	else if(is_near_end == 1)
-	{ 		
-		//打印：接近路径终点，执行到达检查
-			//printf("Approaching path endpoint, executing arrival check\n");
-				//关闭巡线，进入坐标计算
-			// 执行当前节点功能，如爬坡、过桥等,执行完后nodesr.flag|0x40（跳过到达检查）
-			map_function(nodesr.nowNode.function);
-			
-			/*如果还没到达*/
-			if((nodesr.flag&0x04)!=0x04 && (nodesr.flag&0x80)!=0x80 && (nodesr.flag&0x20)!=0x20)
-			{
-				/*发送通知给任务判断是否到达路径点*/
-					//TODO: 这里可以优化为直接调用函数而不是通知任务，减少延迟
-					xTaskNotifyGive(xHandle_ArriveDetect);
-				
-					// 阻塞自己等待任务完成信号
-					ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-					
-					// 回家上坡前减速
-					if(nodesr.nowNode.nodenum == N2 && nodesr.nextNode.nodenum == P2)
-					{Chassis_SetTargetSpeed(nodesr.nowNode.speed*0.9f);}
-			}	
-			is_near_end = 0; 
-			route_state = 0; 
-			
-	}			
-	/*坐标计算处理,转弯完成切换节点 - 路径点时执行*/
-	if((nodesr.flag&0x04)==0x04)
-	{
-		nodesr.flag&=~0x04;//	清除路径点标志，确保该处理只执行一次
-
-		// DEBUG: 打印route相关值
-		//printf("[DEBUG] map.point=%d, route[point-1]=0x%02X, route[point]=0x%02X, nowNode=%d, nextNode=%d\n",
-		//	map.point, route[map.point-1], route[map.point], nodesr.nowNode.nodenum, nodesr.nextNode.nodenum);                           
-		//节点刷新衔接处理
-		if(route[map.point-1] != 0xFF)// route[map.point-1]=>nodesr.nextNode	/*判断路径终点 - 0xFF表示路径结束，只有执行完路径终点时才执行该处理*/
-		{ 
-
-			// 无需转弯，直接进入下节点
-			if ((fabsf(need2turn(getAngleZ(),nodesr.nextNode.angle))<10.0f) ||//当前角度与目标角度差小于10度
-				(fabsf(need2turn(nodesr.nowNode.angle,nodesr.nextNode.angle))<10.0f)//角度差小于10度 
-				||(nodesr.nowNode.flag&NOTURN)==NOTURN//当前节点标志位无需转弯
-				||(nodesr.nowNode.nodenum==S1)//当前为特殊节点S1S2
-				||(nodesr.nowNode.nodenum==S2)
-				||(route[map.point-3]==S3)//前3个节点为特殊节点（S3、S4、S5等）
-				||(route[map.point-3]==S4)
-				||(route[map.point-3]==S5)
-				||(isStage == 1))
-			{		
-				Handle_NoTurn_StraightPath();
-			}
-			
-			/*需要转弯处理 - 根据节点标志位选择不同转弯方式*/
-			else
-			{	
-				//左巡线加强kp的转弯，适用于小角度（实际好像并未用到）
-				if(nodesr.nowNode.flag&L_follow)			
-				{
-						Chassis_Turn_By_LeftLine_Blocking(nodesr.nextNode.angle, nodesr.nowNode.angle ,0.75f * nodesr.nowNode.speed); // 转弯后继续左巡线，过弯后可能会有一段偏差，继续左巡线可以更快回正
-						
-				}
-				//右巡线加强kp的转弯，适用于小角度（实际好像并未用到）
-				else if(nodesr.nowNode.flag&R_follow)			
-				{
-						Chassis_Turn_By_RightLine_Blocking(nodesr.nextNode.angle, nodesr.nowNode.angle, 0.75f * nodesr.nowNode.speed);
-						
-				}
-				/*原点转 停车转弯- 适用于大角度转弯*/	
-				else if((nodesr.nowNode.flag&STOPTURN) || (fabsf(need2turn(nodesr.nowNode.angle,nodesr.nextNode.angle))>90.0f))
-				{
-						
-						// 前进一段距离，确保在节点处转弯
-						float forwardDist =GetForwardDistanceBeforeTurn(nodesr.lastNode.nodenum, nodesr.nowNode.nodenum, nodesr.nextNode.nodenum);	
-						Chassis_DriveDistance_Blocking(is_Gyro, forwardDist, Stop_T_Speed, getAngleZ(), 0); 	
-
-						CarBrake(); // 急刹，确保转弯时车完全停稳
-						
-						if(nodesr.lastNode.nodenum == B3 && nodesr.nowNode.nodenum == N2 && nodesr.nextNode.nodenum == P2)
-						{
-							Chassis_OverrideTurnPid(2.0f, 0.0f, 20.0f, 20.0f);
-						}
-						else
-						{
-							Chassis_OverrideTurnPid(7.0f, 0.0f, 70.0f, 35.0f);
-						}
-
-
-						Chassis_Turn_By_StopGyro_Blocking(nodesr.nextNode.angle,  getAngleZ()); // 转到目标角度后可能有一段偏差，继续陀螺转可以更快回正
-
-						Chassis_RestoreTurnPid();
-					}
-				/*陀螺仪不停车转弯- 适用于中小角度转弯*/
-				else
-				{
-						
-						float forwardDist = GetForwardDistanceBeforeGyroTurn(nodesr.lastNode.nodenum, nodesr.nowNode.nodenum, nodesr.nextNode.nodenum);
-						
-						Chassis_DriveDistance_Blocking(is_Gyro, forwardDist, Gyro_Speed, getAngleZ(), 0); // 前进一段距离，确保在节点处转弯	
-
-						Chassis_Turn_By_Gyro_Blocking(nodesr.nextNode.angle, getAngleZ());
-
-					}
-				
-			}
-
-			/*转弯完成切换巡线模式，进入下节点，清除相关值*/
-				isStage = 0;
-				//buzzer_off();  // 关闭蜂鸣器
-							
-				// 切换节点关系
-				nodesr.lastNode = nodesr.nowNode;
-				nodesr.nowNode = nodesr.nextNode;
-				// DEBUG: 打印即将读取的route值
-				//printf("[DEBUG] switching node, reading route[%d]=0x%02X\n", map.point, route[map.point]);
-				nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point++])];
-			
-				nodesr.flag&=~0x04;  // 清除路径点标志
-			}
-		else if(route[map.point-1] == 0xFF)// route[map.point-1]=>nodesr.nextNode
-		{	
-			// 停止小车并设置相关状态
-			//printf("Reached final destination, stopping chassis\n");
-			CarBrake();//TODO
-			//Chassis_Brake();  // 急刹
-			vTaskDelay(2);
-			map.routetime += 1;  // 地图运行次数+1	
-		}
-	}	
-
-	//疑问：为什么这里不更新lastNode和nowNode？（原来是Door内部更新）
-	//历史残留导致两个标志位不同，我感觉是可以合并的
-	/*看到红灯*/
-	if(nodesr.flag&0x20)
-	{
-		 // 获取新的下一个节点（带0xFF保护，防止空读越界）
-		if (route[map.point] != 0xFF) {
-			nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point])];
-		}
-		map.point++;
-		nodesr.flag&=~0x20;  // 清除旋转平台标志
-	}
-
-	/*看到非红灯*/
-	if(nodesr.flag&0x80)  // 检测到标志
-	{		
-		// 获取新的下一个节点（带0xFF保护，防止空读越界）
-		if (route[map.point] != 0xFF){
-			nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point])];
-		}
-		
-		map.point++ ;
-		nodesr.flag&=~0x80;  // 清除标志
-	}
+    Chassis_SetMode(is_Line);
+    Chassis_SetTargetSpeed(nodesr.nowNode.speed);
+    Check_And_Apply_SpeedUp();
+    Chassis_EnableAntiSnake();
 }
 
+static void Cross_MidSwitch(void)
+{
+    if ((nodesr.nowNode.flag & Temp_L) == Temp_L)
+        Chassis_SetTrackMode(TRACK_LEFT_EDGE);
+    else if ((nodesr.nowNode.flag & Temp_R) == Temp_R)
+        Chassis_SetTrackMode(TRACK_RIGHT_EDGE);
+    else if ((nodesr.nowNode.flag & TEMP_NEAR_CENTER) == TEMP_NEAR_CENTER)
+        Chassis_SetTrackMode(TRACK_NEAR_CENTER);
+}
+
+static void Cross_PrepareArrival(void)
+{
+    if ((fabsf(need2turn(getAngleZ(), nodesr.nextNode.angle)) < 10.0f) ||
+        (fabsf(need2turn(nodesr.nowNode.angle, nodesr.nextNode.angle)) < 10.0f) ||
+        (nodesr.nowNode.flag & NOTURN) == NOTURN)
+    {
+        /* 角度差小，保持原速，不操作 */
+    }
+    else
+    {
+        Chassis_SetTargetSpeed(Gyro_Speed);
+    }
+
+    if (nodesr.lastNode.nodenum == C7 && nodesr.nowNode.nodenum == N14 && nodesr.nextNode.nodenum == C3)
+        Chassis_SetTargetSpeed(SPEED1);
+}
+
+static void Cross_NearEnd(void)
+{
+    map_function(nodesr.nowNode.function);
+
+    /* 尚未到达且无障碍结果时，通知 ArriveDetect_task 检测到达 */
+    if ((cross_event & CROSS_EVENT_ARRIVED) != CROSS_EVENT_ARRIVED &&
+        (cross_event & CROSS_EVENT_DOOR) != CROSS_EVENT_DOOR)
+    {
+        xTaskNotifyGive(xHandle_ArriveDetect);
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+        if (nodesr.nowNode.nodenum == N2 && nodesr.nextNode.nodenum == P2)
+            Chassis_SetTargetSpeed(nodesr.nowNode.speed * 0.9f);
+    }
+}
+
+static void Cross_TurnAndAdvance(void)
+{
+    cross_event &= ~CROSS_EVENT_ARRIVED;
+
+    if (route[map.point - 1] != 0xFF)
+    {
+        /* 无需转弯，直接直行通过 */
+        if ((fabsf(need2turn(getAngleZ(), nodesr.nextNode.angle)) < 10.0f) ||
+            (fabsf(need2turn(nodesr.nowNode.angle, nodesr.nextNode.angle)) < 10.0f) ||
+            (nodesr.nowNode.flag & NOTURN) == NOTURN ||
+            nodesr.nowNode.nodenum == S1 ||
+            nodesr.nowNode.nodenum == S2 ||
+            route[map.point - 3] == S3 ||
+            route[map.point - 3] == S4 ||
+            route[map.point - 3] == S5 ||
+            isStage == 1)
+        {
+            Handle_NoTurn_StraightPath();
+        }
+        else
+        {
+            /* 转弯分发 */
+            if (nodesr.nowNode.flag & L_follow)
+            {
+                Chassis_Turn_By_LeftLine_Blocking(nodesr.nextNode.angle, nodesr.nowNode.angle, 0.75f * nodesr.nowNode.speed);
+            }
+            else if (nodesr.nowNode.flag & R_follow)
+            {
+                Chassis_Turn_By_RightLine_Blocking(nodesr.nextNode.angle, nodesr.nowNode.angle, 0.75f * nodesr.nowNode.speed);
+            }
+            else if ((nodesr.nowNode.flag & STOPTURN) || (fabsf(need2turn(nodesr.nowNode.angle, nodesr.nextNode.angle)) > 90.0f))
+            {
+                float forwardDist = GetForwardDistanceBeforeTurn(nodesr.lastNode.nodenum, nodesr.nowNode.nodenum, nodesr.nextNode.nodenum);
+                Chassis_DriveDistance_Blocking(is_Gyro, forwardDist, Stop_T_Speed, getAngleZ(), 0);
+                CarBrake();
+
+                if (nodesr.lastNode.nodenum == B3 && nodesr.nowNode.nodenum == N2 && nodesr.nextNode.nodenum == P2)
+                    Chassis_OverrideTurnPid(2.0f, 0.0f, 20.0f, 20.0f);
+                else
+                    Chassis_OverrideTurnPid(7.0f, 0.0f, 70.0f, 35.0f);
+
+                Chassis_Turn_By_StopGyro_Blocking(nodesr.nextNode.angle, getAngleZ());
+                Chassis_RestoreTurnPid();
+            }
+            else
+            {
+                float forwardDist = GetForwardDistanceBeforeGyroTurn(nodesr.lastNode.nodenum, nodesr.nowNode.nodenum, nodesr.nextNode.nodenum);
+                Chassis_DriveDistance_Blocking(is_Gyro, forwardDist, Gyro_Speed, getAngleZ(), 0);
+                Chassis_Turn_By_Gyro_Blocking(nodesr.nextNode.angle, getAngleZ());
+            }
+        }
+
+        /* 节点切换 */
+        isStage = 0;
+        nodesr.lastNode = nodesr.nowNode;
+        nodesr.nowNode = nodesr.nextNode;
+        nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point++])];
+        cross_event &= ~CROSS_EVENT_ARRIVED;
+    }
+    else if (route[map.point - 1] == 0xFF)
+    {
+        CarBrake();
+        vTaskDelay(2);
+        map.routetime += 1;
+    }
+}
+
+static void Cross_PostProcess(void)
+{
+    if (cross_event & CROSS_EVENT_DOOR)
+    {
+        if (route[map.point] != 0xFF)
+            nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point])];
+        map.point++;
+        cross_event &= ~CROSS_EVENT_DOOR;
+    }
+}
+
+void Cross(void)
+{
+    static uint8_t nav_step = 0;
+    static uint8_t near_end = 0;
+
+    /* ---- 前半段：巡线行驶 ---- */
+    if (near_end == 0)
+    {
+        if (nav_step == NAV_STEP_INIT)
+        {
+            Cross_SegmentInit();
+            nav_step = NAV_STEP_MID_SWITCH;
+        }
+
+        if (fabsf(Chassis_GetMileage()) >= 0.5f * nodesr.nowNode.step && nav_step == NAV_STEP_MID_SWITCH)
+        {
+            Cross_MidSwitch();
+            nav_step = NAV_STEP_PREP_ARRIVE;
+        }
+
+        if (fabsf(Chassis_GetMileage()) >= 0.7f * nodesr.nowNode.step && nav_step == NAV_STEP_PREP_ARRIVE)
+        {
+            Cross_PrepareArrival();
+            near_end = 1;
+        }
+    }
+    /* ---- 后半段：障碍 + 到达检测 ---- */
+    else if (near_end == 1)
+    {
+        Cross_NearEnd();
+        near_end = 0;
+        nav_step = NAV_STEP_INIT;
+    }
+
+    /* ---- 到达节点：转弯 + 节点推进 ---- */
+    if ((cross_event & CROSS_EVENT_ARRIVED) == CROSS_EVENT_ARRIVED)
+        Cross_TurnAndAdvance();
+
+    /* ---- 后处理：门结果（红灯/绿灯）---- */
+    Cross_PostProcess();
+}
 
 /*功能选择*/
 void map_function(u8 fun)

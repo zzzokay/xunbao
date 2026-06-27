@@ -135,6 +135,24 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
 39. **main_task.c** — 新增独立 `MAIN_DEBUG` 宏（与 barrier 的 `DEBUG` 分开控制），`MAIN_DEBUG=1` 时走 `test_flag/debug_test_item` 测试项，不执行依赖传感器的 `Cross()` 导航
 40. **barrier.c/h** — `Door_ReadColor()` 重构：返回颜色值而非通过全局变量传递；DEBUG 路径改为预设数组 `debug_door_colors[5]`；`door()` 通过局部变量 `door_color` 直接使用返回值
 
+**2026-06-27 — Cross() 状态变量重命名**
+
+58. **map.c** — `route_state` 改为 `nav_step`（取值 `NAV_STEP_INIT/CRUISE/MID_SWITCH/PREP_ARRIVE`），`is_near_end` 改为 `in_arrival_stage`，替代魔法数字 0-3
+
+**2026-06-27 — pid_mode_switch 合并到 Chassis_SetMode**
+
+59. **chassis_api.c/h** — `pid_mode_switch()` 函数体合并到 `Chassis_SetMode()`，删除 `pid_mode_switch()` 定义和声明。所有调用方已直接使用 `Chassis_SetMode()`。注释更新到 `motor_task.c`。
+
+**2026-06-27 — P0/P1 优化：motor_task static 化 + normalize_angle + Want2Go 删除 + Cross() 重构 + 阶段同步位拆出**
+
+60. **motor_task.h** — 10 个内部函数从 header 删除声明，改为 motor_task.c 内部 static（handle_motor_speed/handle_now_mode/handle_line_mode/handle_turn_mode/handle_gyro_mode/handle_mode_switch/handle_led_mouse/handle_target_speed/handle_pid_control/get_motor_speed）
+61. **chassis_api.c** — 新增 `static inline normalize_angle()`，消除 Chassis_SetGyroAngle_Go/Chassis_SetGyroAngle_Turn/Chassis_Turn_By_Gyro_Blocking 三处重复角度归一化
+62. **chassis_api.c** — 删除 static `Chassis_MoveDistance_Blocking()`（与公开 API `Want2Go` 完全重复），`Chassis_DriveDistance_Blocking` 改为调用 `Want2Go`
+63. **map.c** — include 从 19 个精简到 5 个（map.h/barrier.h/sys.h/math.h/chassis_api.h），删除 14 个跨层头文件
+64. **map.c** — `Cross()` 拆为 40 行主体 + 6 个 static 子函数：Cross_SegmentInit/Cross_MidSwitch/Cross_PrepareArrival/Cross_NearEnd/Cross_TurnAndAdvance/Cross_PostProcess
+65. **map.h/map.c/barrier.c/ArriveDetect_task.c** — `nodesr.flag` 的阶段同步位（0x04/0x20/0x80）拆出到独立变量 `cross_event`，新增宏 `CROSS_EVENT_ARRIVED/CROSS_EVENT_DOOR`，`nodesr.flag` 仅承载节点配置标志
+66. **map.h/barrier.c/map.c** — `CROSS_EVENT_RED` + `CROSS_EVENT_GREEN` 合并为 `CROSS_EVENT_DOOR`（Cross_PostProcess 中两者处理逻辑完全相同）
+
 ---
 
 ## 小车导航逻辑

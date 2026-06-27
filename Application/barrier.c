@@ -340,7 +340,7 @@ void Stage(void)
 	}
 
 	nodesr.nowNode.function = 0;
-	nodesr.flag |= 0x04;
+	cross_event |= CROSS_EVENT_ARRIVED;
 }
 
 /*平台 - P2*/
@@ -409,7 +409,7 @@ void Stage_P2()
 	motor_all.Cspeed = 0;
 	motor_pid_clear();
 	nodesr.nowNode.function = 0; // 清除障碍标志
-	nodesr.flag |= 0x04;		 // 到达路口
+	cross_event |= CROSS_EVENT_ARRIVED;		 // 到达路口
 }
 
 /*长桥*/
@@ -626,7 +626,7 @@ void Barrier_Hill(void)
 		vTaskDelay(2);
 	}
 	nodesr.nowNode.function = 0; 	// 清除障碍标志
-	nodesr.flag |= 0x04;		 	// 到达路口
+	cross_event |= CROSS_EVENT_ARRIVED;		 	// 到达路口
 }
 
 /* 刀山专属定中修正：检测左/右起第3、4个传感器触碰红线 */
@@ -742,7 +742,7 @@ void Sword_Mountain(void)
 	Chassis_RestoreLinePid();
 	Chassis_MotorControl(is_Line, SPEED1, SPEED1, 0);
 	nodesr.nowNode.function = 0;
-	nodesr.flag |= 0x04;
+	cross_event |= CROSS_EVENT_ARRIVED;
 }
 
 /*珠峰 */
@@ -855,7 +855,7 @@ void Barrier_HighMountain(void)
 
 	Chassis_RestoreGyroPid();
 	nodesr.nowNode.function = 0;
-	nodesr.flag |= 0x04;
+	cross_event |= CROSS_EVENT_ARRIVED;
 }
 
 
@@ -893,7 +893,7 @@ void view(void)
 		
 	nodesr.nowNode.function = NONE;
 	motor_all.Cincrement = origin_c;
-	nodesr.flag |= 0x04; // 到达路口
+	cross_event |= CROSS_EVENT_ARRIVED; // 到达路口
 }
 
 /*短直立景点*/
@@ -910,7 +910,7 @@ void view1()
 	vTaskDelay(200);
 
 	nodesr.nowNode.function = 0;
-	nodesr.flag |= 0x04; // 到达路口
+	cross_event |= CROSS_EVENT_ARRIVED; // 到达路口
 }
 
 /*退短直立景点 - 红外检测*/
@@ -937,7 +937,7 @@ void back(void)
 	Chassis_MotorControl(is_Line, 28, 28, 0);
 
 	nodesr.nowNode.function = 0;
-	nodesr.flag |= 0x04; // 到达路口
+	cross_event |= CROSS_EVENT_ARRIVED; // 到达路口
 }
 
 /*波浪板*/
@@ -980,7 +980,7 @@ void Barrier_WavedPlate(float lenght)
 	nodesr.nowNode.function = 0;
 	buzzer_off();
 	gyroG_pid_param = origin_param1;
-	nodesr.flag |= 0x04; // 到达路口
+	cross_event |= CROSS_EVENT_ARRIVED; // 到达路口
 }
 
 /*南极*/
@@ -1059,7 +1059,7 @@ void South_Pole(void)
 
 	Chassis_RestoreGyroPid();
 	nodesr.nowNode.function = 0;
-	nodesr.flag |= 0x04;
+	cross_event |= CROSS_EVENT_ARRIVED;
 }
 
 
@@ -1386,7 +1386,7 @@ void QQB_1(void)
 	
 	Chassis_RestoreLinePid();
 	nodesr.nowNode.function = 0;
-	nodesr.flag |= 0x04;
+	cross_event |= CROSS_EVENT_ARRIVED;
 	
 }
 
@@ -1451,7 +1451,7 @@ void door()
 		{
 			send_play_specified_command(11);
 			door_retreat(N5, N8);
-			nodesr.flag |= 0x20;
+			cross_event |= CROSS_EVENT_DOOR;
 			state = DOOR_D3;
 		}
 		else if (color_flag[0] == Green)
@@ -1462,7 +1462,7 @@ void door()
 			nodesr.nowNode.step = 60;
 			nodesr.nowNode.speed = SPEED2;
 			update_route_by_QR();
-			nodesr.flag |= 0x80;
+			cross_event |= CROSS_EVENT_DOOR;
 			state = DOOR_D2;
 		}
 		else // Yellow
@@ -1474,7 +1474,7 @@ void door()
 			nodesr.nowNode.step = 60;
 			nodesr.nowNode.speed = SPEED2;
 			update_route_by_QR();
-			nodesr.flag |= 0x80;
+			cross_event |= CROSS_EVENT_DOOR;
 			state = DOOR_D5_BACK;
 		}
 		break;
@@ -1490,7 +1490,7 @@ void door()
 				route[i] = door1route[i];
 				if (door1route[i] == 0xff) break;
 			}
-			nodesr.flag |= 0x20;
+			cross_event |= CROSS_EVENT_DOOR;
 			state = DOOR_D4;
 		}
 		else // Green 或 Yellow
@@ -1512,7 +1512,7 @@ void door()
 				send_play_specified_command(10);
 				state = DOOR_D5_BACK;
 			}
-			nodesr.flag |= 0x80;
+			cross_event |= CROSS_EVENT_DOOR;
 		}
 		break;
 
@@ -1533,7 +1533,7 @@ void door()
 		nodesr.nowNode.step = 60;
 		nodesr.nowNode.speed = SPEED2;
 		update_route_by_QR();
-		nodesr.flag |= 0x80;
+		cross_event |= CROSS_EVENT_DOOR;
 		state = DOOR_D2;
 		break;
 
@@ -1546,7 +1546,7 @@ void door()
 			nodesr.nowNode = Node[getNextConnectNode(N10, N3)];
 			nodesr.nowNode.step = 65;
 			nodesr.nowNode.speed = SPEED2;
-			nodesr.flag |= 0x80;
+			cross_event |= CROSS_EVENT_DOOR;
 			update_route_by_door_1();
 			state = DOOR_D2;
 		}
@@ -1558,7 +1558,7 @@ void door()
 				map.point -= 1;
 				route[map.point] = N3;
 				door_retreat(N10, N8);
-				nodesr.flag |= 0x20;
+				cross_event |= CROSS_EVENT_DOOR;
 				state = DOOR_D4_BACK;
 			}
 			else if (color_flag[0] == Red && color_flag[1] == Yellow)
@@ -1567,7 +1567,7 @@ void door()
 				door_set_pass_node(N3, N8, 120, SPEED3);
 				door_set_pass_node(N8, N3, 120, SPEED3);
 				update_route_by_door_2();
-				nodesr.flag |= 0x20;
+				cross_event |= CROSS_EVENT_DOOR;
 				state = DOOR_D2;
 			}
 		}
@@ -1584,7 +1584,7 @@ void door()
 			nodesr.nowNode.step = 10;
 			nodesr.nowNode.speed = SPEED2;
 			nodesr.nowNode.function = NONE;
-			nodesr.flag |= 0x80;
+			cross_event |= CROSS_EVENT_DOOR;
 			update_route_by_door_3();
 			motor_pid_clear();
 		}
@@ -1594,7 +1594,7 @@ void door()
 			door_retreat(N8, N5);
 			door_set_pass_node(N8, N5, 140, SPEED2);
 			door_set_pass_node(N5, N8, 140, SPEED2);
-			nodesr.flag |= 0x20;
+			cross_event |= CROSS_EVENT_DOOR;
 			update_route_by_door_4();
 		}
 		state = DOOR_D2;
@@ -1920,14 +1920,14 @@ void undermou(void)
 	}
 	Robot_Work(HEAD,UP);
 	nodesr.nowNode.function = 0;
-	nodesr.flag |= 0x04; // 到达路口
+	cross_event |= CROSS_EVENT_ARRIVED; // 到达路口
 }
 
 ///*忽略节点 - 直接判定到达路口*/
 //void ignore_node(void)
 //{
 //	nodesr.nowNode.function = 0;
-//	nodesr.flag |= 0x04; // 到达路口
+//	cross_event |= CROSS_EVENT_ARRIVED; // 到达路口
 //}
 
 /*第二轮路线规划*/

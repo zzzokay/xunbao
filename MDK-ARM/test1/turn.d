@@ -36,7 +36,7 @@ test1\turn.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_tim.h
 test1\turn.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_tim_ex.h
 test1\turn.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart.h
 test1\turn.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart_ex.h
-test1\turn.o: ../Module/imu.h
+test1\turn.o: ..\Module\imu.h
 test1\turn.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
 test1\turn.o: ../Core/Inc/FreeRTOSConfig.h
 test1\turn.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
@@ -67,8 +67,8 @@ test1\turn.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h
 test1\turn.o: ../Motor/motor.h
 test1\turn.o: ../Core/Inc/tim.h
 test1\turn.o: ..\Application\scaner.h
-test1\turn.o: ../Module/openmv.h
+test1\turn.o: ..\Module\openmv.h
 test1\turn.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\turn.o: ../Motor/encoder.h
-test1\turn.o: ../Module/bsp_buzzer.h
+test1\turn.o: ..\Module\bsp_buzzer.h
 test1\turn.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h

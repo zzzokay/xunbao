@@ -64,10 +64,10 @@ test1\freertos.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os
 test1\freertos.o: ../Task/ArriveDetect_task.h
 test1\freertos.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\freertos.o: ../Task/task_create.h
-test1\freertos.o: ../Application/scaner.h
-test1\freertos.o: ../Application/sys.h
-test1\freertos.o: ../Application/chassis_api.h
-test1\freertos.o: ../Application/turn.h
-test1\freertos.o: ../Module/imu.h
+test1\freertos.o: ..\Application\scaner.h
+test1\freertos.o: ..\Application\sys.h
+test1\freertos.o: ..\Application\chassis_api.h
+test1\freertos.o: ..\Application\turn.h
+test1\freertos.o: ..\Module\imu.h
 test1\freertos.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
-test1\freertos.o: ../Application/chassis_api.h
+test1\freertos.o: ..\Application\chassis_api.h

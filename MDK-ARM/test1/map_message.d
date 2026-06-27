@@ -58,6 +58,6 @@ test1\map_message.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_gr
 test1\map_message.o: ../USMAT/sys.h
 test1\map_message.o: ../Math/pid.h
 test1\map_message.o: ..\Application\turn.h
-test1\map_message.o: ../Module/imu.h
+test1\map_message.o: ..\Module\imu.h
 test1\map_message.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\map_message.o: ..\Application\chassis_api.h

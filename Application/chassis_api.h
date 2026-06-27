@@ -22,7 +22,7 @@ typedef enum {
     TRACK_ALL = 0,        // 正常双边循迹
     TRACK_LEFT_EDGE,         // 左单边循迹 (忽略右侧)
     TRACK_RIGHT_EDGE,        // 右单边循迹 (忽略左侧)
-    TRACK_LIUSHUI            // 流水巡线模式
+    TRACK_NEAR_CENTER            // 中心就近跟踪（离中心最近的连续亮灯段）
 } LineTrackMode_e;
 
 // 底盘状态结构体
@@ -208,8 +208,6 @@ void Chassis_CorrectByInfrared(float correct_angle, float multiplier, float K);
  * @note 内部包含了原先塞在 map.c 里的“游龙保护算法”、PID自适应调节
  */
 void Chassis_Periodic_Update_5ms(void);
-
-void pid_mode_switch(uint8_t target_mode);
 
 void Want2Go(float Dis);
 

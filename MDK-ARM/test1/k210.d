@@ -53,11 +53,11 @@ test1\k210.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
 test1\k210.o: ../USMAT/sys.h
 test1\k210.o: ../Core/Inc/usart.h
 test1\k210.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h
-test1\k210.o: ../Application/barrier.h
-test1\k210.o: ../Application/sys.h
-test1\k210.o: ../Application/map.h
-test1\k210.o: ../Application/map_message.h
-test1\k210.o: ../Application/map.h
+test1\k210.o: ..\Application\barrier.h
+test1\k210.o: ..\Application\sys.h
+test1\k210.o: ..\Application\map.h
+test1\k210.o: ..\Application\map_message.h
+test1\k210.o: ..\Application\map.h
 test1\k210.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\string.h
 test1\k210.o: ..\Module\QR.h
 test1\k210.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h

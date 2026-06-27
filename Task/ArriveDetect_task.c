@@ -32,7 +32,7 @@ void arrive_detect_task(void *pvParameters)
         }
 
         // 标记到达
-        nodesr.flag |= 0x04;
+        cross_event |= CROSS_EVENT_ARRIVED;
 
         send_play_specified_command(13); // 播报
         scaner_set.CatchsensorNum = 0;

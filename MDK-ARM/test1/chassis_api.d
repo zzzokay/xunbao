@@ -55,11 +55,11 @@ test1\chassis_api.o: ../USMAT/sys.h
 test1\chassis_api.o: ../Math/pid.h
 test1\chassis_api.o: ..\Application\turn.h
 test1\chassis_api.o: ..\Application\sys.h
-test1\chassis_api.o: ../Module/imu.h
+test1\chassis_api.o: ..\Module\imu.h
 test1\chassis_api.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\chassis_api.o: ..\Application\chassis_api.h
 test1\chassis_api.o: ..\Application\scaner.h
-test1\chassis_api.o: ../Module/bsp_linefollower.h
+test1\chassis_api.o: ..\Module\bsp_linefollower.h
 test1\chassis_api.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\math.h
 test1\chassis_api.o: ../Motor/encoder.h
 test1\chassis_api.o: ../Core/Inc/tim.h

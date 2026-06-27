@@ -39,7 +39,7 @@ test1\motion.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart_ex.h
 test1\motion.o: ..\Application\delay.h
 test1\motion.o: ..\Application\turn.h
 test1\motion.o: ..\Application\sys.h
-test1\motion.o: ../Module/imu.h
+test1\motion.o: ..\Module\imu.h
 test1\motion.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
 test1\motion.o: ../Core/Inc/FreeRTOSConfig.h
 test1\motion.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
@@ -60,7 +60,7 @@ test1\motion.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\motion.o: ../USMAT/sys.h
 test1\motion.o: ../Math/pid.h
 test1\motion.o: ..\Application\turn.h
-test1\motion.o: ../Module/bsp_led.h
-test1\motion.o: ../Module/rudder_control.h
+test1\motion.o: ..\Module\bsp_led.h
+test1\motion.o: ..\Module\rudder_control.h
 test1\motion.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\motion.o: ..\Application\motion.h

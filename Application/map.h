@@ -28,13 +28,13 @@
 #define L_follow     (1<<16)			//左循迹转弯（用来转弯
 #define R_follow     (1<<17)			//右循迹转弯
 #define MORELED      (1<<18)            //更多LED
-#define LiuShui      (1<<19)			//流水灯
+#define NEAR_CENTER      (1<<19)			//中心就近跟踪
 #define NOTURN       (1<<20)			//不转弯  
 
 #define INGNORE      (1<<21)            //短直立景点后退
 #define Temp_L		 (1<<22)			//临时左循迹
 #define Temp_R		 (1<<23)			//临时右循迹
-#define Temp_LiuShui (1<<24)			//临时流水
+#define TEMP_NEAR_CENTER (1<<24)			//半程切换→中心就近跟踪
 
 enum barriers {
 	NONE = 1,
@@ -168,6 +168,11 @@ typedef struct _nodesr{
 
 extern uint8_t Change_Route;
 extern NODESR nodesr;
+
+/* 运行时阶段/事件标志（与 nodesr.flag 的节点配置标志分离） */
+extern volatile uint8_t cross_event;
+#define CROSS_EVENT_ARRIVED     (1<<0)  // 已到达节点（原 nodesr.flag bit2）
+#define CROSS_EVENT_DOOR        (1<<1)  // 门结果就绪（红/绿灯统一，原 RED/GREEN）
 
 struct Map_State {
 	u8 point;

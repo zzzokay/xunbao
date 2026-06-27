@@ -8,7 +8,6 @@
 #include "bsp_buzzer.h"
 #include "bsp_linefollower.h"
 #include "scaner.h"
-#include "speed_ctrl.h"
 #include "encoder.h"
 #include "barrier.h"
 #include "motor_task.h"
@@ -22,7 +21,7 @@
 #include "scaner.h"
 #include "motor.h"
 #include "chassis_api.h"
-#include "gray.h"
+
 
 /*===== 独立调试开关 =====*/
 #define MAIN_DEBUG 1
@@ -72,7 +71,7 @@ void main_task(void *pvParameters)
 		{
 			
 			//ScanerMode_Switch(RF);
-			Chassis_SetTrackMode(TRACK_LIUSHUI);
+			Chassis_SetTrackMode(TRACK_NEAR_CENTER);
 			Chassis_DriveDistance_Blocking(is_Line,100,-36,0,0);
 			CarBrake();
 			test_flag = 0;
