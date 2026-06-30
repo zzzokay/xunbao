@@ -24,10 +24,10 @@
 
 
 /*===== 独立调试开关 =====*/
-#define MAIN_DEBUG 1
+#define MAIN_DEBUG 0
 
 
-uint8_t test_flag = 3;
+uint8_t test_flag = 6;
 float temp_speed=25;
 #if MAIN_DEBUG
 
@@ -54,7 +54,7 @@ void main_task(void *pvParameters)
 	/*等待移除挡板*/
 	while(Infrared_ahead == 1)
 		vTaskDelay(5);
-	//ScanerMode_Switch(Gray);
+	ScanerMode_Switch(Gray);
 #else
 	/*正常模式：完整初始化流程*/
 	mapInit();

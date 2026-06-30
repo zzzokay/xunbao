@@ -356,7 +356,7 @@ static void Cross_PrepareArrival(void)
     {
         /* 角度差小，保持原速，不操作 */
     }
-    else
+    else//
     {
         Chassis_SetTargetSpeed(Gyro_Speed);
     }

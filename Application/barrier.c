@@ -556,7 +556,7 @@ void Barrier_Bridge(void)
 
 			Chassis_MotorControl(is_Line, SPEED1, SPEED1, 0);
 			nodesr.nowNode.function = 0;
-			nodesr.flag |= 0X04;
+			cross_event |= CROSS_EVENT_ARRIVED;
 			state = BRIDGE_DONE;
 			break;
 

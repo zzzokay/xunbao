@@ -520,7 +520,7 @@ void Chassis_Turn360_Blocking(void)
 void Chassis_Turn_By_Gyro_Blocking(float target_angle, float current_angle)
 {
    
-    Chassis_OverrideGyroPid(10.0f, 0.0f, 110.0f, 50.0f); //左转还是右转
+    Chassis_OverrideGyroPid(12.0f, 0.0f, 180.0f, 50.0f); //左转还是右转
     //直接转相对角度
     float target_g = normalize_angle(getAngleZ() + need2turn(current_angle, target_angle));
     Chassis_SetGyroAngle_Go(target_g);
