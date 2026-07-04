@@ -210,7 +210,6 @@ void pid_init(void)
 	lineG_pid_param.outputMax = 80;
 	lineG_pid_param.outputMin = -80;
 
-	motor_pid_clear();
 }
 
 /**

@@ -57,10 +57,9 @@ float getAngleZ(void)
 	return targetangle;
 }
 
-/*原地转（内部基函数，right_ratio 控制左右电机速比，平台转弯用 1.3 补偿阻力）*/
-static uint8_t Turn_Angle_Base(float Angle, float right_ratio, uint8_t force_right)
+/*原地转（内部基函数，right_ratio 控制左右电机速比，平台转弯用 1.15 补偿阻力）*/
+static uint8_t Turn_Angle_Base(float Angle, float right_ratio, float force_threshold)
 {
-	static uint8_t inited = 0;
 	float GTspeed;
 	float now_angle;
 
@@ -72,12 +71,11 @@ static uint8_t Turn_Angle_Base(float Angle, float right_ratio, uint8_t force_rig
 	gyroT_pid.target = 0;
 	now_angle = getAngleZ();
 	gyroT_pid.measure = need2turn(now_angle, Angle);
-	// 强制右转：如果最短路径是左转，绕 360° 走右转（正的向右负的向左）
-	if (force_right && gyroT_pid.measure > 0)
+	// 强制右转：如果最短路径是左转且偏离超过阈值，绕 360° 走右转
+	if (force_threshold > 0 && gyroT_pid.measure > 0 && gyroT_pid.measure > force_threshold)
 		gyroT_pid.measure -= 360.0f;
-	
 
-	if (fabsf(gyroT_pid.measure) < 1.0f)
+	if (fabsf(gyroT_pid.measure) < 2.0f)
 	{
 		motor_all.Lspeed = motor_all.Rspeed = 0;
 		gyroT_pid.integral = 0;
@@ -87,32 +85,33 @@ static uint8_t Turn_Angle_Base(float Angle, float right_ratio, uint8_t force_rig
 
 	GTspeed = positional_PID(&gyroT_pid, &gyroT_pid_param);
 
-	// 死区补偿：输出太小但误差仍存在时，强制最小输出克服摩擦
+	// 死区补偿：输出太小但误差仍存在时，固定输出 ±2（非累加，避免零附近抖振）
 	if (fabsf(GTspeed) < 5.0f && fabsf(gyroT_pid.measure) > 1.0f)
 	{
-		GTspeed += (GTspeed > 0) ? 5.0f : -5.0f;
+		GTspeed = (GTspeed >= 0 ? 1.0f : -1.0f) * 2.0f;
 	}
 
-	if (GTspeed >= motor_all.GyroT_speedMax)
+	// 速度限幅（左右各自限幅，避免 right_ratio 导致单侧超限）
+	if (GTspeed > motor_all.GyroT_speedMax)
 		GTspeed = motor_all.GyroT_speedMax;
-	else if (GTspeed <= -motor_all.GyroT_speedMax)
+	else if (GTspeed < -motor_all.GyroT_speedMax)
 		GTspeed = -motor_all.GyroT_speedMax;
-	//打印转速和当前角度误差
-	if(inited++ % 10 == 0)
-	printf("Turn_Angle_Base GTspeed: %.2f, Angle Error: %.2f\n", GTspeed, gyroT_pid.measure);
 	motor_all.Lspeed = GTspeed;
-	motor_all.Rspeed = -GTspeed * right_ratio;
+
+	float Rspeed = -GTspeed * right_ratio;
+	if (Rspeed > motor_all.GyroT_speedMax)
+		Rspeed = motor_all.GyroT_speedMax;
+	else if (Rspeed < -motor_all.GyroT_speedMax)
+		Rspeed = -motor_all.GyroT_speedMax;
+	motor_all.Rspeed = Rspeed;
 	return 0;
 }
 
-/*平台转（右电机 x1.3 补偿内侧轮阻力；仅大角度≈180°强制右转）*/
+/*平台转（右电机 x1.15 补偿内侧轮阻力；仅大角度≈180°强制右转）*/
 uint8_t Stage_turn_Angle(float Angle)
 {
-	float now = getAngleZ();
-	float diff = need2turn(now, Angle);
-	// 仅平台 180° 掉头强制右转，小角度修正不强制方向
-	uint8_t force = (fabsf(diff) > 150.0f) ? 1 : 0;
-	return Turn_Angle_Base(Angle, 1.2f, force);
+	// force_threshold = 150：Turn_Angle_Base 内部基于最新角度决策，避免 TOCTOU
+	return Turn_Angle_Base(Angle, 1.15f, 150.0f);
 }
 
 

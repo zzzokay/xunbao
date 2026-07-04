@@ -157,7 +157,6 @@ extern volatile uint8_t cross_event;  // 运行时阶段/事件标志
 
 ```c
 uint8_t color_flag[5];  // 颜色门标志(D2~D5,D1)
-uint8_t isStage;        // 是否在平台上
 uint8_t treasure;       // 宝物编号
 uint8_t DownLiuShui;    // 流水下坡标志
 float LiuShuiRate;      // 流水速度倍率(默认1.6)
@@ -360,13 +359,16 @@ Cross()
 7. **转弯前距离硬编码** [map.c:189-233]: if链应改用查表
 8. **main_task.c 引用 speed_ctrl.h** 需确认文件是否已删除
 9. **filter_motor_speed() 窗口过小** [filter.c:56-93]: 4点窗口，去极值后只剩2点平均
-10. **Stage_P2 死循环** [barrier.c]: `if(Backtimes==1) while(1);`
+10. **Stage_P2 顺序结构** [barrier.c]: 已重写为状态机，与 Stage() 格式一致
 
 ### ✓ 已修复
+- **堵转保护** [chassis_api.c]: stall_protect_enabled/stall_count[4]，PWM > 7000 硬上限 + output/target>80 连续 5 周期触发 (2026-07-04 终版：比值方案，自动适应转速)
 - **Cross()函数过大** [map.c]: 原 ~254 行单函数 → 40 行主体 + 6 个 static 子函数 (2026-06-27)
 - **Want2Go 和 Chassis_MoveDistance_Blocking 重复**: 删除后者，Chassis_DriveDistance_Blocking 改为调 Want2Go (2026-06-27)
 - **角度归一化代码重复3次**: 提取 `normalize_angle()` 到 chassis_api.c (2026-06-27)
 - **nodesr.flag 语义混杂**: 阶段同步位(0x04/0x20/0x80)拆出到独立 `cross_event` 变量，`nodesr.flag` 仅承载配置标志 (2026-06-27)
+- **Stage_P2 重写为状态机** [barrier.c]: 顺序执行改为 P2_ASCEND→P2_TOP→P2_TURN→P2_DONE 状态机，坡检测和上坡方式与 Stage() 一致 (2026-07-03)
+- **Barrier_WavedPlate 重写为状态机** [barrier.c]: 顺序执行改为 WP_APPROACH→WP_DRIVE→WP_DONE 状态机；接近阶段用 Stage_DetectedRamp(30.0f) 替代 while 传感器等待；行驶阶段用 RampCtrl_Blocking(RAMP_ASCEND, ..., max_distance) 替代 is_Line 模式（设俯仰角 9999 仅靠距离退出）；移除全部 PID 修改 (2026-07-03)
 
 ---
 
@@ -390,6 +392,7 @@ Cross()
 | `Chassis_DisableLineLostProtection()` | 关闭丢线保护并重置计数器 | map.c |
 | `Chassis_EnableRollProtection()` | 使能横滚角超限保护（imu.roll 与 basic_r 偏差 > 40° 时死停） | map.c / barrier.c |
 | `Chassis_DisableRollProtection()` | 关闭横滚角超限保护 | map.c / barrier.c |
+| `Chassis_SelfCheck()` | 一键自检（架车黑毯上持续监测陀螺仪/灰度/循迹板，每秒一次，状态变化才输出） | main_task.c |
 
 ---
 
@@ -533,9 +536,9 @@ motor_task 5ms循环:
 | `need2turn(now, target)` | 计算最短旋转角 (-180, 180] | 内部工具 |
 | `getAngleZ()` | 返回补偿航向角 = `get_latest_yaw() + compensateZ` | 转弯/巡线 |
 | `mpuZreset(sensor, ref)` | 设置零偏补偿 | 开机校准 |
-| `Turn_Angle_Base(Angle, ratio)` | 原地转基函数（static） | Turn_Angle / Stage_turn_Angle |
+| `Turn_Angle_Base(Angle, right_ratio, force_threshold)` | 原地转基函数（static） | Turn_Angle / Stage_turn_Angle |
 | `Turn_Angle(Angle)` | 原地转（左右对称，ratio=1.0） | motor_task handle_turn_mode |
-| `Stage_turn_Angle(Angle)` | 平台转（右电机 x1.3 补偿阻力） | motor_task handle_turn_mode |
+| `Stage_turn_Angle(Angle)` | 平台转（右电机 x1.15 补偿阻力） | motor_task handle_turn_mode |
 | `Turn360Step()` | 360° 转圈单步（梯形速度曲线） | motor_task handle_turn_mode |
 | `Turn_Angle_Relative(Angle1)` | 相对角转绝对角，设 is_Turn 模式 | chassis_api |
 | `Turn_Angle360()` | 阻塞型 360° 转圈入口 | map.c / barrier.c |
@@ -559,9 +562,9 @@ motor_task 5ms循环:
 
 ### 17.3 Turn_Angle / Stage_turn_Angle 合并
 
-两者逻辑 90% 相同，唯一区别是右电机速比。提取 `static Turn_Angle_Base(Angle, right_ratio)` 基函数：
-- `Turn_Angle(Angle)` → `Turn_Angle_Base(Angle, 1.0f)`
-- `Stage_turn_Angle(Angle)` → `Turn_Angle_Base(Angle, 1.3f)`
+两者逻辑 90% 相同，唯一区别是右电机速比和是否强制右转。提取 `static Turn_Angle_Base(Angle, right_ratio, force_threshold)` 基函数：
+- `Turn_Angle(Angle)` → `Turn_Angle_Base(Angle, 1.0f, 0)` （不强制右转）
+- `Stage_turn_Angle(Angle)` → `Turn_Angle_Base(Angle, 1.15f, 150.0f)` （偏离 > 150° 强制右转）
 
 ### 17.4 IMU 并发安全
 
@@ -755,3 +758,39 @@ QQB_INIT → QQB_WAIT_PITCH → QQB_GYRO → QQB_DONE
 - 可复用 Barrier_Bridge 的 BRIDGE_ON_BRIDGE_TOP 三层修正模式（`barrier.c:471-536`）：紧急角度硬跳 + `Chassis_CorrectByInfrared` + 居中检测加速
 - 所有转向调用 `Chassis_Turn_By_Gyro_Blocking()`（`chassis_api.c:461-478`）
 - 强转恢复保持原样：120° 陀螺仪转找线 + line_pid_param 覆盖
+
+---
+
+## 二十三、一键自检功能（2026-07-04）
+
+### 23.1 功能说明
+
+`Chassis_SelfCheck()` 用于架车调试：小车固定在支架上，下方铺黑毯时，持续监测传感器状态是否正常。
+
+### 23.2 检测维度
+
+| 维度 | 检测方式 | 判据 | 错误位 |
+|------|----------|------|--------|
+| 陀螺仪漂移 | 1秒前 vs 当前 `getAngleZ()` 差值 | > 1° | `0x01` |
+| 灰度传感器 | `ScanerMode_Switch(Gray)` → 读 `AD_Value_Gray[4]` | 任意值 ≥ 500 | `0x02` |
+| 循迹板 | 读 `Cross_Scaner.detail` | ≠ 0（黑毯上应全0） | `0x04` |
+
+### 23.3 行为模式
+
+- **频率**：每 200×5ms = 1 秒检测一轮
+- **静默**：一切正常时不输出任何字符
+- **状态变化才报**：出问题 → 打印 `[SELFCHECK] FAIL - ...`；问题恢复 → 打印 `[SELFCHECK] OK - 所有异常已恢复`
+- **首次跳过**：陀螺仪首次采样仅记录角度，第二次起才开始比较漂移
+
+### 23.4 实现位置
+
+- 实现：[chassis_api.c](Application/chassis_api.c)（函数体）+ [chassis_api.h](Application/chassis_api.h)（声明）
+- 调用：[main_task.c](Task/main_task.c) 第 70 行，在 `#if MAIN_DEBUG` 块中每周期调用一次
+- 输出：通过 `printf` → UART4（调试串口）
+
+### 23.5 使用方式
+
+1. 将小车架在固定支架上
+2. 下方铺纯黑毯
+3. 上电，打开串口助手（UART4）
+4. 串口会静默，直到有问题自动打印；或首次正常时完全无输出

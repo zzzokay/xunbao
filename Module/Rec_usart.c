@@ -77,7 +77,7 @@ void get_PIDdata()
 		parse_cmd_field(p, value, 10);
 
 		
-		printf("CMD: [%s][%s][%s]\r\n", dev, param, value);
+		//printf("CMD: [%s][%s][%s]\r\n", dev, param, value);
 		 if(strcmp(dev,"slider")==0)
 		 {
 		 	if(strcmp(param,"kp")==0){temp_kp = atof(value);}

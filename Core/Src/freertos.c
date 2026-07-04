@@ -132,7 +132,7 @@ void StartDefaultTask(void const * argument)
 	vTaskDelete(NULL);//任务自删
   for(;;)
   {
-		printf("delete failed");
+		//printf("delete failed");
     osDelay(1000);
   }
   /* USER CODE END StartDefaultTask */

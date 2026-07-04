@@ -153,6 +153,20 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
 65. **map.h/map.c/barrier.c/ArriveDetect_task.c** — `nodesr.flag` 的阶段同步位（0x04/0x20/0x80）拆出到独立变量 `cross_event`，新增宏 `CROSS_EVENT_ARRIVED/CROSS_EVENT_DOOR`，`nodesr.flag` 仅承载节点配置标志
 66. **map.h/barrier.c/map.c** — `CROSS_EVENT_RED` + `CROSS_EVENT_GREEN` 合并为 `CROSS_EVENT_DOOR`（Cross_PostProcess 中两者处理逻辑完全相同）
 
+**2026-07-03 — Stage_P2 重写为状态机（与 Stage 格式对齐）**
+
+67. **barrier.c** — `Stage_P2()` 从顺序执行重写为 `P2_ASCEND → P2_TOP → P2_TURN → P2_DONE` 状态机。坡检测改用 `Stage_DetectedRamp(20.0f)`，上坡改用 `RampCtrl_Blocking(RAMP_ASCEND, ...)`，转弯改用 `Chassis_Turn_By_StopGyro_Blocking()`。移除直接 PID 修改、Gray 模式、Cross 传感器角度检测。导航逻辑保留（Backtimes、站立、75cm 前进）。原 ~70 行 → ~65 行。详见 [计划文件](.claude/plans/stage-stage-p2-iridescent-tiger.md)
+
+68. **chassis_api.c/h** — 新增堵转保护。PWM > 7000 硬上限 + output/target>80 连续 5 周期触发。2026-07-04 终版：比值方案自动适应转速，加速时允许上限同比升高，不误触。
+
+**2026-07-04 — turn.c Turn_Angle_Base 重构：死区补偿/钳位/TOCTOU**
+
+69. **turn.c** — `Turn_Angle_Base` 参数 `force_right(uint8_t)` 改为 `force_threshold(float)`，在函数内部读取最新角度后决策，消除 Stage_turn_Angle 的 TOCTOU 竞争
+70. **turn.c** — 死区补偿从累加式（`+=`）改为直接赋值（`=`），避免零附近"推过头→反向→再推"极限环振荡
+71. **turn.c** — 速度钳位改为左右轮各自独立限幅，修复 `right_ratio` 乘后右电机可能超 `GyroT_speedMax` 的问题
+72. **turn.c** — 清除 `static uint8_t inited`（仅服务于已注释的 debug printf）
+73. **turn.c Stage_turn_Angle** — 注释 `x1.3` → `x1.15`（与实际参数同步）
+
 ---
 
 ## 小车导航逻辑
@@ -329,3 +343,11 @@ S 节点（S1-S5）是直立式景点，连接关系：
 - MORELED：5 个灯以上亮
 - AWHITE：全白（全黑）
 - RESTMPUZ：到达后执行陀螺仪 Z 轴校正
+
+**2026-07-03 — Barrier_WavedPlate 状态机重构**
+
+68. **barrier.c** — `Barrier_WavedPlate()` 从顺序执行重写为状态机（WP_APPROACH → WP_DRIVE → WP_DONE），与 `Stage()` 格式一致；接近阶段用 `Stage_DetectedRamp(30.0f)` 替代原 while 传感器等待（含 30cm 距离保底）；行驶阶段用 `RampCtrl_Blocking(RAMP_ASCEND, ..., max_distance=lenght)` 替代 `is_Line` + while 里程循环（俯仰角阈值设 9999 不触发，仅靠距离退出）；移除全部 PID 修改（`line_pid_param.kp/ki/kd`、`origin_param` 保存/恢复）和 `Cross_getline` + `mpuZreset`
+
+**2026-07-04 — 一键自检功能**
+
+69. **chassis_api.c/h** — 新增 `Chassis_SelfCheck()` 一键自检函数，架车在黑毯上持续监测三个维度：陀螺仪漂移（每秒角度变化 > 1° 报错）、灰度传感器（AD_Value_Gray ≥ 500 报错）、循迹板（Cross_Scaner.detail ≠ 0 报错）。每秒检测一次，仅状态变化时通过 printf 输出。在 main_task.c 调试模式的 while(1) 循环中持续调用。

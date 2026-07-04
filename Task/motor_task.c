@@ -331,9 +331,9 @@ static void handle_target_speed(void)
 	if(DownLiuShui)  // 流水巡线模式
 	{
 		// 前方速度超过流水阈值，强制先稳定
-		motor_L0.target = motor_all.Lspeed * LiuShuiRate;
+		motor_L0.target = motor_all.Lspeed;
 		motor_L1.target = motor_all.Lspeed;
-		motor_R0.target = motor_all.Rspeed * LiuShuiRate;
+		motor_R0.target = motor_all.Rspeed;
 		motor_R1.target = motor_all.Rspeed;
 	}
 	else  // 普通模式

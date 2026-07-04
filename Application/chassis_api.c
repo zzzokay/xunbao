@@ -10,8 +10,9 @@
 #include "turn.h"
 #include "motor.h"
 #include "gray.h"
+#include <stdio.h>
 
-/* 
+/*
  * ==========================================================
  * Chassis API (底盘解耦中间层) 实现
  * 将具体的 PID、游龙检测、编码器计算、状态量封存在这里，不对 map.c 开放
@@ -38,6 +39,10 @@ typedef struct {
 
     // 横滚角超限保护
     uint8_t             roll_protect_enabled; // 1=使能，0=关闭
+
+    // 堵转保护
+    uint8_t             stall_protect_enabled; // 1=使能
+    int16_t             stall_count[4];        // 每电机独立计数器 (L0/L1/R0/R1)
 } ChassisState_t;
 
 static ChassisState_t chassis = {0};
@@ -87,6 +92,7 @@ void Chassis_Init(void)
     MOTOR_PWM_MAX = 5000;
     
 	ScanerMode_Switch(RF);
+   //Chassis_EnableStallProtection(); // 激活堵转保护标志
     Chassis_EnableLineLostProtection();// 激活丢线保护标志
 	Chassis_EnableRollProtection(); // 激活翻滚保护标志
     motor_init();
@@ -162,6 +168,12 @@ void Chassis_SetMode(uint8_t mode)
 			line_data[i].error = 0.0f;
 			line_data[i].truth = TRUTH_ALL_ERR;
 		}
+
+			// 离开巡线时清零堵转计数，避免旧模式残留数据干扰新模式
+			for (int i = 0; i < 4; i++)
+			{
+				chassis.stall_count[i] = 0;
+			}
 	}
 }
 
@@ -322,6 +334,24 @@ void Chassis_EnableRollProtection(void)
 void Chassis_DisableRollProtection(void)
 {
     chassis.roll_protect_enabled = 0;
+}
+
+void Chassis_EnableStallProtection(void)
+{
+    chassis.stall_protect_enabled = 1;
+    for (int i = 0; i < 4; i++)
+    {
+        chassis.stall_count[i] = 0;
+    }
+}
+
+void Chassis_DisableStallProtection(void)
+{
+    chassis.stall_protect_enabled = 0;
+    for (int i = 0; i < 4; i++)
+    {
+        chassis.stall_count[i] = 0;
+    }
 }
 
 void Chassis_Brake(void)//更安全的急刹
@@ -501,7 +531,7 @@ void Chassis_Turn_By_StopGyro_Blocking(float target_angle, float current_angle)
 
     Chassis_SetMode(is_Turn);//进入转弯模式			
 
-    Chassis_TurnToAngle_Blocking(target_angle, current_angle, 0.01f);
+    Chassis_TurnToAngle_Blocking(target_angle, current_angle, 0.05f);
 
 }
 
@@ -520,14 +550,14 @@ void Chassis_Turn360_Blocking(void)
 void Chassis_Turn_By_Gyro_Blocking(float target_angle, float current_angle)
 {
    
-    Chassis_OverrideGyroPid(12.0f, 0.0f, 180.0f, 50.0f); //左转还是右转
+    Chassis_OverrideGyroPid(12.0f, 0.0f, 150.0f, 35.0f); //左转还是右转
     //直接转相对角度
     float target_g = normalize_angle(getAngleZ() + need2turn(current_angle, target_angle));
     Chassis_SetGyroAngle_Go(target_g);
 
     Chassis_SetMode(is_Gyro); // 进入陀螺仪转弯模式
 
-    Chassis_TurnToAngle_Blocking(target_g, current_angle, 0.1f);
+    Chassis_TurnToAngle_Blocking(target_g, current_angle, 0.05f);
 
     Chassis_RestoreGyroPid();
 
@@ -558,6 +588,11 @@ static uint8_t is_line_completely_lost(void)
     return 1;
 }
 
+/* ========= 堵转保护阈值 ========= */
+#define STALL_SPEED_RATIO         100      /* output > target * 80 视为异常（25→2000） */
+#define STALL_COUNT_THRESHOLD      5      /* 连续超限 5 周期 (25ms) 触发 */
+#define STALL_PWM_ABSOLUTE_MAX  7000    /* 硬上限：任何 output 超此值立即死停 */
+
 // 在 motor_task.c 的 while(1) 中调用：Chassis_Periodic_Update_5ms();
 void Chassis_Periodic_Update_5ms(void)
 {
@@ -566,8 +601,8 @@ void Chassis_Periodic_Update_5ms(void)
     if (chassis.roll_protect_enabled && fabsf(imu.roll - basic_r) > 40.0f)
     {
         CarBrake();
-        send_play_specified_command(31);
-        printf("ROLL OVER! roll=%.1f basic_r=%.1f, emergency stop!\n", imu.roll, basic_r);
+            
+        //printf("ROLL OVER! roll=%.1f basic_r=%.1f, emergency stop!\n", imu.roll, basic_r);
         while (1);
     }
 
@@ -624,7 +659,7 @@ void Chassis_Periodic_Update_5ms(void)
                     
                     CarBrake(); // 紧急刹车
                     send_play_specified_command(30);
-                    printf("Line lost! Emergency brake activated.\n");
+                    //printf("Line lost! Emergency brake activated.\n");
                     while(1){};
                     return;
                 }
@@ -635,7 +670,51 @@ void Chassis_Periodic_Update_5ms(void)
             }
         }
     }
-}   
+
+    /* ========= PWM 超限保护 (所有模式生效) ========= */
+    if (chassis.stall_protect_enabled)
+    {
+        if (fabsf(motor_L0.output) > (float)STALL_PWM_ABSOLUTE_MAX ||
+            fabsf(motor_L1.output) > (float)STALL_PWM_ABSOLUTE_MAX ||
+            fabsf(motor_R0.output) > (float)STALL_PWM_ABSOLUTE_MAX ||
+            fabsf(motor_R1.output) > (float)STALL_PWM_ABSOLUTE_MAX)
+        {
+            chassis.stall_protect_enabled = 0;
+            CarBrake();
+            send_play_specified_command(33);
+            while (1);
+        }
+    }
+
+    /* ========= 堵转保护  ========= */
+    if (chassis.stall_protect_enabled && PIDMode != is_Free)
+    {
+        struct I_pid_obj *motors[4] = { &motor_L0, &motor_L1, &motor_R0, &motor_R1 };
+
+        for (int i = 0; i < 4; i++)
+        {
+            float out = fabsf(motors[i]->output);
+            float tgt = fabsf(motors[i]->target);
+
+            if (tgt > 10.0f && out > tgt * STALL_SPEED_RATIO)
+            {
+                chassis.stall_count[i]++;
+            }
+            else if (chassis.stall_count[i] > 0)
+            {
+                chassis.stall_count[i]--;
+            }
+
+            if (chassis.stall_count[i] >= STALL_COUNT_THRESHOLD)
+            {
+                chassis.stall_protect_enabled = 0;
+                CarBrake();
+                send_play_specified_command(33);
+                while (1);
+            }
+        }
+    }
+}
     /* ========= 其他需要随底层反馈刷新的控制变量 ========= */
 /*自定义距离前进*/
 void Want2Go(float Dis)
@@ -710,4 +789,81 @@ void Chassis_CorrectByInfrared(float correct_angle, float multiplier, float K)
         angle.AngleG -= correct_angle*K;
 	else if ((Cross_Scaner.detail & 0XFF00))
 		angle.AngleG -= correct_angle * multiplier*K;
+}
+
+/**
+ * @brief 一键自检：架车在黑毯上时持续监测陀螺仪/灰度/循迹板
+ * @note 每 200×5ms=1 秒检测一次，状态变化时才打印，安静时无输出
+ * @note 放入 main_task 的 while(1) 循环中持续调用
+ */
+void Chassis_SelfCheck(void)
+{
+    static uint8_t last_error = 0;      // 0=无错误，非0=上次错误位图
+    static float last_angle = 0.0f;     // 上次角度采样
+    static uint8_t angle_ready = 0;     // 角度采样是否就绪（首次跳过）
+    static uint32_t tick = 0;           // 周期计数器
+
+    tick++;
+    if (tick < 200) return;             // 每1秒检测一次 (5ms × 200)
+    tick = 0;
+
+    uint8_t error_now = 0;
+
+    /* ---------- 1. 陀螺仪漂移检查 ---------- */
+    {
+        float curr_angle = getAngleZ();
+        if (angle_ready)
+        {
+            float diff = curr_angle - last_angle;
+            // 处理 ±180° 边界
+            if (diff > 180.0f) diff -= 360.0f;
+            else if (diff < -180.0f) diff += 360.0f;
+            if (((diff >= 0) ? diff : -diff) > 1.0f)
+                error_now |= 0x01;
+        }
+        else
+        {
+            angle_ready = 1;             // 首次只记录，不判断
+        }
+        last_angle = curr_angle;
+    }
+
+    /* ---------- 2. 灰度传感器检查 ---------- */
+    {
+        ScanerMode_Switch(Gray);
+        vTaskDelay(2);                  // 让 ADC 采样
+        for (uint8_t i = 0; i < 4; i++)
+        {
+            if (AD_Value_Gray[i] >= 500)
+            {
+                error_now |= 0x02;
+                break;
+            }
+        }
+        ScanerMode_Switch(RF);
+    }
+
+    /* ---------- 3. 循迹板检查 ---------- */
+    {
+        if (Cross_Scaner.detail != 0)
+            error_now |= 0x04;
+    }
+
+    /* ---------- 报告：状态变化时才打印 ---------- */
+    if (error_now != last_error)
+    {
+        if (error_now == 0)
+        {
+            printf("[SELFCHECK] OK - 所有异常已恢复\r\n");
+        }
+        else
+        {
+            printf("[SELFCHECK] FAIL -");
+            if (error_now & 0x01) send_play_specified_command(33);
+            if (error_now & 0x02) send_play_specified_command(31);
+            if (error_now & 0x04) send_play_specified_command(30);
+            printf("\r\n");
+        }
+        last_error = error_now;
+    }
 }

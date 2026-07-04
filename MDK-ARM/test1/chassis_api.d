@@ -66,3 +66,4 @@ test1\chassis_api.o: ../Core/Inc/tim.h
 test1\chassis_api.o: ..\Application\delay.h
 test1\chassis_api.o: ../Motor/motor.h
 test1\chassis_api.o: ..\Application\gray.h
+test1\chassis_api.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h

@@ -44,7 +44,7 @@ void Start_task(void *pvParameters)
 *******************************************************************************/
 void GET_free_RAM(TaskHandle_t xTask)
 {
-	printf("RAM = %d\r\n",(int32_t)uxTaskGetStackHighWaterMark(xTask));
+	//printf("RAM = %d\r\n",(int32_t)uxTaskGetStackHighWaterMark(xTask));
 	vTaskDelay(500);
 }
 

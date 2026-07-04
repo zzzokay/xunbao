@@ -7,7 +7,24 @@
       "Bash(rm __new_sp.c)",
       "Bash(git checkout *)",
       "Bash(armcc -c --cpu Cortex-M4 -O2 --apcs=interwork -I\"../Application\" -I\"../Library\" -I\"../Driver\" -I\"../CMSIS\" -o test1/sword_test.o ../Application/barrier.c)",
-      "Read(//c/Users/14166/.claude/projects/**)"
+      "Read(//c/Users/14166/.claude/projects/**)",
+      "Bash(grep -v \"//.*printf\\(\")",
+      "Read(//c/Keil_v5/UV4/**)",
+      "Read(//c/Keil/UV4/**)",
+      "Bash(sed -n '68,69p' \"c:\\\\Users\\\\14166\\\\Desktop\\\\MC_32\\\\robotcup\\\\xunbao\\\\Task\\\\main_task.c\")",
+      "Read(//tmp/**)",
+      "Bash(xxd)",
+      "Bash(sed -i '68a\\\\\\\\t\\\\t/* M-hM-0M-^CM-hM-/M-^UM-fM-\\(M-!M-eM-<M-^OM-oM-<M-^ZM-hM-^\\\\M-\\)^M-iM-=M-5M-:M-^VM-hM-^PM-^PM-^AM-^?M-fM-^NM-^\\\\M-fM-^KM-^M */\\\\n\\\\t\\\\tChassis_SelfCheck\\(\\);' \"c:\\\\Users\\\\14166\\\\Desktop\\\\MC_32\\\\robotcup\\\\xunbao\\\\Task\\\\main_task.c\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Application",
+      "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Core\\Src",
+      "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Module",
+      "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao",
+      "C:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Application",
+      "C:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao",
+      "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\.claude\\plans",
+      "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Task"
     ]
   }
 }

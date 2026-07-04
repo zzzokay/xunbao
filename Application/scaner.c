@@ -217,9 +217,9 @@ void printf_byte(uint16_t data)
     /*打印二进制值*/
     for(int16_t i=sizeof(data)*8-1; i>=0; i--)
     {
-        printf("%d", (data>>i)&1);
+        //printf("%d", (data>>i)&1);
     }
-    printf("\t%d\r\n",data);
+    //printf("\t%d\r\n",data);
 }
 
 
@@ -319,8 +319,8 @@ static float calc_track_all(volatile SCANER *scaner, int8_t edge_ignore, uint8_t
 	float pos = 0;
 	if (scaner->ledNum >= 4 && scaner->lineNum >= 2)
 		edge_ignore = 4;
-	printf("TRACK_ALL det=0x%04X led=%d line=%d ei=%d\r\n",
-        scaner->detail, scaner->ledNum, scaner->lineNum, edge_ignore);
+	//printf("TRACK_ALL det=0x%04X led=%d line=%d ei=%d\r\n",
+        //scaner->detail, scaner->ledNum, scaner->lineNum, edge_ignore);
 	for (uint8_t i = edge_ignore; i < sensorNum - edge_ignore; i++)
 	{
 		*lednum += (scaner->detail >> (sensorNum - 1 - i)) & 0X01;

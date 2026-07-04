@@ -69,7 +69,7 @@ uint8_t Gray_GetLine(void)
             data &= ~(1 << (5 - i));  // 否则设为 0
         }
     }
-	printf("%d,%d,%d,%d\r\n",AD_Value_Gray[0],AD_Value_Gray[1],AD_Value_Gray[2],AD_Value_Gray[3]);
+	//printf("%d,%d,%d,%d\r\n",AD_Value_Gray[0],AD_Value_Gray[1],AD_Value_Gray[2],AD_Value_Gray[3]);
     return data;
 }
 

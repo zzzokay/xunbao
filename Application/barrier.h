@@ -17,11 +17,11 @@ void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
                        float thresh1, float speed1,
                        float thresh2, float speed2,
                        float done_thresh, float GrayCorrectAngle,
-                       float max_correction);
+                       float max_correction, float max_distance);
 
 #define Old_M_Speed         6                //老爷爷
 #define QQB_Out_Speed       8                //出跷跷板
-#define BL_Speed 	        12               //波浪板
+#define BL_Speed 	        15               //波浪板
 #define Rubbish_Speed       13               //Rubbish
 #define Stop_T_Speed        15               //原地转
 #define UnderMou_Speed      20
@@ -51,12 +51,8 @@ extern uint8_t treasure;
 extern uint8_t debug_door_colors[5];
 #endif
 extern uint8_t DownLiuShui;
-extern uint8_t isStage;
 extern uint8_t special_arrive;
 extern uint8_t color_flag[5];
-extern float LiuShuiRate;
-extern uint8_t WavePlateLeft_Flag;
-extern uint8_t WavePlateRight_Flag;
 extern uint16_t QR_code;
 extern uint8_t flag_line_clue;     // QR百位：0=跳过P3/P4，3=P3，4=P4
 extern uint8_t flag_clue_stage_A;  // QR十位：5=P5（原P6），6=P6（原P5）

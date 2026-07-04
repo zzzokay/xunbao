@@ -24,10 +24,10 @@
 
 
 /*===== 独立调试开关 =====*/
-#define MAIN_DEBUG 0
+#define MAIN_DEBUG 1 
 
 
-uint8_t test_flag = 6;
+uint8_t test_flag = 2;
 float temp_speed=25;
 #if MAIN_DEBUG
 
@@ -54,7 +54,7 @@ void main_task(void *pvParameters)
 	/*等待移除挡板*/
 	while(Infrared_ahead == 1)
 		vTaskDelay(5);
-	ScanerMode_Switch(Gray);
+	//ScanerMode_Switch(Gray);
 #else
 	/*正常模式：完整初始化流程*/
 	mapInit();
@@ -72,14 +72,22 @@ void main_task(void *pvParameters)
 			
 			//ScanerMode_Switch(RF);
 			Chassis_SetTrackMode(TRACK_NEAR_CENTER);
-			Chassis_DriveDistance_Blocking(is_Line,100,-36,0,0);
-			CarBrake();
+			Chassis_DriveDistance_Blocking(is_Line,100,20,0,0);
+			//CarBrake();
 			test_flag = 0;
 		}
 		if (test_flag == 2)
 		{
-			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ());
-			Chassis_Brake();
+			//Chassis_OverrideTurnPid(6.0f, 0.0f, 90.0f, 30.0f);
+            //Chassis_Turn_By_StopGyro_Blocking(nodesr.nextNode.angle, getAngleZ());
+			//Chassis_MotorControl(is_No,2,-2,0);
+			//vTaskDelay(3000);
+			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+90, getAngleZ()); 
+			//Chassis_RestoreTurnPid();
+			Chassis_DriveDistance_Blocking(is_Gyro, 20, Gyro_Speed, getAngleZ(), 0);
+            Chassis_Turn_By_Gyro_Blocking(getAngleZ()+90, getAngleZ());
+			CarBrake();
+			//Chassis_Brake();
 			test_flag = 0;
 		}
 		if (test_flag == 3)
@@ -96,7 +104,7 @@ void main_task(void *pvParameters)
 			// float correct_angle = Gray_GetCorrectAngle(1);
 			// printf(" %.2f\n", correct_angle);
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
-				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.09,10);
+				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.09,10,0);
 		}
 		if(test_flag == 5)
 		{
@@ -106,6 +114,15 @@ void main_task(void *pvParameters)
 		{
 			Gray_GetLine();
 				// Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+90, getAngleZ());
+		}
+		if(test_flag == 7)
+		{
+			Cross_getline(&Cross_Scaner);
+		}
+		if(test_flag == 8)
+		{
+			/* 一键自检：架车在黑毯上持续监测（每1秒检测，状态变化才打印） */
+			Chassis_SelfCheck();
 		}
 		/*调试模式下不执行 Cross()，避免无传感器跑飞*/
 #else

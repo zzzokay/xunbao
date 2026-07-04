@@ -122,6 +122,16 @@ void Chassis_EnableRollProtection(void);
 void Chassis_DisableRollProtection(void);
 
 /**
+ * @brief 使能堵转保护（output 饱和或跳变时刹车）
+ */
+void Chassis_EnableStallProtection(void);
+
+/**
+ * @brief 关闭堵转保护
+ */
+void Chassis_DisableStallProtection(void);
+
+/**
  * @brief 刹车制动
  */
 void Chassis_Brake(void);
@@ -210,5 +220,12 @@ void Chassis_CorrectByInfrared(float correct_angle, float multiplier, float K);
 void Chassis_Periodic_Update_5ms(void);
 
 void Want2Go(float Dis);
+
+/**
+ * @brief 一键自检：架车在黑毯上时持续监测陀螺仪/灰度/循迹板状态
+ * @note 放入 main_task 的 while(1) 循环中持续调用，每1秒检测一次
+ * @note 状态变化时才输出，安静时无输出
+ */
+void Chassis_SelfCheck(void);
 
 #endif /* __CHASSIS_API_H */
