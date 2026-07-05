@@ -43,6 +43,11 @@ typedef struct {
     // 堵转保护
     uint8_t             stall_protect_enabled; // 1=使能
     int16_t             stall_count[4];        // 每电机独立计数器 (L0/L1/R0/R1)
+
+    // 翘头保护
+    uint8_t             wheelie_protect_enabled; // 1=翘头保护使能
+    uint8_t             wheelie_protect_active; // 1=翘头保护激活中（正在降加速度）
+    float               saved_Cincrement;       // 保存的循迹加速度
 } ChassisState_t;
 
 static ChassisState_t chassis = {0};
@@ -69,6 +74,8 @@ void Chassis_Init(void)
     chassis.line_lost_count = 0;
     chassis.line_lost_enabled = 0;
     chassis.roll_protect_enabled = 0;
+    chassis.wheelie_protect_enabled = 0;
+    chassis.wheelie_protect_active = 0;
 
     motor_all.Lspeed = 0;
 	motor_all.Rspeed = 0;
@@ -79,7 +86,7 @@ void Chassis_Init(void)
 	motor_all.GyroG_speedMax = 100;	// 自平衡左右偏差最大值10000
 	motor_all.GyroT_speedMax = 25;  	// 自转最大速度34//--->5760 //35
 	motor_all.Line_speedMax = 50;		// 巡线差速最大值
-	motor_all.Cincrement = 0.7;	   	// 循迹加速度 0.5
+	motor_all.Cincrement = 0.6;	   	// 循迹加速度 0.5
 	motor_all.CDOWNincrement = 0.7;	//循迹减速0.5
     motor_all.Gincrement = 0.7;	   	// 陀螺仪加速度0.5
     motor_all.GDOWNincrement=0.7;	// 陀螺仪减速度0.5
@@ -92,7 +99,7 @@ void Chassis_Init(void)
     MOTOR_PWM_MAX = 5000;
     
 	ScanerMode_Switch(RF);
-   //Chassis_EnableStallProtection(); // 激活堵转保护标志
+    Chassis_EnableStallProtection(); // 激活堵转保护标志
     Chassis_EnableLineLostProtection();// 激活丢线保护标志
 	Chassis_EnableRollProtection(); // 激活翻滚保护标志
     motor_init();
@@ -354,6 +361,26 @@ void Chassis_DisableStallProtection(void)
     }
 }
 
+static void chassis_restore_Cincrement(void)
+{
+    chassis.wheelie_protect_active = 0;
+    motor_all.Cincrement = chassis.saved_Cincrement;
+}
+
+void Chassis_EnableWheelieProtection(void)
+{
+    chassis.wheelie_protect_enabled = 1;
+    if (chassis.wheelie_protect_active)
+        chassis_restore_Cincrement();
+}
+
+void Chassis_DisableWheelieProtection(void)
+{
+    chassis.wheelie_protect_enabled = 0;
+    if (chassis.wheelie_protect_active)
+        chassis_restore_Cincrement();
+}
+
 void Chassis_Brake(void)//更安全的急刹
 {
     float original_CDOWNincrement = motor_all.CDOWNincrement;
@@ -382,7 +409,7 @@ static  void Chassis_TurnToAngle_Blocking(float target_angle, float origin_angle
     {
         vTaskDelay(2); // RTOS 延时交出 CPU 权限
         Cross_getline(&Cross_Scaner);
-        if (Cross_Scaner.lineNum == 1 && ((Cross_Scaner.detail & 0x3C0) != 0) &&
+        if (Cross_Scaner.lineNum == 1 && ((Cross_Scaner.detail & 0x180) != 0) &&
             (fabsf(need2turn(target_angle, getAngleZ())) < fabsf(need2turn(target_angle, origin_angle)) * wait_ratio))
         {
             break;
@@ -524,15 +551,17 @@ void Chassis_Turn_By_StopGyro_Blocking(float target_angle, float current_angle)
     //如果没停车
     if(fabsf(motor_all.Lspeed) > 1.0f || fabsf(motor_all.Rspeed) > 1.0f)
     {
-        Chassis_Brake(); // 先停车，确保转弯稳定性
+        Chassis_Brake(); // 先停车，确保转弯稳定     
     }	
-    
+    Chassis_OverrideTurnPid(6.0f, 0.0f, 90.0f, 30.0f);
+
     Chassis_SetGyroAngle_Turn(target_angle);
 
     Chassis_SetMode(is_Turn);//进入转弯模式			
 
-    Chassis_TurnToAngle_Blocking(target_angle, current_angle, 0.05f);
+    Chassis_TurnToAngle_Blocking(target_angle, current_angle, 0.04f);
 
+    Chassis_RestoreTurnPid();
 }
 
 void Chassis_Turn360_Blocking(void)
@@ -550,7 +579,7 @@ void Chassis_Turn360_Blocking(void)
 void Chassis_Turn_By_Gyro_Blocking(float target_angle, float current_angle)
 {
    
-    Chassis_OverrideGyroPid(12.0f, 0.0f, 150.0f, 35.0f); //左转还是右转
+    Chassis_OverrideGyroPid(12.0f, 0.0f, 180.0f, 50.0f); //左转还是右转
     //直接转相对角度
     float target_g = normalize_angle(getAngleZ() + need2turn(current_angle, target_angle));
     Chassis_SetGyroAngle_Go(target_g);
@@ -576,6 +605,10 @@ void Chassis_SetEdgeIgnore(uint8_t num)
 /* -------------------------- 提供给 Motor_Task 刷新的 ---------------------- */
 /* ========================================================================= */
 
+/* ========= 翘头保护阈值 ========= */
+#define WHEELIE_PITCH_THRESHOLD      8.0f    /* pitch > basic_p + 8° 视为翘头 */
+#define WHEELIE_CINCREMENT_REDUCED   0.05f   /* 翘头保护时的加速度 */
+
 #define LINE_LOST_THRESHOLD  80   // 80 * 5ms = 0.4秒
 
 static uint8_t is_line_completely_lost(void)
@@ -589,7 +622,7 @@ static uint8_t is_line_completely_lost(void)
 }
 
 /* ========= 堵转保护阈值 ========= */
-#define STALL_SPEED_RATIO         100      /* output > target * 80 视为异常（25→2000） */
+#define STALL_SPEED_RATIO         180      /* output > target * 80 视为异常（25→2000） */
 #define STALL_COUNT_THRESHOLD      5      /* 连续超限 5 周期 (25ms) 触发 */
 #define STALL_PWM_ABSOLUTE_MAX  7000    /* 硬上限：任何 output 超此值立即死停 */
 
@@ -601,7 +634,7 @@ void Chassis_Periodic_Update_5ms(void)
     if (chassis.roll_protect_enabled && fabsf(imu.roll - basic_r) > 40.0f)
     {
         CarBrake();
-            
+        send_play_specified_command(31);    
         //printf("ROLL OVER! roll=%.1f basic_r=%.1f, emergency stop!\n", imu.roll, basic_r);
         while (1);
     }
@@ -611,9 +644,32 @@ void Chassis_Periodic_Update_5ms(void)
 
     if (PIDMode == is_Line)
     {
+        /* ========= 翘头保护：pitch 过高时抑制加速度 ========= */
+        if (chassis.wheelie_protect_enabled)
+        {
+            float pitch_dev = imu.pitch - basic_p;
+            if (pitch_dev > WHEELIE_PITCH_THRESHOLD)
+            {
+                if (!chassis.wheelie_protect_active)
+                {
+                    chassis.wheelie_protect_active = 1;
+                    chassis.saved_Cincrement = motor_all.Cincrement;
+                    motor_all.Cincrement = WHEELIE_CINCREMENT_REDUCED;
+                }
+            }
+            else
+            {
+                if (chassis.wheelie_protect_active)
+                {
+                    chassis.wheelie_protect_active = 0;
+                    motor_all.Cincrement = chassis.saved_Cincrement;
+                }
+            }
+        }
+
         // 由于 5ms 循环非常紧凑，不要在这里调用可能会阻塞的 Cross_getline(&Cross_Scaner) 等指令
-        // 直接使用全局已解析好的巡线偏移状态（如 Scaner.detail） 
-        if (chassis.anti_snake_flag == 1)        
+        // 直接使用全局已解析好的巡线偏移状态（如 Scaner.detail）
+        if (chassis.anti_snake_flag == 1)
         {
             // motor_all.Cspeed 减半已放到高速上设置，在底层此处：如果发现大偏移加计时
             // 通过 Scaner.detail 直接检测偏离特征
@@ -641,6 +697,7 @@ void Chassis_Periodic_Update_5ms(void)
         // 游龙检测命中，强压 PID 系数阻止摇摆
         if (chassis.anti_snake_err_count)
         {
+            if(chassis.anti_snake_err_count==1)send_play_specified_command(33);
             motor_all.Cspeed = chassis.target_speed / 2; // 直接减半速度，增强稳定
             Chassis_OverrideLinePid(15.0f, 0.0f, 200.0f, motor_all.Cspeed); // 直接覆盖当前速度限制，确保稳定性
 
@@ -734,12 +791,23 @@ void CarBrake(void)
 {
 	// 开环
 	Chassis_SetMode(is_Free);
+    motor_all.Lspeed = 0;
+    motor_all.Rspeed = 0;
 	motor_set_pwm(1, 0); //设置 4 个电机的 PWM=0
 	motor_set_pwm(2, 0);
 	motor_set_pwm(3, 0);
 	motor_set_pwm(4, 0);
-
 	motor_pid_clear();
+
+    // 等待所有电机编码器归零（确认物理停止），每 2ms 检查一次
+    uint32_t brake_timeout = 0; // 超时计数，约 600ms 后强制退出
+    while ((motor_L0.measure != 0 || motor_L1.measure != 0 ||
+            motor_R0.measure != 0 || motor_R1.measure != 0) && brake_timeout < 300)
+    {
+        vTaskDelay(2);
+        brake_timeout++;
+    }
+    vTaskDelay(200); // 确保完全停止
 }
 
 /**
@@ -768,7 +836,7 @@ void gradual_cal(float *gradual, float target, float increment1, float increment
 /*卡死停车*/
 void CarBrake_Stop(void)
 {
-	buzzer_on();
+	//buzzer_on();
 	while(1)
 	{
 		Chassis_Brake();
@@ -840,11 +908,11 @@ void Chassis_SelfCheck(void)
                 break;
             }
         }
-        ScanerMode_Switch(RF);
     }
 
     /* ---------- 3. 循迹板检查 ---------- */
     {
+        Cross_getline(&Cross_Scaner);
         if (Cross_Scaner.detail != 0)
             error_now |= 0x04;
     }
@@ -859,9 +927,9 @@ void Chassis_SelfCheck(void)
         else
         {
             printf("[SELFCHECK] FAIL -");
-            if (error_now & 0x01) send_play_specified_command(33);
-            if (error_now & 0x02) send_play_specified_command(31);
-            if (error_now & 0x04) send_play_specified_command(30);
+            if (error_now & 0x01) send_play_specified_command(33);//陀螺仪（偏移）
+            if (error_now & 0x02) send_play_specified_command(31);//灰度（过高）
+            if (error_now & 0x04) send_play_specified_command(30);//循迹板（检测到线）
             printf("\r\n");
         }
         last_error = error_now;

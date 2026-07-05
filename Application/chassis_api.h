@@ -132,6 +132,16 @@ void Chassis_EnableStallProtection(void);
 void Chassis_DisableStallProtection(void);
 
 /**
+ * @brief 使能翘头保护（imu.pitch > basic_p + 8° 时抑制加速度，需在 Cross 中激活）
+ */
+void Chassis_EnableWheelieProtection(void);
+
+/**
+ * @brief 关闭翘头保护并恢复加速度
+ */
+void Chassis_DisableWheelieProtection(void);
+
+/**
  * @brief 刹车制动
  */
 void Chassis_Brake(void);

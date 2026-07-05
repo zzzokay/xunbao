@@ -37,7 +37,7 @@
  *  工具函数          Stage_HasTreasure / Stage_CollectTreasure
  *                    GyroStableReset / Stage_DetectedRamp
  *                    RampCtrl_Blocking / Stage_ScanAndRead
- *  平台              Stage / Stage_P2
+ *  平台              Stage( / Stage_P2
  *  长桥              Barrier_Bridge
  *  楼梯              Barrier_Hill
  *  刀山              Sword_CorrectByScanner / Sword_Mountain
@@ -76,7 +76,7 @@ uint8_t debug_door_colors[5] = {Red, Red, Green, Green, Yellow};  // D2、D3、D
 uint8_t flag_line_clue    = 0;	// 百位：0=跳过P3/P4直接走门，3=先去P3，4=先去P4
 								// 调用：update_route_for_stage34() → Stage() STAGE_SCAN 状态
 uint8_t flag_clue_stage_A = 5;	// 十位：5=P5（原P6），6=P6（原P5）
-uint8_t flag_clue_stage_B = 8;	// 个位：7=P7（原P8），8=P8（原P7）
+uint8_t flag_clue_stage_B = 7;	// 个位：7=P7（原P8），8=P8（原P7）
 								// 调用：update_route_by_QR() → door() 过门后规划路线
 // OCR 线索：P5/P6读clue_A，P7/P8读clue_B，treasure=clue_A+clue_B → 宝物平台编号
 uint8_t flag_clue_A = 0;		// P5/P6 线索数字
@@ -298,7 +298,7 @@ void Stage(void)
 			{
 				oringinal_angle = getAngleZ();
 				RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_high, oringinal_angle,
-					Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.05, 10.0f, 0.0f);
+					Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.07, 10.0f, 0.0f);
 
 				Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, oringinal_angle);
 				state = STAGE_TOP;
@@ -308,7 +308,7 @@ void Stage(void)
 		case STAGE_TOP:
 			if (sub_stage == 0)
 			{
-
+				Chassis_DisableStallProtection();
 				Chassis_DriveDistance_Blocking(is_Gyro,27,GoStage_Speed,oringinal_angle,0);
 				CarBrake();
 				sub_stage = 1;
@@ -320,7 +320,6 @@ void Stage(void)
 				// 后退一段距离
 				
 				
-				vTaskDelay(100);
 				Chassis_DriveDistance_Blocking(is_Gyro,10,-GoStage_Speed,getAngleZ(),0);
 				CarBrake();
 				sub_stage=0;
@@ -335,6 +334,7 @@ void Stage(void)
 
 			// 转身180
 			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ());
+			Chassis_EnableStallProtection();
 			state = STAGE_TREASURE;
 			break;
 
@@ -342,7 +342,7 @@ void Stage(void)
 			oringinal_angle = getAngleZ();
 			
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, getAngleZ(),
-				Begin_down, UpDownStage_Speed_low, down_pitch, UpDownStage_Speed_high, After_down-8, 0.05, 10.0f, 0.0f);
+				Begin_down, UpDownStage_Speed_low, down_pitch, UpDownStage_Speed_high, After_down-8, 0.07, 10.0f, 0.0f);
 
 			Chassis_MotorControl(is_Line, SPEED1, SPEED1, 0);
 			state = STAGE_DONE;
@@ -611,7 +611,7 @@ void Barrier_Hill(void)
 
 		case HILL_DESCEND:
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
-				basic_p, UpDownStage_Speed_low, basic_p-8, UpDownStage_Speed_low, basic_p-5, 0.10, 15.0f, 20.0f);
+				basic_p, UpDownStage_Speed_low, basic_p-10, UpDownStage_Speed_low, basic_p-3, 0.10, 15.0f, 35.0f);
   
 			state = HILL_DONE;
 			break;
@@ -1023,6 +1023,7 @@ void South_Pole(void)
 		case SP_IMPACT:
 			if (sub_stage == 0)
 			{
+				Chassis_DisableStallProtection();
 				Chassis_DriveDistance_Blocking(is_Gyro, 27, GoStage_Speed, origin_angle, 0);
 				CarBrake();
 				sub_stage = 1;
@@ -1039,6 +1040,7 @@ void South_Pole(void)
 				// 	update_rout_by_treasure_7();
 				send_play_specified_command(12);
 				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 180, getAngleZ());
+				Chassis_DisableStallProtection();
 				sub_stage = 0;
 				state = SP_DESCEND;
 			}
@@ -2595,9 +2597,8 @@ void zhunbei(void)
 	
 	/**************转弯测试***************/
 	/*播报语音*/
-	send_play_specified_command(7);
 	
-	
+	Chassis_SelfCheck();	
 	/*机器人动作*/
 	Robot_Work(LARM, UP);		// 左手举起
 	vTaskDelay(100);
@@ -2612,7 +2613,7 @@ void zhunbei(void)
 	Robot_Work(HEAD,HEAD_MID);
 	vTaskDelay(100);
 	Robot_Work(HEAD,UP);
-
+	send_play_specified_command(7);
 
 	if(isAllRoute || map.routetime!=0)
 	{

@@ -88,7 +88,7 @@ static uint8_t Turn_Angle_Base(float Angle, float right_ratio, float force_thres
 	// 死区补偿：输出太小但误差仍存在时，固定输出 ±2（非累加，避免零附近抖振）
 	if (fabsf(GTspeed) < 5.0f && fabsf(gyroT_pid.measure) > 1.0f)
 	{
-		GTspeed = (GTspeed >= 0 ? 1.0f : -1.0f) * 2.0f;
+		GTspeed = (GTspeed >= 0 ? 1.0f : -1.0f) * 3.0f;
 	}
 
 	// 速度限幅（左右各自限幅，避免 right_ratio 导致单侧超限）
@@ -111,7 +111,7 @@ static uint8_t Turn_Angle_Base(float Angle, float right_ratio, float force_thres
 uint8_t Stage_turn_Angle(float Angle)
 {
 	// force_threshold = 150：Turn_Angle_Base 内部基于最新角度决策，避免 TOCTOU
-	return Turn_Angle_Base(Angle, 1.15f, 150.0f);
+	return Turn_Angle_Base(Angle, 1.5f, 150.0f);
 }
 
 

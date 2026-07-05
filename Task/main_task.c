@@ -24,10 +24,10 @@
 
 
 /*===== 独立调试开关 =====*/
-#define MAIN_DEBUG 1 
+#define MAIN_DEBUG 0 
 
 
-uint8_t test_flag = 2;
+uint8_t test_flag = 8;
 float temp_speed=25;
 #if MAIN_DEBUG
 
@@ -49,7 +49,7 @@ void main_task(void *pvParameters)
 	
 	/*等待挡板*/
 	while (Infrared_ahead == 0)
-		vTaskDelay(5);
+	vTaskDelay(5);
 
 	/*等待移除挡板*/
 	while(Infrared_ahead == 1)
@@ -79,13 +79,12 @@ void main_task(void *pvParameters)
 		if (test_flag == 2)
 		{
 			//Chassis_OverrideTurnPid(6.0f, 0.0f, 90.0f, 30.0f);
-            //Chassis_Turn_By_StopGyro_Blocking(nodesr.nextNode.angle, getAngleZ());
 			//Chassis_MotorControl(is_No,2,-2,0);
 			//vTaskDelay(3000);
-			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+90, getAngleZ()); 
+			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ()); 
 			//Chassis_RestoreTurnPid();
-			Chassis_DriveDistance_Blocking(is_Gyro, 20, Gyro_Speed, getAngleZ(), 0);
-            Chassis_Turn_By_Gyro_Blocking(getAngleZ()+90, getAngleZ());
+			//Chassis_DriveDistance_Blocking(is_Gyro, 20, Gyro_Speed, getAngleZ(), 0);
+            //Chassis_Turn_By_Gyro_Blocking(getAngleZ()+90, getAngleZ());
 			CarBrake();
 			//Chassis_Brake();
 			test_flag = 0;

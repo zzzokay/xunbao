@@ -14,7 +14,7 @@ Application/          # 应用层 — 地图导航、障碍处理、底盘API
   ├── barrier.c/h     # 障碍处理（平台/桥/山/南极/跷跷板/波动板）
   ├── scaner.c/h      # 16路巡线传感器
   ├── turn.c/h        # 转弯控制（原地转、陀螺仪转、360°转、梯形速度曲线）
-  ├── gray.c/h        # 灰度传感器(I2C软件模拟)
+  ├── gray.c/h        # 灰度传感器
   ├── IIC.c/h         # 软件I2C
   ├── motion.c/h      # 运动控制
   ├── command.c/h     # 调试串口缓冲区
@@ -22,38 +22,10 @@ Application/          # 应用层 — 地图导航、障碍处理、底盘API
   └── sys.h           # 系统类型定义(u8/u16等)
 
 Core/                 # STM32 HAL核心
-  ├── Inc/            # FreeRTOSConfig, adc, dma, gpio, main, tim, usart, it
-  └── Src/            # main.c, freertos.c, gpio.c, adc.c, tim.c, usart.c 等
-
-Math/                 # 算法库
-  ├── pid.c/h         # PID控制器（增量式+位置式）
-  ├── filter.c/h      # 去极值平均滤波
-  └── sin_generate.c/h# 正弦波生成
-
-Module/               # 外设驱动
-  ├── imu.c/h         # IMU姿态解算（USART3+DMA+IDLE中断）
-  ├── K210.c/h        # K210 AI摄像头
-  ├── QR.c/h          # 二维码识别
-  ├── openmv.c/h      # OpenMV相机
-  ├── Rec_usart.c/h   # 串口接收
-  ├── Rudder_control.c/h # 舵机控制
-  ├── adc.c/h         # ADC读取（电池/灰度）
-  ├── bsp_buzzer.c/h  # 蜂鸣器
-  ├── bsp_led.c/h     # LED指示灯
-  └── bsp_linefollower.c/h # 巡线传感器底层
-
-Motor/                # 电机驱动层
-  ├── motor.c/h       # PWM输出(motor_set_pwm)
-  ├── Encoder.c/h     # 编码器读取(四路定时器编码器模式)
-  └── speed_ctrl.c/h  # 已废弃，功能迁移至chassis_api
-
-Task/                 # FreeRTOS任务
-  ├── motor_task.c/h  # 电机控制任务（核心，5ms周期）
-  ├── main_task.c/h   # 主任务
-  ├── task_create.c/h # 任务创建
-  ├── ArriveDetect_task.c/h # 节点到达检测
-  └── temporary_task.c/h    # 临时任务
-
+Math/                 # 算法库 — pid.c/h, filter.c/h, sin_generate.c/h
+Module/               # 外设驱动 — imu, K210, QR, openmv, Rec_usart, 舵机, ADC, 蜂鸣器, LED, 巡线底层
+Motor/                # 电机驱动层 — motor.c/h, Encoder.c/h
+Task/                 # FreeRTOS任务 — motor_task, main_task, task_create, ArriveDetect_task, temporary_task
 USMAT/                # USMART串口调试组件
 MDK-ARM/              # Keil工程文件
 test1.ioc             # CubeMX配置
@@ -69,7 +41,7 @@ test1.ioc             # CubeMX配置
 | main_task | `main_task()` | - | - | 5ms |
 | ArriveDetect_task | - | - | - | - |
 
-**关键时序**: motor_task 每 5ms 执行: 读编码器 → 模式切换 → 巡线/转弯/陀螺仪 → PID → 调PWM。
+**关键时序**: motor_task 每 5ms: 读编码器 → 模式切换 → 巡线/转弯/陀螺仪 → PID → 调PWM。
 
 ---
 
@@ -91,94 +63,64 @@ map.c:Cross() → Chassis_MotorControl(mode, Lspeed, Rspeed, aim)
 ### 4.1 电机控制 ([pid.h](Math/pid.h))
 
 ```c
-// 四个电机的内环PID对象（增量式PID）
 struct I_pid_obj { float output; int bias; int last_bias; int last2_bias; float measure; float target; };
 extern struct I_pid_obj motor_L0, motor_L1, motor_R0, motor_R1;
 extern struct PID_param motor_pid_paramL0, motor_pid_paramL1, motor_pid_paramR0, motor_pid_paramR1;
-
-// 巡线外环PID对象（位置式PID）
-extern struct P_pid_obj line_pid_obj;    // 巡线PID
-extern struct P_pid_obj gyroT_pid;       // 转弯PID
-extern struct P_pid_obj gyroG_pid;       // 陀螺仪直行PID
-extern struct PID_param line_pid_param, lineG_pid_param;
-extern struct PID_param gyroT_pid_param, gyroG_pid_param;
+extern struct P_pid_obj line_pid_obj, gyroT_pid, gyroG_pid;
+extern struct PID_param line_pid_param, lineG_pid_param, gyroT_pid_param, gyroG_pid_param;
 ```
 
-**Bias类型问题**: `I_pid_obj.bias` 是 `int`，但 `measure`/`target` 是 `float`，`bias = target - measure` 会截断小数，**低速时PID精度严重丢失**。
+**Bias类型问题**: `bias` 是 `int`，`bias = target - measure` 会截断小数，低速时PID精度丢失。
 
 ### 4.2 底盘状态 ([chassis_api.h](Application/chassis_api.h))
 
 ```c
 struct Motors {
-    float Lspeed, Rspeed;         // 左右轮目标速度
-    float Cspeed;                 // 巡线速度
-    float Gspeed;                 // 陀螺仪速度
-    float GyroT_speedMax;         // 转弯最大速度
-    float GyroG_speedMax;         // 直行最大速度
-    float Line_speedMax;          // 巡线差速最大值
-    float encoder_avg;            // 编码器平均
-    float Distance;               // 累计里程(cm)
-    float Cincrement;             // 巡线加速度
-    float CDOWNincrement;         // 巡线减速度
-    float Gincrement;             // 陀螺仪加速度
-    float GDOWNincrement;         // 陀螺仪减速度
+    float Lspeed, Rspeed, Cspeed, Gspeed;
+    float GyroT_speedMax, GyroG_speedMax, Line_speedMax;
+    float encoder_avg, Distance;
+    float Cincrement, CDOWNincrement, Gincrement, GDOWNincrement;
 };
 extern volatile struct Motors motor_all;
-extern float TC_speed, TG_speed;  // 巡线/陀螺仪渐变速度
-extern volatile uint8_t PIDMode;  // 当前模式: is_No/is_Free/is_Line/is_Turn/is_Gyro
-
-// 底盘内部状态（ChassisState_t，静态于 chassis_api.c）
-//   roll_protect_enabled    // 1=使能横滚角超限保护，0=关闭
+extern float TC_speed, TG_speed;
+extern volatile uint8_t PIDMode;  // is_No/is_Free/is_Line/is_Turn/is_Gyro
 ```
 
 ### 4.3 地图导航 ([map.h](Application/map.h))
 
 ```c
-typedef struct _node {      // 地图节点
-    u8 nodenum;             // 节点编号
-    u32 flag;               // 标志位（转弯方式/巡线模式等，不含运行时阶段位）
-    float angle;            // 目标角度
-    u16 step;               // 步长(cm)
-    float speed;            // 速度
-    u8 function;            // 功能（障碍类型）
+typedef struct _node {
+    u8 nodenum; u32 flag; float angle; u16 step; float speed; u8 function;
 } NODE;
-
-extern NODE Node[126];      // 完整地图节点数组
-extern u8 route[100];       // 当前路径
-extern NODESR nodesr;       // lastNode/nowNode/nextNode
-extern volatile uint8_t cross_event;  // 运行时阶段/事件标志
-#define CROSS_EVENT_ARRIVED (1<<0)    // 已到达节点
-#define CROSS_EVENT_DOOR    (1<<1)    // 门结果就绪（红/绿灯统一）
+extern NODE Node[126], route[100];
+extern NODESR nodesr;  // lastNode/nowNode/nextNode
+extern volatile uint8_t cross_event;
+#define CROSS_EVENT_ARRIVED (1<<0)   // 已到达节点
+#define CROSS_EVENT_DOOR    (1<<1)   // 门结果就绪
 ```
-
-> **2026-06-27**: `nodesr.flag` 的阶段同步位（0x04/0x20/0x80）已拆出到独立 `cross_event` 变量。`nodesr.flag` 现仅承载节点配置标志（DLEFT/DRIGHT/STOPTURN 等配置位）。`CROSS_EVENT_RED`/`GREEN` 合并为 `CROSS_EVENT_DOOR`，两者在 `Cross_PostProcess` 中处理逻辑完全相同。
 
 ### 4.4 障碍标志 ([barrier.c](Application/barrier.c))
 
 ```c
-uint8_t color_flag[5];  // 颜色门标志(D2~D5,D1)
-uint8_t treasure;       // 宝物编号
-uint8_t DownLiuShui;    // 流水下坡标志
-float LiuShuiRate;      // 流水速度倍率(默认1.6)
-uint8_t QR_code;        // 二维码结果
-uint8_t get_cude, get_a, get_b; // 线索标志
+uint8_t color_flag[5];   // 门颜色(D2~D5,D1)
+uint8_t treasure;        // 宝物编号
+uint8_t DownLiuShui;     // 流水下坡标志
+float LiuShuiRate;       // 流水速度倍率(1.6)
+uint8_t QR_code, get_cude, get_a, get_b;
 ```
 
 ---
 
 ## 五、PID 配置
 
-### 5.1 内环速度PID ([pid.c:140-181](Math/pid.c#L140-L181))
+### 5.1 内环速度PID
 
-| 参数 | L0 | L1 | R0 | R1 |
-|------|----|----|----|----|
-| Kp | 40 | 40 | 40 | 40 |
-| Ki | 10 | 10 | 10 | 10 |
-| Kd | 5 | 5 | 5 | 5 |
-| outputMax | MOTOR_PWM_MAX | 同左 | 同左 | 同左 |
-| actualMax | 100 | 100 | 100 | 100 |
+| 参数 | L0-L1 | R0-R1 |
+|------|-------|-------|
+| Kp/Ki/Kd | 40/10/5 | 40/10/5 |
+| outputMax | MOTOR_PWM_MAX | MOTOR_PWM_MAX |
 
-### 5.2 外环PID ([pid.c:183-237](Math/pid.c#L183-L237))
+### 5.2 外环PID
 
 | 用途 | Kp | Ki | Kd | outputMax |
 |------|----|----|----|-----------|
@@ -187,85 +129,49 @@ uint8_t get_cude, get_a, get_b; // 线索标志
 | 陀螺仪直行(gyroG) | 2 | 0.004 | 0.5 | ±80 |
 | 灰度(lineG) | 15 | 0 | 5 | ±100 |
 
-### 5.3 速度等级 ([chassis_api.h](Application/chassis_api.h))
+### 5.3 速度等级
 
-```c
-SPEED0=25, SPEED1=36, SPEED2=45, SPEED25=55, SPEED3=60, SPEED4=70, SPEED5=75
-```
+`SPEED0=25, SPEED1=36, SPEED2=45, SPEED25=55, SPEED3=60, SPEED4=70, SPEED5=75`
 
-不同速度对应不同巡线PID参数（在 `Chassis_SetTargetSpeed` 中设置）：
-- SPEED4: kp=4.0, kd=300
-- SPEED3: kp=7, kd=300
-- SPEED2: kp=7.0, ki=0.008, kd=400
-- SPEED0/1: kp=7.0, kd=350
+各速度对应PID参数在 `Chassis_SetTargetSpeed` 中设置：
+- SPEED4: kp=4, kd=250 | SPEED3: kp=7, kd=115 | SPEED25: kp=8, kd=140
+- SPEED2: kp=7, kd=80 | SPEED0/1: kp=7, kd=90 | 低速12/15: kp=20, kd=60
 
 ---
 
 ## 六、模式枚举 ([motor_task.h](Task/motor_task.h))
 
 ```c
-typedef enum {
-    is_No = 0,   // 关闭所有
-    is_Free,     // 开环（直接设PWM）
-    is_Line,     // 巡线模式
-    is_Turn,     // 转弯模式（原地转/平台转/360°转）
-    is_Gyro,     // 陀螺仪模式（沿指定角度直行）
-};
+typedef enum { is_No=0, is_Free, is_Line, is_Turn, is_Gyro };
 ```
 
-巡线模式子模式 ([chassis_api.h](Application/chassis_api.h)):
-```c
-TRACK_ALL=0, TRACK_LEFT_EDGE, TRACK_RIGHT_EDGE, TRACK_LIUSHUI
-```
+巡线子模式: `TRACK_ALL=0, TRACK_LEFT_EDGE, TRACK_RIGHT_EDGE, TRACK_LIUSHUI`
 
 ---
 
 ## 七、电机与编码器映射
 
-### 7.1 电机编号 ([motor.c:46-86](Motor/motor.c#L46-L86))
-
+### 7.1 电机编号
 ```
-motor_set_pwm(1, pwm) → L0 (左前) → TIM9_CH1/CH2 → PE5/PE6
-motor_set_pwm(2, pwm) → L1 (左后) → TIM8_CH3/CH4 → PC8/PC9
-motor_set_pwm(3, pwm) → R0 (右前) → TIM4_CH3/CH4 → PD14/PD15
-motor_set_pwm(4, pwm) → R1 (右后) → TIM4_CH1/CH2 → PD12/PD13
+motor_set_pwm(1) → L0 (左前) TIM9 PE5/PE6
+motor_set_pwm(2) → L1 (左后) TIM8 PC8/PC9
+motor_set_pwm(3) → R0 (右前) TIM4 PD14/PD15
+motor_set_pwm(4) → R1 (右后) TIM4 PD12/PD13
 ```
+正转: CCRx=0, CCRy=ccr | 反转: CCRx=ccr, CCRy=0
 
-正转: 原值 → CCRx=0, CCRy=ccr
-反转: 取反 → CCRx=ccr, CCRy=0
-
-### 7.2 编码器 ([motor_task.c:304-330](Task/motor_task.c#L304-L330))
-
+### 7.2 编码器
 ```
-TIM1_CNT → Speed[0] → motor_L0.measure (左前，正)
-TIM2_CNT → Speed[1] → motor_L1.measure (左后，正)
-TIM3_CNT → Speed[2] → motor_R0.measure (右前，取反)
-TIM5_CNT → Speed[3] → motor_R1.measure (右后，取反)
+TIM1 → L0 (正) | TIM2 → L1 (正) | TIM3 → R0 (取反) | TIM5 → R1 (取反)
 ```
-
 编码器每圈 5720 脉冲，减速比 0.362，轮径 104mm。
-里程公式: `Distance += (avg_encoder * 10.4 * PI / 5720) / 0.362`
+里程: `Distance += (avg_encoder * 10.4 * PI / 5720) / 0.362`
 
 ### 7.3 巡线传感器
 
-16路，通过 GPIO 读引脚取反（0=黑线，1=白底），`ReadLineSensorDetail()` 返回 uint16_t 位图。
-
-权重表: `line_weight[16] = {-3, -2.4, -1.8, -1.3, -0.9, -0.6, -0.4, -0.2, 0.2, 0.4, 0.6, 0.9, 1.3, 1.8, 2.4, 3}`
-
-巡线历史滤波: `line_data[5]` 滑动窗口，存储最近5次的 pos/error/truth。
-- `truth` 枚举（`enum LineTruth`，scaner.h）: `TRUTH_VALID=0` 正确值；`TRUTH_ALL_ERR=1` 全错误；`TRUTH_POS_ERR=2` 位置跳变
-- `ScanerMode_Switch()` 切换模式时会清零 `line_data`，避免旧模式数据污染
-- Gray 模式不写入 `line_data`（`Update_line_data` 已注释），直接用 `Scaner.gray_error`
-- `Get_scaner_error()` 丢线时保持上次有效误差（`last_valid_error`），不会直行
-- `Go_Line()` 后退舵向反转（2026-06-10）：后退时传感器在车头（尾随端），`if (speed < 0) Fspeed = -Fspeed`，方向取反后正确纠偏
-
-巡线函数结构（scaner.c）:
-- `getline_error_ex()` → RF: `UpdateScanerFromRf` → `Line_Scan`（粗滤→计算→位置验证→写历史）；Gray: `UpdateScanerFromGray` → `Calculate_Error`
-- `value_calculation()` 为 switch 分发器，实际逻辑在 4 个 static 函数：`calc_left_edge`/`calc_right_edge`/`calc_liushui`/`calc_track_all`
-- 边缘循线限宽（2026-06-10）：`calc_left_edge`/`calc_right_edge` 的 break 条件新增 `|| *lednum >= 2`，找到连续亮灯段后最多取 2 个灯。防止交叉线融合点线宽增加导致位置偏移
-- `coarse_filter()` 粗滤：灯数≥10 / 线数≥4 / 无灯 / 平均每线≥4灯 → 丢弃
-- `pos_detect()` 位置连续性：新 pos 与最近正确值差 < 1.5（`POS_CLUSTER_RADIUS`）才算通过
-- 内部函数（`coarse_filter`/`pos_detect`/`Update_line_data`/`value_calculation`）均为 static，不对外暴露
+16路 GPIO 读取（0=黑线，1=白底），权重表 `line_weight[16] = {-3..3}`。
+`line_data[5]` 滑动窗口，truth 枚举: VALID/ALL_ERR/POS_ERR。
+内部函数均为 static: `coarse_filter`/`pos_detect`/`Update_line_data`/`value_calculation`。
 
 ---
 
@@ -277,134 +183,95 @@ enum barriers {
     BSoutPole, QQB, BLBS, BLBL, DOOR, BHM, IGNORE, UNDER, Special_node, DOOR1, UpStageP2
 };
 ```
-
-障碍函数映射 ([map.c:560-585](Application/map.c#L560-L585)):
-```
-UpStage   → Stage()        // 旋转平台
-Bridge    → Barrier_Bridge() // 过桥
-Hill      → Barrier_Hill()  // 山地
-BSoutPole → South_Pole()   // 南极
-QQB       → QQB_1()        // 跷跷板
-BLBS      → Barrier_WavedPlate(87)  // 蓝波动板
-BLBL      → Barrier_WavedPlate(160) // 红波动板
-BHM       → Barrier_HighMountain()  // 高山
-DOOR      → door()          // 开门
-```
-
-**Barrier_Bridge 下坡修正（2026-06-10）**：BRIDGE_ON_BRIDGE 状态从单段 `RampCtrl_Blocking` 改为两段 + 中间 15cm 红外修正（`Chassis_CorrectByInfrared(0.09f)`），复刻上坡的红外修正模式，防止下坡偏航。
-
-**桥面红外修正原理**：车最外侧装有两个独立于循迹板的红外传感器，分别指向左右——桥面两侧各有一条红线。车完全居中时两个红外均无信号；偏左 → 左侧扫到红线 → 微量向右修正目标角度；偏右 → 右侧扫到红线 → 微量向左修正。每次修正确认有信号才执行（`infrared.head_left == 1 || infrared.head_right == 1`），系数 0.04~0.07，通过反复微调归中。
-
-**Barrier_Bridge 桥面连续修正重构（2026-06-18）**：合并 BRIDGE_CORRECT + BRIDGE_ACCELERATE 为单一状态 BRIDGE_ON_BRIDGE_TOP，三级连续循环——
-  - **第1层（紧急）**：巡线板最外侧（`Scaner.detail & 0xF800` / `0x007F`）扫到红线 → 硬跳角度修正 ±5° + 降速到 `UpDownStage_Speed_low`
-  - **第2层（正常）**：红外扫到红线 → `Chassis_CorrectByInfrared(0.04f, 2.0f, 1.4f)` 增量修正，中速 SPEED1
-  - **第3层（居中）**：两个红外均无信号持续 `BRIDGE_CENTERED_THRESHOLD`（10次 ≈ 20-100ms）次后加速到 SPEED2
-  改用 `Chassis_SetTargetSpeed()` 调速（不覆盖 `angle.AngleG`），去掉硬编码 `Tar_angle = getAngleZ()*0.8f + origin_angle*0.2f`。75mm 最大里程保险兜底。
+- UpStage→Stage() | Bridge→Barrier_Bridge() | Hill→Barrier_Hill()
+- BSoutPole→South_Pole() | QQB→QQB_1()
+- BLBS→Barrier_WavedPlate(87) | BLBL→Barrier_WavedPlate(160)
+- BHM→Barrier_HighMountain() | DOOR→door()
 
 ---
 
 ## 九、Cross() 流程 ([map.c](Application/map.c))
 
-**2026-06-27 重构**: 原 ~254 行单函数拆为 40 行主体 + 6 个 static 子函数。`route_state` + `is_near_end` 隐式状态改为 `nav_step`（`NAV_STEP_INIT/CRUISE/MID_SWITCH/PREP_ARRIVE`） + `near_end`。
-
 ```
 Cross()
 ├── near_end==0 (巡线行驶)
-│   ├── SEG_INIT:      清里程, 设巡线模式 (Cross_SegmentInit)
-│   ├── SEG_CRUISE:    设速度, 启用游龙
-│   ├── SEG_MID_SWITCH:里程≥50%, 切换巡线模式 (Cross_MidSwitch)
-│   └── SEG_PREP_ARRIVE:里程≥70%, 降速, 进入节点处理 (Cross_PrepareArrival)
+│   ├── SEG_INIT:       清里程, 设巡线模式
+│   ├── SEG_CRUISE:     设速度, 启用游龙
+│   ├── SEG_MID_SWITCH: 里程≥50%, 切换巡线模式
+│   └── SEG_PREP_ARRIVE:里程≥70%, 降速
 │
 └── near_end==1 (节点处理)
-    ├── Cross_NearEnd: map_function() → 等待到达 (xTaskNotifyGive ArriveDetect_task)
-    ├── Cross_TurnAndAdvance:
-    │   ├── 无需转弯 → Handle_NoTurn_StraightPath()
-    │   ├── L_follow → Chassis_Turn_By_LeftLine_Blocking()
-    │   ├── R_follow → Chassis_Turn_By_RightLine_Blocking()
-    │   ├── STOPTURN/>90° → 停车 → 原地转
-    │   └── 其他 → 陀螺仪不停车转弯
-    └── Cross_PostProcess: 检查 cross_event & CROSS_EVENT_DOOR → 推进节点
+    ├── Cross_NearEnd: map_function() → 等待到达
+    ├── Cross_TurnAndAdvance: 转弯（左follow/右follow/停车原地转/陀螺仪）
+    └── Cross_PostProcess: 检查 cross_event → 推进节点
 ```
 
 ---
 
 ## 十、IMU 数据流 ([imu.c](Module/imu.c))
 
-- USART3 DMA 接收，IDLE 中断触发
-- 协议: 0x55 开头，10字节校验和
-- 输出: `imu.yaw/roll/pitch` (±180°)
-- `imu.yaw -= basic_y` 归零校正
-- `imu_shared_data` 通过互斥锁保护（中断中用 FromISR 版本）
-- `getAngleZ() = get_latest_yaw() + imu.compensateZ` 返回带补偿的偏航角
-- `IMU_CalibrateZero(&basic_y, &basic_p, &basic_r)` — 新增 `roll` 参数，10 次采样平均，`basic_r` 为横滚角零偏
-- `basic_r` (extern) — 横滚角零偏值，在 `Chassis_Periodic_Update_5ms` 中用作超限保护基准
+- USART3 DMA + IDLE 中断，0x55 协议，10字节校验和
+- `imu.yaw/roll/pitch` (±180°)，`imu.yaw -= basic_y` 归零
+- `getAngleZ() = get_latest_yaw() + imu.compensateZ`
+- `IMU_CalibrateZero(&basic_y, &basic_p, &basic_r)` — 10次采样平均
 
 ---
 
-## 十一、已知 Bug 清单
+## 十一、已知 Bug & 已修复
 
-### P0（已修复 ✓）
-1. **PID bias int→float** [pid.h:8](Math/pid.h#L8): `I_pid_obj.bias` 改为 `float`
-2. **barrier.c 赋值写为比较** [barrier.c:1229]: `getZ == 0` → `getZ = 0`
-3. **barrier.c 除零保护** [barrier.c:753/813/1032]: `sum_angle/add_time` 添加 `if(add_time > 0)` 保护
-4. **motor_task.h 接口泄露**: 10 个内部函数改为 static (2026-06-27)
-5. **map.c include 跨层调用**: 从 19 个精简到 5 个 (2026-06-27)
+### P1（未修复）
+- `map.h:188-326` ~120个 Clue*route 外部声明未使用
+- `pid.c:167-180` 注释掉的 R1 初始化死代码
+- `motor_task.c:95-96` 5ms 循环内 printf 影响实时性
 
-### P1（重要）
-4. **未使用的全局变量** [map.h:188-326]: ~120个 Clue*route 外部声明，占用 namespace
-5. **R1 PID初始化死代码** [pid.c:167-180]: 注释掉的初始化块，后续又重复
-6. **5ms循环中printf** [motor_task.c:95-96]: 串口输出影响实时性
+### P2（未修复）
+- `map.c:189-233` 转弯前距离 if 链应改用查表
+- `filter.c:56-93` 4点去极值滤波窗口过小
 
-### P2（可优化）
-7. **转弯前距离硬编码** [map.c:189-233]: if链应改用查表
-8. **main_task.c 引用 speed_ctrl.h** 需确认文件是否已删除
-9. **filter_motor_speed() 窗口过小** [filter.c:56-93]: 4点窗口，去极值后只剩2点平均
-10. **Stage_P2 顺序结构** [barrier.c]: 已重写为状态机，与 Stage() 格式一致
-
-### ✓ 已修复
-- **堵转保护** [chassis_api.c]: stall_protect_enabled/stall_count[4]，PWM > 7000 硬上限 + output/target>80 连续 5 周期触发 (2026-07-04 终版：比值方案，自动适应转速)
-- **Cross()函数过大** [map.c]: 原 ~254 行单函数 → 40 行主体 + 6 个 static 子函数 (2026-06-27)
-- **Want2Go 和 Chassis_MoveDistance_Blocking 重复**: 删除后者，Chassis_DriveDistance_Blocking 改为调 Want2Go (2026-06-27)
-- **角度归一化代码重复3次**: 提取 `normalize_angle()` 到 chassis_api.c (2026-06-27)
-- **nodesr.flag 语义混杂**: 阶段同步位(0x04/0x20/0x80)拆出到独立 `cross_event` 变量，`nodesr.flag` 仅承载配置标志 (2026-06-27)
-- **Stage_P2 重写为状态机** [barrier.c]: 顺序执行改为 P2_ASCEND→P2_TOP→P2_TURN→P2_DONE 状态机，坡检测和上坡方式与 Stage() 一致 (2026-07-03)
-- **Barrier_WavedPlate 重写为状态机** [barrier.c]: 顺序执行改为 WP_APPROACH→WP_DRIVE→WP_DONE 状态机；接近阶段用 Stage_DetectedRamp(30.0f) 替代 while 传感器等待；行驶阶段用 RampCtrl_Blocking(RAMP_ASCEND, ..., max_distance) 替代 is_Line 模式（设俯仰角 9999 仅靠距离退出）；移除全部 PID 修改 (2026-07-03)
+### ✓ 已修复主要项
+| 修复内容 | 日期 |
+|----------|------|
+| PID bias int→float | 2026-05-01 |
+| barrier.c 赋值写为比较(getZ==0) | 2026-05-01 |
+| 除零保护 (sum_angle/add_time) | 2026-05-01 |
+| motor_task 10函数 static 化 | 2026-06-27 |
+| map.c include 从19精简到5 | 2026-06-27 |
+| Cross() 拆40行+6子函数 | 2026-06-27 |
+| normalize_angle 提取去重 | 2026-06-27 |
+| nodesr.flag 阶段位拆出 | 2026-06-27 |
+| Want2Go/Chassis_MoveDistance 去重 | 2026-06-27 |
+| 堵转保护 (PWM>7000 硬上限 + 比值检测) | 2026-07-04 |
+| Turn_Angle_Base 死区/钳位/TOCTOU | 2026-07-04 |
+| Stage_P2/QQB/WavedPlate 状态机重写 | 2026-07-03~04 |
 
 ---
 
-## 十二、关键 API 函数表 ([chassis_api.c](Application/chassis_api.c))
+## 十二、关键 API ([chassis_api.c](Application/chassis_api.c))
 
 | 函数 | 功能 | 调用者 |
 |------|------|--------|
-| `Chassis_Init()` | 初始化底盘状态 | motor_task |
-| `Chassis_SetMode(mode)` | 设置 PID 模式 | map.c |
-| `Chassis_SetTargetSpeed(speed)` | 设速度(自动映射PID参数) | map.c |
-| `Chassis_SetTrackMode(mode)` | 设巡线模式(双边/左/右/流水) | map.c |
+| `Chassis_Init()` | 初始化底盘 | motor_task |
+| `Chassis_SetMode(mode)` | 设PID模式 | map.c |
+| `Chassis_SetTargetSpeed(speed)` | 设速度(自动映射PID) | map.c |
+| `Chassis_SetTrackMode(mode)` | 设巡线模式 | map.c |
 | `Chassis_MotorControl(mode,L,R,aim)` | 统一运动控制入口 | map.c/barrier.c |
 | `Chassis_Brake()` | 急刹 | map.c |
-| `Chassis_TurnToAngle_Blocking(angle,orig,ratio)` | 阻塞转指定角度(含等待) | chassis_api内部 |
-| `Chassis_MoveDistance_Blocking(dist)` | 阻塞走指定距离 | chassis_api内部 |
-| `Chassis_DriveDistance_Blocking(mode,dist,speed,aim,edge)` | 临时模式行驶固定距离 | map.c |
+| `Chassis_DriveDistance_Blocking(...)` | 临时模式行驶固定距离 | map.c |
 | `Chassis_OverrideLinePid(kp,ki,kd,max)` | 临时覆盖巡线PID | map.c |
-| `Chassis_Periodic_Update_5ms()` | 游龙防护 + 丢线保护 + 横滚角超限保护等周期更新 | motor_task (每5ms) |
+| `Chassis_Periodic_Update_5ms()` | 游龙+丢线+滚转+翘头保护 | motor_task |
 | `Chassis_EnableAntiSnake()` | 激活游龙防护 | map.c |
-| `Chassis_EnableLineLostProtection()` | 开启丢线保护（一次性触发后自动禁用） | map.c |
-| `Chassis_DisableLineLostProtection()` | 关闭丢线保护并重置计数器 | map.c |
-| `Chassis_EnableRollProtection()` | 使能横滚角超限保护（imu.roll 与 basic_r 偏差 > 40° 时死停） | map.c / barrier.c |
-| `Chassis_DisableRollProtection()` | 关闭横滚角超限保护 | map.c / barrier.c |
-| `Chassis_SelfCheck()` | 一键自检（架车黑毯上持续监测陀螺仪/灰度/循迹板，每秒一次，状态变化才输出） | main_task.c |
+| `Chassis_EnableLineLostProtection()` | 开启丢线保护 | map.c |
+| `Chassis_EnableRollProtection()` | 使能横滚角保护(>40°死停) | map.c/barrier.c |
+| `Chassis_EnableWheelieProtection()` | 使能翘头保护(pitch>8°降加速度) | map.c |
+| `Chassis_SelfCheck()` | 一键自检 | main_task.c |
 
 ---
 
 ## 十三、常量参数
 
-- **PWM频率**: TIM4/8/9/12 均为 10800-1 周期，Prescaler=0 → 216MHz/10800 = 20kHz
-- **PWM最大值**: 一般 9800，转弯模式限 5000
-- **系统时钟**: HSE 8MHz → PLL x54 → 216MHz SYSCLK
-- **APB1**: 54MHz (TIM 108MHz) | **APB2**: 108MHz (TIM 216MHz)
-- **FreeRTOS tick**: 1000Hz (configTICK_RATE_HZ=1000)
-- **巡线传感器**: 16路 GPIO 读取
-- **编码器**: TIM1/2/3/5 编码器模式，ARR=65535
+- PWM 20kHz (10800-1, prescaler=0), 一般9800, 转弯限5000
+- 系统 216MHz (HSE 8MHz × PLL 54), APB1=54MHz, APB2=108MHz
+- FreeRTOS tick=1000Hz, 编码器 ARR=65535
 
 ---
 
@@ -413,384 +280,95 @@ Cross()
 | 外设 | 引脚 | 功能 |
 |------|------|------|
 | USART1 | PA9/PA10 | 调试串口 |
-| USART3 | PB10/PB11 | IMU(陀螺仪) |
-| UART4 | PC10/PC11 | 串口通信 |
-| UART5 | PC12/PD2 | 串口通信 |
-| UART7 | PE7/PE8 | 串口通信 |
+| USART3 | PB10/PB11 | IMU |
+| UART4/5/7 | PC10~PD2/PE7/PE8 | 串口通信 |
 | UART8 | PE0/PE1 | K210/OpenMV |
-| TIM1_CH1/CH2 | PE9/PE11 | 编码器(左前) |
-| TIM2_CH1/CH2 | PA5/PB3 | 编码器(左后) |
-| TIM3_CH1/CH2 | PA6/PA7 | 编码器(右前) |
-| TIM5_CH1/CH2 | PA0/PA1 | 编码器(右后) |
-| TIM4_CH1~4 | PD12~PD15 | 右后/右前 PWM |
-| TIM8_CH3/CH4 | PC8/PC9 | 左后 PWM |
-| TIM9_CH1/CH2 | PE5/PE6 | 左前 PWM |
-| TIM12_CH1/CH2 | PB14/PB15 | 舵机 PWM |
-| ADC1_IN2/3/14/15 | PA2/PA3/PC4/PC5 | 电池/灰度 |
+| TIM1/2/3/5 | 编码器 | 四路编码器 |
+| TIM4/8/9 | PD12~PD15/PC8/PC9/PE5/PE6 | 电机 PWM |
+| TIM12 | PB14/PB15 | 舵机 PWM |
+| ADC1 | PA2/PA3/PC4/PC5 | 电池/灰度 |
 
 ---
 
-## 十五、git 分支信息
-
-- 当前分支: `study_code`
-- 主分支: `main`
-- 最近提交: `4f4816f` 接口验证完成
-
----
-
-## 十六、模式切换逻辑审查（2026-05-01）
-
-### 16.1 流程概览
+## 十五、模式切换 ([chassis_api.c](Application/chassis_api.c) + [motor_task.c](Task/motor_task.c))
 
 ```
-map.c / barrier.c
-    ↓
-Chassis_MotorControl() 或 Chassis_SetMode()
-    ↓
-Chassis_SetMode()              ← 立即执行，设PWM_MAX，速度传递，清目标模式PID，清游龙状态
-    ↓
-PIDMode = target_mode      ← 全局状态更新
-    ↓
-motor_task 5ms循环:
-    handle_mode_switch()   ← 检测变化，处理状态转移
-    handle_line_mode()
-    handle_turn_mode()
-    handle_gyro_mode()
-    handle_target_speed()
-    handle_pid_control()
-    Chassis_Periodic_Update_5ms()
+map.c / barrier.c → Chassis_SetMode() → PIDMode = mode → motor_task 5ms循环
 ```
 
-### 16.2 handle_mode_switch 状态转移表
+**状态转移表**:
+| 来源→目标 | 处理 |
+|-----------|------|
+| Gyro→Line | gyroG_pid→line_pid_obj, TG→TC |
+| Line→Gyro | line_pid_obj→gyroG_pid, TC→TG |
+| Turn→Line | 清 line_pid/TC/Cspeed |
+| Turn→Gyro | 清 gyroG_pid/TG/Gspeed |
+| →Turn | 清 gyroT_pid |
 
-| 来源 | 目标 | 处理方式 |
-|------|------|---------|
-| Gyro → Line | 无扰转移：gyroG_pid → line_pid_obj，TG_speed → TC_speed |
-| Line → Gyro | 无扰转移：line_pid_obj → gyroG_pid，TC_speed → TG_speed |
-| Turn → Line | 清零：line_pid_obj、TC_speed、Cspeed（转弯后位置已变，重新开始） |
-| Turn → Gyro | 清零：gyroG_pid、TG_speed、Gspeed（转弯后位置已变，重新开始） |
-| Line → Turn | 清零：gyroT_pid（进入转弯前重置转弯PID） |
-| Gyro → Turn | 同上 |
-
-### 16.3 待修复问题
-
-**P0: pid_mode_switch 进入 is_Turn 时清零范围过大** ✓ 已修复（后续已合并入 Chassis_SetMode）
-- 原文件: Application/chassis_api.c, 函数: pid_mode_switch（已删除）
-- 修复: 进入 is_Turn 只清零 gyroT_pid，删掉了对 line_pid_obj、gyroG_pid、TG_speed、TC_speed 的清零
-- 后续优化: gyroT_pid 清零也移至 handle_mode_switch，pid_mode_switch 仅负责 PWM 限幅和 PIDMode 赋值
-- 最终: pid_mode_switch 函数体已合并到 Chassis_SetMode，详见 README 条目 59
-
-**P0: Turn→Line/Gyro 缺少转换逻辑** ✓ 已修复
-- 文件: Task/motor_task.c, 函数: handle_mode_switch
-- 修复: 新增 Turn→Line（清零 line_pid_obj/TC_speed/Cspeed）和 Turn→Gyro（清零 gyroG_pid/TG_speed/Gspeed）
-
-**P1: chassis.PID_mode 和 PIDMode 不同步** ✓ 已修复
-- 删除 chassis.PID_mode，统一使用全局 PIDMode
-- Chassis_Init/Brake 直接写 PIDMode，Chassis_SetMode 内部包含模式切换逻辑（原 pid_mode_switch）
-
-**P1: anti_snake 和 Override 会冲突** ✓ 已修复
-- 文件: Application/chassis_api.c, 函数: Chassis_Periodic_Update_5ms
-- 问题: 游龙防护直接改 line_pid_param.kp/kd，如果 Chassis_OverrideLinePid 生效，会覆盖掉 Override 的值
-- 修复: 游龙现在通过 Chassis_OverrideLinePid 修改 PID，复用 Override/Restore 机制，不再直接改 line_pid_param
-
-**P1: Chassis_OverrideLinePid 没有保存 outputMax** ✓ 已修复
-- 文件: Application/chassis_api.c, 函数: Chassis_OverrideLinePid
-- 问题: saved_line_outputMax 声明了但从未赋值，RestoreLinePid 会把 outputMax 设成 0
-- 修复: 差速限幅统一到 motor_all.Line_speedMax，OverrideLinePid 保存/恢复 motor_all.Line_speedMax，不再修改 line_pid_param.outputMax（固定 ±80）
-
-**P2: is_Turn 绕过 Chassis_SetMode** ✓ 已修复
-- 文件: Application/chassis_api.c, 函数: Chassis_MotorControl
-- 问题: is_Turn 直接调用 Turn_Angle_Relative → pid_mode_switch（当时独立函数），跳过了 Chassis_SetMode
-- 修复: anti_snake 重置移入 pid_mode_switch，所有模式切换路径（包括 Turn_Angle_Relative 直接调用）都会清除游龙状态
-- 注: pid_mode_switch 后已合并入 Chassis_SetMode，此问题不再存在
-
-**P2: Want2Go 和 Chassis_MoveDistance_Blocking 重复** ✓ 已修复 (2026-06-27)
-
-**P2: 角度归一化代码重复3次** ✓ 已修复 (2026-06-27)
-
-**P2: anti_snake 衰减逻辑可能写反** ✓ 已修复
-- 注释说"回正后迅速衰减警戒值"
-- 修复: 衰减改为 anti_snake_err_count -= 10（真正的递减），解除条件改为 err_count <= 0
-
-### 16.4 差速限幅统一
-
-巡线差速限幅已统一到 `motor_all.Line_speedMax`，与陀螺仪的 `motor_all.GyroG_speedMax` 和转弯的 `motor_all.GyroT_speedMax` 保持一致：
-- 删除 `LINE_SPEED_MAX` 宏（原 scaner.c 硬编码 100）
-- `Go_Line()` 使用 `motor_all.Line_speedMax` 作为差速上限
-- `Chassis_OverrideLinePid` 保存/恢复 `motor_all.Line_speedMax`，不再修改 `line_pid_param.outputMax`
-- `line_pid_param.outputMax` 固定 ±80，不再被外部修改
-
-### 16.5 文件编码
-
-2026-05-01 全部项目源文件已从 GBK 转为 UTF-8，可直接用 Edit 工具编辑。
-唯一未转换：Middlewares/Third_Party/FreeRTOS 下的 cmsis_os.c/h（非项目代码）。
+差速限幅统一在 `motor_all.Line_speedMax`，`line_pid_param.outputMax` 固定±80。
 
 ---
 
-## 十七、转弯逻辑审查与重构（2026-05-01）
+## 十六、转弯逻辑 ([turn.c](Application/turn.c))
 
-### 17.1 turn.c 函数总览
-
-| 函数 | 作用 | 调用者 |
-|------|------|--------|
-| `need2turn(now, target)` | 计算最短旋转角 (-180, 180] | 内部工具 |
-| `getAngleZ()` | 返回补偿航向角 = `get_latest_yaw() + compensateZ` | 转弯/巡线 |
-| `mpuZreset(sensor, ref)` | 设置零偏补偿 | 开机校准 |
-| `Turn_Angle_Base(Angle, right_ratio, force_threshold)` | 原地转基函数（static） | Turn_Angle / Stage_turn_Angle |
-| `Turn_Angle(Angle)` | 原地转（左右对称，ratio=1.0） | motor_task handle_turn_mode |
-| `Stage_turn_Angle(Angle)` | 平台转（右电机 x1.15 补偿阻力） | motor_task handle_turn_mode |
-| `Turn360Step()` | 360° 转圈单步（梯形速度曲线） | motor_task handle_turn_mode |
-| `Turn_Angle_Relative(Angle1)` | 相对角转绝对角，设 is_Turn 模式 | chassis_api |
-| `Turn_Angle360()` | 阻塞型 360° 转圈入口 | map.c / barrier.c |
-| `Go_Angle(angle, speed, motor)` | 陀螺仪直行（PID 修正差速） | motor_task handle_gyro_mode |
-| `FreeTurn(Angle, L, R)` | 开环直接设 PWM（死代码，未被调用） | 无 |
-
-### 17.2 360° 转圈重构
-
-**旧方案**（PID + MustBeZero 脉冲）：
-- 双层 `Change360Angle` 转 0-360 空间计算
-- `MustBeZero` 每 500ms 脉冲强制全速，然后检查真实角度
-- 速度不平滑：全速 500ms → 停 → PID 慢速 → 再全速
-
-**新方案**（梯形速度曲线，无 PID）：
-- 累加法：每 5ms 算 `delta = curr_yaw - prev_yaw`，处理 ±180° 边界回绕
-- 梯形速度曲线：加速(0-30°) → 全速(30-300°) → 减速(300-358°) → 停
-- 顺时针：`Lspeed = +GTspeed, Rspeed = -GTspeed`
-- 可调参数（`#define`）：`TURN360_FULL_SPEED`(25), `TURN360_MIN_SPEED`(8), `TURN360_ACCEL_END`(30°), `TURN360_DECEL_START`(300°), `TURN360_STOP_ANGLE`(358°)
-
-**已清理**：`MustBeZero` 变量、`Turn360RecallAngle` 变量。`Change360Angle` 保留但 360° 转圈不再使用。
-
-### 17.3 Turn_Angle / Stage_turn_Angle 合并
-
-两者逻辑 90% 相同，唯一区别是右电机速比和是否强制右转。提取 `static Turn_Angle_Base(Angle, right_ratio, force_threshold)` 基函数：
-- `Turn_Angle(Angle)` → `Turn_Angle_Base(Angle, 1.0f, 0)` （不强制右转）
-- `Stage_turn_Angle(Angle)` → `Turn_Angle_Base(Angle, 1.15f, 150.0f)` （偏离 > 150° 强制右转）
-
-### 17.4 IMU 并发安全
-
-- `Turn360Step` 已从 `imu.yaw` 改为 `get_latest_yaw()`（通过 mutex 保护）
-- `Go_Angle` / `Turn_Angle_Base` 使用 `getAngleZ()`（内部调用 `get_latest_yaw()`）
-- printf 调试输出直接读 `imu.yaw` 可接受（单次 float 读原子，调试用途无需一致性）
-
----
-
-## 十八、Flash 优化（2026-05-02）
-
-### 18.1 问题
-
-Flash 使用 66,648 字节超出 65,536 字节限制（STM32F750V8 仅 64KB Flash），溢出 1,112 字节。
-
-### 18.2 优化措施
-
-**barrier.c — 提取 route 复制 helper（省 ~1.5-2KB）**
-
-- `update_rout_by_treasure_7` 和 `update_rout_by_treasure_8` 各有 25 处完全相同的 for 循环复制代码
-- 提取 `static void copy_route(const u8* src)` 函数，每个 case 从 ~40 字节降至 ~10 字节
-- 使用 `const u8 r[]` 确保路由数据存放在 ROM（Flash），不额外占 RAM
-
-**map.h — P7/P8 枚举名称交换（2026-06-18）**
-
-- 交换  中 (原42) 与 (原49) 的名称，使名称与物理位置一致
-- C9 后连的是 P7（修正前代码中 C9 → P8），C7/N14 旁边是 P8（修正前 P7 → N20）
-- 仅交换枚举名，不修改任何数值或逻辑代码，编译时自动修正所有引用
-- 同步更新  节点表注释标签和  注释
-- 附带修正 pre-existing 注释错误：S3(39→29)、N16(49→39)、P8(59→49)
-
-**barrier.c — 新增 load_route_at 与 update_route_by_QR 重构（2026-06-18）**
-
-- 新增 `static void load_route_at(uint8_t offset, const u8* src)`，从 `route[offset]` 开始拷贝（与 `copy_route` 的区别：不叠加 `map.point`）
-- 新增 `static uint8_t is_green_or_yellow(uint8_t c)`，消除 `color_flag[i]==Green||color_flag[i]==Yellow` 的重复书写
-- `update_route_by_QR()` 从 4 组 × 2 条 = 8 段重复 for 循环 + if 条件，简化为 `if/else if` 分支 + `load_route_at` 调用
-- 原函数 ~100 行 → ~30 行，逻辑等价（D2 绿/黄优先级高于 D3/D4 绿/黄）
-
-**Rec_usart.c — 替换 sscanf（省 ~1.6KB）**
-
-- `get_PIDdata()` 原用 `sscanf` 解析 `[dev,param,value]` 格式调试命令
-- sscanf 链接了标准库的 `_scanf.o`（810B）和 `scanf_fp.o`（852B）
-- 改为手动解析 `parse_cmd_field()`，消除对标准库 scanf 的依赖
-
-### 18.3 优化结果
-
-预估节省 3-3.5KB，解决 Flash 溢出问题。
-
----
-
-## 十九、丢线保护（2026-05-04）
-
-### 19.1 功能说明
-
-当 `is_Line` 巡线模式下，`line_data[5]` 全部无效（无 `TRUTH_VALID`）持续超过阈值时，调用 `Chassis_Brake()` 停车，防止小车跑飞。
-
-### 19.2 实现位置
-
-- 检测逻辑：`Chassis_Periodic_Update_5ms()` 内 `if (PIDMode == is_Line)` 块末尾
-- 辅助函数：`is_line_completely_lost()` 检查 `line_data[]` 是否全无效
-- 状态变量：`ChassisState_t.line_lost_count` / `line_lost_enabled`
-
-### 19.3 关键参数
-
-- `LINE_LOST_THRESHOLD = 500`（500 × 5ms = 2.5 秒）
-- 一次性触发：触发后自动禁用，需重新调用 `Chassis_EnableLineLostProtection()`
-
-### 19.4 模式切换处理
-
-- 离开 `is_Line` 时：清零 `line_lost_count` + 清零 `line_data[]`（避免陈旧数据干扰）
-- `line_lost_enabled` 不清除：转弯后回到巡线时保护持续生效
-- 回到 `is_Line` 时：count 从 0 开始，首周期 `handle_line_mode()` 写新数据
-
-### 19.5 API
-
-| 函数 | 功能 |
+| 函数 | 作用 |
 |------|------|
-| `Chassis_EnableLineLostProtection()` | 开启丢线保护 |
-| `Chassis_DisableLineLostProtection()` | 关闭丢线保护并重置计数器 |
+| `need2turn(now,target)` | 计算最短旋转角(-180,180] |
+| `getAngleZ()` | yaw + compensateZ |
+| `Turn_Angle_Base(Angle, ratio, force_thr)` | 原地转基函数(static) |
+| `Turn_Angle(Angle)` | 原地转(ratio=1.0, force=0) |
+| `Stage_turn_Angle(Angle)` | 平台转(ratio=1.15, force=150°) |
+| `Turn360Step()` | 360°梯形速度曲线 |
+| `Go_Angle(angle, speed, motor)` | 陀螺仪直行 |
+
+Turn_Angle / Stage_turn_Angle 合并: 90%相同，提取 `Turn_Angle_Base` 基函数。
+360°转圈: 从 PID+MustBeZero 脉冲改为梯形速度曲线(加速30°→全速30-300°→减速358°→停)。
 
 ---
 
-## 二十、无传感器调试模式（2026-06-09）
+## 十七、安全保护
 
-### 20.1 独立调试开关
+### 17.1 丢线保护
+`is_Line` 下 `line_data[5]` 全无效持续 80×5ms=0.4s 后 `CarBrake()` + `while(1)`。
+一次性触发，`Chassis_EnableLineLostProtection()` 重新激活。
 
-各模块有各自的调试宏，互不影响：
+### 17.2 横滚角超限保护
+`|imu.roll - basic_r| > 40°` 时 `CarBrake()` + `while(1)` 死停。
+`Chassis_EnableRollProtection()/DisableRollProtection()`。
 
-| 模块 | 宏 | 定义位置 | 功能 |
-|------|-----|----------|------|
-| 门颜色模拟 | `DEBUG` | [barrier.h](Application/barrier.h):45 | `Door_ReadColor()` 改用全局变量 |
-| main_task | `MAIN_DEBUG` | [main_task.c](Task/main_task.c):29 | 跳过 `Cross()`，执行测试项 |
+### 17.3 堵转保护
+- PWM > 7000 硬上限 → 死停
+- `output > target × 150` 连续 5 周期 → 死停（比值自适应各转速）
 
-### 20.2 door() 门颜色模拟
-
-**文件**: [barrier.c](Application/barrier.c), [barrier.h](Application/barrier.h)
-
-`DEBUG == 1` 时 `Door_ReadColor()` 不再调用传感器，而是从预设数组 `debug_door_colors[5]` 按门序号取颜色：
-
-```c
-// 开局预设 5 个门颜色，然后正常调 door()
-// 值: Green=1, Yellow=2, Red=3; 0=未设置（读回 0，触发超时）
-extern uint8_t debug_door_colors[5];
-
-// 示例：D2黄 D3红 D4绿 D5红
-debug_door_colors[0] = Yellow;  // D2
-debug_door_colors[1] = Red;     // D3
-debug_door_colors[2] = Green;   // D4
-debug_door_colors[3] = Red;     // D5
-debug_door_colors[4] = 0;       // D1（未使用）
-```
-
-| 数组下标 | 对应的门 | 常量 |
-|----------|----------|------|
-| `[0]` | D2 | `DOOR_D2` |
-| `[1]` | D3 | `DOOR_D3` |
-| `[2]` | D4 | `DOOR_D4` / `DOOR_D4_AGAIN` |
-| `[3]` | D5 | `DOOR_D5` |
-| `[4]` | D1（未用） | — |
-
-`Door_ReadColor()` 直接在 `return debug_door_colors[idx]` 返回颜色值，不再经过 `Color_Left/Right` 全局变量，`door()` 通过局部变量 `door_color` 直接使用返回值。
-
-### 20.3 main_task 调试控制
-
-**文件**: [main_task.c](Task/main_task.c)
-
-`DEBUG == 1` 时 `Cross()` 被跳过，改为执行 `test_flag` / `debug_test_item` 指定的测试项：
-
-```c
-extern uint8_t debug_test_item;  // 1=直线, 2=转180, 3=过坡
-```
-
-优先级：`debug_test_item` > `test_flag`（外部 UART 设置的测试标志），执行后自动清零。
+### 17.4 翘头保护
+`is_Line` 下 `imu.pitch > basic_p + 8°` 时将 `Cincrement` 降至 0.05 抑制加速度，pitch 回落后恢复。需在 `Cross()` 中调用 `Chassis_EnableWheelieProtection()` 激活，使用模式与游龙一致。
+阈值 8.0f (`WHEELIE_PITCH_THRESHOLD`) 定义在 `chassis_api.c`。
 
 ---
 
-## 二十一、横滚角超限保护（2026-06-11）
+## 十八、无传感器调试模式
 
-### 21.1 功能说明
+| 宏 | 定义位置 | 功能 |
+|----|----------|------|
+| `DEBUG` | [barrier.h](Application/barrier.h):45 | Door_ReadColor 用 `debug_door_colors[5]` 预设数组模拟 |
+| `MAIN_DEBUG` | [main_task.c](Task/main_task.c):29 | 跳过 Cross()，执行 `test_flag`/`debug_test_item` |
 
-在 `Chassis_Periodic_Update_5ms()` 中增加安全保护：当 `imu.roll` 与零偏值 `basic_r` 的偏差超过 40° 时，立即刹车并 `while(1)` 死停，防止车身严重侧翻后继续运行。
-
-### 21.2 实现位置
-
-- 检测逻辑：`Chassis_Periodic_Update_5ms()` 函数最开头（所有模式均生效）
-- 状态变量：`ChassisState_t.roll_protect_enabled`
-- 基准值：`basic_r`（`IMU_CalibrateZero` 采集 10 次 roll 平均值）
-
-### 21.3 API
-
-| 函数 | 功能 |
-|------|------|
-| `Chassis_EnableRollProtection()` | 使能横滚角超限保护 |
-| `Chassis_DisableRollProtection()` | 关闭横滚角超限保护 |
-
-### 21.4 相关修改
-
-| 文件 | 修改内容 |
-|------|----------|
-| [imu.h](Module/imu.h) | 新增 `extern float basic_r`；`IMU_CalibrateZero` 增加 `roll_out` 参数 |
-| [imu.c](Module/imu.c) | 新增 `float basic_r = 0`，函数体增加 sum_roll 累加和 avg_roll 输出 |
-| [chassis_api.c](Application/chassis_api.c) | 新增 `roll_protect_enabled` 字段；`Chassis_Periodic_Update_5ms` 中加入超限判断；新增 `Chassis_EnableRollProtection/DisableRollProtection` |
-| [chassis_api.h](Application/chassis_api.h) | 声明 `Chassis_EnableRollProtection` 和 `Chassis_DisableRollProtection` |
-| [barrier.c](Application/barrier.c) | 调用 `IMU_CalibrateZero(&basic_y, &basic_p, &basic_r)` |
-| [main_task.c](Task/main_task.c) | 同上 |
-
-## 二十二、QQB_1() 跷跷板状态机重构（2026-06-24）
-
-### 22.1 改动
-
-`QQB_1()` 从 215 行顺序阻塞函数重写为 door 风格状态机，~135 行：
-
-| 原版问题 | 新版方案 |
-|----------|----------|
-| `while(pitch<basic_p+6)` 死等抬升 | `QQB_WAIT_PITCH` 状态，每次 Cross 调一次检查 pitch，if 条件满足才推进 |
-| 距离爬行 70/74cm + 停车等板砸下 | 恒速 `QQB_Speed` + 长桥三层修正，pitch 走完 0→正→负→0 自动退出 |
-| `Chassis_MotorControl+while` 手动对齐 | 直接 `Chassis_SetMode` + `angle.AngleG` 设目标角 |
-| 强转 120°：手动 `Chassis_MotorControl+while` | `Chassis_Turn_By_Gyro_Blocking(getAngleZ()+120, getAngleZ())` |
-| 蜂鸣器+EdgeIgnore 切换+千奇百怪的延时 | 简化删除，全程修正不停车 |
-
-### 22.2 状态机
-
-```
-QQB_INIT → QQB_WAIT_PITCH → QQB_GYRO → QQB_DONE
-                                  ↕ 超时
-                             QQB_RECOVERY
-```
-
-### 22.3 关键技术点
-
-- 可复用 Barrier_Bridge 的 BRIDGE_ON_BRIDGE_TOP 三层修正模式（`barrier.c:471-536`）：紧急角度硬跳 + `Chassis_CorrectByInfrared` + 居中检测加速
-- 所有转向调用 `Chassis_Turn_By_Gyro_Blocking()`（`chassis_api.c:461-478`）
-- 强转恢复保持原样：120° 陀螺仪转找线 + line_pid_param 覆盖
+测试项: 1=直线, 2=转180°, 3=过坡。`debug_test_item` 优先级高于 UART 设置的 `test_flag`。
 
 ---
 
-## 二十三、一键自检功能（2026-07-04）
+## 十九、一键自检 ([chassis_api.c](Application/chassis_api.c))
 
-### 23.1 功能说明
+`Chassis_SelfCheck()` 架车黑毯上每秒监测：
+- 陀螺仪漂移: 角度变化 > 1°/s → `0x01`
+- 灰度传感器: AD_Value_Gray ≥ 500 → `0x02`
+- 循迹板: detail ≠ 0 → `0x04`
 
-`Chassis_SelfCheck()` 用于架车调试：小车固定在支架上，下方铺黑毯时，持续监测传感器状态是否正常。
+仅状态变化时打印，安静时无输出。调用于 `main_task.c` 的 `MAIN_DEBUG` 块。
 
-### 23.2 检测维度
+---
 
-| 维度 | 检测方式 | 判据 | 错误位 |
-|------|----------|------|--------|
-| 陀螺仪漂移 | 1秒前 vs 当前 `getAngleZ()` 差值 | > 1° | `0x01` |
-| 灰度传感器 | `ScanerMode_Switch(Gray)` → 读 `AD_Value_Gray[4]` | 任意值 ≥ 500 | `0x02` |
-| 循迹板 | 读 `Cross_Scaner.detail` | ≠ 0（黑毯上应全0） | `0x04` |
+## 二十、git 分支
 
-### 23.3 行为模式
-
-- **频率**：每 200×5ms = 1 秒检测一轮
-- **静默**：一切正常时不输出任何字符
-- **状态变化才报**：出问题 → 打印 `[SELFCHECK] FAIL - ...`；问题恢复 → 打印 `[SELFCHECK] OK - 所有异常已恢复`
-- **首次跳过**：陀螺仪首次采样仅记录角度，第二次起才开始比较漂移
-
-### 23.4 实现位置
-
-- 实现：[chassis_api.c](Application/chassis_api.c)（函数体）+ [chassis_api.h](Application/chassis_api.h)（声明）
-- 调用：[main_task.c](Task/main_task.c) 第 70 行，在 `#if MAIN_DEBUG` 块中每周期调用一次
-- 输出：通过 `printf` → UART4（调试串口）
-
-### 23.5 使用方式
-
-1. 将小车架在固定支架上
-2. 下方铺纯黑毯
-3. 上电，打开串口助手（UART4）
-4. 串口会静默，直到有问题自动打印；或首次正常时完全无输出
+- 当前: `feature_backup` | 主分支: `main`
+- 项目路径: `C:\Users\14166\Desktop\MC_32\robotcup\xunbao`

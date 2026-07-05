@@ -191,7 +191,7 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 	if (last == N10 && now == N9 && next == B9) return 40.0f;
 	if (last == B8 && now == N9 && next == N10) return 25.0f;
 	if (last == N5 && now == N8 && next == N12) return 5.0f;
-	return 20.0f;
+	return 15.0f;
 }
 
 /* 获取对应节点的陀螺仪不停车转弯前的前进距离判断 */
@@ -329,6 +329,7 @@ static void Cross_SegmentInit(void)
     Chassis_SetTargetSpeed(nodesr.nowNode.speed);
     Check_And_Apply_SpeedUp();
     Chassis_EnableAntiSnake();
+    Chassis_EnableWheelieProtection();
 }
 
 static void Cross_MidSwitch(void)
@@ -377,7 +378,7 @@ static void Cross_NearEnd(void)
 static void Cross_TurnAndAdvance(void)
 {
     cross_event &= ~CROSS_EVENT_ARRIVED;
-
+    Chassis_DisableStallProtection();
     if (route[map.point - 1] != 0xFF)
     {
         /* 无需转弯，直接直行通过 */
@@ -409,15 +410,8 @@ static void Cross_TurnAndAdvance(void)
                 float forwardDist = GetForwardDistanceBeforeTurn(nodesr.lastNode.nodenum, nodesr.nowNode.nodenum, nodesr.nextNode.nodenum);
                 Chassis_DriveDistance_Blocking(is_Gyro, forwardDist, Stop_T_Speed, getAngleZ(), 0);
                 CarBrake();
-				vTaskDelay(200);
-
-                if (nodesr.lastNode.nodenum == B3 && nodesr.nowNode.nodenum == N2 && nodesr.nextNode.nodenum == P2)
-                    Chassis_OverrideTurnPid(2.0f, 0.0f, 20.0f, 20.0f);
-                else
-                    Chassis_OverrideTurnPid(6.0f, 0.0f, 90.0f, 30.0f);
 
                 Chassis_Turn_By_StopGyro_Blocking(nodesr.nextNode.angle, getAngleZ());
-                Chassis_RestoreTurnPid();
             }
             else
             {
@@ -426,7 +420,7 @@ static void Cross_TurnAndAdvance(void)
                 Chassis_Turn_By_Gyro_Blocking(nodesr.nextNode.angle, getAngleZ());
             }
         }
-
+        Chassis_DisableStallProtection();
         /* 节点切换 */
         nodesr.lastNode = nodesr.nowNode;
         nodesr.nowNode = nodesr.nextNode;

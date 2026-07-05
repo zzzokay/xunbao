@@ -178,7 +178,7 @@ void pid_init(void)
 	line_pid_param.outputMax = 80;
 	line_pid_param.outputMin = -80;
 
-	/*转弯*/
+	/*转弯*///初始化参数主要用于平台上转弯
 	gyroT_pid_param.kp = 4.0f; // 6.5f
 	gyroT_pid_param.ki = 0;	   // 0
 	gyroT_pid_param.kd = 70;   // 50

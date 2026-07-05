@@ -14,7 +14,8 @@
       "Bash(sed -n '68,69p' \"c:\\\\Users\\\\14166\\\\Desktop\\\\MC_32\\\\robotcup\\\\xunbao\\\\Task\\\\main_task.c\")",
       "Read(//tmp/**)",
       "Bash(xxd)",
-      "Bash(sed -i '68a\\\\\\\\t\\\\t/* M-hM-0M-^CM-hM-/M-^UM-fM-\\(M-!M-eM-<M-^OM-oM-<M-^ZM-hM-^\\\\M-\\)^M-iM-=M-5M-:M-^VM-hM-^PM-^PM-^AM-^?M-fM-^NM-^\\\\M-fM-^KM-^M */\\\\n\\\\t\\\\tChassis_SelfCheck\\(\\);' \"c:\\\\Users\\\\14166\\\\Desktop\\\\MC_32\\\\robotcup\\\\xunbao\\\\Task\\\\main_task.c\")"
+      "Bash(sed -i '68a\\\\\\\\t\\\\t/* M-hM-0M-^CM-hM-/M-^UM-fM-\\(M-!M-eM-<M-^OM-oM-<M-^ZM-hM-^\\\\M-\\)^M-iM-=M-5M-:M-^VM-hM-^PM-^PM-^AM-^?M-fM-^NM-^\\\\M-fM-^KM-^M */\\\\n\\\\t\\\\tChassis_SelfCheck\\(\\);' \"c:\\\\Users\\\\14166\\\\Desktop\\\\MC_32\\\\robotcup\\\\xunbao\\\\Task\\\\main_task.c\")",
+      "Read(//c/Users/14166/.claude/projects/c--Users-14166-Desktop-MC-32-robotcup-xunbao/memory/**)"
     ],
     "additionalDirectories": [
       "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Application",
@@ -24,7 +25,8 @@
       "C:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Application",
       "C:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao",
       "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\.claude\\plans",
-      "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Task"
+      "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Task",
+      "C:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Math"
     ]
   }
 }
