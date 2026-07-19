@@ -1,9 +1,9 @@
 #include "Rec_usart.h"
 #include "pid.h"
-#include "stdio.h"
 #include "command.h"
 #include "dma.h"
 
+//本文件用于串口调参，中断将接收到的信息放入环形缓冲区
 
 #define BUFFER_SIZE_rec  64
 
@@ -19,18 +19,6 @@ extern DMA_HandleTypeDef hdma_uart4_rx;
 extern uint8_t test_flag ;
 extern float temp_speed;
 
-volatile int center_x =50;
-volatile int center_y =50;
-
-#define HISTORY_SIZE 5
-volatile uint16_t last_center_y[HISTORY_SIZE];
-
-uint8_t S_recData;
-volatile uint8_t start_flag =0;
-
-
-volatile uint8_t recv_flag =0;
-
 void Rec_usart_init(void)
 {
 	 HAL_UARTEx_ReceiveToIdle_DMA(&UART,Rx_data,BUFFER_SIZE_rec);
@@ -38,15 +26,11 @@ void Rec_usart_init(void)
 }
 	
 
-void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
+void RecUsart_RxIdleHandler(uint16_t Size)
 {
-	if(huart==&UART)
-	{
-		Command_Write(Rx_data,Size);
-		//HAL_UART_Transmit_DMA(&UART,Rx_data,Size); 
-		HAL_UARTEx_ReceiveToIdle_DMA(&UART,Rx_data,sizeof(Rx_data));
-		__HAL_DMA_DISABLE_IT(&hdma_uart4_rx,DMA_IT_HT);
-	}
+	Command_Write(Rx_data,Size);
+	HAL_UARTEx_ReceiveToIdle_DMA(&UART,Rx_data,sizeof(Rx_data));
+	__HAL_DMA_DISABLE_IT(&hdma_uart4_rx,DMA_IT_HT);
 }
 static uint8_t parse_cmd_field(const char* src, char* dst, uint8_t max_len)
 {
@@ -65,7 +49,6 @@ void get_PIDdata()
 	uint8_t length = Command_GetCommand(command);
 	static float temp_kp = 0, temp_ki = 0, temp_kd = 0;
 	// 解析命令格式：[dev,param,value]
-	//printf("Received command\r\n");
 	if(length > 0)
 	{
 		char* p = (char*)command;

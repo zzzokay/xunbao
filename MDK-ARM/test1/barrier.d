@@ -66,6 +66,11 @@ test1\barrier.o: ..\Application\chassis_api.h
 test1\barrier.o: ..\Application\map.h
 test1\barrier.o: ..\Application\map_message.h
 test1\barrier.o: ..\Application\map.h
+test1\barrier.o: ../Task/ArriveDetect_task.h
+test1\barrier.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
+test1\barrier.o: ../Task/task_create.h
+test1\barrier.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
+test1\barrier.o: ../Task/ArriveDetect_task.h
 test1\barrier.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\math.h
 test1\barrier.o: ..\Module\bsp_buzzer.h
 test1\barrier.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h

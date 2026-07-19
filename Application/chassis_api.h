@@ -99,6 +99,8 @@ void Chassis_MotorControl(uint8_t target_mode, float LSPEED, float RSPEED, float
  */
 void Chassis_EnableAntiSnake(void);
 
+void Chassis_DisableAntiSnake(void);
+
 /**
  * @brief 开启丢线保护
  * 当 line_data[] 全部无效持续 LINE_LOST_THRESHOLD 个周期后调用 Chassis_Brake()
@@ -199,11 +201,11 @@ void Chassis_OverrideGyroPid(float kp, float ki, float kd, float gyroSpeedMax);
  */
 void Chassis_RestoreGyroPid(void);
 
-void Chassis_Turn_By_StopGyro_Blocking(float target_angle, float current_angle);
+void Chassis_Turn_By_StopGyro_Blocking(float target_angle, float current_angle, float turn_speed_max);
 
 void Chassis_Turn360_Blocking(void);
 
-void Chassis_Turn_By_Gyro_Blocking(float target_angle, float current_angle);
+void Chassis_Turn_By_Gyro_Blocking(float target_angle, float current_angle, float turn_speed_max);
 
 void Chassis_SetCatchSensorNum(uint8_t num);
 

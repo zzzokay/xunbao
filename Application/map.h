@@ -53,7 +53,6 @@ enum barriers {
 	DOOR,
 	BHM,
 	IGNORE,
-	UNDER,
 	Special_node,
 	DOOR1,
 	UpStageP2

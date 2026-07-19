@@ -328,20 +328,10 @@ static void handle_led_mouse(void)
  */
 static void handle_target_speed(void)
 {
-	if(DownLiuShui)  // 流水巡线模式
-	{
-		// 前方速度超过流水阈值，强制先稳定
-		motor_L0.target = motor_all.Lspeed;
-		motor_L1.target = motor_all.Lspeed;
-		motor_R0.target = motor_all.Rspeed;
-		motor_R1.target = motor_all.Rspeed;
-	}
-	else  // 普通模式
-	{
-		// 四个电机设置同的目标速度
-		motor_L0.target = motor_L1.target = motor_all.Lspeed;
-		motor_R0.target = motor_R1.target = motor_all.Rspeed;
-	}
+	// 四个电机设置同的目标速度
+	motor_L0.target = motor_L1.target = motor_all.Lspeed;
+	motor_R0.target = motor_R1.target = motor_all.Rspeed;
+
 }
 
 

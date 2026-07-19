@@ -243,6 +243,7 @@ Cross()
 | 堵转保护 (PWM>7000 硬上限 + 比值检测) | 2026-07-04 |
 | Turn_Angle_Base 死区/钳位/TOCTOU | 2026-07-04 |
 | Stage_P2/QQB/WavedPlate 状态机重写 | 2026-07-03~04 |
+| IMU 偶发初始化失败修复（USART3_IRQHandler HAL_UART_IRQHandler 冲突 + 死代码 gyro_init 删除） | 2026-07-18 |
 
 ---
 

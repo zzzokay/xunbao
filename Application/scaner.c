@@ -138,12 +138,13 @@ void Go_Line(float speed, volatile struct Motors *motor)
 
 	Fspeed = positional_PID(&line_pid_obj, &line_pid_param);
 	
+		
+	Fspeed *= fabsf(speed) / 40;
+	
 	if (Fspeed >= motor_all.Line_speedMax)
 		Fspeed = motor_all.Line_speedMax;
 	else if (Fspeed <= -motor_all.Line_speedMax)
 		Fspeed = -motor_all.Line_speedMax;
-		
-	Fspeed *= fabsf(speed) / 50;
 
 	// 后退时舵向反转（传感器在车头，后退时是尾随端）
 	if (speed < 0) Fspeed = -Fspeed;
@@ -272,8 +273,17 @@ static float calc_right_edge(volatile SCANER *scaner, int8_t edge_ignore, uint8_
 /*--- 流水巡线：取离中心最近的一段连续亮灯 ---*/
 static float calc_near_center(volatile SCANER *scaner, int8_t edge_ignore, uint8_t sensorNum, float *error, uint8_t *lednum)
 {
+	/* 最中心两个灯同时亮 → 线在中心，不受线宽影响 */
+	uint8_t center_idx = sensorNum / 2 - 1;		// 16灯→第7灯
+	if ((scaner->detail & (3 << center_idx)) == (3 << center_idx))
+	{
+		*error = 0.0f;
+		*lednum = 2;
+		return center_idx + 0.5f;				// 中心位置
+	}
+
 	float pos = 0;
-	float best_location = 0.0f;
+	float best_location = -1.0f;				// -1 表示尚未找到有效段
 	float temp_location = 0.0f;
 	uint8_t line_led_last = 0;
 	uint8_t len = 0;
@@ -288,18 +298,21 @@ static float calc_near_center(volatile SCANER *scaner, int8_t edge_ignore, uint8
 			temp_len++;
 			if (i == sensorNum - 1 || !(scaner->detail & (1 << (i + 1))))
 			{
-				temp_location /= (float)temp_len;
-				if (fabs(temp_location - center) < fabs(best_location - center))
+				float seg_center = temp_location / (float)temp_len;
+				float best_dist = (best_location < 0) ? 9999.0f : fabs(best_location - center);
+				if (fabs(seg_center - center) < best_dist)
 				{
-					best_location = temp_location;
+					best_location = seg_center;
 					line_led_last = i;
 					len = temp_len;
-					temp_location = 0;
-					temp_len = 0;
 				}
+				temp_location = 0;		// 无论是否选中都复位，避免污染下一段
+				temp_len = 0;
 			}
 		}
 	}
+	if (len == 0) return -1;
+
 	for (uint8_t i = line_led_last - len + 1; i <= line_led_last; i++)
 	{
 		*lednum += (scaner->detail >> i) & 1;
@@ -544,7 +557,7 @@ static uint8_t coarse_filter(u8 LED_Num, u8 Line_Num)
 {
 	
 	// 多灯 多线 无灯 灯数/线数 >=4						            LED_Num / Line_Num >= 4表示 平均每条线占太多灯
-	if (LED_Num >= 10 || Line_Num >= 4 || LED_Num == 0 || LED_Num / Line_Num >= 4)
+	if (LED_Num >= 10 || Line_Num >= 4 || LED_Num == 0/*|| LED_Num / Line_Num >= 5*/ )
 	{
 		return 1;
 	}

@@ -24,7 +24,7 @@
 
 
 /*===== 独立调试开关 =====*/
-#define MAIN_DEBUG 0 
+#define MAIN_DEBUG 1 
 
 
 uint8_t test_flag = 8;
@@ -47,14 +47,14 @@ void main_task(void *pvParameters)
 	vTaskDelay(100);
 	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); // 用稳定后的实际角度计算补偿
 	
-	/*等待挡板*/
+	/*等待挡板*/                           
 	while (Infrared_ahead == 0)
 	vTaskDelay(5);
 
 	/*等待移除挡板*/
 	while(Infrared_ahead == 1)
 		vTaskDelay(5);
-	//ScanerMode_Switch(Gray);
+	ScanerMode_Switch(Gray);
 #else
 	/*正常模式：完整初始化流程*/
 	mapInit();
@@ -81,7 +81,7 @@ void main_task(void *pvParameters)
 			//Chassis_OverrideTurnPid(6.0f, 0.0f, 90.0f, 30.0f);
 			//Chassis_MotorControl(is_No,2,-2,0);
 			//vTaskDelay(3000);
-			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ()); 
+			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ()); 
 			//Chassis_RestoreTurnPid();
 			//Chassis_DriveDistance_Blocking(is_Gyro, 20, Gyro_Speed, getAngleZ(), 0);
             //Chassis_Turn_By_Gyro_Blocking(getAngleZ()+90, getAngleZ());
@@ -122,6 +122,7 @@ void main_task(void *pvParameters)
 		{
 			/* 一键自检：架车在黑毯上持续监测（每1秒检测，状态变化才打印） */
 			Chassis_SelfCheck();
+			//vTaskDelay(100);
 		}
 		/*调试模式下不执行 Cross()，避免无传感器跑飞*/
 #else

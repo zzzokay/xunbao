@@ -7,6 +7,7 @@
 #include "cmsis_os.h"
 void Rudder_Init(uint32_t bound);
 
+#define Servo_UART  huart5
 
 
 #define BODY        0

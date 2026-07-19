@@ -25,12 +25,14 @@
       "Bash(sed -i '1844a\\\\\\\\t\\\\t\\\\tNode[getNextConnectNode\\(N5, N12\\)].function = NONE;' c:/Users/14166/Desktop/MC_32/robotcup/xunbao/Application/barrier.c)",
       "Read(//c/Users/14166/.claude/projects/c--Users-14166-Desktop-MC-32-robotcup-xunbao-MDK-ARM/b0f3488a-e9c1-4833-a2b2-cbf487f064a1/tool-results/**)",
       "Bash(cat)",
-      "Bash(python3 /tmp/patch.py)"
+      "Bash(python3 /tmp/patch.py)",
+      "Read(//c/Users/14166/Desktop/MC_32/robotcup/.claude/projects/c--Users-14166-Desktop-MC-32-robotcup-xunbao/memory/**)"
     ],
     "additionalDirectories": [
       "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao",
       "C:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Application",
-      "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Application"
+      "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Application",
+      "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Module"
     ]
   }
 }

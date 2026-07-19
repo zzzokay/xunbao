@@ -173,19 +173,17 @@ u8 getNextConnectNode(u8 nownode,u8 nextnode)
 /* 获取对应节点的原地转弯前的前进距离判断 */
 static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 {
-	if (last == P8 && now == C9 && next == N22) return 28.0f;
 	if (last == S1 && now == N3 && next == P3) return 15.0f;
-	if (last == C8 && now == C7 && next == N14) return 20.0f;
 	if (last == C9 && now == N22 && next == B6) return 20.0f;
-	if (last == B3 && now == N2 && next == P2) return 30.0f;
+	if (last == B3 && now == N2 && next == P2) return 20.0f;
 	if (last == B9 && now == N7 && next == P6) return 15.0f;
 	if (last == P6 && now == N7 && next == B8) return 18.0f;
-	if (last == P7 && now == N20 && next == C4) return 30.0f;
+	if (last == C4 && now == N20 && next == P8) return 20.0f;
+    if (last == P8 && now == N20 && next == C4) return 30.0f;
 	if (last == N8 && now == N5 && next == N4) return 30.0f;
 	if (last == N8 && now == N3 && next == P3) return 15.0f;
 	if (last == N8 && now == N3 && next == N4) return 20.0f;
 	if (last == N9 && now == N10 && next == N8) return 26.0f;
-	if (last == N20 && now == C4 && next == C8) return 25.0f;
 	if (last == C3 && now == N9 && next == B9) return 45.0f;
 	if (now == N20 && next == P7) return 30.0f;
 	if (last == N10 && now == N9 && next == B9) return 40.0f;
@@ -215,7 +213,7 @@ static float GetForwardDistanceBeforeGyroTurn(u8 last, u8 now, u8 next)
 	if (last == N10 && now == N3 && next == S1) return 4.0f;
 	if (last == N15 && now == N10 && next == N8) return 5.0f;
 	if (last == C7 && now == C8 && next == C4) return 15.0f;
-	if (last == P1 && now == N1 && next == B2)return 4.0f; 
+	if (last == P1 && now == N1 && next == B2)return 2.0f; 
 	return 0.0f; // 默认不前进，走原逻辑未修改
 }
 
@@ -243,28 +241,28 @@ static void Handle_NoTurn_StraightPath(void)
 	}
 	else if (nodesr.nowNode.nodenum == N13 && nodesr.nextNode.nodenum == P5) 
 	{
-		Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodesr.nextNode.speed, 0.0f, 6);
+		Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodesr.nextNode.speed, 0.0f, 0);
 	}
 	else if (nodesr.nowNode.nodenum == N1 && nodesr.nextNode.nodenum == P1)
 	{
-		Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodesr.nextNode.speed, 0.0f, 6);
+		Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodesr.nextNode.speed, 0.0f, 0);
 	}
 	else if ((nodesr.lastNode.nodenum == P3 && nodesr.nowNode.nodenum == N3 && nodesr.nextNode.nodenum == N4)||
 			(nodesr.lastNode.nodenum == P4 && nodesr.nowNode.nodenum == N6 && nodesr.nextNode.nodenum == N5))
 	{
-		Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodesr.nextNode.speed, 0.0f, 7);
+		Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodesr.nextNode.speed, 0.0f, 0);
 	}
 	else if ((nodesr.nowNode.nodenum == N13 && nodesr.nextNode.nodenum == N12)||(nodesr.nowNode.nodenum == N12 && nodesr.nextNode.nodenum == N13))
 	{
-		Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodesr.nextNode.speed, 0.0f, 7);
+		Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodesr.nextNode.speed, 0.0f, 0);
 	}
 	else if ((nodesr.nowNode.nodenum == P5 && nodesr.nextNode.nodenum == N13)||(nodesr.nowNode.nodenum == N13 && nodesr.nextNode.nodenum == P5))
 	{
-		Chassis_DriveDistance_Blocking(is_Line, 25.0f, nodesr.nextNode.speed, 0.0f, 7);
+		Chassis_DriveDistance_Blocking(is_Line, 25.0f, nodesr.nextNode.speed, 0.0f, 0);
 	}
 	else
 	{
-		Chassis_DriveDistance_Blocking(is_Line, 10.0f, nodesr.nextNode.speed, 0.0f, 7);
+		Chassis_DriveDistance_Blocking(is_Line, 10.0f, nodesr.nextNode.speed, 0.0f, 0);
 	}
 }
 
@@ -328,8 +326,8 @@ static void Cross_SegmentInit(void)
     Chassis_SetMode(is_Line);
     Chassis_SetTargetSpeed(nodesr.nowNode.speed);
     Check_And_Apply_SpeedUp();
-    Chassis_EnableAntiSnake();
-    Chassis_EnableWheelieProtection();
+    Chassis_EnableAntiSnake();//
+    Chassis_EnableWheelieProtection();//
 }
 
 static void Cross_MidSwitch(void)
@@ -361,6 +359,7 @@ static void Cross_PrepareArrival(void)
 
 static void Cross_NearEnd(void)
 {
+    Chassis_DisableAntiSnake();
     map_function(nodesr.nowNode.function);
 
     /* 尚未到达且无障碍结果时，通知 ArriveDetect_task 检测到达 */
@@ -384,11 +383,6 @@ static void Cross_TurnAndAdvance(void)
         /* 无需转弯，直接直行通过 */
         if ((fabsf(need2turn(getAngleZ(), nodesr.nextNode.angle)) < 10.0f) ||
             (nodesr.nowNode.flag & NOTURN) == NOTURN ||
-            nodesr.nowNode.nodenum == S1 ||
-            nodesr.nowNode.nodenum == S2 ||
-            route[map.point - 3] == S3 ||
-            route[map.point - 3] == S4 ||
-            route[map.point - 3] == S5 ||
             nodesr.nowNode.function == UpStage ||
             nodesr.nowNode.function == UpStageP2)
         {
@@ -405,19 +399,21 @@ static void Cross_TurnAndAdvance(void)
             {
                 Chassis_Turn_By_RightLine_Blocking(nodesr.nextNode.angle, nodesr.nowNode.angle, 0.75f * nodesr.nowNode.speed);
             }
-            else if ((nodesr.nowNode.flag & STOPTURN) || (fabsf(need2turn(nodesr.nowNode.angle, nodesr.nextNode.angle)) > 90.0f))
+            else if ((nodesr.nowNode.flag & STOPTURN && fabsf(need2turn(getAngleZ(), nodesr.nextNode.angle)) > 30.0f)
+            || (fabsf(need2turn(nodesr.nowNode.angle, nodesr.nextNode.angle)) > 90.0f)
+            || nodesr.nextNode.function == SM )
+                
             {
                 float forwardDist = GetForwardDistanceBeforeTurn(nodesr.lastNode.nodenum, nodesr.nowNode.nodenum, nodesr.nextNode.nodenum);
                 Chassis_DriveDistance_Blocking(is_Gyro, forwardDist, Stop_T_Speed, getAngleZ(), 0);
                 CarBrake();
-
-                Chassis_Turn_By_StopGyro_Blocking(nodesr.nextNode.angle, getAngleZ());
+                Chassis_Turn_By_StopGyro_Blocking(nodesr.nextNode.angle, getAngleZ(), 30.0f);
             }
             else
             {
                 float forwardDist = GetForwardDistanceBeforeGyroTurn(nodesr.lastNode.nodenum, nodesr.nowNode.nodenum, nodesr.nextNode.nodenum);
                 Chassis_DriveDistance_Blocking(is_Gyro, forwardDist, Gyro_Speed, getAngleZ(), 0);
-                Chassis_Turn_By_Gyro_Blocking(nodesr.nextNode.angle, getAngleZ());
+                Chassis_Turn_By_Gyro_Blocking(nodesr.nextNode.angle, getAngleZ(), 50.0f);
             }
         }
         Chassis_DisableStallProtection();
@@ -510,7 +506,6 @@ void map_function(u8 fun)
 		case BLBL	    : Barrier_WavedPlate(160);	  			break;			//长波动板 速度：调试	//180
 		case DOOR	    : door();		                 	  	break;			//门
 		case BHM        : Barrier_HighMountain();				break;    		//高山
-		case UNDER      : undermou();	                 		break;
 		case UpStageP2	: Stage_P2();	                		break;
 		default:				                        		break;		
 	}

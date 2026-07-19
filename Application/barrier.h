@@ -47,21 +47,14 @@ void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
 extern uint8_t treasure;
 
 /*调试：预设5个门颜色（无传感器时）*/
-#if DEBUG
-extern uint8_t debug_door_colors[5];
-#endif
-extern uint8_t DownLiuShui;
-extern uint8_t special_arrive;
+
 extern uint8_t color_flag[5];
-extern uint16_t QR_code;
 extern uint8_t flag_line_clue;     // QR百位：0=跳过P3/P4，3=P3，4=P4
 extern uint8_t flag_clue_stage_A;  // QR十位：5=P5（原P6），6=P6（原P5）
 extern uint8_t flag_clue_stage_B;  // QR个位：7=P7（原P8），8=P8（原P7）
 extern uint8_t flag_clue_A;        // P5/P6 线索数字
 extern uint8_t flag_clue_B;        // P7/P8 线索数字
 extern uint8_t get_cude;
-extern uint8_t get_a;
-extern uint8_t get_b;
 void Stage(void);
 void Barrier_Bridge(void);
 void Barrier_Hill(void) ;
@@ -88,7 +81,6 @@ void select_speed_stage(void);
 
 //void DragonProtection(void); //游龙保护
 
-void Connect(uint8_t Route[]);
 void CGChange(float Speed);
 void Motor_Control(uint8_t target_mode, float LSPEED, float RSPEED, float aim);
 void update_route_for_stage34(void);
@@ -99,5 +91,8 @@ void update_route_by_door_1(void);
 void update_route_by_door_2(void);
 void update_route_by_door_3(void);
 void update_route_by_door_4(void);
+void update_route_at_P1(void);
+void update_route_at_door_for_clue(void);
+void update_route_at_P8_for_treasure(void);
 int Six2Zero(void);
 #endif

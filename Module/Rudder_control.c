@@ -11,31 +11,12 @@
 #include "uart.h"
 
 
-UART_HandleTypeDef Rudder;
-
 #define GET_LOW_BYTE(A) ((uint8_t)(A))
 //宏函数 获得A的低八位
 #define GET_HIGH_BYTE(A) ((uint8_t)((A) >> 8))
 //宏函数 获得A的高八位
 
 uint8_t LobotTxBuf[128];  //发送缓存
-
-
-/*初始化Rudder*/
-void Rudder_Init(uint32_t bound)
-{
-	Rudder.Instance = USART6;
-	Rudder.Init.BaudRate = bound;				   	// 波特率
-	Rudder.Init.WordLength = UART_WORDLENGTH_8B; 	// 字长为8位数据格式
-	Rudder.Init.StopBits = UART_STOPBITS_1;	   	// 一个停止位
-	Rudder.Init.Parity = UART_PARITY_NONE;	   		// 无奇偶校验位
-	Rudder.Init.HwFlowCtl = UART_HWCONTROL_NONE; 	// 无硬件流控
-	Rudder.Init.Mode = UART_MODE_TX_RX;		   	// 收发模式
-	HAL_UART_Init(&Rudder);					   	// HAL_UART_Init()会使能UART3
-	__HAL_UART_ENABLE_IT(&Rudder, UART_IT_RXNE);
-}
-
-
 
 /*
 	舵机控制
@@ -135,7 +116,7 @@ void moveServo(uint8_t servoID, uint16_t Position, uint16_t Time)
 	LobotTxBuf[8] = GET_LOW_BYTE(Position);   //取得目标位置的低八位
 	LobotTxBuf[9] = GET_HIGH_BYTE(Position);  //取得目标位置的高八位
 
-   HAL_UART_Transmit(&Rudder, LobotTxBuf, 10, HAL_MAX_DELAY);
+   HAL_UART_Transmit(&Servo_UART, LobotTxBuf, 10, HAL_MAX_DELAY);
 }
 
 

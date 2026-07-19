@@ -64,6 +64,5 @@ test1\rec_usart.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_o
 test1\rec_usart.o: ../USMAT/sys.h
 test1\rec_usart.o: ../Math/pid.h
 test1\rec_usart.o: ..\Application\turn.h
-test1\rec_usart.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h
 test1\rec_usart.o: ..\Application\command.h
 test1\rec_usart.o: ../Core/Inc/dma.h

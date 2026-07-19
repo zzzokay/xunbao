@@ -60,6 +60,7 @@
 "test1\openmv.o"
 "test1\rudder_control.o"
 "test1\rec_usart.o"
+"test1\interrupt_router.o"
 "test1\barrier.o"
 "test1\delay.o"
 "test1\gray.o"

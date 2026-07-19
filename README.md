@@ -68,3 +68,11 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
 **2026-07-03** — Stage_P2/Barrier_WavedPlate 状态机重构；堵转保护（PWM>7000 硬上限 + output/target 比值检测）
 
 **2026-07-04** — Turn_Angle_Base 死区补偿/钳位/TOCTOU 修复；Chassis_SelfCheck 一键自检；翘头保护（pitch > basic_p + 8° 自动降加速度，Cross_SegmentInit 中激活，与游龙同模式）
+
+**2026-07-11** — update_route_by_door_1~4 和 update_route_at_P1 改用 load_route_at 简化；删除 copy_route()（全部替换为 load_route_at）；清理废弃的 undermou / ignore_node 函数
+
+**2026-07-18** — IMU 初始化偶发失败修复：
+  - USART3_IRQHandler 重构：HAL_UART_Receive_DMA 改为只在 IDLE 事件后重启；移除与手动 IDLE 处理冲突的 HAL_UART_IRQHandler 调用
+  - 删除死代码 gyro_init / gyro UART 句柄（USART3 由 CubeMX 初始化，gyro_init 从未被调用）
+
+**2026-07-18** — 新增 [project_handover.md](project_handover.md) 项目交接手册，涵盖快速上手、架构图解、地图系统详解、调参指南、已知陷阱等

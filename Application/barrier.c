@@ -9,6 +9,7 @@
 #include "map.h"
 #include "motor_task.h"
 #include "chassis_api.h"
+#include "ArriveDetect_task.h"
 #include "pid.h"
 #include "math.h"
 #include "bsp_buzzer.h"
@@ -45,14 +46,13 @@
  *  直立景点          view / view1 / back
  *  波浪板            Barrier_WavedPlate
  *  南极              South_Pole
- *  路线更新（宝物）  copy_route / load_route_at
- *                    update_rout_by_treasure_7 / _8
+ *  路线更新（宝物）  load_route_at
+ *                    update_route_at_P7_for_treasure / _8
  *  跷跷板            QQB_1
  *  红绿灯            Door_ReadColor / door_set_pass_node
- *                    door_retreat / door
- *  路线更新（门/QR） update_route_for_stage34
- *                    update_route_by_door_1~4 / update_route_by_QR
- *  珠峰下通道        undermou
+ *                    door_retreat / door(
+ *  路线更新（门/QR） update_route_at_P1
+ *                    update_route_by_door_1~4 / update_route_at_door_for_clue
  *  第二轮路线规划    get_newroute
  *  OCR 读数字        WaitFor_OCR
  *  QR 码读取         WaitFor_QR
@@ -60,41 +60,36 @@
  *  路线连接          Connect
  *============================================================================*/
 
-uint8_t color_flag[5] = {0, 0, 0, 0, 0}; // 0:D2、1:D3、2:D4、3:D5、4:D1
+
 
 /*===== 调试：预设5个门颜色，door() 自动读取 =====*/
+uint8_t color_flag[5] = {0, 0, 0, 0, 0};
 #if DEBUG
-// debug_door_colors[0]=D2, [1]=D3, [2]=D4, [3]=D5, [4]=D1
-// 值: Green=1, Yellow=2, Red=3, 0=未设置(会超时)
-
-#endif      
-uint8_t debug_door_colors[5] = {Red, Red, Green, Green, Yellow};  // D2、D3、D4、D5、D1
+uint8_t debug_color_flag[5] = {Green, Green, Yellow, Yellow, Red}; // 0:D2、1:D3、2:D4、3:D5、4:D1
+uint8_t flag_line_clue    = 0;
+uint8_t flag_clue_stage_A = 6;
+uint8_t flag_clue_stage_B = 8;
+// OCR 线索：P5/P6读clue_A，P7/P8读clue_B，treasure=clue_A+clue_B → 宝物平台编号
+uint8_t flag_clue_A       = 2;
+uint8_t flag_clue_B       = 2;
+#else
+uint8_t flag_line_clue    = 0;
+uint8_t flag_clue_stage_A = 0;
+uint8_t flag_clue_stage_B = 0;
+// OCR 线索：P5/P6读clue_A，P7/P8读clue_B，treasure=clue_A+clue_B → 宝物平台编号
+uint8_t flag_clue_A       = 0;
+uint8_t flag_clue_B       = 0;
+#endif
 
 /*===== 导航标志位（无摄像头时手动预设）=====*/
 // QR 码三位数：百位→flag_line_clue，十位→flag_clue_stage_A，个位→flag_clue_stage_B
 // 例：QR 码 458 → flag_line_clue=4, flag_clue_stage_A=5, flag_clue_stage_B=8
-uint8_t flag_line_clue    = 0;	// 百位：0=跳过P3/P4直接走门，3=先去P3，4=先去P4
-								// 调用：update_route_for_stage34() → Stage() STAGE_SCAN 状态
-uint8_t flag_clue_stage_A = 5;	// 十位：5=P5（原P6），6=P6（原P5）
-uint8_t flag_clue_stage_B = 7;	// 个位：7=P7（原P8），8=P8（原P7）
-								// 调用：update_route_by_QR() → door() 过门后规划路线
-// OCR 线索：P5/P6读clue_A，P7/P8读clue_B，treasure=clue_A+clue_B → 宝物平台编号
-uint8_t flag_clue_A = 0;		// P5/P6 线索数字
-								// 调用：Sword_Mountain() / South_Pole() → treasure 计算
-uint8_t flag_clue_B = 0;		// P7/P8 线索数字
-								// 调用：Sword_Mountain() / South_Pole() → treasure 计算
+
 uint8_t treasure = 0;			// 宝物平台编号 = flag_clue_A + flag_clue_B，自动计算
-								// 调用：update_rout_by_treasure_7/8() → door() 确定宝物平台后回家路线
+								// 调用：update_route_at_P7_for_treasure/8() → door() 确定宝物平台后回家路线
 								//       Stage_HasTreasure() → Stage() 判断当前平台是否是宝物平台
 
-uint8_t value;							 // openmv接口
-uint8_t DownLiuShui = 0;				 // 流水下坡标志位
-uint8_t special_arrive = 0;
-
-uint16_t QR_code = 0;
 uint8_t get_cude = 0;
-uint8_t get_a = 0;
-uint8_t get_b = 0;
 
 static uint8_t Stage_HasTreasure(void)
 {
@@ -107,17 +102,9 @@ static uint8_t Stage_HasTreasure(void)
 
 static void Stage_CollectTreasure(void)
 {
-	Chassis_MotorControl(is_No, 5, 5, 0);
-	Want2Go(5);
 	CarBrake();
-	Chassis_ClearMileage();
-	motor_pid_clear();
-	Robot_Work(LARM, UP);
-	Robot_Work(RARM, UP);
 	send_play_specified_command(9);
 	Chassis_Turn360_Blocking();
-	Robot_Work(LARM, DOWN);
-	Robot_Work(RARM, DOWN);
 }
 
 /**
@@ -130,7 +117,7 @@ static uint8_t GyroStableReset(uint8_t required, float *reset_angle)
 {
 	static uint8_t stable_times = 0;
 
-				Cross_getline(&Cross_Scaner);
+	Cross_getline(&Cross_Scaner);
 	if ((Cross_Scaner.detail & 0X0180) == 0X0180)
 	{
 		stable_times++;
@@ -151,9 +138,12 @@ static uint8_t GyroStableReset(uint8_t required, float *reset_angle)
 
 static uint8_t Stage_DetectedRamp(float distance)
 {
-	return (fabsf(Chassis_GetMileage()) >= distance ||
-		Scaner.ledNum >= 4 || Scaner.lineNum >= 2 ||
-		Scaner.lineNum == 0 || Scaner.ledNum == 0);
+	return (fabsf(Chassis_GetMileage()) >= distance||
+		imu.pitch >= 10.0f ||
+		Scaner.ledNum >= 4 ||
+		Scaner.lineNum >= 2 ||
+		Scaner.lineNum == 0 ||
+		Scaner.ledNum == 0);
 }
 
 void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
@@ -268,7 +258,7 @@ static void Stage_ScanAndRead(void)
 
 	// P1 路线更新
 	if (nodesr.nowNode.nodenum == P1)
-		update_route_for_stage34();
+		update_route_at_P1();
 }
 
 /*平台 - 不包括P2*/
@@ -298,7 +288,7 @@ void Stage(void)
 			{
 				oringinal_angle = getAngleZ();
 				RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_high, oringinal_angle,
-					Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.07, 10.0f, 0.0f);
+					Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.1, 10.0f, 0.0f);
 
 				Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, oringinal_angle);
 				state = STAGE_TOP;
@@ -318,8 +308,6 @@ void Stage(void)
 			{		
 				mpuZreset(get_latest_yaw(), nodesr.nowNode.angle);
 				// 后退一段距离
-				
-				
 				Chassis_DriveDistance_Blocking(is_Gyro,10,-GoStage_Speed,getAngleZ(),0);
 				CarBrake();
 				sub_stage=0;
@@ -329,11 +317,14 @@ void Stage(void)
 
 		case STAGE_SCAN:
 			// P1 路线更新：根据 flag_line_clue 标志位决定去 P3/P4 或跳过
-			if (nodesr.nowNode.nodenum == P1)
-				update_route_for_stage34();
+			if (nodesr.nowNode.nodenum == P1 && treasure == 0)
+				update_route_at_P1();
+
+			if(Stage_HasTreasure())
+				Stage_CollectTreasure();
 
 			// 转身180
-			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ());
+			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ(), 20.0f);
 			Chassis_EnableStallProtection();
 			state = STAGE_TREASURE;
 			break;
@@ -342,7 +333,7 @@ void Stage(void)
 			oringinal_angle = getAngleZ();
 			
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, getAngleZ(),
-				Begin_down, UpDownStage_Speed_low, down_pitch, UpDownStage_Speed_high, After_down-8, 0.07, 10.0f, 0.0f);
+				Begin_down, UpDownStage_Speed_low, down_pitch, UpDownStage_Speed_high, After_down-8, 0.1, 10.0f, 0.0f);
 
 			Chassis_MotorControl(is_Line, SPEED1, SPEED1, 0);
 			state = STAGE_DONE;
@@ -390,14 +381,14 @@ void Stage_P2(void)
 			break;
 
 		case P2_TOP:
-			Chassis_DriveDistance_Blocking(is_Gyro, 15, GoStage_Speed, oringinal_angle, 0);
+			Chassis_DriveDistance_Blocking(is_Gyro, 15, GoStage_Speed, getAngleZ(), 0);
 			CarBrake();
 			vTaskDelay(200);
 			state = P2_TURN;
 			break;
 
 		case P2_TURN:
-			Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 180, getAngleZ());
+			Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 180, getAngleZ(),20.0f);
 			CarBrake();
 			state = P2_DONE;
 			break;
@@ -458,7 +449,7 @@ void Barrier_Bridge(void)
 	
 			while (fabsf(Chassis_GetMileage()) < 15)
 			{		
-				Chassis_CorrectByInfrared(0.07f, 1.5f, 1.0f);
+				Chassis_CorrectByInfrared(0.07f, 2.0f, 2.0f);
 				vTaskDelay(5);
 			}
 			//上桥结束检测
@@ -476,7 +467,7 @@ void Barrier_Bridge(void)
 			float mileage_br = fabsf(Chassis_GetMileage());
 
 			//第1层：巡线板最外侧紧急处理
-			if (Cross_Scaner.detail & 0xF800)
+			if (Cross_Scaner.detail & 0x7800)
 			{
 				if(is_emergency<=10)is_emergency++;
 				if(is_emergency == 10)
@@ -488,7 +479,7 @@ void Barrier_Bridge(void)
 				}
 			}
 
-			else if (Cross_Scaner.detail & 0x007F)
+			else if (Cross_Scaner.detail & 0x007E)
 			{
 				if(is_emergency<=10)is_emergency++;
 				if(is_emergency == 10)
@@ -657,9 +648,10 @@ void Sword_Mountain(void)
 	uint16_t approach_timeout = 0;
 
 	/* 初始：低速强巡线，忽略两侧红线 */
-	Chassis_OverrideLinePid(25.0f,0, 200.0f, Gyro_Speed);
+	
 	Chassis_MotorControl(is_Line, 15, 15, 0);
-	vTaskDelay(10);
+	Chassis_OverrideLinePid(25.0f,0, 150.0f, 7);
+	Chassis_OverrideGyroPid(4, 0, 70, 5);
 	//buzzer_on();
 
 	while (state != SM_DONE)
@@ -674,7 +666,6 @@ void Sword_Mountain(void)
 				if(GyroStableReset(100, &recorded_angle))
 				{
 					angle_recorded = 1;
-					//buzzer_off();
 				}
 			}
 
@@ -706,10 +697,10 @@ void Sword_Mountain(void)
 			break;
 
 		case SM_ON_TOP:
-			if(fabsf(Chassis_GetMileage()) < 20.0f ){
-				Sword_CorrectByScanner(0.03f);
+			if(fabsf(Chassis_GetMileage()) < 15.0f ){
+				Sword_CorrectByScanner(0.05f);
 			}
-			else if(fabsf(Chassis_GetMileage()) >= 20.0f&&fabsf(Chassis_GetMileage()) < 45.0f)
+			else if(fabsf(Chassis_GetMileage()) >= 15.0f&&fabsf(Chassis_GetMileage()) < 45.0f)
 			{
 				Chassis_MotorControl(is_No, Gyro_Speed, Gyro_Speed, 0);
 			}
@@ -717,6 +708,16 @@ void Sword_Mountain(void)
 			{
 				Chassis_MotorControl(is_Gyro, Gyro_Speed , Gyro_Speed , recorded_angle);
 			}
+
+			// if(fabsf(Chassis_GetMileage()) >= 15.0f&&fabsf(getAngleZ() - recorded_angle)>5)
+			// {
+			// 	float yaw=getAngleZ();
+			// 	CarBrake();
+			// 	Chassis_DriveDistance_Blocking(is_Gyro,5,-Gyro_Speed,yaw,0);
+			// 	Chassis_Turn_By_StopGyro_Blocking(recorded_angle,yaw,10);
+			// 	Chassis_DriveDistance_Blocking(is_Gyro,10,-Gyro_Speed,yaw,0);
+			// }
+
 			// 平台走完 or pitch 变负（开始下坡）
 			if (fabsf(Chassis_GetMileage()) > 70.0f || imu.pitch < After_down)
 			{
@@ -739,6 +740,7 @@ void Sword_Mountain(void)
 
 	/* 收尾 */
 	Chassis_RestoreLinePid();
+	Chassis_RestoreGyroPid();
 	Chassis_MotorControl(is_Line, SPEED1, SPEED1, 0);
 	nodesr.nowNode.function = 0;
 	cross_event |= CROSS_EVENT_ARRIVED;
@@ -762,7 +764,7 @@ void Barrier_HighMountain(void)
 	float origin_angle = 0.0f;
 	uint8_t sub_stage = 0;
 
-	Chassis_OverrideGyroPid(4, 0, 70, 50);
+	Chassis_OverrideGyroPid(4, 0, 70, 10);
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
 	Chassis_ClearMileage();
 
@@ -773,28 +775,26 @@ void Barrier_HighMountain(void)
 		case HM_APPROACH:
 			if (Stage_DetectedRamp(20.0f))
 			{
-				origin_angle = getAngleZ();
 				state = HM_ASCEND_1;
 			}
 			break;
 
 		case HM_ASCEND_1:
-			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_high, origin_angle,
-				Begin_up, UpDownStage_Speed_high, up_pitch, UpDownStage_Speed_low, After_up, 0.05f, 10.0f, 0.0f);
+			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_high, getAngleZ(),
+				Begin_up, UpDownStage_Speed_high, up_pitch, UpDownStage_Speed_low, After_up, 0.07f, 10.0f, 0.0f);
 			state = HM_FLAT;
 			break;
 
 		case HM_FLAT:
-			Chassis_MotorControl(is_Gyro,UpDownStage_Speed_high , UpDownStage_Speed_high, origin_angle);
+			Chassis_MotorControl(is_Gyro,UpDownStage_Speed_high , UpDownStage_Speed_high, getAngleZ());
 			if (imu.pitch >= Begin_up)
 			{
-				origin_angle = getAngleZ();
 				state = HM_ASCEND_2;
 			}
 			break;
 
 		case HM_ASCEND_2:
-			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_high, origin_angle,
+			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_high, getAngleZ(),
 				Begin_up, UpDownStage_Speed_high, up_pitch, UpDownStage_Speed_low, After_up, 0.05f, 10.0f, 0.0f);
 			state = HM_IMPACT;
 			break;
@@ -816,10 +816,10 @@ void Barrier_HighMountain(void)
 				if (treasure == 0)
 					treasure = flag_clue_A + flag_clue_B;
 				if (map.routetime == 0)
-					update_rout_by_treasure_8();
+					update_route_at_P8_for_treasure();
 
 				send_play_specified_command(12);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 180, getAngleZ());
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 180, getAngleZ(), 20.0f);
 				origin_angle = getAngleZ();
 				sub_stage = 0;
 				state = HM_DESCEND_1;
@@ -827,8 +827,19 @@ void Barrier_HighMountain(void)
 			break;
 
 		case HM_DESCEND_1:
+			// RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
+			// 	Begin_down, UpDownStage_Speed_low, down_pitch, UpDownStage_Speed_low, -99, 0.03f, 10.0f, 0.0f);
+			// Chassis_ClearMileage();
+			// float correct_angle;
+			// while (fabsf(Chassis_GetMileage()) < 30 || (correct_angle = Gray_GetCorrectAngle(0.06f)) != 0)
+			// {		
+			// 	Chassis_SetGyroAngle_Go(getAngleZ() + correct_angle);
+			// 	vTaskDelay(5);
+			// }
+			Chassis_RestoreGyroPid();
+			Chassis_OverrideGyroPid(4, 0, 70, 8);
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
-				Begin_down, UpDownStage_Speed_low, down_pitch, UpDownStage_Speed_high, After_down, 0.03f, 10.0f, 0.0f);
+				Begin_down, UpDownStage_Speed_low, down_pitch, UpDownStage_Speed_high, After_down, 0.05f, 10.0f, 0.0f);
 			state = HM_DESCEND_FLAT;
 			break;
 
@@ -1037,9 +1048,9 @@ void South_Pole(void)
 				// if (treasure == 0)
 				// 	treasure = flag_clue_A + flag_clue_B;
 				// if (map.routetime == 0 && flag_clue_stage_B == 7)
-				// 	update_rout_by_treasure_7();
+				// 	update_route_at_P7_for_treasure();
 				send_play_specified_command(12);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 180, getAngleZ());
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 180, getAngleZ(), 20.0f);
 				Chassis_DisableStallProtection();
 				sub_stage = 0;
 				state = SP_DESCEND;
@@ -1066,16 +1077,6 @@ void South_Pole(void)
 }
 
 
-static void copy_route(const u8* src)
-{
-	for(uint8_t i = 0; i < 50; i++)
-	{
-		route[map.point + i] = src[i];
-		if(src[i] == 0xFF)
-			break;
-	}
-}
-
 /** 从 route[offset] 开始复制 src[]，遇 0xFF 终止 */
 static void load_route_at(uint8_t offset, const u8* src)
 {
@@ -1087,7 +1088,7 @@ static void load_route_at(uint8_t offset, const u8* src)
 	}
 }
 
-void update_rout_by_treasure_7(void)
+void update_route_at_P7_for_treasure(void)
 {
 	//map.point = 1;
 	if(treasure != 0&&color_flag[0] == Green)//D2绿灯
@@ -1095,15 +1096,15 @@ void update_rout_by_treasure_7(void)
 		switch (treasure)
 		{
 			case 3:
-				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 4:
-				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 5:
-				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
-				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
 
                 break;	
@@ -1114,15 +1115,15 @@ void update_rout_by_treasure_7(void)
 		switch (treasure)
 		{
 			case 3:
-				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 4:
-				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 5:
-				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N8,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N8,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
-				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
 
                 break;	
@@ -1133,15 +1134,15 @@ void update_rout_by_treasure_7(void)
 		switch (treasure)
 		{
 			case 3:
-				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N3,P3,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 4:
-				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 5:
-				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N8,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N8,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
-				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
 
                 break;	
@@ -1152,15 +1153,15 @@ void update_rout_by_treasure_7(void)
 		switch (treasure)
 		{
 			case 3:
-				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; load_route_at(map.point, r); break; }
 			case 4:
-				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; load_route_at(map.point, r); break; }
 			case 5:
-				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N11,N10,N3,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N11,N10,N3,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N3,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N3,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
-				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; load_route_at(map.point, r); break; }
 			default:
 
                 break;	
@@ -1171,37 +1172,37 @@ void update_rout_by_treasure_7(void)
 		switch (treasure)
 		{
 			case 3:
-				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,C5,N15,N10,N3,P3,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,C5,N15,N10,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 4:
-				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,C5,N15,N10,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,C5,N15,N10,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 5:
-				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N11,N10,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N11,N10,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
-				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,C5,N15,N10,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,C5,N15,N10,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
 
                 break;	
 	    }
 	}
 }
-void update_rout_by_treasure_8(void)
+void update_route_at_P8_for_treasure(void)
 {
 	if(treasure != 0&&color_flag[0] == Green)//D2绿灯
 	{
 		switch (treasure)
 		{
 			case 3:
-				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 4:
-				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {/*C4,C8,C7,N14,C3,N9,N10,N11,N12,N5*/B6,N22,B7,C6,N19,B5,N18,N16,N12,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 5:
-				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
-				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
 
                 break;	
@@ -1212,15 +1213,15 @@ void update_rout_by_treasure_8(void)
 		switch (treasure)
 		{
 			case 3:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 4:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 5:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N10,N11,N12,N13,P5,N13,N12,N8,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N10,N11,N12,N13,P5,N13,N12,N8,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
 
                 break;	
@@ -1231,15 +1232,15 @@ void update_rout_by_treasure_8(void)
 		switch (treasure)
 		{
 			case 3:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N3,P3,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 4:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 5:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N11,N12,N13,P5,N13,N12,N8,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N11,N12,N13,P5,N13,N12,N8,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
 
                 break;	
@@ -1250,15 +1251,15 @@ void update_rout_by_treasure_8(void)
 		switch (treasure)
 		{
 			case 3:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; load_route_at(map.point, r); break; }
 			case 4:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; load_route_at(map.point, r); break; }
 			case 5:
-				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N11,N10,N3,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N11,N10,N3,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N3,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N3,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; load_route_at(map.point, r); break; }
 			default:
 
                 break;	
@@ -1269,15 +1270,15 @@ void update_rout_by_treasure_8(void)
 		switch (treasure)
 		{
 			case 3:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,P3,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 4:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 5:
-				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N11,N10,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N11,N10,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; copy_route(r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
 
                 break;	
@@ -1304,93 +1305,117 @@ void QQB_1(void)
 		{
 		case QQB_INIT:
 			send_play_specified_command(7);
+			//改变小车循迹中心，根据实际情况硬补偿
+			//Chassis_SetCatchSensorNum(line_weight_default[7]);
+			//改变循迹模式为左边循迹
 			Chassis_SetTrackMode(TRACK_LEFT_EDGE);
-		
+			
+			//改变电机控制模式为巡线模式
+			Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
+			Chassis_OverrideLinePid(15,0.01,50,25);
+
+			//等待小车行驶10cm后，改变循迹模式为中间循迹
+			Chassis_ClearMileage();
+			while(Chassis_GetMileage() < 40)vTaskDelay(2);	
+			Chassis_SetTrackMode(TRACK_NEAR_CENTER);
 			Chassis_ClearMileage();
 			
-			Chassis_MotorControl(is_Line, 15, 15, 0);
-
-			while(Chassis_GetMileage() < 10)vTaskDelay(2);
-				
-			Chassis_SetTrackMode(TRACK_ALL);
-
 			state = QQB_WAIT_PITCH;
 			break;
 
 		case QQB_WAIT_PITCH:
-
-			if (imu.pitch >= After_up &&((imu.yaw >=89&&imu.yaw <=92)||(imu.yaw <=-89&&imu.yaw >=-92)))
+			//防止循迹受到旁边红线的干扰
+			if(Chassis_GetMileage() > 10 &&imu.pitch>=After_up)Chassis_SetEdgeIgnore(4);
+			//等待对其
+			if ((imu.yaw >=88&&imu.yaw <=92)||(imu.yaw <=-88&&imu.yaw >=-92))
 			{		
-				Chassis_RestoreLinePid();
-				Chassis_OverrideGyroPid(4, 0, 70, 50);  
+				Chassis_OverrideGyroPid(4, 0, 70, 10);  
+				Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ()>0?90:-90);
+				Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);	
+			}
+			//等待小车爬上跷跷板，俯仰角大于 up_pitch 进入下一状态
+			if(imu.pitch>up_pitch)
+			{
 				Chassis_ClearMileage();	
-				CarBrake();						
+				CarBrake();	
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()>0?90:-90, getAngleZ(), 30.0f);
+				is_emergency=1;
+				Cross_getline(&Cross_Scaner);				
 				state = QQB_GYRO;
 			}
 			break;
 
 		case QQB_GYRO:
 		{
-			Cross_getline(&Cross_Scaner);
+			
 			//第1层：巡线板最外侧紧急处理
-			if (Cross_Scaner.detail & 0xF800)
-			{
-				is_emergency=1;
+			if ((Cross_Scaner.detail & 0x3800)&&is_emergency==1)
+			{	
+				is_emergency++;
 				send_play_specified_command(33);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 5, getAngleZ());
-				Chassis_DriveDistance_Blocking(is_Gyro, 5, -SPEED0, getAngleZ(), 0);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 5, getAngleZ());
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 15, getAngleZ(), 15.0f);
+				Chassis_DriveDistance_Blocking(is_Gyro, 10, -SPEED0, getAngleZ(), 0);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 15, getAngleZ(), 15.0f);
+				Chassis_DriveDistance_Blocking(is_Gyro, 17, SPEED0, getAngleZ(), 0);
 			}
 
-			else if (Cross_Scaner.detail & 0x007F)
-			{
-				is_emergency=1;
+			else if ((Cross_Scaner.detail & 0x007C)&&is_emergency==1)
+			{			
+				is_emergency++;
 				send_play_specified_command(33);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 5, getAngleZ());
-				Chassis_DriveDistance_Blocking(is_Gyro, 5, -SPEED0, getAngleZ(), 0);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 5, getAngleZ());
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 15, getAngleZ(), 15.0f);
+				Chassis_DriveDistance_Blocking(is_Gyro, 10, -SPEED0, getAngleZ(), 0);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 15, getAngleZ(), 15.0f);
+				Chassis_DriveDistance_Blocking(is_Gyro, 17, SPEED0, getAngleZ(), 0);
 			}
-			else 
-			{
-				is_emergency=0;
-				Chassis_CorrectByInfrared(0.05f, 1.5f, 1.0f);
-				Chassis_MotorControl(is_Gyro,15,15,getAngleZ());
-				Chassis_ClearMileage();					
+			else if(is_emergency){
+			is_emergency=0;
+			Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ()>0?90:-90);
+			Chassis_ClearMileage();
 			}
 
-			if(imu.pitch>70){Chassis_DriveDistance_Blocking(is_Gyro, 5, -SPEED0, getAngleZ(), 0);}
+			if(is_emergency==0)Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);
 
-			if(Chassis_GetMileage() > 35 && is_emergency==0)
+			if(imu.pitch>70){
+				Chassis_DriveDistance_Blocking(is_Gyro, 10, -SPEED0, getAngleZ(), 0);
+				Chassis_DriveDistance_Blocking(is_Gyro, 5, SPEED0, getAngleZ(), 0);
+			}
+
+			if(Chassis_GetMileage() > 37 && is_emergency == 0)
 			{
+				CarBrake();
 				state = QQB_WAIT;		
 				break;
 			}
 			break;
 		}
 		case QQB_WAIT:
-
+			{
+			Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);
 			float p = imu.pitch;
 			if(p> up_pitch)break_cnt++;
-			if(break_cnt > 500){Chassis_DriveDistance_Blocking(is_Gyro, 5, SPEED0, getAngleZ(), 0);break_cnt=0;}
+			if(break_cnt > 500){Chassis_DriveDistance_Blocking(is_Gyro, 5, 10,getAngleZ()>0?90:-90, 0);break_cnt=0;}
 
 			if(p < up_pitch&&seen_negative==0){CarBrake(); break_cnt = 0;} 
-			if (p < down_pitch)seen_negative = 1;	
+			if (p < After_down)seen_negative = 1;	
 			if (seen_negative==1)
 			{ 
-				vTaskDelay(300);
-				Chassis_RestoreGyroPid();
-				Chassis_MotorControl(is_Gyro,15,15,getAngleZ()+50);
+				Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ());		
 				seen_negative=2;				
 			}
 			if(seen_negative==2)
 			{			
-				if(p > After_down) 
-				{		
+				if(p > After_down-5) 
+				{	
+					Chassis_RestoreGyroPid();
+					Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ());	
+					Chassis_Turn_By_Gyro_Blocking(getAngleZ()>0?140:-40, getAngleZ(), 40.0f);	
 					state = QQB_RECOVERY;
 				}	
 			}
 					
-			break; 
+			break;
+			}
 		case QQB_RECOVERY:
 
 			state = QQB_DONE;
@@ -1399,15 +1424,16 @@ void QQB_1(void)
 		}  
 		vTaskDelay(2);
 	}  
-	Chassis_ClearMileage();
-	
-	Chassis_OverrideLinePid(30,0,50,80);
-	
+	Chassis_SetEdgeIgnore(0);
+	Chassis_SetCatchSensorNum(line_weight_default[12]);
+	Chassis_SetTrackMode(TRACK_LEFT_EDGE);
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
-	
-	while(Chassis_GetMileage() < 40)vTaskDelay(2);
-	
+	Chassis_OverrideLinePid(16,0.03f,50,30);
+	Chassis_ClearMileage();
+	uint8_t dis = getAngleZ()>0?60:35;
+	while(Chassis_GetMileage() < dis)vTaskDelay(2);
 	Chassis_RestoreLinePid();
+	
 	nodesr.nowNode.function = 0;
 	cross_event |= CROSS_EVENT_ARRIVED;
 	
@@ -1416,10 +1442,17 @@ void QQB_1(void)
 /*读颜色传感器，返回颜色值（0=超时/未设置, 1=绿, 2=黄, 3=红）*/
 static uint8_t Door_ReadColor(uint8_t door_state)
 {
-	/*调试模式：直接从预设数组返回颜色，无需左右传感器*/
 	static const uint8_t state_to_idx[] = {0, 1, 2, 3, 2}; // D2→0, D3→1, D4→2, D5→3, D4_AGAIN→2
-	return debug_door_colors[state_to_idx[door_state]];
-
+#if DEBUG
+	return debug_color_flag[state_to_idx[door_state]];
+#else
+	/* TODO: 读取真实左右颜色传感器
+	 *   左传感器 → UART4_RX (PC11) 读取颜色值
+	 *   右传感器 → UART5_RX (PD2) 读取颜色值
+	 *   返回值：1=Green, 2=Yellow, 3=Red, 0=未读到
+	 */
+	return 0;
+#endif
 }
 
 /*红绿灯辅助：配置节点直接通行（设 function=NONE + speed + step）*/
@@ -1438,7 +1471,7 @@ static void door_retreat(uint8_t a, uint8_t b)
 	nodesr.lastNode = nodesr.nowNode;
 	nodesr.nowNode = Node[getNextConnectNode(a, b)];
 	Chassis_Brake();
-	Chassis_Turn_By_StopGyro_Blocking(nodesr.nowNode.angle, getAngleZ());
+	Chassis_Turn_By_StopGyro_Blocking(nodesr.nowNode.angle, getAngleZ(), 30.0f);
 }
 
 /*看红绿灯 — 状态机*/
@@ -1458,7 +1491,7 @@ void door()
 		vTaskDelay(2);
 
 	CarBrake();
-	Chassis_Turn_By_StopGyro_Blocking(nodesr.nowNode.angle, getAngleZ());
+	Chassis_Turn_By_StopGyro_Blocking(nodesr.nowNode.angle, getAngleZ(), 30.0f);
 	vTaskDelay(500);
 	uint8_t door_color = Door_ReadColor(state);
 
@@ -1480,11 +1513,12 @@ void door()
 		else if (color_flag[0] == Green)
 		{
 			send_play_specified_command(8);
-			door_set_pass_node(N5, N12, 140, SPEED3);
+			door_set_pass_node(N5, N12, 140, SPEED4);
+			door_set_pass_node(N12, N5, 140, SPEED4);
 			nodesr.nowNode = Node[getNextConnectNode(N5, N12)];
 			nodesr.nowNode.step = 60;
-			nodesr.nowNode.speed = SPEED2;
-			update_route_by_QR();
+			nodesr.nowNode.speed = SPEED3;
+			update_route_at_door_for_clue();
 			cross_event |= CROSS_EVENT_DOOR;
 			state = DOOR_D2;
 		}
@@ -1495,8 +1529,8 @@ void door()
 			nodesr.nowNode = Node[getNextConnectNode(N5, N12)];
 			nodesr.nowNode.flag = DLEFT | DRIGHT | CRIGHT | LEFT_LINE;
 			nodesr.nowNode.step = 60;
-			nodesr.nowNode.speed = SPEED2;
-			update_route_by_QR();
+			nodesr.nowNode.speed = SPEED3;
+			update_route_at_door_for_clue();
 			cross_event |= CROSS_EVENT_DOOR;
 			state = DOOR_D5_BACK;
 		}
@@ -1508,11 +1542,7 @@ void door()
 		{
 			send_play_specified_command(11);
 			door_retreat(N5, N4);
-			for (uint8_t i = 0; i < 10; i++)
-			{
-				route[i] = door1route[i];
-				if (door1route[i] == 0xff) break;
-			}
+			load_route_at(0, door1route);
 			cross_event |= CROSS_EVENT_DOOR;
 			state = DOOR_D4;
 		}
@@ -1521,12 +1551,12 @@ void door()
 			door_set_pass_node(N5, N8, 120, SPEED3);
 			nodesr.nowNode = Node[getNextConnectNode(N5, N8)];
 			nodesr.nowNode.step = 40;
-			nodesr.nowNode.speed = SPEED2;
-			update_route_by_QR();
+			nodesr.nowNode.speed = SPEED3;
+			update_route_at_door_for_clue();
 
 			if (color_flag[1] == Green)
 			{
-				door_set_pass_node(N8, N5, 120, SPEED2);
+				door_set_pass_node(N8, N5, 120, SPEED3);
 				send_play_specified_command(8);
 				state = DOOR_D2;
 			}
@@ -1555,7 +1585,7 @@ void door()
 		nodesr.nowNode = Node[getNextConnectNode(N3, N8)];
 		nodesr.nowNode.step = 60;
 		nodesr.nowNode.speed = SPEED2;
-		update_route_by_QR();
+		update_route_at_door_for_clue();
 		cross_event |= CROSS_EVENT_DOOR;
 		state = DOOR_D2;
 		break;
@@ -1605,7 +1635,7 @@ void door()
 			door_set_pass_node(N8, N3, 120, SPEED3);
 			nodesr.nowNode = Node[getNextConnectNode(N8, N3)];
 			nodesr.nowNode.step = 10;
-			nodesr.nowNode.speed = SPEED2;
+			nodesr.nowNode.speed = SPEED3;
 			nodesr.nowNode.function = NONE;
 			cross_event |= CROSS_EVENT_DOOR;
 			update_route_by_door_3();
@@ -1615,8 +1645,8 @@ void door()
 		{
 			send_play_specified_command(11);
 			door_retreat(N8, N5);
-			door_set_pass_node(N8, N5, 140, SPEED2);
-			door_set_pass_node(N5, N8, 140, SPEED2);
+			door_set_pass_node(N8, N5, 140, SPEED3);
+			door_set_pass_node(N5, N8, 140, SPEED3);
 			cross_event |= CROSS_EVENT_DOOR;
 			update_route_by_door_4();
 		}
@@ -1626,38 +1656,23 @@ void door()
 }
 
 
-void update_route_for_stage34(void)
+void update_route_at_P1(void)
 {
 	if(flag_line_clue == 3)
 	{
-		u8 route_to_2[15] = {B1, N1, P1, N1, B2, N4, N3, P3, N3, N4, N5, N12, 0XFF};
-		for(uint8_t i = 0;i<15;i++)
-		{
-			route[i] = route_to_2[i];
-			if(route_to_2[i]==0xff)
-				break;
-		}
+		const u8 r[] = {B1, N1, P1, N1, B2, N4, N3, P3, N3, N4, N5, N12, 0XFF};
+		load_route_at(0, r);
 	}
 	else if(flag_line_clue == 4)
 	{
-		u8 route_to_4[15] = {B1, N1, P1, N1, B2, N4, N5, N6, P4, N6, N5, N12, 0XFF};
-		for(uint8_t i = 0;i<15;i++)
-		{
-			route[i] = route_to_4[i];
-			if(route_to_4[i]==0xff)
-				break;
-		}
+		const u8 r[] = {B1, N1, P1, N1, B2, N4, N5, N6, P4, N6, N5, N12, 0XFF};
+		load_route_at(0, r);
 	}
 	else if(flag_line_clue == 0)
 	{
 		// 跳过 P3/P4，直接去门区
-		u8 route_skip[10] = {B1, N1, P1, N1, B2, N4, N5, N12, 0XFF};
-		for(uint8_t i = 0;i<10;i++)
-		{
-			route[i] = route_skip[i];
-			if(route_skip[i]==0xff)
-				break;
-		}
+		const u8 r[] = {B1, N1, P1, N1, B2, N4, N5, N12, 0XFF};
+		load_route_at(0, r);
 	}
 
 }
@@ -1665,198 +1680,87 @@ void update_route_for_stage34(void)
 
 void update_route_by_door_1(void)
 {
-	//宝物拿过了，直接回家
 	if(treasure ==5||treasure == 6)
-	{
-		for(uint8_t i = 0;i<100;i++)
-		{
-			route[i] = door6route[i];
-			if(door6route[i]==0xff)
-				break;
-		}
-	
-	}
-	//去三号平台拿宝物
+		load_route_at(0, door6route);
 	if(treasure ==3)
 	{
-		u8 route_to_3[15] = {P3,N3,N4,B3,N2,P2,0XFF};
-		for(uint8_t i = 0;i<15;i++)
-		{
-			route[i] = route_to_3[i];
-			if(route_to_3[i]==0xff)
-				break;
-		}
+		const u8 r[] = {P3,N3,N4,B3,N2,P2,0xFF};
+		load_route_at(0, r);
 	}
-	//去四号平台拿宝物
 	if(treasure ==4)
 	{
-		u8 route_to_4[15] = {N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF};
-		for(uint8_t i = 0;i<15;i++)
-		{
-			route[i] = route_to_4[i];
-			if(route_to_4[i]==0xff)
-				break;
-		}
+		const u8 r[] = {N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0xFF};
+		load_route_at(0, r);
 	}
-	//去二号平台拿宝物
 	if(treasure ==2)
 	{
-		u8 route_to_2[15] = {N4,B2,N1,P1,N1,B1,N2,P2,0XFF};
-		for(uint8_t i = 0;i<15;i++)
-		{
-			route[i] = route_to_2[i];
-			if(route_to_2[i]==0xff)
-				break;
-		}
+		const u8 r[] = {N4,B2,N1,P1,N1,B1,N2,P2,0xFF};
+		load_route_at(0, r);
 	}
 }
 void update_route_by_door_2(void)
 {
-	//宝物拿过了，直接回家
 	if(treasure ==5||treasure == 6)
-	{
-		
-		for(uint8_t i = 0;i<100;i++)
-		{
-			route[i] = door7route[i];
-			if(door7route[i]==0xff)
-				break;
-		}
-	
-	}
-	//去三号平台拿宝物
+		load_route_at(0, door7route);
 	if(treasure ==3)
 	{
-		u8 route_to_3[15] = {N3,P3,N3,N4,B3,N2,P2,0XFF};
-		for(uint8_t i = 0;i<15;i++)
-		{
-			route[i] = route_to_3[i];
-			if(route_to_3[i]==0xff)
-				break;
-		}
+		const u8 r[] = {N3,P3,N3,N4,B3,N2,P2,0xFF};
+		load_route_at(0, r);
 	}
-	//去四号平台拿宝物
 	if(treasure ==4)
 	{
-		u8 route_to_4[15] = {N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF};
-		for(uint8_t i = 0;i<15;i++)
-		{
-			route[i] = route_to_4[i];
-			if(route_to_4[i]==0xff)
-				break;
-		}
+		const u8 r[] = {N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0xFF};
+		load_route_at(0, r);
 	}
-	//去二号平台拿宝物
 	if(treasure ==2)
 	{
-		u8 route_to_2[15] = {N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF};
-		for(uint8_t i = 0;i<15;i++)
-		{
-			route[i] = route_to_2[i];
-			if(route_to_2[i]==0xff)
-				break;
-		}
+		const u8 r[] = {N3,N4,B2,N1,P1,N1,B1,N2,P2,0xFF};
+		load_route_at(0, r);
 	}
 }
 void update_route_by_door_3(void)
 {
-	//宝物拿过了，直接回家
 	if(treasure ==5||treasure == 6)
-	{
-		
-		for(uint8_t i = 0;i<100;i++)
-		{
-			route[i] = door8route[i];
-			if(door8route[i]==0xff)
-				break;
-		}
-	
-	}
-	//去三号平台拿宝物
+		load_route_at(0, door8route);
 	if(treasure ==3)
 	{
-		u8 route_to_3[15] = {P3,N3,N4,B3,N2,P2,0XFF};
-		for(uint8_t i = 0;i<15;i++)
-		{
-			route[i] = route_to_3[i];
-			if(route_to_3[i]==0xff)
-				break;
-		}
+		const u8 r[] = {P3,N3,N4,B3,N2,P2,0xFF};
+		load_route_at(0, r);
 	}
-	//去四号平台拿宝物
 	if(treasure ==4)
 	{
-		u8 route_to_4[15] = {N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF};
-		for(uint8_t i = 0;i<15;i++)
-		{
-			route[i] = route_to_4[i];
-			if(route_to_4[i]==0xff)
-				break;
-		}
+		const u8 r[] = {N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0xFF};
+		load_route_at(0, r);
 	}
-	//去二号平台拿宝物
 	if(treasure ==2)
 	{
-		u8 route_to_2[15] = {N4,B2,N1,P1,N1,B1,N2,P2,0XFF};
-		for(uint8_t i = 0;i<15;i++)
-		{
-			route[i] = route_to_2[i];
-			if(route_to_2[i]==0xff)
-				break;
-		}
+		const u8 r[] = {N4,B2,N1,P1,N1,B1,N2,P2,0xFF};
+		load_route_at(0, r);
 	}
 }
 void update_route_by_door_4(void)
 {
-	//宝物拿过了，直接回家
 	if(treasure ==5||treasure == 6)
-	{
-		
-		for(uint8_t i = 0;i<100;i++)
-		{
-			route[i] = door11route[i];
-			if(door11route[i]==0xff)
-				break;
-		}
-	
-	}
-	//去三号平台拿宝物
+		load_route_at(0, door11route);
 	if(treasure ==3)
 	{
-		u8 route_to_3[15] = {N4,N3,P3,N3,N4,B3,N2,P2,0XFF};
-		for(uint8_t i = 0;i<15;i++)
-		{
-			route[i] = route_to_3[i];
-			if(route_to_3[i]==0xff)
-				break;
-		}
+		const u8 r[] = {N4,N3,P3,N3,N4,B3,N2,P2,0xFF};
+		load_route_at(0, r);
 	}
-	//去四号平台拿宝物
 	if(treasure ==4)
 	{
-		u8 route_to_4[15] = {N6,P4,N6,N5,N4,B3,N2,P2,0XFF};
-		for(uint8_t i = 0;i<15;i++)
-		{
-			route[i] = route_to_4[i];
-			if(route_to_4[i]==0xff)
-				break;
-		}
+		const u8 r[] = {N6,P4,N6,N5,N4,B3,N2,P2,0xFF};
+		load_route_at(0, r);
 	}
-	//去二号平台拿宝物
 	if(treasure ==2)
 	{
-		u8 route_to_2[15] = {N4,B2,N1,P1,N1,B1,N2,P2,0XFF};
-		for(uint8_t i = 0;i<15;i++)
-		{
-			route[i] = route_to_2[i];
-			if(route_to_2[i]==0xff)
-				break;
-		}
+		const u8 r[] = {N4,B2,N1,P1,N1,B1,N2,P2,0xFF};
+		load_route_at(0, r);
 	}
 }
 static uint8_t Can_Pass(uint8_t c) { return c == Green || c == Yellow; }
 
-void update_route_by_QR(void)
+void update_route_at_door_for_clue(void)
 {
 	// 按线索平台组合选择路线
 	if (flag_clue_stage_A == 5 && flag_clue_stage_B == 7)
@@ -1908,18 +1812,6 @@ void update_route_by_QR(void)
 		}
 	}
 }
-
-///*珠峰下通道处理*/
-void undermou(void)
-{
-}
-
-///*忽略节点 - 直接判定到达路口*/
-//void ignore_node(void)
-//{
-//	nodesr.nowNode.function = 0;
-//	cross_event |= CROSS_EVENT_ARRIVED; // 到达路口
-//}
 
 /*第二轮路线规划*/
 void get_newroute(void)
@@ -2555,6 +2447,7 @@ uint8_t WaitFor_QR(void)
 //		flag_clue_stage_A = (QR_code/10)%10;//获取十位上的数字
 //		flag_clue_stage_B = QR_code%10;//获取个位上数字
 //	}
+	return 0;
 }
 	
 extern uint8_t isAllRoute;
@@ -2599,6 +2492,7 @@ void zhunbei(void)
 	/*播报语音*/
 	
 	Chassis_SelfCheck();	
+	send_play_specified_command(7);
 	/*机器人动作*/
 	Robot_Work(LARM, UP);		// 左手举起
 	vTaskDelay(100);
@@ -2613,10 +2507,10 @@ void zhunbei(void)
 	Robot_Work(HEAD,HEAD_MID);
 	vTaskDelay(100);
 	Robot_Work(HEAD,UP);
-	send_play_specified_command(7);
+	
 
 	if(isAllRoute || map.routetime!=0)
-	{
+   	{
 		RampCtrl_Blocking(RAMP_DESCEND, GoStage_Speed, getAngleZ(),
 				Begin_down, GoStage_Speed, down_pitch, UpDownStage_Speed_high, After_down-10, 0.04, 10.0f, 0.0f);
 		/*下桥完毕*/
@@ -2627,22 +2521,6 @@ void zhunbei(void)
 
 
 
-/*与ConnectFirstBack共用*/
-void Connect(uint8_t Route[])
-{
-	static u8 temp = 0, i = 0;
-	temp = map.point-1;
-	i = 0;
-	nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum,Route[0])];
-	nodesr.nowNode.angle = nodesr.nextNode.angle;
-	while (1)
-	{
-		route[temp++] = Route[i++]; // 路线连接
-		if (Route[i] == 255)
-		{
-			route[temp] = Route[i];
-			break;
-		}
-	}
-}
+
+
 

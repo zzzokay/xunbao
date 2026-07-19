@@ -1232,6 +1232,16 @@
               <FileType>5</FileType>
               <FilePath>..\Module\Rec_usart.h</FilePath>
             </File>
+            <File>
+              <FileName>interrupt_router.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Module\interrupt_router.c</FilePath>
+            </File>
+            <File>
+              <FileName>interrupt_router.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Module\interrupt_router.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

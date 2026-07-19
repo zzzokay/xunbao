@@ -86,7 +86,7 @@ void Chassis_Init(void)
 	motor_all.GyroG_speedMax = 100;	// 自平衡左右偏差最大值10000
 	motor_all.GyroT_speedMax = 25;  	// 自转最大速度34//--->5760 //35
 	motor_all.Line_speedMax = 50;		// 巡线差速最大值
-	motor_all.Cincrement = 0.6;	   	// 循迹加速度 0.5
+	motor_all.Cincrement = 0.7;	   	// 循迹加速度 0.5
 	motor_all.CDOWNincrement = 0.7;	//循迹减速0.5
     motor_all.Gincrement = 0.7;	   	// 陀螺仪加速度0.5
     motor_all.GDOWNincrement=0.7;	// 陀螺仪减速度0.5
@@ -106,7 +106,7 @@ void Chassis_Init(void)
     pid_init();
 }
 
-#define TEMP_PWM_MAX 7000 //TODO调试用
+#define TEMP_PWM_MAX 8000 //TODO调试用
 
 /*模式转换函数*/
 /*
@@ -190,6 +190,7 @@ void Chassis_SetTargetSpeed(float speed)
     if(PIDMode == is_Line)
     {
         motor_all.Cspeed = speed;
+        Chassis_RestoreLinePid();
         switch (chassis.target_speed)
 			{
                 case SPEED5:
@@ -199,24 +200,24 @@ void Chassis_SetTargetSpeed(float speed)
 					line_pid_param.kd = 250;//200
 					break;		
 				case SPEED3://60 7 115
-					line_pid_param.kp = 7.0f;
+					line_pid_param.kp = 4.0f;
                     line_pid_param.ki = 0;
-                    line_pid_param.kd = 115;
+                    line_pid_param.kd = 120;
 					break;
 				case SPEED25://55 8 140	
-                    line_pid_param.kp = 8.0f;
+                    line_pid_param.kp = 5.0f;
                     line_pid_param.ki = 0;
-                    line_pid_param.kd = 140;
+                    line_pid_param.kd = 160;
                     break;
 				case SPEED2://45 7 80
-					line_pid_param.kp = 7.0f;
+					line_pid_param.kp = 6.5f;
                     line_pid_param.ki = 0;
-                    line_pid_param.kd = 80;
+                    line_pid_param.kd = 110;
 					break;		
 				case SPEED0://25 7 90
 				case SPEED1://36 7 90
                 case 20://20 7 90
-					line_pid_param.kp = 7.0f;
+					line_pid_param.kp = 6.0f;
 					line_pid_param.ki = 0;
 					line_pid_param.kd = 90;
 					break;   
@@ -318,6 +319,11 @@ void Chassis_MotorControl(uint8_t target_mode, float LSPEED, float RSPEED, float
 void Chassis_EnableAntiSnake(void)
 {
     chassis.anti_snake_flag = 1;
+    chassis.anti_snake_err_count = 0;
+}
+void Chassis_DisableAntiSnake(void)
+{
+    chassis.anti_snake_flag = 0;
     chassis.anti_snake_err_count = 0;
 }
 
@@ -545,19 +551,20 @@ void Chassis_Turn_By_RightLine_Blocking(float target_angle, float current_angle,
     Chassis_RestoreLinePid();
 
 }
-//用之前先停车
-void Chassis_Turn_By_StopGyro_Blocking(float target_angle, float current_angle)
+//用之前先停车，turn_speed_max 控制转弯最大角速度（传入 Chassis_OverrideTurnPid）
+void Chassis_Turn_By_StopGyro_Blocking(float target_angle, float current_angle, float turn_speed_max)
 {
     //如果没停车
     if(fabsf(motor_all.Lspeed) > 1.0f || fabsf(motor_all.Rspeed) > 1.0f)
     {
-        Chassis_Brake(); // 先停车，确保转弯稳定     
-    }	
-    Chassis_OverrideTurnPid(6.0f, 0.0f, 90.0f, 30.0f);
+        Chassis_Brake(); // 先停车，确保转弯稳定
+    }
+    Chassis_OverrideTurnPid(6.0f, 0.0f, 90.0f, turn_speed_max);
+
 
     Chassis_SetGyroAngle_Turn(target_angle);
 
-    Chassis_SetMode(is_Turn);//进入转弯模式			
+    Chassis_SetMode(is_Turn);//进入转弯模式
 
     Chassis_TurnToAngle_Blocking(target_angle, current_angle, 0.04f);
 
@@ -576,10 +583,10 @@ void Chassis_Turn360_Blocking(void)
     CarBrake();
 }
 
-void Chassis_Turn_By_Gyro_Blocking(float target_angle, float current_angle)
+void Chassis_Turn_By_Gyro_Blocking(float target_angle, float current_angle, float turn_speed_max)
 {
-   
-    Chassis_OverrideGyroPid(12.0f, 0.0f, 180.0f, 50.0f); //左转还是右转
+
+    Chassis_OverrideGyroPid(12.0f, 0.0f, 180.0f, turn_speed_max); //左转还是右转
     //直接转相对角度
     float target_g = normalize_angle(getAngleZ() + need2turn(current_angle, target_angle));
     Chassis_SetGyroAngle_Go(target_g);
@@ -606,7 +613,7 @@ void Chassis_SetEdgeIgnore(uint8_t num)
 /* ========================================================================= */
 
 /* ========= 翘头保护阈值 ========= */
-#define WHEELIE_PITCH_THRESHOLD      8.0f    /* pitch > basic_p + 8° 视为翘头 */
+#define WHEELIE_PITCH_THRESHOLD      7.0f    /* pitch > basic_p + 8° 视为翘头 */
 #define WHEELIE_CINCREMENT_REDUCED   0.05f   /* 翘头保护时的加速度 */
 
 #define LINE_LOST_THRESHOLD  80   // 80 * 5ms = 0.4秒
@@ -624,7 +631,7 @@ static uint8_t is_line_completely_lost(void)
 /* ========= 堵转保护阈值 ========= */
 #define STALL_SPEED_RATIO         180      /* output > target * 80 视为异常（25→2000） */
 #define STALL_COUNT_THRESHOLD      5      /* 连续超限 5 周期 (25ms) 触发 */
-#define STALL_PWM_ABSOLUTE_MAX  7000    /* 硬上限：任何 output 超此值立即死停 */
+#define STALL_PWM_ABSOLUTE_MAX  8000    /* 硬上限：任何 output 超此值立即死停 */
 
 // 在 motor_task.c 的 while(1) 中调用：Chassis_Periodic_Update_5ms();
 void Chassis_Periodic_Update_5ms(void)
@@ -673,18 +680,18 @@ void Chassis_Periodic_Update_5ms(void)
         {
             // motor_all.Cspeed 减半已放到高速上设置，在底层此处：如果发现大偏移加计时
             // 通过 Scaner.detail 直接检测偏离特征
-            if(fabsf(Scaner.error) > 1.3f) // 偏移过大 (使用 Scaner.detail 避免重复获取耗时)
+            if(fabsf(Scaner.error) > 1.0f ) // 偏移过大 (使用 Scaner.detail 避免重复获取耗时)fabsf(Scaner.error) > 1.2f
             {
                 chassis.anti_snake_err_count++; 
             }
             else // 回正后迅速衰减警戒值
             {
-                if(chassis.anti_snake_err_count < 200) 
+                if(chassis.anti_snake_err_count < 300) 
                     chassis.anti_snake_err_count -= 10;
             }
             
             // 警戒解除
-            if(chassis.anti_snake_err_count <= 0 || chassis.anti_snake_err_count >= 200 )
+            if(chassis.anti_snake_err_count <= 0 || chassis.anti_snake_err_count >= 300 )
             {
                 chassis.anti_snake_flag = 0;
                 chassis.anti_snake_err_count=0;
@@ -698,8 +705,8 @@ void Chassis_Periodic_Update_5ms(void)
         if (chassis.anti_snake_err_count)
         {
             if(chassis.anti_snake_err_count==1)send_play_specified_command(33);
-            motor_all.Cspeed = chassis.target_speed / 2; // 直接减半速度，增强稳定
-            Chassis_OverrideLinePid(15.0f, 0.0f, 200.0f, motor_all.Cspeed); // 直接覆盖当前速度限制，确保稳定性
+            motor_all.Cspeed = 20; // 直接减半速度，增强稳定
+            Chassis_OverrideLinePid(15, 0, 200, motor_all.Cspeed); // 直接覆盖当前速度限制，确保稳定性
 
         }
 
@@ -807,7 +814,7 @@ void CarBrake(void)
         vTaskDelay(2);
         brake_timeout++;
     }
-    vTaskDelay(200); // 确保完全停止
+    vTaskDelay(100); // 确保完全停止
 }
 
 /**
@@ -851,12 +858,16 @@ void Chassis_CorrectByInfrared(float correct_angle, float multiplier, float K)
 	Cross_getline(&Cross_Scaner);	// 陀螺仪模式下 Scaner 不更新，主动拍快照
 	if ((infrared.head_left == 0 && infrared.head_right == 1) )
 		angle.AngleG += correct_angle;
-    else if ((Cross_Scaner.detail & 0X00FF))
+    else if ((Cross_Scaner.detail & 0X0003))
         angle.AngleG += correct_angle * multiplier;
+    else if ((Cross_Scaner.detail & 0X00FF))
+        angle.AngleG += correct_angle * multiplier*K;
     else if ((infrared.head_left == 1 && infrared.head_right == 0) )
-        angle.AngleG -= correct_angle*K;
-	else if ((Cross_Scaner.detail & 0XFF00))
-		angle.AngleG -= correct_angle * multiplier*K;
+        angle.AngleG -= correct_angle;
+	else if ((Cross_Scaner.detail & 0XC000))
+		angle.AngleG -= correct_angle * multiplier;
+    else if ((Cross_Scaner.detail & 0XFF00))
+        angle.AngleG -= correct_angle * multiplier*2*K;
 }
 
 /**
@@ -870,16 +881,17 @@ void Chassis_SelfCheck(void)
     static float last_angle = 0.0f;     // 上次角度采样
     static uint8_t angle_ready = 0;     // 角度采样是否就绪（首次跳过）
     static uint32_t tick = 0;           // 周期计数器
-
+	static float curr_angle;
     tick++;
-    if (tick < 200) return;             // 每1秒检测一次 (5ms × 200)
+    if (tick < 20) return;             // 每1秒检测一次 (5ms × 200)
     tick = 0;
 
     uint8_t error_now = 0;
 
     /* ---------- 1. 陀螺仪漂移检查 ---------- */
     {
-        float curr_angle = getAngleZ();
+        
+		curr_angle= getAngleZ();
         if (angle_ready)
         {
             float diff = curr_angle - last_angle;
@@ -894,6 +906,7 @@ void Chassis_SelfCheck(void)
             angle_ready = 1;             // 首次只记录，不判断
         }
         last_angle = curr_angle;
+        printf("%.2f\r\n", curr_angle);
     }
 
     /* ---------- 2. 灰度传感器检查 ---------- */
@@ -908,6 +921,7 @@ void Chassis_SelfCheck(void)
                 break;
             }
         }
+       // printf("%d,%d,%d,%d\r\n", AD_Value_Gray[0], AD_Value_Gray[1], AD_Value_Gray[2], AD_Value_Gray[3]);
     }
 
     /* ---------- 3. 循迹板检查 ---------- */
@@ -915,6 +929,7 @@ void Chassis_SelfCheck(void)
         Cross_getline(&Cross_Scaner);
         if (Cross_Scaner.detail != 0)
             error_now |= 0x04;
+        //printf_byte("%04X\r\n", Cross_Scaner.detail);
     }
 
     /* ---------- 报告：状态变化时才打印 ---------- */
@@ -922,15 +937,15 @@ void Chassis_SelfCheck(void)
     {
         if (error_now == 0)
         {
-            printf("[SELFCHECK] OK - 所有异常已恢复\r\n");
+           // printf("[SELFCHECK] OK - 所有异常已恢复\r\n");
         }
         else
         {
-            printf("[SELFCHECK] FAIL -");
+           // printf("[SELFCHECK] FAIL -");
             if (error_now & 0x01) send_play_specified_command(33);//陀螺仪（偏移）
             if (error_now & 0x02) send_play_specified_command(31);//灰度（过高）
             if (error_now & 0x04) send_play_specified_command(30);//循迹板（检测到线）
-            printf("\r\n");
+           // printf("\r\n");
         }
         last_error = error_now;
     }

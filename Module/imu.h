@@ -21,8 +21,11 @@ extern struct Imu imu;
 extern float basic_p;
 extern float basic_y;
 extern float basic_r;
-void gyro_init(uint32_t bound);
+
+#define IMU_UART huart3
+
 void imu_receive_init(void);
 void IMU_CalibrateZero(float* yaw_out, float* pitch_out, float* roll_out);
 float get_latest_yaw(void);
+void IMU_RxIdleHandler(uint16_t Size);
 #endif
