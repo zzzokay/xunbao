@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/14166/Desktop/MC_32/robotcup/xunbao/Math/**)",
+      "Read(//c/Users/14166/Desktop/MC_32/robotcup/xunbao/Motor/**)",
+      "Read(//c/Users/14166/Desktop/MC_32/robotcup/raw_xunbao/**)",
+      "Read(//c/Users/14166/.claude/projects/c--Users-14166-Desktop-MC-32-robotcup-xunbao/memory/**)",
+      "Bash(python3)",
+      "Bash(sed -i 's/^\\\\t\\\\troute\\\\[0\\\\] = 0xff;\\\\/\\\\/清空route$//' barrier.c)",
+      "Bash(sed -i '/^\\\\t\\\\tif \\(door_color == Red\\)$/i\\\\\\\\t\\\\t\\\\troute[0] = 0xff;\\\\/\\\\/清空route' barrier.c)",
+      "Bash(sed -i '/^[[:space:]]*if \\(door_color == Red\\)$/{n;/^[[:space:]]*{$/a\\\\\\\\\\\\t\\\\t\\\\troute[0] = 0xff;\\\\/\\\\/清空route' barrier.c)",
+      "Bash(cd /c/Users/14166/Desktop/MC_32/robotcup/xunbao/Application && grep -n \"getAngleZ\\(\\) + 18\" barrier.c)",
+      "Read(//c/c/Users/14166/Desktop/MC_32/robotcup/xunbao/Application/**)",
+      "Bash(sed -i '2048s/.*/\\\\t\\\\t\\\\tChassis_DriveDistance_Blocking\\(is_Gyro,80,-SPEED1,getAngleZ\\(\\),0\\);/' barrier.c)",
+      "Bash(sed -i '2049a\\\\\\\\t\\\\t\\\\tnodesr.lastNode = nodesr.nowNode;' barrier.c)",
+      "Bash(sed -i '2057a\\\\\\\\t\\\\t\\\\tChassis_Turn_By_StopGyro_Blocking\\(nodesr.nowNode.angle, getAngleZ\\(\\)\\);' barrier.c)",
+      "Bash(sed -i '2050s/^[[:space:]]*t/\\\\t\\\\t\\\\t/' barrier.c)",
+      "Bash(sed -i '2058s/^[[:space:]]*t/\\\\t\\\\t\\\\t/' barrier.c)",
+      "Bash(sed -i '2050s/^[[:space:]]*/\\\\t\\\\t\\\\t\\\\t/' barrier.c)",
+      "Bash(sed -i '2058s/^[[:space:]]*/\\\\t\\\\t\\\\t\\\\t/' barrier.c)",
+      "Bash(sed -i '2050s/^\\\\t\\\\t\\\\t\\\\t/\\\\t\\\\t\\\\t/' barrier.c)",
+      "Bash(sed -i '2058s/^\\\\t\\\\t\\\\t\\\\t/\\\\t\\\\t\\\\t/' barrier.c)",
+      "Bash(sed -n '2045,2061p' barrier.c)",
+      "Bash(sed -n '1980,2014p' barrier.c)",
+      "Bash(sed -i '1844a\\\\\\\\t\\\\t\\\\tNode[getNextConnectNode\\(N5, N12\\)].function = NONE;' c:/Users/14166/Desktop/MC_32/robotcup/xunbao/Application/barrier.c)",
+      "Read(//c/Users/14166/.claude/projects/c--Users-14166-Desktop-MC-32-robotcup-xunbao-MDK-ARM/b0f3488a-e9c1-4833-a2b2-cbf487f064a1/tool-results/**)",
+      "Bash(cat)",
+      "Bash(python3 /tmp/patch.py)",
+      "Read(//c/Users/14166/Desktop/MC_32/robotcup/.claude/projects/c--Users-14166-Desktop-MC-32-robotcup-xunbao/memory/**)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao",
+      "C:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Application",
+      "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Application",
+      "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Module",
+      "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Core\\Src"
+    ]
+  }
+}

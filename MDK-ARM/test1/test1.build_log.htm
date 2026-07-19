@@ -1,0 +1,87 @@
+<html>
+<body>
+<pre>
+<h1>�Vision Build Log</h1>
+<h2>Tool Versions:</h2>
+IDE-Version: ��Vision V5.37.0.0
+Copyright (C) 2022 ARM Ltd and ARM Germany GmbH. All rights reserved.
+License Information: 4 1416630371@qq.com, 4, LIC=IK1BF-6N0V9-747S0-BMX3N-EYBS7-K6VRP
+ 
+Tool Versions:
+Toolchain:       MDK-ARM Plus  Version: 5.37.0.0
+Toolchain Path:  D:\KEIL5\Core\ARM\version5\Bin
+C Compiler:      Armcc.exe V5.06 update 7 (build 960)
+Assembler:       Armasm.exe V5.06 update 7 (build 960)
+Linker/Locator:  ArmLink.exe V5.06 update 7 (build 960)
+Library Manager: ArmAr.exe V5.06 update 7 (build 960)
+Hex Converter:   FromElf.exe V5.06 update 7 (build 960)
+CPU DLL:         SARMCM3.DLL V5.37.0.0
+Dialog DLL:      DCM.DLL V1.17.5.0
+Target DLL:      CMSIS_AGDI.dll V1.33.12.0
+Dialog DLL:      TCM.DLL V1.56.1.0
+ 
+<h2>Project:</h2>
+C:\Users\14166\Desktop\MC_32\robotcup\xunbao\MDK-ARM\test1.uvprojx
+Project File Date:  07/19/2026
+
+<h2>Output:</h2>
+*** Using Compiler 'V5.06 update 7 (build 960)', folder: 'D:\KEIL5\Core\ARM\version5\Bin'
+Build target 'test1'
+compiling chassis_api.c...
+../Task/motor_task.h(26): warning:  #375-D: declaration requires a typedef name
+  };
+..\Application\turn.h(17): warning:  #231-D: declaration is not visible outside of function
+  uint8_t Go_Angle(float angle_want, float speed,volatile struct Motors *motor);
+..\Application\chassis_api.c(53): warning:  #188-D: enumerated type mixed with another type
+  static ChassisState_t chassis = {0};
+..\Application\chassis_api.c(644): warning:  #223-D: function "send_play_specified_command" declared implicitly
+          send_play_specified_command(31);    
+..\Application\chassis_api.c(707): warning:  #223-D: function "send_play_specified_command" declared implicitly
+              if(chassis.anti_snake_err_count==1)send_play_specified_command(33);
+..\Application\chassis_api.c(725): warning:  #223-D: function "send_play_specified_command" declared implicitly
+                      send_play_specified_command(30);
+..\Application\chassis_api.c(728): warning:  #111-D: statement is unreachable
+                      return;
+..\Application\chassis_api.c(748): warning:  #223-D: function "send_play_specified_command" declared implicitly
+              send_play_specified_command(33);
+..\Application\chassis_api.c(776): warning:  #223-D: function "send_play_specified_command" declared implicitly
+                  send_play_specified_command(33);
+..\Application\chassis_api.c(945): warning:  #223-D: function "send_play_specified_command" declared implicitly
+              if (error_now & 0x01) send_play_specified_command(33);//陀螺仪（偏移）
+..\Application\chassis_api.c(946): warning:  #223-D: function "send_play_specified_command" declared implicitly
+              if (error_now & 0x02) send_play_specified_command(31);//灰度（过高）
+..\Application\chassis_api.c(947): warning:  #223-D: function "send_play_specified_command" declared implicitly
+              if (error_now & 0x04) send_play_specified_command(30);//循迹板（检测到线）
+..\Application\chassis_api.c(952): warning:  #1-D: last line of file ends without a newline
+  }
+..\Application\chassis_api.c: 13 warnings, 0 errors
+linking...
+Program Size: Code=41808 RO-data=792 RW-data=508 ZI-data=20932  
+FromELF: creating hex file...
+"test1\test1.axf" - 0 Error(s), 13 Warning(s).
+
+<h2>Software Packages used:</h2>
+
+Package Vendor: ARM
+                http://www.keil.com/pack/ARM.CMSIS.5.9.0.pack
+                ARM.CMSIS.5.9.0
+                CMSIS (Common Microcontroller Software Interface Standard)
+   * Component: CORE Version: 5.6.0
+
+Package Vendor: Keil
+                https://www.keil.com/pack/Keil.STM32F7xx_DFP.3.1.1.pack
+                Keil.STM32F7xx_DFP.3.1.1
+                STMicroelectronics STM32F7 Series Device Support
+
+<h2>Collection of Component include folders:</h2>
+  ./RTE/_test1
+  D:/KEIL5/Pack/ARM/CMSIS/5.9.0/CMSIS/Core/Include
+
+<h2>Collection of Component Files used:</h2>
+
+   * Component: ARM::CMSIS:CORE:5.6.0
+      Include file:  CMSIS/Core/Include/tz_context.h
+Build Time Elapsed:  00:00:06
+</pre>
+</body>
+</html>
