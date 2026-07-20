@@ -9,11 +9,7 @@
  */
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
-    if (huart == &IMU_UART)
-    {
-        IMU_RxIdleHandler(Size);
-    }
-    else if (huart == &UART)    /* huart4 — 调试串口命令 */
+    if (huart == &UART)    /* huart4 — 调试串口命令 */
     {
         RecUsart_RxIdleHandler(Size);
     }

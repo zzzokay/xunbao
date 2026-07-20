@@ -340,15 +340,15 @@ void USART1_IRQHandler(void)
 /**
   * @brief This function handles USART3 global interrupt.
   */
-void USART3_IRQHandler(void)
-{
-  /* USER CODE BEGIN USART3_IRQn 0 */
-  /* USER CODE END USART3_IRQn 0 */
-  HAL_UART_IRQHandler(&huart3);
-  /* USER CODE BEGIN USART3_IRQn 1 */
+//void USART3_IRQHandler(void)
+//{
+//  /* USER CODE BEGIN USART3_IRQn 0 */
+//  /* USER CODE END USART3_IRQn 0 */
+//  HAL_UART_IRQHandler(&huart3);
+//  /* USER CODE BEGIN USART3_IRQn 1 */
 
-  /* USER CODE END USART3_IRQn 1 */
-}
+//  /* USER CODE END USART3_IRQn 1 */
+//}
 
 /**
   * @brief This function handles TIM8 break interrupt and TIM12 global interrupt.
