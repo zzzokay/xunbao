@@ -188,6 +188,7 @@ targets:
     excludeList:
       - <virtual_root>/Application/User/command.c
       - <virtual_root>/Motor/speed_ctrl.c
+      - <virtual_root>/Task/ArriveDetect_task.c
     settings: {}
     toolchain: AC5
     toolchainConfigMap:

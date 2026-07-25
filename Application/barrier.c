@@ -71,7 +71,7 @@ uint8_t flag_clue_stage_A = 6;
 uint8_t flag_clue_stage_B = 8;
 // OCR 线索：P5/P6读clue_A，P7/P8读clue_B，treasure=clue_A+clue_B → 宝物平台编号
 uint8_t flag_clue_A       = 2;
-uint8_t flag_clue_B       = 2;
+uint8_t flag_clue_B       = 3;
 #else
 uint8_t flag_line_clue    = 0;
 uint8_t flag_clue_stage_A = 0;
@@ -1194,15 +1194,15 @@ void update_route_at_P8_for_treasure(void)
 		switch (treasure)
 		{
 			case 3:
-				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N11,N12,N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 4:
-				{ const u8 r[] = {/*C4,C8,C7,N14,C3,N9,N10,N11,N12,N5*/B6,N22,B7,C6,N19,B5,N18,N16,N12,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N11,N12,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 5:
-				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N11,N12,N13,P5,N13,N12,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
 				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
-				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N11,N12,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
 
                 break;	

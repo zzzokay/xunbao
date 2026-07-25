@@ -207,7 +207,7 @@ void Chassis_SetTargetSpeed(float speed)
 				case SPEED25://55 8 140	
                     line_pid_param.kp = 5.0f;
                     line_pid_param.ki = 0;
-                    line_pid_param.kd = 160;
+                    line_pid_param.kd = 150;
                     break;
 				case SPEED2://45 7 80
 					line_pid_param.kp = 6.5f;
@@ -223,7 +223,7 @@ void Chassis_SetTargetSpeed(float speed)
 					break;   
 				case 12:
                 case 15:
-					line_pid_param.kp = 20.0f;
+					line_pid_param.kp = 15.0f;
 					line_pid_param.ki = 0;
 					line_pid_param.kd = 60;
 				default:
@@ -705,8 +705,8 @@ void Chassis_Periodic_Update_5ms(void)
         if (chassis.anti_snake_err_count)
         {
             if(chassis.anti_snake_err_count==1)send_play_specified_command(33);
-            motor_all.Cspeed = 20; // 直接减半速度，增强稳定
-            Chassis_OverrideLinePid(15, 0, 200, motor_all.Cspeed); // 直接覆盖当前速度限制，确保稳定性
+            motor_all.Cspeed = 15; // 直接减半速度，增强稳定
+            Chassis_OverrideLinePid(15, 0, 90, motor_all.Cspeed); // 直接覆盖当前速度限制，确保稳定性
 
         }
 
