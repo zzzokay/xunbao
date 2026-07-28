@@ -18,15 +18,15 @@ void arrive_detect_task(void *pvParameters)
         sing2mul = 0;
         // --- 进行节点检测 ---
         Cross_getline(&Cross_Scaner);
-        while (!deal_arrive(&Cross_Scaner, nodesr.nowNode.flag))
+        while (!deal_arrive(&Cross_Scaner, nodes.nowNode.flag))
         {
             vTaskDelay(2);
             Cross_getline(&Cross_Scaner);
-			if(((nodesr.nowNode.flag&RESTMPUZ) == RESTMPUZ))		//陀螺仪校正
+			if(((nodes.nowNode.flag&RESTMPUZ) == RESTMPUZ))		//陀螺仪校正
 				{
 					if((Cross_Scaner.detail & 0X0180) == 0X0180)		//如果在最中间位置
 					{
-						mpuZreset(get_latest_yaw(), nodesr.nowNode.angle);     	//获取补偿角Z;
+						mpuZreset(get_latest_yaw(), nodes.nowNode.angle);     	//获取补偿角Z;
 					}
 				}
         }

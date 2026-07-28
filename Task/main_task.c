@@ -24,10 +24,10 @@
 
 
 /*===== 独立调试开关 =====*/
-#define MAIN_DEBUG 0 
+#define MAIN_DEBUG 1 
 
-
-uint8_t test_flag = 8;
+													   
+uint8_t test_flag = 3;
 float temp_speed=25;
 #if MAIN_DEBUG
 
@@ -45,7 +45,7 @@ void main_task(void *pvParameters)
 	/*调试模式：跳过传感器初始化，只做基本的地图加载*/
 	IMU_CalibrateZero(&basic_y, &basic_p, &basic_r);
 	vTaskDelay(100);
-	mpuZreset(get_latest_yaw(), nodesr.nowNode.angle); // 用稳定后的实际角度计算补偿
+	mpuZreset(get_latest_yaw(), nodes.nowNode.angle); // 用稳定后的实际角度计算补偿
 	
 	/*等待挡板*/                           
 	while (Infrared_ahead == 0)
@@ -54,7 +54,7 @@ void main_task(void *pvParameters)
 	/*等待移除挡板*/
 	while(Infrared_ahead == 1)
 		vTaskDelay(5);
-	ScanerMode_Switch(Gray);
+	//ScanerMode_Switch(Gray);
 #else
 	/*正常模式：完整初始化流程*/
 	mapInit();
@@ -72,8 +72,9 @@ void main_task(void *pvParameters)
 			
 			//ScanerMode_Switch(RF);
 			Chassis_SetTrackMode(TRACK_NEAR_CENTER);
-			Chassis_DriveDistance_Blocking(is_Line,100,20,0,0);
-			//CarBrake();
+			//Chassis_DriveDistance_Blocking(is_Line,100,20,0,0);
+			Chassis_DriveDistance_Blocking(is_Line, 40, 20, 0, 0);
+			CarBrake();
 			test_flag = 0;
 		}
 		if (test_flag == 2)
@@ -93,7 +94,8 @@ void main_task(void *pvParameters)
 		{
 			//Barrier_Hill();
 			//Sword_Mountain();
-			QQB_1();
+			//QQB_1();
+			Barrier_HighMountain();
 			CarBrake();
 			test_flag = 0;
 		}
@@ -124,7 +126,7 @@ void main_task(void *pvParameters)
 			Chassis_SelfCheck();
 			//vTaskDelay(100);
 		}
-		/*调试模式下不执行 Cross()，避免无传感器跑飞*/
+		/*调试模式下不执行 Navigation()，避免无传感器跑飞*/
 #else
 		/*========== 正常运行模式 ==========*/
 
@@ -144,7 +146,7 @@ void main_task(void *pvParameters)
 //		}
 
 		if(map.routetime == 0)
-			Cross();
+			Navigation();
 #endif
 
 		vTaskDelayUntil(&xLastWakeTime, (5/portTICK_RATE_MS));

@@ -211,7 +211,7 @@ static void handle_turn_mode(void)
 			Turn360Step();  // 执行360度转圈任务
 		}
 		//	平台辅助
-		else if (nodesr.nowNode.function == UpStage || nodesr.nowNode.function == BSoutPole || nodesr.nowNode.function == BHM)
+		else if (nodes.nowNode.function == UpStage || nodes.nowNode.function == BSoutPole || nodes.nowNode.function == BHM)
 		{
 			if (Stage_turn_Angle(angle.AngleT))  // 执行平台转弯
 				gyroT_pid = (struct P_pid_obj){0, 0, 0, 0, 0, 0};  // 清零转弯PID

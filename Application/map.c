@@ -10,7 +10,7 @@ extern TaskHandle_t xHandle_ArriveDetect;
 /******************  记录地图状态和小车状态的全局变量  *************************/
                                             
 struct Map_State map = {0,0};   //point //routine
-NODESR nodesr;   	//节点flag和各个节点信息
+Nodes nodes;   	//当前边的三个点
 			// 分别lastnode nownode nextnode 三个结构体变量,每个结构体存储对应节点数据
 			/* u8 nodenum;     //节点编号
 				 u32  flag;     //节点标志位
@@ -26,32 +26,9 @@ volatile uint8_t cross_event = 0;	//运行时阶段/事件标志
 
 
 
-uint8_t isAllRoute = 1;    /*是否全图,选择路径*/
 //u8 route[100] = {B1, N1, P1, N1, B2, N4, N5, N6, P4, N6, N5, N12, 0XFF};  //调试时的初始路径
-u8 route[100] = {B1, N1,P1, N1,B2,0XFF};  //调试时的初始路径
+u8 route[100] = {B1, N1,P1, N1, B2, N4, N5,0XFF};  //初始路径
 
-/*简单*/
-//uint8_t isAllRoute = 0;
-//u8 route[100] = {N4,B2,N1,P1,0XFF};
-//u8 route[100] = {B3,N2,P2,0XFF};
-
-//uint8_t isAllRoute = 1;
-//u8 route[100] = {B1, N1, P1, N1, B2, N4, N5, N12 ,0XFF};
- 
- 
-/***************任务***************/
-//u8 route[100] = {P7,N20,0XFF};
-//u8 route[100] = {B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,0XFF};//任务二
-/***************假山***************/
-//u8 route[100] = {B6,N20,0XFF};
-
-/***************跷跷板***************/
-//u8 route[100] = {B9,N7,P6,N7,B8,N9,C3,N14,0XFF};
-/***************旋转平台***************/
-// u8 route[100] = {N12,N16,N18,B5,N19,C6,B7,N22,B6,N20,P7,N20,0XFF};
- 
- /**************旋转平台波动板*************/
-// u8 route[100] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,0XFF};
 
 /************************************************************    *地图路径*    **********************************************************************************************************************************************88 */
 /*D2关D3关，去D4*/
@@ -79,8 +56,6 @@ u8 door10route[100] = {N12, N13, P5, N13, N12, N16, N18, B5, N19, C6, B7, N22, C
 u8 door11route[100] = {N5, N4,B3, N2, P2, 0XFF};
 /*D2开*/
 u8 door12route[100] = {N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P8, C9, N22, B6, N20, P7, N20, C4, C8, C7, N14, C3, N9, B9, N7, P6, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, 0XFF};
-
-	
 /*平台5到平台7*/
 u8 rout_57[50] = {N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9, 0XFF};
 /*平台5到平台8*/
@@ -96,51 +71,21 @@ u8 rout_67[50] = {N9,B9,N7,P6,N7,B8,N9,C3,N14,C7,C8,C4,N20,B6,N22,C9,P7,C9, 0XFF
 /*地图初始化*/
 void mapInit()
 {
-	map.routetime = 0;
-	map.point = 0;
-	nodesr.flag = 0;
-	cross_event = 0;
-	// /***************任务***************/
-	
-//	nodesr.lastNode.nodenum = N10;
-//	nodesr.nextNode.nodenum = B9;
-//  nodesr.nowNode = Node[getNextConnectNode(N10, N9)];//跷跷板
-	
-//	nodesr.lastNode.nodenum = C9;
-//	nodesr.nextNode.nodenum = B6; 	
-//	nodesr.nowNode = Node[getNextConnectNode(C9, N22)];//任务二
-	
-	
-	//nodesr.lastNode = Node[getNextConnectNode(N6, P4)];
-//	nodesr.nowNode = Node[getNextConnectNode(N5, N4)];
-	
-	
-//	nodesr.nowNode = Node[getNextConnectNode(C4, N20)];//任务
-	//nodesr.nowNode = Node[getNextConnectNode( B7, N22)];//假山
-//	nodesr.nowNode = Node[getNextConnectNode(N10, N9)];//跷跷板
-//	nodesr.nowNode = Node[getNextConnectNode(P8, C9)];//旋转平台波动板	
-	/***************简单***************/
-	nodesr.nowNode.nodenum = N2;        //起始目标点    		//N2
-	nodesr.nowNode.angle = 0;           //起始角度    	//0
-	nodesr.nowNode.function = NONE;        //起始功能    	//1
-	nodesr.nowNode.speed = SPEED1;
-	nodesr.nowNode.step= 10;            //步长
-	nodesr.nowNode.flag = CLEFT|RIGHT_LINE;
-	nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point++])];
+	map = (struct Map_State){0,0};
+    nodes = (Nodes){0};	
+	cross_event = 0;       //起始点
+    nodes.nowNode = Node[getNextConnectNode(P2, N2)];  //起始目标点
+	nodes.nextNode = Node[getNextConnectNode(nodes.nowNode.nodenum, route[map.point++])];
 }
 
 /*第二轮竞赛初始化*/
 void mapInit1(void)
 {
-	map.point = 0;
-	nodesr.flag = 0;
+    map = (struct Map_State){0,0};
+    nodes = (Nodes){0};	
 	cross_event = 0;
-	nodesr.nowNode.nodenum = N2;                //起始点    		
-	nodesr.nowNode.angle = 0;                      //起始角度    	
-	nodesr.nowNode.function = NONE;                //起始功能    	
-	nodesr.nowNode.speed = SPEED0;                
-	nodesr.nowNode.step= 2;                           
-	nodesr.nowNode.flag = CLEFT|RIGHT_LINE;        
+    nodes.nowNode = Node[getNextConnectNode(P2, N2)];  //起始目标点
+	nodes.nextNode = Node[getNextConnectNode(nodes.nowNode.nodenum, route[map.point++])];  
 }
 	
 /*
@@ -179,13 +124,11 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 	if (last == B9 && now == N7 && next == P6) return 15.0f;
 	if (last == P6 && now == N7 && next == B8) return 18.0f;
 	if (last == C4 && now == N20 && next == P8) return 20.0f;
-    if (last == P8 && now == N20 && next == C4) return 30.0f;
+    if (last == P8 && now == N20 && next == C4) return 25.0f;
 	if (last == N8 && now == N5 && next == N4) return 30.0f;
 	if (last == N8 && now == N3 && next == P3) return 15.0f;
 	if (last == N8 && now == N3 && next == N4) return 20.0f;
-	if (last == N9 && now == N10 && next == N8) return 26.0f;
-	if (last == C3 && now == N9 && next == B9) return 45.0f;
-	if (now == N20 && next == P7) return 30.0f;
+	if (last == B8 && now == N9 && next == C3) return 0.0f;
 	if (last == N10 && now == N9 && next == B9) return 40.0f;
 	if (last == B8 && now == N9 && next == N10) return 25.0f;
 	if (last == N5 && now == N8 && next == N12) return 5.0f;
@@ -196,22 +139,17 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 static float GetForwardDistanceBeforeGyroTurn(u8 last, u8 now, u8 next)
 {
 	if (last == B2 && now == N4 && next == N5)return 7.0f; 
-	if((last == B6 && now == N20 && next == C4) ||
-		(last == C4 && now == N20 && next == B6) ||
-		(last == B2 && now == N1 && next == P1)) return 0.0f;
 	if (last == B3 && now == N2 && next == P2) return 15.0f;
 	if (last == P3 && now == N3 && next == N8) return 5.0f;
-	if (last == P8 && now == C9 && next == N22) return 3.0f;
+
 	if (last == S1 && now == N3 && next == N8) return 8.0f;
 	if (last == N3 && now == N4 && next == B3) return 15.0f;
-	if (last == N5 && now == N12 && next == N13) return 3.0f;
+    if (last == N8 && now == N12 && next == N13) return 10.0f;
 	if (last == N5 && now == N6 && next == S2) return 12.0f;
-	if (last == N8 && now == N12 && next == N13) return 4.0f;
+
 	if (last == N8 && now == N3 && next == P3) return 20.0f;
 	if (last == N8 && now == N3 && next == S1) return 30.0f;
-	if (last == N9 && now == N10 && next == N8) return 4.0f;
-	if (last == N10 && now == N3 && next == S1) return 4.0f;
-	if (last == N15 && now == N10 && next == N8) return 5.0f;
+
 	if (last == C7 && now == C8 && next == C4) return 15.0f;
 	if (last == P1 && now == N1 && next == B2)return 2.0f; 
 	return 0.0f; // 默认不前进，走原逻辑未修改
@@ -220,131 +158,131 @@ static float GetForwardDistanceBeforeGyroTurn(u8 last, u8 now, u8 next)
 /* 获取对应节点的特定直线路径加速判断 */
 static void Check_And_Apply_SpeedUp(void)
 {
-	if ((nodesr.lastNode.nodenum == N4 && nodesr.nowNode.nodenum == N5 && nodesr.nextNode.nodenum == N6) ||
-		(nodesr.lastNode.nodenum == N5 && nodesr.nowNode.nodenum == N6 && nodesr.nextNode.nodenum == P4) ||
-		(nodesr.lastNode.nodenum == N5 && nodesr.nowNode.nodenum == N4 && nodesr.nextNode.nodenum == N3) ||
-		(nodesr.lastNode.nodenum == P3 && nodesr.nowNode.nodenum == N3 && nodesr.nextNode.nodenum == N4))
+	if ((nodes.lastNode.nodenum == N4 && nodes.nowNode.nodenum == N5 && nodes.nextNode.nodenum == N6) ||
+		(nodes.lastNode.nodenum == N5 && nodes.nowNode.nodenum == N6 && nodes.nextNode.nodenum == P4) ||
+		(nodes.lastNode.nodenum == N5 && nodes.nowNode.nodenum == N4 && nodes.nextNode.nodenum == N3) ||
+		(nodes.lastNode.nodenum == P3 && nodes.nowNode.nodenum == N3 && nodes.nextNode.nodenum == N4))
 	{	
-		nodesr.nowNode.speed = SPEED4;
-		Chassis_SetTargetSpeed(nodesr.nowNode.speed);
+		nodes.nowNode.speed = SPEED4;
+		Chassis_SetTargetSpeed(nodes.nowNode.speed);
 	}
 }
 
 /* 无需转弯时的特例直行处理 */
 static void Handle_NoTurn_StraightPath(void)
 {
-	if ((nodesr.nowNode.nodenum == N3 && nodesr.nextNode.nodenum == P3) ||
-		(nodesr.nowNode.nodenum == N4 && nodesr.nextNode.nodenum == N3) ||
-		(nodesr.nowNode.nodenum == N4 && nodesr.nextNode.nodenum == N5))
-	{
-		Chassis_DriveDistance_Blocking(is_Gyro, 20.0f, nodesr.nextNode.speed, getAngleZ(), 0);
-	}
-	else if (nodesr.nowNode.nodenum == N13 && nodesr.nextNode.nodenum == P5) 
-	{
-		Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodesr.nextNode.speed, 0.0f, 0);
-	}
-	else if (nodesr.nowNode.nodenum == N1 && nodesr.nextNode.nodenum == P1)
-	{
-		Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodesr.nextNode.speed, 0.0f, 0);
-	}
-	else if ((nodesr.lastNode.nodenum == P3 && nodesr.nowNode.nodenum == N3 && nodesr.nextNode.nodenum == N4)||
-			(nodesr.lastNode.nodenum == P4 && nodesr.nowNode.nodenum == N6 && nodesr.nextNode.nodenum == N5))
-	{
-		Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodesr.nextNode.speed, 0.0f, 0);
-	}
-	else if ((nodesr.nowNode.nodenum == N13 && nodesr.nextNode.nodenum == N12)||(nodesr.nowNode.nodenum == N12 && nodesr.nextNode.nodenum == N13))
-	{
-		Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodesr.nextNode.speed, 0.0f, 0);
-	}
-	else if ((nodesr.nowNode.nodenum == P5 && nodesr.nextNode.nodenum == N13)||(nodesr.nowNode.nodenum == N13 && nodesr.nextNode.nodenum == P5))
-	{
-		Chassis_DriveDistance_Blocking(is_Line, 25.0f, nodesr.nextNode.speed, 0.0f, 0);
-	}
-	else
-	{
-		Chassis_DriveDistance_Blocking(is_Line, 10.0f, nodesr.nextNode.speed, 0.0f, 0);
-	}
+	// if ((nodes.nowNode.nodenum == N3 && nodes.nextNode.nodenum == P3) ||
+	// 	(nodes.nowNode.nodenum == N4 && nodes.nextNode.nodenum == N3) ||
+	// 	(nodes.nowNode.nodenum == N4 && nodes.nextNode.nodenum == N5))
+	// {
+	// 	Chassis_DriveDistance_Blocking(is_Gyro, 20.0f, nodes.nextNode.speed, getAngleZ(), 0);
+	// }
+	// else if (nodes.nowNode.nodenum == N13 && nodes.nextNode.nodenum == P5) 
+	// {
+	// 	Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodes.nextNode.speed, 0.0f, 0);
+	// }
+	// else if (nodes.nowNode.nodenum == N1 && nodes.nextNode.nodenum == P1)
+	// {
+	// 	Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodes.nextNode.speed, 0.0f, 0);
+	// }
+	// else if ((nodes.lastNode.nodenum == P3 && nodes.nowNode.nodenum == N3 && nodes.nextNode.nodenum == N4)||
+	// 		(nodes.lastNode.nodenum == P4 && nodes.nowNode.nodenum == N6 && nodes.nextNode.nodenum == N5))
+	// {
+	// 	Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodes.nextNode.speed, 0.0f, 0);
+	// }
+	// else if ((nodes.nowNode.nodenum == N13 && nodes.nextNode.nodenum == N12)||(nodes.nowNode.nodenum == N12 && nodes.nextNode.nodenum == N13))
+	// {
+	// 	Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodes.nextNode.speed, 0.0f, 0);
+	// }
+	// else if ((nodes.nowNode.nodenum == P5 && nodes.nextNode.nodenum == N13)||(nodes.nowNode.nodenum == N13 && nodes.nextNode.nodenum == P5))
+	// {
+	// 	Chassis_DriveDistance_Blocking(is_Line, 25.0f, nodes.nextNode.speed, 0.0f, 0);
+	// }
+	// else
+	// {
+	// 	Chassis_DriveDistance_Blocking(is_Line, 10.0f, nodes.nextNode.speed, 0.0f, 0);
+	// }
 }
 
 
 
-	/**-------------------------------------------------Cross函数 - 整个流程的核心---------------------------------------------------------------------------------------------------------------------------
- * 
- * 
+	/**-------------------------------------------------Navigation函数 - 整个流程的核心---------------------------------------------------------------------------------------------------------------------------
+ *
+ *
  * 功能：
- * - 解析路径数组route并执行相应的路径动作
- * - 处理节点的巡线、转弯、速度切换等逻辑
- * - 执行节点的特殊功能（如爬坡、过桥等）
- * - 管理地图状态和支持多轮竞赛
- * 
- * 执行流程：
- * 1. 初始化路径（map.point == 0时）
- * 2. 节点前半段处理（near_end == 0时）
- * 3. 节点后半段处理（near_end == 1时）
- * 4. 路径点切换节点处理
- * 5. 特殊功能处理
+ * - 解析路径序列 route（点编号数组）并按序执行边动作
+ * - 处理每条边的巡线、转弯、速度切换等逻辑
+ * - 执行点的特殊功能（如爬坡、过桥等）
+ * - 管理图状态和支持多轮竞赛
+ *
+ * 执行流程（每条边的处理）：
+ * 1. 边初始化
+ * 2. 边的前半段处理
+ * 3. 边的后半段处理
+ * 4. 到达目标点后的切换处理
+ * 5. 点的特殊功能处理
 
  * 注意：
- * route数组存储的是节点编号，Node数组是结构体数组，取nextnode的值要用到数组下标函数getNextConnectNode
- * 每段路径都指的是两个节点之间的路径
- * nodesr.nowNode是小车这一小段路径的终点，lastNode是起点，nextNode是下一个路径的终点
- * 当小车到达nowNode时，nowNode成为lastnode，nextNode成为nowNode。
- * 前70%路径要进行巡线
- * 超过70%时触发节点终点检查
- * 需要区分nodesr.flag和nodesr.nowNode.flag
- * nodesr.flag记录小车当前状态
- * nodesr.nowNode.flag是事先地图文件写入的标志，用于指导小车行为
+ * route 数组存储的是点的编号，Node 数组是点结构体数组，取邻接点要用下标函数 getNextConnectNode
+ * 每条边都连接两个点
+ * nodes.nowNode 是当前边的终点（目标点），lastNode 是起点，nextNode 是下一条边的终点
+ * 到达 nowNode 时：小车滑动，nowNode → lastNode，nextNode → nowNode
+ * 边的前 70% 进行巡线
+ * 超过 70% 时触发终点检查
+ * 需要区分 nodes.nowNode.flag 和 nodes.nowNode.function
+ * nodes.nowNode.flag 是地图文件写入的边属性标志（巡线边、转弯方向等）
+ * nodes.nowNode.function 是点特殊功能（爬坡、过桥等）
 
  * 关键状态变量：
- * - map.point：路径数组的当前索引
- * - map.routetime：地图运行次数
- * - nodesr：包含当前、上一个、下一个节点的信息
+ * - map.point：route 数组的当前索引（当前目标点在序列中的位置）
+ * - map.routetime：图遍历轮次
+ * - nodes：当前边的三个节点（lastNode/nowNode/nextNode）
  */
-enum {                     // nav_step 取值
+enum {                     // nav_step 取值，NAV 是 Navigation（导航）的缩写。
     NAV_STEP_INIT,         // 0  段初始化（清里程、设模式）
     NAV_STEP_MID_SWITCH,   // 1  过半切换巡线模式
     NAV_STEP_PREP_ARRIVE   // 2  70% 降速准备到达
 };
 
-/* ========== Cross() 子函数 ========== */
+/* ========== Navigation() 子函数 ========== */
 
-static void Cross_SegmentInit(void)
+static void Nav_SegmentInit(void)
 {
     Chassis_ClearMileage();
     Chassis_SetCatchSensorNum(0);
     Chassis_SetEdgeIgnore(0);
 
-    if ((nodesr.nowNode.flag & LEFT_LINE) == LEFT_LINE)
+    if ((nodes.nowNode.flag & LEFT_LINE) == LEFT_LINE)
         Chassis_SetTrackMode(TRACK_LEFT_EDGE);
-    else if ((nodesr.nowNode.flag & RIGHT_LINE) == RIGHT_LINE)
+    else if ((nodes.nowNode.flag & RIGHT_LINE) == RIGHT_LINE)
         Chassis_SetTrackMode(TRACK_RIGHT_EDGE);
-    else if ((nodesr.nowNode.flag & NEAR_CENTER) == NEAR_CENTER)
+    else if ((nodes.nowNode.flag & NEAR_CENTER) == NEAR_CENTER)
         Chassis_SetTrackMode(TRACK_NEAR_CENTER);
     else
         Chassis_SetTrackMode(TRACK_ALL);
 
     Chassis_SetMode(is_Line);
-    Chassis_SetTargetSpeed(nodesr.nowNode.speed);
+    Chassis_SetTargetSpeed(nodes.nowNode.speed);
     Check_And_Apply_SpeedUp();
     Chassis_EnableAntiSnake();//
     Chassis_EnableWheelieProtection();//
 }
 
-static void Cross_MidSwitch(void)
+static void Nav_MidSwitch(void)
 {
-    if ((nodesr.nowNode.flag & Temp_L) == Temp_L)
+    if ((nodes.nowNode.flag & Temp_L) == Temp_L)
         Chassis_SetTrackMode(TRACK_LEFT_EDGE);
-    else if ((nodesr.nowNode.flag & Temp_R) == Temp_R)
+    else if ((nodes.nowNode.flag & Temp_R) == Temp_R)
         Chassis_SetTrackMode(TRACK_RIGHT_EDGE);
-    else if ((nodesr.nowNode.flag & TEMP_NEAR_CENTER) == TEMP_NEAR_CENTER)
+    else if ((nodes.nowNode.flag & TEMP_NEAR_CENTER) == TEMP_NEAR_CENTER)
         Chassis_SetTrackMode(TRACK_NEAR_CENTER);
 }
 
-static void Cross_PrepareArrival(void)
+static void Nav_PrepareArrival(void)
 {
-    if ((fabsf(need2turn(getAngleZ(), nodesr.nextNode.angle)) < 10.0f) ||
-        (fabsf(need2turn(nodesr.nowNode.angle, nodesr.nextNode.angle)) < 10.0f) ||
-        (nodesr.nowNode.flag & NOTURN) == NOTURN)
+    if ((fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) < 10.0f) ||
+        (fabsf(need2turn(nodes.nowNode.angle, nodes.nextNode.angle)) < 10.0f) ||
+        (nodes.nowNode.flag & NOTURN) == NOTURN)
     {
         /* 角度差小，保持原速，不操作 */
     }
@@ -353,14 +291,12 @@ static void Cross_PrepareArrival(void)
         Chassis_SetTargetSpeed(Gyro_Speed);
     }
 
-    if (nodesr.lastNode.nodenum == C7 && nodesr.nowNode.nodenum == N14 && nodesr.nextNode.nodenum == C3)
-        Chassis_SetTargetSpeed(SPEED1);
 }
 
-static void Cross_NearEnd(void)
+static void Nav_NearEnd(void)
 {
-    Chassis_DisableAntiSnake();
-    map_function(nodesr.nowNode.function);
+    //Chassis_DisableAntiSnake();
+    map_function(nodes.nowNode.function);
 
     /* 尚未到达且无障碍结果时，通知 ArriveDetect_task 检测到达 */
     if ((cross_event & CROSS_EVENT_ARRIVED) != CROSS_EVENT_ARRIVED &&
@@ -368,81 +304,77 @@ static void Cross_NearEnd(void)
     {
         xTaskNotifyGive(xHandle_ArriveDetect);
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
-        if (nodesr.nowNode.nodenum == N2 && nodesr.nextNode.nodenum == P2)
-            Chassis_SetTargetSpeed(nodesr.nowNode.speed * 0.9f);
     }
 }
 
-static void Cross_TurnAndAdvance(void)
+static void Nav_TurnAndAdvance(void)
 {
     cross_event &= ~CROSS_EVENT_ARRIVED;
     Chassis_DisableStallProtection();
     if (route[map.point - 1] != 0xFF)
     {
         /* 无需转弯，直接直行通过 */
-        if ((fabsf(need2turn(getAngleZ(), nodesr.nextNode.angle)) < 10.0f) ||
-            (nodesr.nowNode.flag & NOTURN) == NOTURN ||
-            nodesr.nowNode.function == UpStage ||
-            nodesr.nowNode.function == UpStageP2)
+        if ((fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) < 10.0f) ||
+            (nodes.nowNode.flag & NOTURN) == NOTURN ||
+            nodes.nowNode.function == UpStage ||
+            nodes.nowNode.function == UpStageP2)
         {
             Handle_NoTurn_StraightPath();
         }
         else
         {
             /* 转弯分发 */
-            if (nodesr.nowNode.flag & L_follow)
+            if (nodes.nowNode.flag & L_follow)
             {
-                Chassis_Turn_By_LeftLine_Blocking(nodesr.nextNode.angle, nodesr.nowNode.angle, 0.75f * nodesr.nowNode.speed);
+                Chassis_Turn_By_LeftLine_Blocking(nodes.nextNode.angle, nodes.nowNode.angle, 0.75f * nodes.nowNode.speed);
             }
-            else if (nodesr.nowNode.flag & R_follow)
+            else if (nodes.nowNode.flag & R_follow)
             {
-                Chassis_Turn_By_RightLine_Blocking(nodesr.nextNode.angle, nodesr.nowNode.angle, 0.75f * nodesr.nowNode.speed);
+                Chassis_Turn_By_RightLine_Blocking(nodes.nextNode.angle, nodes.nowNode.angle, 0.75f * nodes.nowNode.speed);
             }
-            else if ((nodesr.nowNode.flag & STOPTURN && fabsf(need2turn(getAngleZ(), nodesr.nextNode.angle)) > 30.0f)
-            || (fabsf(need2turn(nodesr.nowNode.angle, nodesr.nextNode.angle)) > 90.0f)
-            || nodesr.nextNode.function == SM )
+            else if ((nodes.nowNode.flag & STOPTURN && fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 25.0f)
+            || (fabsf(need2turn(nodes.nowNode.angle, nodes.nextNode.angle)) > 90.0f)
+            || nodes.nextNode.function == SM  && fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 25.0f)
                 
             {
-                float forwardDist = GetForwardDistanceBeforeTurn(nodesr.lastNode.nodenum, nodesr.nowNode.nodenum, nodesr.nextNode.nodenum);
+                float forwardDist = GetForwardDistanceBeforeTurn(nodes.lastNode.nodenum, nodes.nowNode.nodenum, nodes.nextNode.nodenum);
                 Chassis_DriveDistance_Blocking(is_Gyro, forwardDist, Stop_T_Speed, getAngleZ(), 0);
                 CarBrake();
-                Chassis_Turn_By_StopGyro_Blocking(nodesr.nextNode.angle, getAngleZ(), 30.0f);
+                Chassis_Turn_By_StopGyro_Blocking(nodes.nextNode.angle, getAngleZ(), 30.0f);
             }
             else
             {
-                float forwardDist = GetForwardDistanceBeforeGyroTurn(nodesr.lastNode.nodenum, nodesr.nowNode.nodenum, nodesr.nextNode.nodenum);
+                float forwardDist = GetForwardDistanceBeforeGyroTurn(nodes.lastNode.nodenum, nodes.nowNode.nodenum, nodes.nextNode.nodenum);
                 Chassis_DriveDistance_Blocking(is_Gyro, forwardDist, Gyro_Speed, getAngleZ(), 0);
-                Chassis_Turn_By_Gyro_Blocking(nodesr.nextNode.angle, getAngleZ(), 50.0f);
+                Chassis_Turn_By_Gyro_Blocking(nodes.nextNode.angle, getAngleZ(), 50.0f);
             }
         }
-        Chassis_DisableStallProtection();
+
         /* 节点切换 */
-        nodesr.lastNode = nodesr.nowNode;
-        nodesr.nowNode = nodesr.nextNode;
-        nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point++])];
+        nodes.lastNode = nodes.nowNode;
+        nodes.nowNode = nodes.nextNode;
+        nodes.nextNode = Node[getNextConnectNode(nodes.nowNode.nodenum, route[map.point++])];
         cross_event &= ~CROSS_EVENT_ARRIVED;
     }
     else if (route[map.point - 1] == 0xFF)
     {
         CarBrake();
-        vTaskDelay(2);
         map.routetime += 1;
     }
 }
 
-static void Cross_PostProcess(void)
+static void Nav_PostProcess(void)
 {
     if (cross_event & CROSS_EVENT_DOOR)
     {
         if (route[map.point] != 0xFF)
-            nodesr.nextNode = Node[getNextConnectNode(nodesr.nowNode.nodenum, route[map.point])];
+            nodes.nextNode = Node[getNextConnectNode(nodes.nowNode.nodenum, route[map.point])];
         map.point++;
         cross_event &= ~CROSS_EVENT_DOOR;
     }
 }
 
-void Cross(void)
+void Navigation(void)
 {
     static uint8_t nav_step = 0;
     static uint8_t near_end = 0;
@@ -453,37 +385,37 @@ void Cross(void)
         if (nav_step == NAV_STEP_INIT)
         {
 			//打印当前节点
-			printf("Current Node: %d\n", nodesr.nowNode.nodenum);
-            Cross_SegmentInit();
+			printf("Current Node: %d\n", nodes.nowNode.nodenum);
+            Nav_SegmentInit();
             nav_step = NAV_STEP_MID_SWITCH;
         }
 
-        if (fabsf(Chassis_GetMileage()) >= 0.5f * nodesr.nowNode.step && nav_step == NAV_STEP_MID_SWITCH)
+        if (fabsf(Chassis_GetMileage()) >= 0.5f * nodes.nowNode.step && nav_step == NAV_STEP_MID_SWITCH)
         {
-            Cross_MidSwitch();
+            Nav_MidSwitch();
             nav_step = NAV_STEP_PREP_ARRIVE;
         }
 
-        if (fabsf(Chassis_GetMileage()) >= 0.7f * nodesr.nowNode.step && nav_step == NAV_STEP_PREP_ARRIVE)
+        if (fabsf(Chassis_GetMileage()) >= 0.7f * nodes.nowNode.step && nav_step == NAV_STEP_PREP_ARRIVE)
         {
-            Cross_PrepareArrival();
+            Nav_PrepareArrival();
             near_end = 1;
         }
     }
     /* ---- 后半段：障碍 + 到达检测 ---- */
     else if (near_end == 1)
     {
-        Cross_NearEnd();
+        Nav_NearEnd();
         near_end = 0;
         nav_step = NAV_STEP_INIT;
     }
 
     /* ---- 到达节点：转弯 + 节点推进 ---- */
     if ((cross_event & CROSS_EVENT_ARRIVED) == CROSS_EVENT_ARRIVED)
-        Cross_TurnAndAdvance();
+        Nav_TurnAndAdvance();
 
     /* ---- 后处理：门结果（红灯/绿灯）---- */
-    Cross_PostProcess();
+    Nav_PostProcess();
 }
 
 /*功能选择*/
@@ -497,9 +429,9 @@ void map_function(u8 fun)
 		case Bridge   	: Barrier_Bridge();						break;			//过桥
 		case Hill	    : Barrier_Hill();						break;			//山地
 		case SM         : Sword_Mountain();						break;			//假山
-		case View	    : view();		    					break;			//观望 旋转
-		case View1      : view1();		   						break;			//观望 直行
-		case BACK       : back();		   			   			break; 
+		//case View	    : view();		    					break;			//观望 旋转
+		//case View1      : view1();		   						break;			//观望 直行
+		//case BACK       : back();		   			   			break; 
 		case BSoutPole	: South_Pole();	          				break;			//南极
 		case QQB	    : QQB_1();	          					break;			//跷跷板
 		case BLBS       : Barrier_WavedPlate(80);	    		break;			//短波动板 速度：调试 80//85

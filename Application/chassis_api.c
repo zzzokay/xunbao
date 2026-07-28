@@ -99,7 +99,7 @@ void Chassis_Init(void)
     MOTOR_PWM_MAX = 5000;
     
 	ScanerMode_Switch(RF);
-    Chassis_EnableStallProtection(); // 激活堵转保护标志
+    //Chassis_EnableStallProtection(); // 激活堵转保护标志
     Chassis_EnableLineLostProtection();// 激活丢线保护标志
 	Chassis_EnableRollProtection(); // 激活翻滚保护标志
     motor_init();
@@ -706,7 +706,7 @@ void Chassis_Periodic_Update_5ms(void)
         {
             if(chassis.anti_snake_err_count==1)send_play_specified_command(33);
             motor_all.Cspeed = 15; // 直接减半速度，增强稳定
-            Chassis_OverrideLinePid(15, 0, 90, motor_all.Cspeed); // 直接覆盖当前速度限制，确保稳定性
+            Chassis_OverrideLinePid(18, 0, 100, motor_all.Cspeed); // 直接覆盖当前速度限制，确保稳定性
 
         }
 

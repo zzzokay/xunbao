@@ -153,25 +153,19 @@ extern NODE Node[126];
 //flag 0位：1编码器清零请求，0清零完毕
 //flag 1位：启动路口判断
 //flag 2位：是否到达路口
-//flag 3位：arrive里temp清零
-//flag 4位：Z轴置零
-//flag 5位：路线处理复位 打到门
-//flag 6位：没有门
-//flag 7位：红灯
-typedef struct _nodesr{
-	u8 flag;
-	NODE lastNode;		//段起点
-	NODE nowNode;		//段终点 - 要到达的节点
-	NODE nextNode;		//段的后一结点
-}NODESR;
+typedef struct _nodes{
+	NODE lastNode;		//边起点
+	NODE nowNode;		//边终点 - 要到达的点
+	NODE nextNode;		//下一条边的终点
+}Nodes;
 
 extern uint8_t Change_Route;
-extern NODESR nodesr;
+extern Nodes nodes;
 
-/* 运行时阶段/事件标志（与 nodesr.flag 的节点配置标志分离） */
+/* 运行时阶段/事件标志 */
 extern volatile uint8_t cross_event;
-#define CROSS_EVENT_ARRIVED     (1<<0)  // 已到达节点（原 nodesr.flag bit2）
-#define CROSS_EVENT_DOOR        (1<<1)  // 门结果就绪（红/绿灯统一，原 RED/GREEN）
+#define CROSS_EVENT_ARRIVED     (1<<0)  // 已到达节点
+#define CROSS_EVENT_DOOR        (1<<1)  // 门结果就绪（红/绿灯统一）
 
 struct Map_State {
 	u8 point;
@@ -184,7 +178,7 @@ extern uint8_t mul2sing, sing2mul;
 u8 getNextConnectNode(u8 nownode,u8 nextnode);
 void mapInit(void);
 void mapInit1(void);
-void Cross(void);
+void Navigation(void);
 void map_function(u8 fun);
 void select_speed(void);
 

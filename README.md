@@ -1,4 +1,6 @@
 # xunbao
+2026-07-28 — 清理无用变量 isAllRoute（barrier.c 中 extern 但未定义），条件简化为 map.routetime!=0
+
 4.14（张东骏）
 加入command.c作为调试串口缓存区
 发现：每次mx生成完都要注释掉main的定时器中断回调，和stm32f7xx.....里的USART3_IRQHandler(void)
