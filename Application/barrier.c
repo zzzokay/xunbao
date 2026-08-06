@@ -70,8 +70,8 @@ uint8_t flag_line_clue    = 0;
 uint8_t flag_clue_stage_A = 5;
 uint8_t flag_clue_stage_B = 8;
 // OCR 线索：P5/P6读clue_A，P7/P8读clue_B，treasure=clue_A+clue_B → 宝物平台编号
-uint8_t flag_clue_A       = 2;
-uint8_t flag_clue_B       = 3;
+uint8_t flag_clue_A       = 1;
+uint8_t flag_clue_B       = 2;
 #else
 uint8_t flag_line_clue    = 0;
 uint8_t flag_clue_stage_A = 0;
@@ -784,7 +784,7 @@ void Barrier_HighMountain(void)
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_high, getAngleZ(),
 				Begin_up, UpDownStage_Speed_high, up_pitch, 20, up_pitch+30, 0.07f, 10.0f, 20.0f);
 			//用循迹走
-			Chassis_DriveDistance_Blocking(is_Line, 40, 20, 0, 0);
+			Chassis_DriveDistance_Blocking(is_Line, 45, 20, 0, 0);
 			//检测上坡结束
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
 				Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.07f, 10.0f, 0.0f);
@@ -802,7 +802,7 @@ void Barrier_HighMountain(void)
 		case HM_ASCEND_2:
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_high, getAngleZ(),
 				Begin_up, UpDownStage_Speed_high, up_pitch, 20, up_pitch+30, 0.07f, 10.0f, 20.0f);
-			Chassis_DriveDistance_Blocking(is_Line, 40, 20, 0, 0);
+			Chassis_DriveDistance_Blocking(is_Line, 45, 20, 0, 0);
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
 				Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.07f, 10.0f, 0.0f);
 			state = HM_IMPACT;
@@ -837,7 +837,7 @@ void Barrier_HighMountain(void)
 
 		case HM_DESCEND_1:
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
-				Begin_down, UpDownStage_Speed_low, down_pitch, 20, down_pitch-30, 0.07f, 10.0f, 20.0f);
+				Begin_down, UpDownStage_Speed_low, down_pitch, 20, down_pitch-30, 0.07f, 10.0f, 30.0f);
 			Chassis_DriveDistance_Blocking(is_Line, 40, 20, 0, 0);
 			RampCtrl_Blocking(RAMP_DESCEND, 20, origin_angle,
 				Begin_down, 20, down_pitch, 20, After_down, 0.07f, 10.0f, 0.0f);
@@ -845,7 +845,7 @@ void Barrier_HighMountain(void)
 			break;
 
 		case HM_DESCEND_FLAT:
-			Chassis_MotorControl(is_Gyro, UpDownStage_Speed_low, UpDownStage_Speed_low, getAngleZ());
+			Chassis_MotorControl(is_Gyro, UpDownStage_Speed_low, UpDownStage_Speed_low, origin_angle);
 			if (imu.pitch <= Begin_down)
 			{
 				state = HM_DESCEND_2;
@@ -964,7 +964,7 @@ void Barrier_WavedPlate(float lenght)
 		WP_DONE        // 清理收尾
 	} state = WP_APPROACH;
 
-	Chassis_MotorControl(is_Line, Low_Speed, Low_Speed, 0);
+	Chassis_MotorControl(is_Line, 15, 15, 0);
 	Chassis_ClearMileage();
 
 	while (state != WP_DONE)
@@ -1531,7 +1531,7 @@ void door()
 			door_set_pass_node(N12, N5, 140, SPEED4);
 			nodes.nowNode = Node[getNextConnectNode(N5, N12)];
 			nodes.nowNode.step = 60;
-			nodes.nowNode.speed = SPEED3;
+			nodes.nowNode.speed = SPEED4;
 			update_route_at_door_for_clue();
 			cross_event |= CROSS_EVENT_DOOR;
 			state = DOOR_D2;
@@ -1543,7 +1543,7 @@ void door()
 			nodes.nowNode = Node[getNextConnectNode(N5, N12)];
 			nodes.nowNode.flag = DLEFT | DRIGHT | CRIGHT | LEFT_LINE;
 			nodes.nowNode.step = 60;
-			nodes.nowNode.speed = SPEED3;
+			nodes.nowNode.speed = SPEED4;
 			update_route_at_door_for_clue();
 			cross_event |= CROSS_EVENT_DOOR;
 			state = DOOR_D5_BACK;
@@ -1564,8 +1564,8 @@ void door()
 		{
 			door_set_pass_node(N5, N8, 120, SPEED3);
 			nodes.nowNode = Node[getNextConnectNode(N5, N8)];
-			nodes.nowNode.step = 40;
-			nodes.nowNode.speed = SPEED3;
+			nodes.nowNode.step = 60;
+			nodes.nowNode.speed = SPEED4;
 			update_route_at_door_for_clue();
 
 			if (color_flag[1] == Green)
@@ -1598,7 +1598,7 @@ void door()
 		door_set_pass_node(N3, N8, 120, SPEED3);
 		nodes.nowNode = Node[getNextConnectNode(N3, N8)];
 		nodes.nowNode.step = 60;
-		nodes.nowNode.speed = SPEED2;
+		nodes.nowNode.speed = SPEED4;
 		update_route_at_door_for_clue();
 		cross_event |= CROSS_EVENT_DOOR;
 		state = DOOR_D2;
@@ -1611,8 +1611,8 @@ void door()
 			send_play_specified_command(8);
 			door_set_pass_node(N10, N3, 140, SPEED3);
 			nodes.nowNode = Node[getNextConnectNode(N10, N3)];
-			nodes.nowNode.step = 65;
-			nodes.nowNode.speed = SPEED2;
+			nodes.nowNode.step = 30;
+			nodes.nowNode.speed = SPEED3;
 			cross_event |= CROSS_EVENT_DOOR;
 			update_route_by_door_1();
 			state = DOOR_D2;
@@ -1648,7 +1648,7 @@ void door()
 			door_set_pass_node(N3, N8, 120, SPEED3);
 			door_set_pass_node(N8, N3, 120, SPEED3);
 			nodes.nowNode = Node[getNextConnectNode(N8, N3)];
-			nodes.nowNode.step = 10;
+			nodes.nowNode.step = 30;
 			nodes.nowNode.speed = SPEED3;
 			nodes.nowNode.function = NONE;
 			cross_event |= CROSS_EVENT_DOOR;

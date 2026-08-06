@@ -566,7 +566,7 @@ void Chassis_Turn_By_StopGyro_Blocking(float target_angle, float current_angle, 
 
     Chassis_SetMode(is_Turn);//进入转弯模式
 
-    Chassis_TurnToAngle_Blocking(target_angle, current_angle, 0.04f);
+    Chassis_TurnToAngle_Blocking(target_angle, current_angle, 0.01f);
 
     Chassis_RestoreTurnPid();
 }

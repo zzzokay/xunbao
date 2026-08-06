@@ -334,7 +334,8 @@ static void Nav_TurnAndAdvance(void)
             }
             else if ((nodes.nowNode.flag & STOPTURN && fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 25.0f)
             || (fabsf(need2turn(nodes.nowNode.angle, nodes.nextNode.angle)) > 90.0f)
-            || nodes.nextNode.function == SM  && fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 25.0f)
+            || nodes.nextNode.function == SM  && fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 25.0f
+            || ((nodes.nowNode.function == UpStage || nodes.nowNode.function == UpStageP2)&& fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 15.0f))
                 
             {
                 float forwardDist = GetForwardDistanceBeforeTurn(nodes.lastNode.nodenum, nodes.nowNode.nodenum, nodes.nextNode.nodenum);
@@ -434,8 +435,8 @@ void map_function(u8 fun)
 		//case BACK       : back();		   			   			break; 
 		case BSoutPole	: South_Pole();	          				break;			//南极
 		case QQB	    : QQB_1();	          					break;			//跷跷板
-		case BLBS       : Barrier_WavedPlate(80);	    		break;			//短波动板 速度：调试 80//85
-		case BLBL	    : Barrier_WavedPlate(160);	  			break;			//长波动板 速度：调试	//180
+		case BLBS       : Barrier_WavedPlate(45);	    		break;			//短波动板 速度：调试 80//85
+		case BLBL	    : Barrier_WavedPlate(90);	  			break;			//长波动板 速度：调试	//180
 		case DOOR	    : door();		                 	  	break;			//门
 		case BHM        : Barrier_HighMountain();				break;    		//高山
 		case UpStageP2	: Stage_P2();	                		break;

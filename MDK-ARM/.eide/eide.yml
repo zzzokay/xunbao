@@ -153,6 +153,7 @@ virtualFolder:
         - path: ../Module/Rudder_control.h
         - path: ../Module/Rec_usart.c
         - path: ../Module/Rec_usart.h
+        - path: ../Module/usart2_compat.c
       folders: []
     - name: ::CMSIS
       files: []
@@ -188,7 +189,6 @@ targets:
     excludeList:
       - <virtual_root>/Application/User/command.c
       - <virtual_root>/Motor/speed_ctrl.c
-      - <virtual_root>/Task/ArriveDetect_task.c
     settings: {}
     toolchain: AC5
     toolchainConfigMap:
@@ -202,11 +202,11 @@ targets:
           asm-compiler: {}
           beforeBuildTasks: []
           c/cpp-compiler:
-            CXX_FLAGS: --diag_suppress=1 --diag_suppress=1295
-            C_FLAGS: --diag_suppress=1 --diag_suppress=1295
+            CXX_FLAGS: --diag_suppress=1 --diag_suppress=1295 -Ospace
+            C_FLAGS: --diag_suppress=1 --diag_suppress=1295 -Ospace
             c99-mode: true
             one-elf-section-per-function: true
-            optimization: level-0
+            optimization: level-3
             warnings: all-warnings
           global:
             output-debug-info: enable
@@ -300,6 +300,11 @@ targets:
         otherCmds: ""
         proType: 1
         speed: 8000
+      OpenOCD:
+        baseAddr: "0x08000000"
+        bin: ""
+        interface: cmsis-dap
+        target: stm32f7x
       STLink:
         address: "0x8000000"
         bin: ""
@@ -310,4 +315,11 @@ targets:
         resetMode: default
         runAfterProgram: true
         speed: 4000
-    uploader: STLink
+      pyOCD:
+        baseAddr: "0x08000000"
+        bin: ""
+        config: .eide/test1.pyocd.yaml
+        otherCmds: ""
+        speed: 4M
+        targetName: cortex_m
+    uploader: OpenOCD
