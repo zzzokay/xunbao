@@ -102,9 +102,24 @@ static uint8_t Stage_HasTreasure(void)
 
 static void Stage_CollectTreasure(void)
 {
+	//找到宝物举起双臂
 	CarBrake();
+	Robot_Work(BODY, UP); 	//人站起来
+	vTaskDelay(800);
+	Robot_Work(LARM, UP);		// 左手举起
+	vTaskDelay(100);
+	Robot_Work(RARM, UP);		//右手举起
+	vTaskDelay(100);
+
 	send_play_specified_command(9);
 	Chassis_Turn360_Blocking();
+
+	vTaskDelay(500);
+	Robot_Work(LARM, DOWN);		//左手放下
+	vTaskDelay(100);
+	Robot_Work(RARM, DOWN);		//右手放下
+	vTaskDelay(100);
+
 }
 
 /**
@@ -250,6 +265,12 @@ static void Stage_ScanAndRead(void)
 	default: break;
 	}
 	Arrived_Stage();
+	Arrived_Stage();
+	//vTaskDelay(500);
+
+	// 宝物线索：由标志位计算
+	if (treasure == 0)
+		treasure = flag_clue_A + flag_clue_B;
 
 	// P1 路线更新
 	if (nodes.nowNode.nodenum == P1)
@@ -310,17 +331,32 @@ void Stage(void)
 			break;
 
 		case STAGE_SCAN:
-			// P1 路线更新：根据 flag_line_clue 标志位决定去 P3/P4 或跳过
-			//机器人举起左右臂
-			//播报
+
 			Stage_ScanAndRead();
+
+			// P1 路线更新：根据 flag_line_clue 标志位决定去 P3/P4 或跳过
+			// if (nodes.nowNode.nodenum == P1 && treasure == 0)
+			// 	update_route_at_P1();
+			// if (nodes.nowNode.nodenum == P1 && get_cude == 0)//接入摄像头后判断get_cude
+			if (nodes.nowNode.nodenum == P1 && treasure == 0)
+			{
+				// 先把摄像头转到二维码方向
+				Robot_Work(HEAD, HEAD_MID);
+				vTaskDelay(300);
+
+				open_QR_mode();
+				WaitFor_QR();
+
+				// 二维码读取完成后，根据二维码更新路线
+				update_route_at_P1();
+			}
+
+			if(Stage_HasTreasure())
+				Stage_CollectTreasure();
+
 			// 转身180
 			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ(), 20.0f);
-			
-
-			//宝藏动作
-			if(Stage_HasTreasure())
-				Stage_CollectTreasure();		
+			Chassis_EnableStallProtection();
 			state = STAGE_TREASURE;
 			break;
 
@@ -379,6 +415,18 @@ void Stage_Home(void)
 			Chassis_DriveDistance_Blocking(is_Gyro, 15, GoStage_Speed, getAngleZ(), 0);
 			CarBrake();
 			vTaskDelay(200);
+	
+	//回家恢复原形
+			Robot_Work(LARM, DOWN);		//左手放下
+			vTaskDelay(100);
+			Robot_Work(RARM, DOWN);		//右手放下
+			vTaskDelay(100);
+			Robot_Work(BODY, DOWN);		//人躺下
+			vTaskDelay(100);
+			Robot_Work(HEAD,HEAD_MID);
+			vTaskDelay(100);
+			Robot_Work(HEAD,UP);
+
 			state = P2_TURN;
 			break;
 
@@ -1440,15 +1488,21 @@ void QQB_1(void)
 /*读门灯通行状态（0=超时/未设置, 1=绿=能过, 2=蓝=单相通过, 3=黑=不能过）*/
 static uint8_t Door_ReadPass(uint8_t door_state)
 {
-	static const uint8_t state_to_idx[] = {0, 1, 2, 3, 2}; // D2→0, D3→1, D4→2, D5→3, D4_AGAIN→2
+	uint32_t timeout = 0;
+    uint8_t color = 0;
+
 #if DEBUG
-	return debug_door_pass[state_to_idx[door_state]];
+	static const uint8_t state_to_idx[] = {0, 1, 2, 3, 2}; // D2→0, D3→1, D4→2, D5→3, D4_AGAIN→2
+	return debug_color_flag[state_to_idx[door_state]];
 #else
 	/* TODO: 读取真实左右颜色传感器
 	 *   左传感器 → UART4_RX (PC11) 读取颜色值
-	 *   右传感器 → UART5_RX (PD2) 读取颜色值
-	 *   返回值：1=CAN_PASS, 2=ONE_WAY_PASS, 3=NO_PASS, 0=未读到
+	 *   返回值：1=Green, 2=Yellow, 3=Red, 0=未读到
 	 */
+
+	Robot_Work(CAMERA, HEAD_LEFT);
+
+
 	return 0;
 #endif
 }
@@ -1485,6 +1539,8 @@ void door()
 	static enum DoorState state = DOOR_D2;
 
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
+
+
 	while (Scaner.ledNum < 8)
 		vTaskDelay(2);
 
@@ -2299,7 +2355,7 @@ void get_newroute(void)
 		CarBrake_Stop();
 }
 
-/*K210读数字*/
+/*maixcam读数字*/
 uint8_t WaitFor_OCR(void)
 {
 	static uint8_t No2Tra = 0;
@@ -2461,12 +2517,12 @@ void zhunbei(void)
 	Robot_Work(BODY, UP); 	//人站起来
 	vTaskDelay(1000);
 	Robot_Work(PIG, HEAD_LEFT); //转头
-	vTaskDelay(500);		
+	vTaskDelay(500);
 	Robot_Work(PIG, HEAD_RIGHT); 	
 	vTaskDelay(500);
-//	/*蜂鸣器提示初始化完成 - 调试用*/
-//	buzzer_on();
-//	
+	/*蜂鸣器提示初始化完成 - 调试用*/
+	buzzer_on();
+	
 //	// i = HAL_GPIO_ReadPin(GPIOC,GPIO_PIN_13);
 //	vTaskDelay(100);
 //	buzzer_off();
