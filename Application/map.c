@@ -18,7 +18,9 @@ Nodes nodes;   	//当前边的三个点
 				 u16	step;       //步长
 				 float speed;   //运行速度
 				 u8 function;    //节点功能 */
-volatile uint8_t cross_event = 0;	//运行时阶段/事件标志
+
+
+volatile uint8_t cross_event = 0;	//运行时阶段/事件标志，全局变量，供节点检查和导航之间交流
 			   
 				
 
@@ -78,16 +80,7 @@ void mapInit()
 	nodes.nextNode = Node[getNextConnectNode(nodes.nowNode.nodenum, route[map.point++])];
 }
 
-/*第二轮竞赛初始化*/
-void mapInit1(void)
-{
-    map = (struct Map_State){0,0};
-    nodes = (Nodes){0};	
-	cross_event = 0;
-    nodes.nowNode = Node[getNextConnectNode(P2, N2)];  //起始目标点
-	nodes.nextNode = Node[getNextConnectNode(nodes.nowNode.nodenum, route[map.point++])];  
-}
-	
+
 /*
  * 获取从当前节点到目标节点的连接关系在Node数组中的下标
  * 
@@ -122,13 +115,14 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 	if (last == C9 && now == N22 && next == B6) return 20.0f;
 	if (last == B3 && now == N2 && next == P2) return 20.0f;
 	if (last == B9 && now == N7 && next == P6) return 15.0f;
-	if (last == P6 && now == N7 && next == B8) return 18.0f;
+	if (last == P6 && now == N7 && next == B8) return 10.0f;
 	if (last == C4 && now == N20 && next == P8) return 20.0f;
     if (last == P8 && now == N20 && next == C4) return 25.0f;
 	if (last == N8 && now == N5 && next == N4) return 30.0f;
 	if (last == N8 && now == N3 && next == P3) return 15.0f;
 	if (last == N8 && now == N3 && next == N4) return 20.0f;
 	if (last == B8 && now == N9 && next == C3) return 0.0f;
+    if (last == N14 && now == C3 && next == N9) return 0.0f;
 	if (last == N10 && now == N9 && next == B9) return 40.0f;
 	if (last == B8 && now == N9 && next == N10) return 25.0f;
 	if (last == N5 && now == N8 && next == N12) return 5.0f;
@@ -142,16 +136,12 @@ static float GetForwardDistanceBeforeGyroTurn(u8 last, u8 now, u8 next)
 	if (last == B3 && now == N2 && next == P2) return 15.0f;
 	if (last == P3 && now == N3 && next == N8) return 5.0f;
 
-	if (last == S1 && now == N3 && next == N8) return 8.0f;
-	if (last == N3 && now == N4 && next == B3) return 15.0f;
-    if (last == N8 && now == N12 && next == N13) return 10.0f;
-	if (last == N5 && now == N6 && next == S2) return 12.0f;
+	if (last == N3 && now == N4 && next == B3) return 10.0f;
+    if (last == N8 && now == N12 && next == N13) return 0.0f;
 
 	if (last == N8 && now == N3 && next == P3) return 20.0f;
-	if (last == N8 && now == N3 && next == S1) return 30.0f;
-
-	if (last == C7 && now == C8 && next == C4) return 15.0f;
-	if (last == P1 && now == N1 && next == B2)return 2.0f; 
+	if (last == N8 && now == N3 && next == S1) return 0.0f;
+	if (last == P1 && now == N1 && next == B2)return 0.0f; 
 	return 0.0f; // 默认不前进，走原逻辑未修改
 }
 
@@ -167,43 +157,6 @@ static void Check_And_Apply_SpeedUp(void)
 		Chassis_SetTargetSpeed(nodes.nowNode.speed);
 	}
 }
-
-/* 无需转弯时的特例直行处理 */
-static void Handle_NoTurn_StraightPath(void)
-{
-	// if ((nodes.nowNode.nodenum == N3 && nodes.nextNode.nodenum == P3) ||
-	// 	(nodes.nowNode.nodenum == N4 && nodes.nextNode.nodenum == N3) ||
-	// 	(nodes.nowNode.nodenum == N4 && nodes.nextNode.nodenum == N5))
-	// {
-	// 	Chassis_DriveDistance_Blocking(is_Gyro, 20.0f, nodes.nextNode.speed, getAngleZ(), 0);
-	// }
-	// else if (nodes.nowNode.nodenum == N13 && nodes.nextNode.nodenum == P5) 
-	// {
-	// 	Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodes.nextNode.speed, 0.0f, 0);
-	// }
-	// else if (nodes.nowNode.nodenum == N1 && nodes.nextNode.nodenum == P1)
-	// {
-	// 	Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodes.nextNode.speed, 0.0f, 0);
-	// }
-	// else if ((nodes.lastNode.nodenum == P3 && nodes.nowNode.nodenum == N3 && nodes.nextNode.nodenum == N4)||
-	// 		(nodes.lastNode.nodenum == P4 && nodes.nowNode.nodenum == N6 && nodes.nextNode.nodenum == N5))
-	// {
-	// 	Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodes.nextNode.speed, 0.0f, 0);
-	// }
-	// else if ((nodes.nowNode.nodenum == N13 && nodes.nextNode.nodenum == N12)||(nodes.nowNode.nodenum == N12 && nodes.nextNode.nodenum == N13))
-	// {
-	// 	Chassis_DriveDistance_Blocking(is_Line, 20.0f, nodes.nextNode.speed, 0.0f, 0);
-	// }
-	// else if ((nodes.nowNode.nodenum == P5 && nodes.nextNode.nodenum == N13)||(nodes.nowNode.nodenum == N13 && nodes.nextNode.nodenum == P5))
-	// {
-	// 	Chassis_DriveDistance_Blocking(is_Line, 25.0f, nodes.nextNode.speed, 0.0f, 0);
-	// }
-	// else
-	// {
-	// 	Chassis_DriveDistance_Blocking(is_Line, 10.0f, nodes.nextNode.speed, 0.0f, 0);
-	// }
-}
-
 
 
 	/**-------------------------------------------------Navigation函数 - 整个流程的核心---------------------------------------------------------------------------------------------------------------------------
@@ -244,14 +197,18 @@ enum {                     // nav_step 取值，NAV 是 Navigation（导航）�
     NAV_STEP_PREP_ARRIVE   // 2  70% 降速准备到达
 };
 
-/* ========== Navigation() 子函数 ========== */
+/* ============================ Navigation() 子函数 =================================== */
 
 static void Nav_SegmentInit(void)
 {
+    //路程初始化
     Chassis_ClearMileage();
+    //循迹中心
     Chassis_SetCatchSensorNum(0);
+    //设置忽略边缘
     Chassis_SetEdgeIgnore(0);
 
+    // 根据当前边的 flag 设置循迹模式
     if ((nodes.nowNode.flag & LEFT_LINE) == LEFT_LINE)
         Chassis_SetTrackMode(TRACK_LEFT_EDGE);
     else if ((nodes.nowNode.flag & RIGHT_LINE) == RIGHT_LINE)
@@ -260,12 +217,13 @@ static void Nav_SegmentInit(void)
         Chassis_SetTrackMode(TRACK_NEAR_CENTER);
     else
         Chassis_SetTrackMode(TRACK_ALL);
-
+    // 设置当前边的模式和目标速度
     Chassis_SetMode(is_Line);
     Chassis_SetTargetSpeed(nodes.nowNode.speed);
+    //根据地图硬编码
     Check_And_Apply_SpeedUp();
-    Chassis_EnableAntiSnake();//
-    Chassis_EnableWheelieProtection();//
+    Chassis_EnableAntiSnake();//游龙保护
+    Chassis_EnableWheelieProtection();//翘头保护
 }
 
 static void Nav_MidSwitch(void)
@@ -295,7 +253,6 @@ static void Nav_PrepareArrival(void)
 
 static void Nav_NearEnd(void)
 {
-    //Chassis_DisableAntiSnake();
     map_function(nodes.nowNode.function);
 
     /* 尚未到达且无障碍结果时，通知 ArriveDetect_task 检测到达 */
@@ -310,43 +267,47 @@ static void Nav_NearEnd(void)
 static void Nav_TurnAndAdvance(void)
 {
     cross_event &= ~CROSS_EVENT_ARRIVED;
-    Chassis_DisableStallProtection();
+    // Chassis_DisableStallProtection();  // 堵转保护已停用
     if (route[map.point - 1] != 0xFF)
     {
         /* 无需转弯，直接直行通过 */
         if ((fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) < 10.0f) ||
-            (nodes.nowNode.flag & NOTURN) == NOTURN ||
-            nodes.nowNode.function == UpStage ||
-            nodes.nowNode.function == UpStageP2)
+            (nodes.nowNode.flag & NOTURN) == NOTURN)
         {
-            Handle_NoTurn_StraightPath();
+             /* 无需转弯，直接直行通过 */
         }
-        else
+        else/* 转弯 */
         {
-            /* 转弯分发 */
-            if (nodes.nowNode.flag & L_follow)
-            {
-                Chassis_Turn_By_LeftLine_Blocking(nodes.nextNode.angle, nodes.nowNode.angle, 0.75f * nodes.nowNode.speed);
-            }
-            else if (nodes.nowNode.flag & R_follow)
-            {
-                Chassis_Turn_By_RightLine_Blocking(nodes.nextNode.angle, nodes.nowNode.angle, 0.75f * nodes.nowNode.speed);
-            }
-            else if ((nodes.nowNode.flag & STOPTURN && fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 25.0f)
+            //循迹转弯（未用到）
+            // if (nodes.nowNode.flag & L_follow)
+            // {
+            //     Chassis_Turn_By_LeftLine_Blocking(nodes.nextNode.angle, nodes.nowNode.angle, 0.75f * nodes.nowNode.speed);
+            // }
+            // else if (nodes.nowNode.flag & R_follow)
+            // {
+            //     Chassis_Turn_By_RightLine_Blocking(nodes.nextNode.angle, nodes.nowNode.angle, 0.75f * nodes.nowNode.speed);
+            // }
+            //原地转弯
+            if ((nodes.nowNode.flag & STOPTURN && fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 30.0f)
             || (fabsf(need2turn(nodes.nowNode.angle, nodes.nextNode.angle)) > 90.0f)
-            || nodes.nextNode.function == SM  && fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 25.0f
-            || ((nodes.nowNode.function == UpStage || nodes.nowNode.function == UpStageP2)&& fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 15.0f))
+            || nodes.nextNode.function == SM  && fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 30.0f
+            || ((nodes.nowNode.function == UpStage || nodes.nowNode.function == UpStageHome)&& fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 15.0f))
                 
             {
+                //走补偿距离然后停下
                 float forwardDist = GetForwardDistanceBeforeTurn(nodes.lastNode.nodenum, nodes.nowNode.nodenum, nodes.nextNode.nodenum);
                 Chassis_DriveDistance_Blocking(is_Gyro, forwardDist, Stop_T_Speed, getAngleZ(), 0);
                 CarBrake();
+                //转弯
                 Chassis_Turn_By_StopGyro_Blocking(nodes.nextNode.angle, getAngleZ(), 30.0f);
             }
+            //陀螺仪不停车转弯
             else
             {
+                //走补偿距离
                 float forwardDist = GetForwardDistanceBeforeGyroTurn(nodes.lastNode.nodenum, nodes.nowNode.nodenum, nodes.nextNode.nodenum);
                 Chassis_DriveDistance_Blocking(is_Gyro, forwardDist, Gyro_Speed, getAngleZ(), 0);
+                //转弯
                 Chassis_Turn_By_Gyro_Blocking(nodes.nextNode.angle, getAngleZ(), 50.0f);
             }
         }
@@ -374,7 +335,7 @@ static void Nav_PostProcess(void)
         cross_event &= ~CROSS_EVENT_DOOR;
     }
 }
-
+/* ============================ Navigation()本体 =================================== */
 void Navigation(void)
 {
     static uint8_t nav_step = 0;
@@ -419,7 +380,7 @@ void Navigation(void)
     Nav_PostProcess();
 }
 
-/*功能选择*/
+/*功能选择*///执行阻塞函数
 void map_function(u8 fun)
 {
 	switch(fun)
@@ -430,16 +391,13 @@ void map_function(u8 fun)
 		case Bridge   	: Barrier_Bridge();						break;			//过桥
 		case Hill	    : Barrier_Hill();						break;			//山地
 		case SM         : Sword_Mountain();						break;			//假山
-		//case View	    : view();		    					break;			//观望 旋转
-		//case View1      : view1();		   						break;			//观望 直行
-		//case BACK       : back();		   			   			break; 
 		case BSoutPole	: South_Pole();	          				break;			//南极
 		case QQB	    : QQB_1();	          					break;			//跷跷板
 		case BLBS       : Barrier_WavedPlate(45);	    		break;			//短波动板 速度：调试 80//85
 		case BLBL	    : Barrier_WavedPlate(90);	  			break;			//长波动板 速度：调试	//180
 		case DOOR	    : door();		                 	  	break;			//门
 		case BHM        : Barrier_HighMountain();				break;    		//高山
-		case UpStageP2	: Stage_P2();	                		break;
+		case UpStageHome	: Stage_Home();	                		break;
 		default:				                        		break;		
 	}
 }

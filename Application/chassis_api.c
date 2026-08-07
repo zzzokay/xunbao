@@ -106,7 +106,7 @@ void Chassis_Init(void)
     pid_init();
 }
 
-#define TEMP_PWM_MAX 8000 //TODO调试用
+#define TEMP_PWM_MAX 8500 //TODO调试用
 
 /*模式转换函数*/
 /*
@@ -168,13 +168,8 @@ void Chassis_SetMode(uint8_t mode)
 		chassis.line_lost_count = 0;
 		// 不清 line_lost_enabled，转弯后回到巡线时保护仍然生效
 
-		// 清零 line_data[]，避免陈旧数据干扰回到巡线后的判断
-		for (int i = 0; i < HISTORY_SIZE; i++)
-		{
-			line_data[i].pos = 0.0f;
-			line_data[i].error = 0.0f;
-			line_data[i].truth = TRUTH_ALL_ERR;
-		}
+		// 清零巡线历史，避免陈旧数据干扰回到巡线后的判断
+		Scaner_ClearLineData();
 
 			// 离开巡线时清零堵转计数，避免旧模式残留数据干扰新模式
 			for (int i = 0; i < 4; i++)
@@ -618,16 +613,6 @@ void Chassis_SetEdgeIgnore(uint8_t num)
 
 #define LINE_LOST_THRESHOLD  80   // 80 * 5ms = 0.4秒
 
-static uint8_t is_line_completely_lost(void)
-{
-    for (uint8_t i = 0; i < HISTORY_SIZE; i++)
-    {
-        if (line_data[i].truth == TRUTH_VALID)
-            return 0;
-    }
-    return 1;
-}
-
 /* ========= 堵转保护阈值 ========= */
 #define STALL_SPEED_RATIO         180      /* output > target * 80 视为异常（25→2000） */
 #define STALL_COUNT_THRESHOLD      5      /* 连续超限 5 周期 (25ms) 触发 */
@@ -713,7 +698,7 @@ void Chassis_Periodic_Update_5ms(void)
         /* ========= 丢线保护 ========= */
         if (chassis.line_lost_enabled)
         {
-            if (is_line_completely_lost())
+            if (Scaner_IsLineLost())
             {
                 chassis.line_lost_count++;
                 if (chassis.line_lost_count >= LINE_LOST_THRESHOLD)

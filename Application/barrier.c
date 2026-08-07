@@ -38,7 +38,7 @@
  *  工具函数          Stage_HasTreasure / Stage_CollectTreasure
  *                    GyroStableReset / Stage_DetectedRamp
  *                    RampCtrl_Blocking / Stage_ScanAndRead
- *  平台              Stage( / Stage_P2
+ *  平台              Stage( / Stage_Home
  *  长桥              Barrier_Bridge
  *  楼梯              Barrier_Hill
  *  刀山              Sword_CorrectByScanner / Sword_Mountain
@@ -49,7 +49,7 @@
  *  路线更新（宝物）  load_route_at
  *                    update_route_at_P7_for_treasure / _8
  *  跷跷板            QQB_1
- *  红绿灯            Door_ReadColor / door_set_pass_node
+ *  红绿灯            Door_ReadPass / door_set_pass_node
  *                    door_retreat / door(
  *  路线更新（门/QR） update_route_at_P1
  *                    update_route_by_door_1~4 / update_route_at_door_for_clue
@@ -63,15 +63,15 @@
 
 
 /*===== 调试：预设5个门颜色，door() 自动读取 =====*/
-uint8_t color_flag[5] = {0, 0, 0, 0, 0};
+uint8_t door_pass[5] = {0, 0, 0, 0, 0};
 #if DEBUG
-uint8_t debug_color_flag[5] = {Red, Green, Yellow, Yellow, Red}; // 0:D2、1:D3、2:D4、3:D5、4:D1
+uint8_t debug_door_pass[5] = {NO_PASS, NO_PASS, CAN_PASS, ONE_WAY_PASS, NO_PASS}; // 0:D2、1:D3、2:D4、3:D5、4:D1
 uint8_t flag_line_clue    = 0;
 uint8_t flag_clue_stage_A = 5;
 uint8_t flag_clue_stage_B = 8;
 // OCR 线索：P5/P6读clue_A，P7/P8读clue_B，treasure=clue_A+clue_B → 宝物平台编号
 uint8_t flag_clue_A       = 1;
-uint8_t flag_clue_B       = 2;
+uint8_t flag_clue_B       = 1;
 #else
 uint8_t flag_line_clue    = 0;
 uint8_t flag_clue_stage_A = 0;
@@ -245,16 +245,11 @@ static void Stage_ScanAndRead(void)
 	case P1: send_play_specified_command(5); break;
 	case P3: send_play_specified_command(4); break;
 	case P4: send_play_specified_command(3); break;
-	case P5: send_play_specified_command(1); break;
-	case P6: send_play_specified_command(2); break;
+	case P5: send_play_specified_command(2); break;
+	case P6: send_play_specified_command(1); break;
 	default: break;
 	}
-	//Arrived_Stage();
-	//vTaskDelay(500);
-
-	// 宝物线索：由标志位计算
-	if (treasure == 0)
-		treasure = flag_clue_A + flag_clue_B;
+	Arrived_Stage();
 
 	// P1 路线更新
 	if (nodes.nowNode.nodenum == P1)
@@ -298,7 +293,6 @@ void Stage(void)
 		case STAGE_TOP:
 			if (sub_stage == 0)
 			{
-				Chassis_DisableStallProtection();
 				Chassis_DriveDistance_Blocking(is_Gyro,27,GoStage_Speed,oringinal_angle,0);
 				CarBrake();
 				sub_stage = 1;
@@ -317,15 +311,16 @@ void Stage(void)
 
 		case STAGE_SCAN:
 			// P1 路线更新：根据 flag_line_clue 标志位决定去 P3/P4 或跳过
-			if (nodes.nowNode.nodenum == P1 && treasure == 0)
-				update_route_at_P1();
-
-			if(Stage_HasTreasure())
-				Stage_CollectTreasure();
-
+			//机器人举起左右臂
+			//播报
+			Stage_ScanAndRead();
 			// 转身180
 			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ(), 20.0f);
-			Chassis_EnableStallProtection();
+			
+
+			//宝藏动作
+			if(Stage_HasTreasure())
+				Stage_CollectTreasure();		
 			state = STAGE_TREASURE;
 			break;
 
@@ -348,8 +343,8 @@ void Stage(void)
 	cross_event |= CROSS_EVENT_ARRIVED;
 }
 
-/*平台 - P2 — 状态机版本，与 Stage() 格式一致 */
-void Stage_P2(void)
+/*平台 - Home（返程上台阶回家） */
+void Stage_Home(void)
 {
 	enum {
 		P2_ASCEND,   // 上坡：Stage_DetectedRamp → RampCtrl_Blocking
@@ -430,7 +425,7 @@ void Barrier_Bridge(void)
 		switch (state)
 		{
 		case BRIDGE_APPROACH:
-			GyroStableReset(50, &origin_angle);
+			GyroStableReset(40, &origin_angle);
 
 			if (Stage_DetectedRamp(15.0f))//检测到桥
 			{
@@ -449,7 +444,7 @@ void Barrier_Bridge(void)
 	
 			while (fabsf(Chassis_GetMileage()) < 15)
 			{		
-				Chassis_CorrectByInfrared(0.07f, 2.0f, 2.0f);
+				Chassis_CorrectByInfrared(0.07f, 1.5f, 1.5f);
 				vTaskDelay(5);
 			}
 			//上桥结束检测
@@ -507,7 +502,7 @@ void Barrier_Bridge(void)
 				{
 					centered_samples = 0;
 					if(mileage_br<=15.0f){
-						Chassis_CorrectByInfrared(0.05f, 1.5f, 1.0f);
+						Chassis_CorrectByInfrared(0.04f, 1.5f, 1.0f);
 					}
 					else{Chassis_CorrectByInfrared(0.03f, 1.5f, 1.0f);}
 					
@@ -646,11 +641,8 @@ void Sword_Mountain(void)
 	float recorded_angle = 0;
 	uint8_t angle_recorded = 0,is_up = 0;
 	uint16_t approach_timeout = 0;
-
-	/* 初始：低速强巡线，忽略两侧红线 */
 	
 	Chassis_MotorControl(is_Line, 15, 15, 0);
-	Chassis_OverrideLinePid(25.0f,0, 150.0f, 7);
 	Chassis_OverrideGyroPid(4, 0, 70, 5);
 	//buzzer_on();
 
@@ -703,20 +695,13 @@ void Sword_Mountain(void)
 			else if(fabsf(Chassis_GetMileage()) >= 15.0f&&fabsf(Chassis_GetMileage()) < 45.0f)
 			{
 				Chassis_MotorControl(is_No, Gyro_Speed, Gyro_Speed, 0);
+				//Chassis_MotorControl(is_Free, 1500, 1500, 0);
 			}
 			else
 			{
 				Chassis_MotorControl(is_Gyro, Gyro_Speed , Gyro_Speed , recorded_angle);
 			}
 
-			// if(fabsf(Chassis_GetMileage()) >= 15.0f&&fabsf(getAngleZ() - recorded_angle)>5)
-			// {
-			// 	float yaw=getAngleZ();
-			// 	CarBrake();
-			// 	Chassis_DriveDistance_Blocking(is_Gyro,5,-Gyro_Speed,yaw,0);
-			// 	Chassis_Turn_By_StopGyro_Blocking(recorded_angle,yaw,10);
-			// 	Chassis_DriveDistance_Blocking(is_Gyro,10,-Gyro_Speed,yaw,0);
-			// }
 
 			// 平台走完 or pitch 变负（开始下坡）
 			if (fabsf(Chassis_GetMileage()) > 70.0f || imu.pitch < After_down)
@@ -739,7 +724,6 @@ void Sword_Mountain(void)
 	}
 
 	/* 收尾 */
-	Chassis_RestoreLinePid();
 	Chassis_RestoreGyroPid();
 	Chassis_MotorControl(is_Line, SPEED1, SPEED1, 0);
 	nodes.nowNode.function = 0;
@@ -945,7 +929,7 @@ void back(void)
 	while (fabs(need2turn(getAngleZ(), nodes.nextNode.angle)) > 2)
 	{
 		vTaskDelay(2);
-		getline_error();
+		Scaner_Update();
 		if (Scaner.lineNum == 1 && ((Scaner.detail & 0x180) != 0) && (fabs(need2turn(angle.AngleT, getAngleZ())) < fabs(need2turn(angle.AngleT, nodes.nowNode.angle)) * 0.15f))
 			break;
 	}
@@ -1038,7 +1022,7 @@ void South_Pole(void)
 		case SP_IMPACT:
 			if (sub_stage == 0)
 			{
-				Chassis_DisableStallProtection();
+				// Chassis_DisableStallProtection();  // 堵转保护已停用
 				Chassis_DriveDistance_Blocking(is_Gyro, 27, GoStage_Speed, origin_angle, 0);
 				CarBrake();
 				sub_stage = 1;
@@ -1055,7 +1039,7 @@ void South_Pole(void)
 				// 	update_route_at_P7_for_treasure();
 				send_play_specified_command(12);
 				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 180, getAngleZ(), 20.0f);
-				Chassis_DisableStallProtection();
+				// Chassis_DisableStallProtection();  // 堵转保护已停用
 				sub_stage = 0;
 				state = SP_DESCEND;
 			}
@@ -1095,7 +1079,7 @@ static void load_route_at(uint8_t offset, const u8* src)
 void update_route_at_P7_for_treasure(void)
 {
 	//map.point = 1;
-	if(treasure != 0&&color_flag[0] == Green)//D2绿灯
+	if(treasure != 0&&door_pass[0] == CAN_PASS)//D2绿灯
 	{
 		switch (treasure)
 		{
@@ -1114,7 +1098,7 @@ void update_route_at_P7_for_treasure(void)
                 break;	
 		}
 	}
-	if(treasure != 0&&color_flag[1] == Green)//D3绿灯
+	if(treasure != 0&&door_pass[1] == CAN_PASS)//D3绿灯
 	{
 		switch (treasure)
 		{
@@ -1133,7 +1117,7 @@ void update_route_at_P7_for_treasure(void)
                 break;	
 	     }
     }
-	if(treasure != 0&&color_flag[2] == Green)//D4绿灯
+	if(treasure != 0&&door_pass[2] == CAN_PASS)//D4绿灯
 	{
 		switch (treasure)
 		{
@@ -1152,7 +1136,7 @@ void update_route_at_P7_for_treasure(void)
                 break;	
 	    }
 	}
-	if(treasure != 0&&((color_flag[0] == Yellow)||(color_flag[1] == Yellow)))//D2D3黄灯
+	if(treasure != 0&&((door_pass[0] == ONE_WAY_PASS)||(door_pass[1] == ONE_WAY_PASS)))//D2D3蓝灯(单相通过)
 	{
 		switch (treasure)
 		{
@@ -1171,7 +1155,7 @@ void update_route_at_P7_for_treasure(void)
                 break;	
 	    }
 	}
-	if(treasure != 0&&color_flag[2] == Yellow)//D4黄灯D5必绿灯
+	if(treasure != 0&&door_pass[2] == ONE_WAY_PASS)//D4蓝灯(单相)D5必绿
 	{
 		switch (treasure)
 		{
@@ -1193,7 +1177,7 @@ void update_route_at_P7_for_treasure(void)
 }
 void update_route_at_P8_for_treasure(void)
 {
-	if(treasure != 0&&color_flag[0] == Green)//D2绿灯
+	if(treasure != 0&&door_pass[0] == CAN_PASS)//D2绿灯
 	{
 		switch (treasure)
 		{
@@ -1212,7 +1196,7 @@ void update_route_at_P8_for_treasure(void)
                 break;	
 		}
 	}
-	if(treasure != 0&&color_flag[1] == Green)//D3绿灯
+	if(treasure != 0&&door_pass[1] == CAN_PASS)//D3绿灯
 	{
 		switch (treasure)
 		{
@@ -1231,7 +1215,7 @@ void update_route_at_P8_for_treasure(void)
                 break;	
 	     }
     }
-	if(treasure != 0&&color_flag[2] == Green)//D4绿灯
+	if(treasure != 0&&door_pass[2] == CAN_PASS)//D4绿灯
 	{
 		switch (treasure)
 		{
@@ -1250,7 +1234,7 @@ void update_route_at_P8_for_treasure(void)
                 break;	
 	    }
 	}
-	if(treasure != 0&&((color_flag[0] == Yellow)||(color_flag[1] == Yellow)))//D2D3黄灯
+	if(treasure != 0&&((door_pass[0] == ONE_WAY_PASS)||(door_pass[1] == ONE_WAY_PASS)))//D2D3蓝灯(单相通过)
 	{
 		switch (treasure)
 		{
@@ -1269,7 +1253,7 @@ void update_route_at_P8_for_treasure(void)
                 break;	
 	    }
 	}
-	if(treasure != 0&&color_flag[2] == Yellow)//D4黄灯D5必绿灯
+	if(treasure != 0&&door_pass[2] == ONE_WAY_PASS)//D4蓝灯(单相)D5必绿
 	{
 		switch (treasure)
 		{
@@ -1453,17 +1437,17 @@ void QQB_1(void)
 	
 }
 
-/*读颜色传感器，返回颜色值（0=超时/未设置, 1=绿, 2=黄, 3=红）*/
-static uint8_t Door_ReadColor(uint8_t door_state)
+/*读门灯通行状态（0=超时/未设置, 1=绿=能过, 2=蓝=单相通过, 3=黑=不能过）*/
+static uint8_t Door_ReadPass(uint8_t door_state)
 {
 	static const uint8_t state_to_idx[] = {0, 1, 2, 3, 2}; // D2→0, D3→1, D4→2, D5→3, D4_AGAIN→2
 #if DEBUG
-	return debug_color_flag[state_to_idx[door_state]];
+	return debug_door_pass[state_to_idx[door_state]];
 #else
 	/* TODO: 读取真实左右颜色传感器
 	 *   左传感器 → UART4_RX (PC11) 读取颜色值
 	 *   右传感器 → UART5_RX (PD2) 读取颜色值
-	 *   返回值：1=Green, 2=Yellow, 3=Red, 0=未读到
+	 *   返回值：1=CAN_PASS, 2=ONE_WAY_PASS, 3=NO_PASS, 0=未读到
 	 */
 	return 0;
 #endif
@@ -1478,7 +1462,7 @@ static void door_set_pass_node(uint8_t a, uint8_t b, uint16_t step, float speed)
 	Node[idx].step = step;
 }
 
-/*红绿灯辅助：红灯后退+转头+重定向到目标节点*/
+/*红绿灯辅助：NO_PASS(不能过)后退+转头+重定向到目标节点*/
 static void door_retreat(uint8_t a, uint8_t b)
 {
 	Chassis_DriveDistance_Blocking(is_Gyro, 50, -SPEED2, getAngleZ(), 0);
@@ -1507,7 +1491,7 @@ void door()
 	CarBrake();
 	Chassis_Turn_By_StopGyro_Blocking(nodes.nowNode.angle, getAngleZ(), 30.0f);
 	vTaskDelay(500);
-	uint8_t door_color = Door_ReadColor(state);
+	uint8_t pass_state = Door_ReadPass(state);
 
 	/*公共初始化*/
 	map.point = 0;
@@ -1516,15 +1500,15 @@ void door()
 	switch (state)
 	{
 	case DOOR_D2:
-		color_flag[0] = door_color;
-		if (color_flag[0] == Red)
+		door_pass[0] = pass_state;
+		if (door_pass[0] == NO_PASS)
 		{
 			send_play_specified_command(11);
 			door_retreat(N5, N8);
 			cross_event |= CROSS_EVENT_DOOR;
 			state = DOOR_D3;
 		}
-		else if (color_flag[0] == Green)
+		else if (door_pass[0] == CAN_PASS)
 		{
 			send_play_specified_command(8);
 			door_set_pass_node(N5, N12, 140, SPEED4);
@@ -1536,10 +1520,10 @@ void door()
 			cross_event |= CROSS_EVENT_DOOR;
 			state = DOOR_D2;
 		}
-		else // Yellow
+		else // ONE_WAY_PASS
 		{
 			send_play_specified_command(10);
-			door_set_pass_node(N5, N12, 140, SPEED3);
+			door_set_pass_node(N5, N12, 140, SPEED4);
 			nodes.nowNode = Node[getNextConnectNode(N5, N12)];
 			nodes.nowNode.flag = DLEFT | DRIGHT | CRIGHT | LEFT_LINE;
 			nodes.nowNode.step = 60;
@@ -1551,8 +1535,8 @@ void door()
 		break;
 
 	case DOOR_D3:
-		color_flag[1] = door_color;
-		if (color_flag[1] == Red)
+		door_pass[1] = pass_state;
+		if (door_pass[1] == NO_PASS)
 		{
 			send_play_specified_command(11);
 			door_retreat(N5, N4);
@@ -1560,7 +1544,7 @@ void door()
 			cross_event |= CROSS_EVENT_DOOR;
 			state = DOOR_D4;
 		}
-		else // Green 或 Yellow
+		else // CAN_PASS 或 ONE_WAY_PASS
 		{
 			door_set_pass_node(N5, N8, 120, SPEED3);
 			nodes.nowNode = Node[getNextConnectNode(N5, N8)];
@@ -1568,13 +1552,13 @@ void door()
 			nodes.nowNode.speed = SPEED4;
 			update_route_at_door_for_clue();
 
-			if (color_flag[1] == Green)
+			if (door_pass[1] == CAN_PASS)
 			{
 				door_set_pass_node(N8, N5, 120, SPEED3);
 				send_play_specified_command(8);
 				state = DOOR_D2;
 			}
-			else // Yellow
+			else // ONE_WAY_PASS
 			{
 				send_play_specified_command(10);
 				state = DOOR_D5_BACK;
@@ -1584,13 +1568,13 @@ void door()
 		break;
 
 	case DOOR_D4:
-		color_flag[2] = door_color;
-		if (color_flag[2] == Green)
+		door_pass[2] = pass_state;
+		if (door_pass[2] == CAN_PASS)
 		{
 			send_play_specified_command(8);
 			door_set_pass_node(N8, N3, 140, SPEED3);
 		}
-		else // Yellow
+		else // ONE_WAY_PASS
 		{
 			send_play_specified_command(10);
 			door_set_pass_node(N10, N3, 140, SPEED3);
@@ -1605,8 +1589,8 @@ void door()
 		break;
 
 	case DOOR_D5_BACK:
-		color_flag[3] = door_color;
-		if (color_flag[3] == Green)
+		door_pass[3] = pass_state;
+		if (door_pass[3] == CAN_PASS)
 		{
 			send_play_specified_command(8);
 			door_set_pass_node(N10, N3, 140, SPEED3);
@@ -1617,10 +1601,10 @@ void door()
 			update_route_by_door_1();
 			state = DOOR_D2;
 		}
-		else // Red
+		else // NO_PASS，蓝灯(单相)已经被消耗
 		{
 			send_play_specified_command(11);
-			if (color_flag[0] == Yellow)
+			if (door_pass[0] == ONE_WAY_PASS)
 			{
 				map.point -= 1;
 				route[map.point] = N3;
@@ -1628,7 +1612,7 @@ void door()
 				cross_event |= CROSS_EVENT_DOOR;
 				state = DOOR_D4_BACK;
 			}
-			else if (color_flag[0] == Red && color_flag[1] == Yellow)
+			else if (door_pass[0] == NO_PASS && door_pass[1] == ONE_WAY_PASS)
 			{
 				door_retreat(N10, N8);
 				door_set_pass_node(N3, N8, 120, SPEED3);
@@ -1641,8 +1625,8 @@ void door()
 		break;
 
 	case DOOR_D4_BACK:
-		color_flag[2] = door_color;
-		if (color_flag[2] == Green)
+		door_pass[2] = pass_state;
+		if (door_pass[2] == CAN_PASS)
 		{
 			send_play_specified_command(8);
 			door_set_pass_node(N3, N8, 120, SPEED3);
@@ -1655,7 +1639,7 @@ void door()
 			update_route_by_door_3();
 			motor_pid_clear();
 		}
-		else // Red
+		else // NO_PASS
 		{
 			send_play_specified_command(11);
 			door_retreat(N8, N5);
@@ -1772,16 +1756,16 @@ void update_route_by_door_4(void)
 		load_route_at(0, r);
 	}
 }
-static uint8_t Can_Pass(uint8_t c) { return c == Green || c == Yellow; }
+static uint8_t Can_Pass(uint8_t c) { return c == CAN_PASS || c == ONE_WAY_PASS; }
 
 void update_route_at_door_for_clue(void)
 {
 	// 按线索平台组合选择路线
 	if (flag_clue_stage_A == 5 && flag_clue_stage_B == 7)
 	{
-		if(Can_Pass(color_flag[0]))
+		if(Can_Pass(door_pass[0]))
 			load_route_at(0, rout_57);
-		else if(Can_Pass(color_flag[1]) || Can_Pass(color_flag[2]))
+		else if(Can_Pass(door_pass[1]) || Can_Pass(door_pass[2]))
 		{
 			route[0] = N12;
 			load_route_at(1, rout_57);
@@ -1789,9 +1773,9 @@ void update_route_at_door_for_clue(void)
 	}
 	else if (flag_clue_stage_A == 5 && flag_clue_stage_B == 8)
 	{
-		if(Can_Pass(color_flag[0]))
+		if(Can_Pass(door_pass[0]))
 			load_route_at(0, rout_58);
-		else if(Can_Pass(color_flag[1]) || Can_Pass(color_flag[2]))
+		else if(Can_Pass(door_pass[1]) || Can_Pass(door_pass[2]))
 		{
 			route[0] = N12;
 			load_route_at(1, rout_58);
@@ -1799,13 +1783,13 @@ void update_route_at_door_for_clue(void)
 	}
 	else if (flag_clue_stage_A == 6 && flag_clue_stage_B == 7)
 	{
-		if(Can_Pass(color_flag[0]))
+		if(Can_Pass(door_pass[0]))
 		{
 			route[0] = N11;
 			route[1] = N10;
 			load_route_at(2, rout_67);
 		}
-		else if(Can_Pass(color_flag[1]) || Can_Pass(color_flag[2]))
+		else if(Can_Pass(door_pass[1]) || Can_Pass(door_pass[2]))
 		{
 			route[0] = N10;
 			load_route_at(1, rout_67);
@@ -1813,13 +1797,13 @@ void update_route_at_door_for_clue(void)
 	}
 	else if (flag_clue_stage_A == 6 && flag_clue_stage_B == 8)
 	{
-		if(Can_Pass(color_flag[0]))
+		if(Can_Pass(door_pass[0]))
 		{
 			route[0] = N11;
 			route[1] = N10;
 			load_route_at(2, rout_68);
 		}
-		else if(Can_Pass(color_flag[1]) || Can_Pass(color_flag[2]))
+		else if(Can_Pass(door_pass[1]) || Can_Pass(door_pass[2]))
 		{
 			route[0] = N10;
 			load_route_at(1, rout_68);
@@ -1830,7 +1814,7 @@ void update_route_at_door_for_clue(void)
 /*第二轮路线规划*/
 void get_newroute(void)
 {
-	mapInit1();
+	mapInit();
 	map.point = 0;
 	for (int i = 0; i < 126; i++)
 	{
@@ -1842,7 +1826,7 @@ void get_newroute(void)
 		}
 	}
 
-	if(color_flag[0]==Green)//第一个门开
+	if(door_pass[0]==CAN_PASS)//第一个门开
 	{
 		Node[getNextConnectNode(P3, N3)].flag |= STOPTURN;
 		switch(treasure)
@@ -1895,7 +1879,7 @@ void get_newroute(void)
 		}
 		
 	}
-	else if(color_flag[0]==Yellow && color_flag[3]==Green)
+	else if(door_pass[0]==ONE_WAY_PASS && door_pass[3]==CAN_PASS)
 	{
 		Node[getNextConnectNode(S1, N3)].flag |= STOPTURN;
 		switch(treasure)
@@ -1947,7 +1931,7 @@ void get_newroute(void)
 				break;
 		}
 	}
-	else if(color_flag[0]==Yellow && color_flag[3]==Red && color_flag[2]==Green)
+	else if(door_pass[0]==ONE_WAY_PASS && door_pass[3]==NO_PASS && door_pass[2]==CAN_PASS)
 	{
 		Node[getNextConnectNode(S1, N3)].flag |= STOPTURN;
 		switch(treasure)
@@ -1999,7 +1983,7 @@ void get_newroute(void)
 				break;
 		}
 	} 
-	else if(color_flag[0]==Yellow && color_flag[3]==Red && color_flag[2]==Red)
+	else if(door_pass[0]==ONE_WAY_PASS && door_pass[3]==NO_PASS && door_pass[2]==NO_PASS)
 	{
 		Node[getNextConnectNode(P3, N3)].flag |= STOPTURN;
 		switch(treasure)
@@ -2051,7 +2035,7 @@ void get_newroute(void)
 				break;
 		}
 	}
-	else if(color_flag[0]==Red && color_flag[1]==Green)
+	else if(door_pass[0]==NO_PASS && door_pass[1]==CAN_PASS)
 	{
 		Node[getNextConnectNode(P3, N3)].flag |= STOPTURN;
 		switch(treasure)
@@ -2103,7 +2087,7 @@ void get_newroute(void)
 				break;
 		}
 	}
-	else if(color_flag[0]==Red && color_flag[1]==Yellow && color_flag[3]==Green)
+	else if(door_pass[0]==NO_PASS && door_pass[1]==ONE_WAY_PASS && door_pass[3]==CAN_PASS)
 	{
 		Node[getNextConnectNode(S1, N3)].flag |= STOPTURN;
 		switch(treasure)
@@ -2155,7 +2139,7 @@ void get_newroute(void)
 				break;
 		}
 	}
-	else if(color_flag[0]==Red && color_flag[1]==Yellow && color_flag[3]==Red)//D4绿
+	else if(door_pass[0]==NO_PASS && door_pass[1]==ONE_WAY_PASS && door_pass[3]==NO_PASS)//D4绿
 	{
 		Node[getNextConnectNode(S1, N3)].flag |= STOPTURN;
 		switch(treasure)
@@ -2207,7 +2191,7 @@ void get_newroute(void)
 				break;
 		}
 	}
-	else if(color_flag[0]==Red && color_flag[1]==Red && color_flag[2]==Green)//从最外面出去吧
+	else if(door_pass[0]==NO_PASS && door_pass[1]==NO_PASS && door_pass[2]==CAN_PASS)//从最外面出去吧
 	{
 		Node[getNextConnectNode(P3, N3)].flag |= STOPTURN;
 		switch(treasure)
@@ -2259,7 +2243,7 @@ void get_newroute(void)
 				break;
 		}
 	}
-	else if(color_flag[0]==Red && color_flag[1]==Red && color_flag[2]==Yellow)//从最外面出去吧
+	else if(door_pass[0]==NO_PASS && door_pass[1]==NO_PASS && door_pass[2]==ONE_WAY_PASS)//从最外面出去吧
 	{
 		Node[getNextConnectNode(P3, N3)].flag |= STOPTURN;
 		switch(treasure)
@@ -2474,12 +2458,12 @@ void zhunbei(void)
 	Chassis_MotorControl(is_No, 0, 0, 0);
 
 //	/*机器人动作*/
-//	Robot_Work(BODY, UP); 	//人站起来
-//	vTaskDelay(1000);
-//	Robot_Work(PIG, HEAD_LEFT); //转头
-//	vTaskDelay(500);		
-//	Robot_Work(PIG, HEAD_RIGHT); 	
-//	vTaskDelay(500);
+	Robot_Work(BODY, UP); 	//人站起来
+	vTaskDelay(1000);
+	Robot_Work(PIG, HEAD_LEFT); //转头
+	vTaskDelay(500);		
+	Robot_Work(PIG, HEAD_RIGHT); 	
+	vTaskDelay(500);
 //	/*蜂鸣器提示初始化完成 - 调试用*/
 //	buzzer_on();
 //	

@@ -102,7 +102,7 @@ extern volatile uint8_t cross_event;
 ### 4.4 障碍标志 ([barrier.c](Application/barrier.c))
 
 ```c
-uint8_t color_flag[5];   // 门颜色(D2~D5,D1)
+uint8_t door_pass[5];    // 门通行状态(D2~D5,D1)：CAN_PASS/ONE_WAY_PASS/NO_PASS
 uint8_t treasure;        // 宝物编号
 uint8_t DownLiuShui;     // 流水下坡标志
 float LiuShuiRate;       // 流水速度倍率(1.6)
@@ -170,8 +170,10 @@ TIM1 → L0 (正) | TIM2 → L1 (正) | TIM3 → R0 (取反) | TIM5 → R1 (取�
 ### 7.3 巡线传感器
 
 16路 GPIO 读取（0=黑线，1=白底），权重表 `line_weight[16] = {-3..3}`。
-`line_data[5]` 滑动窗口，truth 枚举: VALID/ALL_ERR/POS_ERR。
-内部函数均为 static: `coarse_filter`/`pos_detect`/`Update_line_data`/`value_calculation`。
+`line_data[5]` 滑动窗口（**static，仅 scaner.c 内部访问**），truth 枚举: VALID/ALL_ERR/POS_ERR。
+RF/Gray 分发收敛在 **`Scaner_Update()`** 单入口（合并自原 getline_error/getline_error_ex）；外部操作 line_data 只能通过 `Scaner_ClearLineData()`（清零）与 `Scaner_IsLineLost()`（丢线检测）。
+内部函数均为 static: `coarse_filter`/`pos_detect`/`Update_line_data`/`value_calculation`/`count_led_line`/`pick_best_cluster`。
+`Line_Scan` 返回有效标志（1=已记录样本，0=粗滤/位置计算失败）；`value_calculation` 四种 TRACK_ 模式均为显式 case。
 
 ---
 
@@ -180,10 +182,10 @@ TIM1 → L0 (正) | TIM2 → L1 (正) | TIM3 → R0 (取反) | TIM5 → R1 (取�
 ```c
 enum barriers {
     NONE=1, UpStage, Bridge, Hill, LBHill, SM, View, View1, BACK,
-    BSoutPole, QQB, BLBS, BLBL, DOOR, BHM, IGNORE, UNDER, Special_node, DOOR1, UpStageP2
+    BSoutPole, QQB, BLBS, BLBL, DOOR, BHM, IGNORE, UNDER, Special_node, DOOR1, UpStageHome
 };
 ```
-- UpStage→Stage() | Bridge→Barrier_Bridge() | Hill→Barrier_Hill()
+- UpStage→Stage() | UpStageHome→Stage_Home() | Bridge→Barrier_Bridge() | Hill→Barrier_Hill()
 - BSoutPole→South_Pole() | QQB→QQB_1()
 - BLBS→Barrier_WavedPlate(87) | BLBL→Barrier_WavedPlate(160)
 - BHM→Barrier_HighMountain() | DOOR→door()
@@ -241,9 +243,12 @@ Cross()
 | nodesr.flag 阶段位拆出 | 2026-06-27 |
 | Want2Go/Chassis_MoveDistance 去重 | 2026-06-27 |
 | 堵转保护 (PWM>7000 硬上限 + 比值检测) | 2026-07-04 |
+| 堵转保护调用点全部注释停用（运行时不再触发） | 2026-08-06 |
 | Turn_Angle_Base 死区/钳位/TOCTOU | 2026-07-04 |
 | Stage_P2/QQB/WavedPlate 状态机重写 | 2026-07-03~04 |
 | IMU 偶发初始化失败修复（USART3_IRQHandler HAL_UART_IRQHandler 冲突 + 死代码 gyro_init 删除） | 2026-07-18 |
+| scaner.c 循迹显式化：内部去重（count_led_line/pick_best_cluster/ReadLineSensorDetail）+ 合并 getline_error*/getline_error_ex 为 Scaner_Update() + line_data 转 static（新增 ClearLineData/IsLineLost） | 2026-08-06 |
+| 红绿灯改版（2026新规则 黑/绿/蓝=不能过/能过/单相通过）：颜色常量改通行语义命名 `CAN_PASS/ONE_WAY_PASS/NO_PASS`（与具体颜色解耦，改色只改 barrier.h 映射 + Door_ReadPass 传感器识别）；`color_flag→door_pass`、`debug_color_flag→debug_door_pass`、`Door_ReadColor→Door_ReadPass` | 2026-08-07 |
 
 ---
 
@@ -340,6 +345,7 @@ Turn_Angle / Stage_turn_Angle 合并: 90%相同，提取 `Turn_Angle_Base` 基�
 ### 17.3 堵转保护
 - PWM > 7000 硬上限 → 死停
 - `output > target × 150` 连续 5 周期 → 死停（比值自适应各转速）
+> ⚠️ **2026-08-06 起已停用**：`Chassis_EnableStallProtection()`（chassis_api.c:102 原本就注释）与全部 `Chassis_DisableStallProtection()` 调用点已注释（map.c Nav_TurnAndAdvance、barrier.c 南极 SP_IMPACT 两处）。`stall_protect_enabled` 恒为 0，上述两段检测不再执行。检测逻辑代码保留，恢复时取消调用点注释即可。
 
 ### 17.4 翘头保护
 `is_Line` 下 `imu.pitch > basic_p + 8°` 时将 `Cincrement` 降至 0.05 抑制加速度，pitch 回落后恢复。需在 `Cross()` 中调用 `Chassis_EnableWheelieProtection()` 激活，使用模式与游龙一致。
@@ -351,7 +357,7 @@ Turn_Angle / Stage_turn_Angle 合并: 90%相同，提取 `Turn_Angle_Base` 基�
 
 | 宏 | 定义位置 | 功能 |
 |----|----------|------|
-| `DEBUG` | [barrier.h](Application/barrier.h):45 | Door_ReadColor 用 `debug_door_colors[5]` 预设数组模拟 |
+| `DEBUG` | [barrier.h](Application/barrier.h):45 | Door_ReadPass 用 `debug_door_pass[5]` 预设数组模拟 |
 | `MAIN_DEBUG` | [main_task.c](Task/main_task.c):29 | 跳过 Cross()，执行 `test_flag`/`debug_test_item` |
 
 测试项: 1=直线, 2=转180°, 3=过坡。`debug_test_item` 优先级高于 UART 设置的 `test_flag`。

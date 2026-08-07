@@ -39,16 +39,17 @@ void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
 #define High_Speed          45
 #define Champion_Speed      64
 
-#define Green 1
-#define Yellow 2
-#define Red 3
+/* 红绿灯按“通行语义”命名，与具体颜色解耦：规则改色只改此处映射即可 */
+#define CAN_PASS      1   /* 绿：能过 */
+#define ONE_WAY_PASS  2   /* 蓝：单相通过 */
+#define NO_PASS       3   /* 黑：不能过 */
 
 #define DEBUG 1
 extern uint8_t treasure;
 
 /*调试：预设5个门颜色（无传感器时）*/
 
-extern uint8_t color_flag[5];
+extern uint8_t door_pass[5];
 extern uint8_t flag_line_clue;     // QR百位：0=跳过P3/P4，3=P3，4=P4
 extern uint8_t flag_clue_stage_A;  // QR十位：5=P5（原P6），6=P6（原P5）
 extern uint8_t flag_clue_stage_B;  // QR个位：7=P7（原P8），8=P8（原P7）
@@ -68,7 +69,7 @@ void Barrier_WavedPlate(float lenght);
 void South_Pole(void);
 void QQB_1(void);
 void door(void);
-void Stage_P2(void);
+void Stage_Home(void);
 //void ignore_node(void);
 void undermou(void);
 //void Special_Node(void);

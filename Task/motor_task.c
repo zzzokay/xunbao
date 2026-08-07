@@ -180,8 +180,8 @@ static void handle_line_mode(void)
 	if (PIDMode == is_Line)
 	{
 		//printf("is_Line\r\n");
-		/* 获取巡线error - 显式传入循迹对象与参数 */
-		getline_error_ex(&Scaner,ScanerMode, scaner_set.EdgeIgnore, LEFT_RIGHT_LINE);
+		/* 获取巡线error - 更新循迹数据 */
+		Scaner_Update();
 
 		// 平滑速度
 		gradual_cal(&TC_speed, motor_all.Cspeed, motor_all.Cincrement, motor_all.CDOWNincrement);

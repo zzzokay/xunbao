@@ -281,7 +281,7 @@ void FreeTurn(float Angle, float L, float R)
 				motor_set_pwm(4, R);
 				if (nodes.nowNode.function != UpStage && nodes.nowNode.function != BSoutPole && nodes.nowNode.function != BHM)
 				{
-					getline_error();
+					Scaner_Update();
 					if (Scaner.lineNum == 1 && ((Scaner.detail & 0x7E0) != 0) && (fabs(need2turn(nodes.nextNode.angle, getAngleZ())) < fabs(need2turn(nodes.nextNode.angle, nodes.nowNode.angle)) * 0.3f))
 					{
 						break;
@@ -300,7 +300,7 @@ void FreeTurn(float Angle, float L, float R)
 				motor_set_pwm(4, -R);
 				if (nodes.nowNode.function != UpStage && nodes.nowNode.function != BSoutPole && nodes.nowNode.function != BHM)
 				{
-					getline_error();
+					Scaner_Update();
 					if (Scaner.lineNum == 1 && ((Scaner.detail & 0x7E0) != 0) && (fabs(need2turn(nodes.nextNode.angle, getAngleZ())) < fabs(need2turn(nodes.nextNode.angle, nodes.nowNode.angle)) * 0.3f))
 					{
 						break;

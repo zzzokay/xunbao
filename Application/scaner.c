@@ -4,29 +4,34 @@
  *
  * 【调用关系】
  *  ┌──────────────────────────────────────────────────────────────
- *  │  getline_error_ex()
- *  │    ├─ RF模式 → UpdateScanerFromRf → Line_Scan
- *  │    │    ├─ coarse_filter()       粗滤（灯数/线数检查）
- *  │    │    ├─ value_calculation()   分发 → calc_left/right/liushui/track_all
- *  │    │    ├─ pos_detect()          位置连续性验证
- *  │    │    └─ Update_line_data()    写入 line_data[5] 历史
- *  │    └─ Gray模式 → UpdateScanerFromGray → Calculate_Error（不经过 line_data）
+ *  │  motor_task / turn / barrier → Scaner_Update()   ← 唯一传感器分发入口(RF/Gray)
+ *  │    ├─ RF模式 → Line_Scan
+ *  │    │    ├─ count_led_line()    统计灯数/线数
+ *  │    │    ├─ coarse_filter()     粗滤（灯数/线数检查）
+ *  │    │    ├─ value_calculation() 分发 → calc_left/right/near_center/track_all
+ *  │    │    ├─ pos_detect()        位置连续性验证
+ *  │    │    └─ Update_line_data()  写入 line_data[5] 历史
+ *  │    └─ Gray模式 → Calculate_Error（不经过 line_data）
  *  │
  *  │  Go_Line(speed)
  *  │    └─ Get_scaner_error()  从 line_data[5] 投票选最佳 error → PID → 差速
+ *  │         └─ pick_best_cluster()  簇奖励机制（丢线时选最密集位置）
+ *  │
+ *  │  外部操作 line_data 途径：Scaner_ClearLineData() 清零 / Scaner_IsLineLost() 丢线检测
  *  └──────────────────────────────────────────────────────────────
  *
  *  【全局变量】
- *  - line_data[5]   历史数据（两个函数组的核心桥梁）
+ *  - line_data[5]   历史数据（static，仅本文件内部访问）
  *  - Scaner         当前循迹数据
  *  - Fspeed         PID输出
  *  - motor_all      电机速度
  *
  *  【主要入口函数】
- *  - getline_error_ex()  更新传感器数据（RF/Gray 双模式）
- *  - Go_Line(speed)      PID巡线执行
- *  - Cross_getline()     节点检测用
- *  - Get_scaner_error()  从历史选最佳（丢线时保持上次有效值）
+ *  - Scaner_Update()         循迹数据更新（RF/Gray 单入口）
+ *  - Go_Line(speed)          PID巡线执行
+ *  - Cross_getline()         节点检测用（只拍 detail/lineNum 快照）
+ *  - Scaner_ClearLineData()  清零历史 | Scaner_IsLineLost() 丢线检测
+ *  - Get_scaner_error()      从历史选最佳（丢线时保持上次有效值）
  *
  * =============================================================================
  */
@@ -60,13 +65,36 @@ volatile SCANER Scaner;
 volatile SCANER Cross_Scaner;
 #define Line_color WHLITE
 
-struct Line_data line_data[5] = {
+/*巡线历史 - 仅 scaner.c 内部访问，外部通过 Scaner_ClearLineData/Scaner_IsLineLost 操作*/
+static struct Line_data line_data[HISTORY_SIZE] = {
 	{0.0f, 0.0f, 1}, // 第一个结构体初值
 	{0.0f, 0.0f, 1}, // 第二个结构体初值
 	{0.0f, 0.0f, 1}, // 第三个结构体初值
 	{0.0f, 0.0f, 1}, // 第四个结构体初值
 	{0.0f, 0.0f, 1}	 // 第五个结构体初值
 };
+
+/*清零巡线历史 - 模式切换/离开巡线时调用，避免陈旧数据污染新模式的判断*/
+void Scaner_ClearLineData(void)
+{
+	for (uint8_t i = 0; i < HISTORY_SIZE; i++)
+	{
+		line_data[i].pos = 0.0f;
+		line_data[i].error = 0.0f;
+		line_data[i].truth = TRUTH_ALL_ERR;
+	}
+}
+
+/*丢线检测 - 历史全部无效返回1，供底盘丢线保护（Chassis_Periodic_Update_5ms）使用*/
+uint8_t Scaner_IsLineLost(void)
+{
+	for (uint8_t i = 0; i < HISTORY_SIZE; i++)
+	{
+		if (line_data[i].truth == TRUTH_VALID)
+			return 0;
+	}
+	return 1;
+}
 uint8_t isFilter = 1;
 
 static uint16_t ReadLineSensorDetail(void)
@@ -91,37 +119,32 @@ static uint16_t ReadLineSensorDetail(void)
 	return detail;
 }
 
+/*统计亮灯数/引导线数 - 供 Cross_getline / Line_Scan 共用，检测到1→0认为一条线*/
+static void count_led_line(volatile SCANER *scaner, u8 sensorNum, u8 *lednum, u8 *linenum)
+{
+	*lednum = 0;
+	*linenum = 0;
+	for (uint8_t i = 0; i < sensorNum; i++) // 从小车方向从左往右数亮灯数和引导线数
+	{
+		if (scaner->detail & (0x1u << i))
+		{
+			(*lednum)++;
+			if (i + 1 >= sensorNum || !(scaner->detail & (0x1u << (i + 1))))
+				(*linenum)++;
+		}
+	}
+	scaner->ledNum = *lednum;
+	scaner->lineNum = *linenum;
+}
+
 /*节点间临时循迹值获取*/
 void Cross_getline(volatile SCANER *scaner)
 {
-	u8 linenum = 0; // 记录线的数目
-	u8 lednum = 0;
+	u8 lednum = 0, linenum = 0;
 
 	scaner->detail = ReadLineSensorDetail();
-	for (uint8_t i = 0; i < 16; i++) // 从小车方向从左往右数亮灯数和引导线数
-	{									// linenum用来记录有多少条线，line用来记录第几条线。
-		if (scaner->detail & (0x1 << i))
-		{
-			lednum++;
-			if (i == 15 || !(scaner->detail & (1 << (i + 1))))
-				linenum++; // 先读取亮灯数和引导线数，检测到从1变为0认为一条线
-		}
-	}
-	scaner->lineNum = linenum;
-	scaner->ledNum = lednum;
+	count_led_line(scaner, Lamp_Max, &lednum, &linenum);
 }
-static void UpdateScanerFromGray(volatile SCANER *scaner)
-{
-	scaner->detail_gray = Gray_GetLine();
-	Calculate_Error(scaner);
-}
-
-static void UpdateScanerFromRf(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_ignore, uint8_t track_mode)
-{
-	scaner->detail = ReadLineSensorDetail();
-	Line_Scan(scaner, sensorNum, edge_ignore, track_mode); // 激光循迹获取误差
-}
-
 /*循迹PID计算*/
 void Go_Line(float speed, volatile struct Motors *motor)
 {
@@ -152,29 +175,21 @@ void Go_Line(float speed, volatile struct Motors *motor)
 	motor->Rspeed = speed + Fspeed;
 }
 
-/*获取模式处理后的循迹值*/
-uint8_t getline_error(void)
+/*循迹数据更新 - 唯一入口：读传感器→粗滤→算误差→写历史，供 Go_Line 取误差。
+ * 内部读取本模块全局状态（ScanerMode/scaner_set/LEFT_RIGHT_LINE），调用方无需关心细节*/
+void Scaner_Update(void)
 {
-	getline_error_ex(&Scaner,ScanerMode, scaner_set.EdgeIgnore, LEFT_RIGHT_LINE);
-	return 0;
-}
-
-void getline_error_ex(volatile SCANER *scaner, uint8_t scaner_mode, int8_t edge_ignore, uint8_t track_mode)
-{
-	if (scaner == NULL)
+	if (ScanerMode == RF)
 	{
+		Scaner.detail = ReadLineSensorDetail();
+		Line_Scan(&Scaner, Lamp_Max, scaner_set.EdgeIgnore, LEFT_RIGHT_LINE); // 激光循迹获取误差
 		return;
 	}
 
-	if (scaner_mode == RF)
+	if (ScanerMode == Gray)
 	{
-		UpdateScanerFromRf(scaner, Lamp_Max, edge_ignore, track_mode);
-		return;
-	}
-
-	if (scaner_mode == Gray)
-	{
-		UpdateScanerFromGray(scaner);
+		Scaner.detail_gray = Gray_GetLine();
+		Calculate_Error(&Scaner);
 	}
 }
 
@@ -184,26 +199,9 @@ void get_detail(void)
 	uint16_t data;
 	if (ScanerMode == RF)
 	{
-	data = 0XFFFF;
-//			 printf("%d",data);
-	data ^= ((HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_14)) << 15);
-	data ^= ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_5)) << 14);
-	data ^= ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_8)) << 13);
-	data ^= ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_4)) << 12);
-	data ^= ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_7)) << 11);
-	data ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_7)) << 10);
-	data ^= ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6)) << 9);
-	data ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15)) << 8);
-	data ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_5)) << 7);
-	data ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_0)) << 6);
-	data ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_4)) << 5);
-	data ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_3)) << 4);
-	data ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_3)) << 3);
-	data ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2)) << 2);
-	data ^= ((HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_1)) << 1);
-	data ^= ((HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14)) << 0); // 不同输出1.相同输出0
+		data = ReadLineSensorDetail();
 	}
-	else if(ScanerMode == Gray)
+	else if (ScanerMode == Gray)
 	{
 		data = Gray_GetLine();
 	}
@@ -348,14 +346,15 @@ static float calc_track_all(volatile SCANER *scaner, int8_t edge_ignore, uint8_t
 }
 
 /*循迹中心值和位置计算 - 正确返回大于等于0的位置，错误返回-1*/
-float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned char SensorNum, uint8_t track_mode, float *Error, u8 *LED_Num_Temp)
+static float value_calculation(volatile SCANER *scaner, int8_t edge_ignore, unsigned char SensorNum, uint8_t track_mode, float *Error, u8 *LED_Num_Temp)
 {
 	switch (track_mode)
 	{
-		case TRACK_LEFT_EDGE:  return calc_left_edge(scaner, edge_ignore, SensorNum, Error, LED_Num_Temp);
-		case TRACK_RIGHT_EDGE: return calc_right_edge(scaner, edge_ignore, SensorNum, Error, LED_Num_Temp);
-		case TRACK_NEAR_CENTER:    return calc_near_center(scaner, edge_ignore, SensorNum, Error, LED_Num_Temp);
-		default:               return calc_track_all(scaner, edge_ignore, SensorNum, Error, LED_Num_Temp);
+		case TRACK_LEFT_EDGE:   return calc_left_edge(scaner, edge_ignore, SensorNum, Error, LED_Num_Temp);
+		case TRACK_RIGHT_EDGE:  return calc_right_edge(scaner, edge_ignore, SensorNum, Error, LED_Num_Temp);
+		case TRACK_NEAR_CENTER: return calc_near_center(scaner, edge_ignore, SensorNum, Error, LED_Num_Temp);
+		case TRACK_ALL:         return calc_track_all(scaner, edge_ignore, SensorNum, Error, LED_Num_Temp);
+		default:                return -1;  // 未知模式视为无效，不再静默兜底
 	}
 }
 /*更新循迹值数组 - 错误类型 0为无错，为正确值 1为精检验错误  2为粗略检测错误*/
@@ -420,6 +419,36 @@ uint8_t pos_detect(float pos)
 	}
 }
 #define POS_CLUSTER_RADIUS 1
+
+/*奖励机制 - 在 pos_pos[0..n-1] 中找最密集的簇，返回{下标,得分}；全部离散时 idx=-1*/
+typedef struct { int8_t idx; uint8_t score; } ClusterPick;
+static ClusterPick pick_best_cluster(const float *pos_pos, uint8_t n)
+{
+	uint8_t score[5] = {0, 0, 0, 0, 0};
+	ClusterPick best;
+
+	for (uint8_t i = 0; i < n; i++)
+		for (uint8_t j = i + 1; j < n; j++)
+			if (fabs(pos_pos[i] - pos_pos[j]) <= POS_CLUSTER_RADIUS)
+			{
+				score[i]++;
+				score[j]++;
+			}
+
+	best.idx = 0;
+	best.score = score[0];
+	for (uint8_t i = 1; i < n; i++)
+		if (best.score < score[i])
+		{
+			best.idx = i;
+			best.score = score[i];
+		}
+
+	if (best.score == 0)	// 无任何邻近点，全部离散
+		best.idx = -1;
+	return best;
+}
+
 /*获取循迹值error*/
 float Get_scaner_error(void)
 {
@@ -471,69 +500,18 @@ float Get_scaner_error(void)
 				return pos_data[0];
 			}
 
-			/*奖励机制*/
-			uint8_t scorce[5] = {0, 0, 0, 0, 0};
-			for (int i = 0; i < pos_error_nums; i++)
-			{
-				for (int j = i + 1; j < pos_error_nums; j++)
-				{
-					if (fabs(pos_pos[i] - pos_pos[j]) <= POS_CLUSTER_RADIUS)
-					{
-						scorce[i]++;
-						scorce[j]++;
-					}
-				}
-			}
-
-			/*找出最多临近的位置*/
-			uint8_t max = scorce[0]; // 假设第一个元素是最大的
-			uint8_t max_idx = 0;
-			for (int i = 0; i < pos_error_nums; i++)
-			{
-				if (max < scorce[i])
-				{
-					max = scorce[i];
-					max_idx = i;
-				}
-			}
-			/*都是离散分散的，没救了*/
-			if (max == 0)
-			{
-				return last_valid_error; // 保持上一次有效误差
-			}
-			else
-			{
-				return pos_data[max_idx];
-			}
+			/*奖励机制 - 找最密集簇；全离散则保持上一次有效误差*/
+			ClusterPick pick = pick_best_cluster(pos_pos, pos_error_nums);
+			if (pick.idx < 0)
+				return last_valid_error;
+			return pos_data[pick.idx];
 		}
 	}
 	else // 正确值比错误值少 需要判断有效错误值是否大于正确值
 	{
-		/*奖励机制*/
-		uint8_t scorce[5] = {0, 0, 0, 0, 0};
-		for (int i = 0; i < pos_error_nums; i++)
-		{
-			for (int j = i + 1; j < pos_error_nums; j++)
-			{
-				if (fabs(pos_pos[i] - pos_pos[j]) <= POS_CLUSTER_RADIUS)
-				{
-					scorce[i]++;
-					scorce[j]++;
-				}
-			}
-		}
-		/*找出最多临近的位置*/
-		uint8_t max = scorce[0]; // 假设第一个元素是最大的
-		uint8_t max_idx = 0;
-		for (int i = 0; i < pos_error_nums; i++)
-		{
-			if (max < scorce[i])
-			{
-				max = scorce[i];
-				max_idx = i;
-			}
-		}
-		if (nums >= max + 1) // 正确值偏多，这里的加一是因为奖励机制中没把自己也当好朋友算进去
+		/*奖励机制 - 正确值偏多则用正确值平均，否则取最密集簇（加一是因没把自己算进好友）*/
+		ClusterPick pick = pick_best_cluster(pos_pos, pos_error_nums);
+		if (pick.idx < 0 || nums >= pick.score + 1)
 		{
 			for (int i = 0; i < nums; i++)
 			{
@@ -543,7 +521,7 @@ float Get_scaner_error(void)
 		}
 		else
 		{
-			return pos_data[max_idx];
+			return pos_data[pick.idx];
 		}
 	}
 	if (error != 0)
@@ -567,7 +545,7 @@ static uint8_t coarse_filter(u8 LED_Num, u8 Line_Num)
 	}
 }
 
-/*循线扫描 - 包括各种模式处理*/
+/*循线扫描 - 包括各种模式处理；返回1=已记录有效样本，0=粗滤/位置计算失败*/
 uint8_t Line_Scan(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_ignore, uint8_t track_mode)
 {
 	float error = 0;
@@ -576,17 +554,7 @@ uint8_t Line_Scan(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_
 	uint8_t lednum_tmp = 0;
 
 	/*统计亮灯数和引导线数*/
-	for (uint8_t i = 0; i < sensorNum; i++)
-	{
-		if ((scaner->detail & (0x1 << i)))
-		{
-			lednum++;
-			if (!(scaner->detail & (1 << (i + 1))))
-				++linenum;
-		}
-	}
-	scaner->lineNum = linenum;
-	scaner->ledNum = lednum;
+	count_led_line(scaner, sensorNum, &lednum, &linenum);
 
 	/*粗略检测 - 滤掉必定错误的值*/
 	if (coarse_filter(lednum, linenum))
@@ -609,5 +577,5 @@ uint8_t Line_Scan(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_
 	//printf("raw_scaner_error=%.2f lednum_tmp=%d track_mode=%d\n\r", scaner->error, lednum_tmp, track_mode);
 	uint8_t truth = pos_detect(pos) ? TRUTH_VALID : TRUTH_POS_ERR;
 	Update_line_data(truth, pos, scaner->error);
-	return 0;
+	return 1;
 }

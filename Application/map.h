@@ -55,7 +55,7 @@ enum barriers {
 	IGNORE,
 	Special_node,
 	DOOR1,
-	UpStageP2
+	UpStageHome
 };
 
 extern u8 route[100];
@@ -177,7 +177,6 @@ extern uint8_t mul2sing, sing2mul;
 
 u8 getNextConnectNode(u8 nownode,u8 nextnode);
 void mapInit(void);
-void mapInit1(void);
 void Navigation(void);
 void map_function(u8 fun);
 void select_speed(void);

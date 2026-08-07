@@ -42,14 +42,14 @@ struct Line_data {
 	volatile float error;
 	volatile uint8_t truth;
 };
-extern struct Line_data line_data[HISTORY_SIZE];
+void Scaner_Update(void);               // 循迹数据更新入口（读传感器→粗滤→算误差→写历史，内部读全局）
+void Scaner_ClearLineData(void);        // 清零巡线历史（模式切换/离开巡线时调用）
+uint8_t Scaner_IsLineLost(void);        // 丢线检测：历史全部无效返回1
 void Go_Line(float speed,volatile struct Motors *motor);
 void get_detail(void);
 void Cross_getline(volatile SCANER *scaner);
 uint8_t Line_Scan(volatile SCANER *scaner, unsigned char sensorNum, int8_t edge_ignore, uint8_t track_mode);
 void actions(uint8_t action);
-uint8_t getline_error(void);
-void getline_error_ex(volatile SCANER *scaner, uint8_t scaner_mode, int8_t edge_ignore, uint8_t track_mode);
 // void MODE_Switch(int8_t MODE_need);
 void printf_byte(uint16_t data);
 float Get_scaner_error(void);

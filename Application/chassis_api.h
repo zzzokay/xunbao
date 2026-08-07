@@ -103,7 +103,7 @@ void Chassis_DisableAntiSnake(void);
 
 /**
  * @brief 开启丢线保护
- * 当 line_data[] 全部无效持续 LINE_LOST_THRESHOLD 个周期后调用 Chassis_Brake()
+ * 当 Scaner_IsLineLost() 持续 LINE_LOST_THRESHOLD 个周期后调用 Chassis_Brake()
  * 一次性触发后自动禁用
  */
 void Chassis_EnableLineLostProtection(void);

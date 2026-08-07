@@ -78,3 +78,24 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
   - 删除死代码 gyro_init / gyro UART 句柄（USART3 由 CubeMX 初始化，gyro_init 从未被调用）
 
 **2026-07-18** — 新增 [project_handover.md](project_handover.md) 项目交接手册，涵盖快速上手、架构图解、地图系统详解、调参指南、已知陷阱等
+
+**2026-08-06** — 重命名语义化：枚举 `UpStageP2`→`UpStageHome`、函数 `Stage_P2()`→`Stage_Home()`（P2 节点为返程上台阶回出发地；map.h / map_message.c / map.c / barrier.h / barrier.c 及 project_reference.md 同步更新）
+
+**2026-08-06** — 删除 `mapInit1()`（与 `mapInit()` 逻辑完全重叠）；`get_newroute()` 改调 `mapInit()`，声明同步删除
+
+**2026-08-06** — scaner.c 循迹逻辑显式化整理（两批）：
+  - 第一批（纯内部，对外接口不变）：
+    - 抽 `count_led_line()`：去重 Cross_getline / Line_Scan 的灯数/线数统计循环
+    - `get_detail()` 复用 `ReadLineSensorDetail()`：去掉 16 行重复 GPIO 读
+    - `Get_scaner_error()` 抽 `pick_best_cluster()`：去重两段奖励机制，逻辑等价
+    - `Line_Scan()` 返回有效标志（原恒 0）；`value_calculation()` 补显式 TRACK_ALL case + static
+    - 内联 `UpdateScanerFromRf/Gray` 透传层
+  - 第二批（对外收敛 + line_data 私有化）：
+    - 合并 `getline_error()`/`getline_error_ex()` 为 `Scaner_Update(void)`，RF/Gray 分发单入口；
+      motor_task / turn ×2 / barrier 调用点同步更新
+    - `line_data` 转 static，仅 scaner.c 内部访问；新增 `Scaner_ClearLineData()`（清零）与
+      `Scaner_IsLineLost()`（丢线检测）；chassis_api 的清零/丢线检测、gray 的模式切换清零改调新接口
+
+**2026-08-06** — 堵转保护调用点全部注释停用：`map.c` `Nav_TurnAndAdvance`、`barrier.c` 南极 `SP_IMPACT` 两处 `Chassis_DisableStallProtection()`。检测逻辑保留但 `stall_protect_enabled` 恒为 0，运行时不再触发（PWM 硬上限 + 比值累积两条防线均失效）。恢复：取消调用点注释即可。
+
+**2026-08-07** — 红绿灯规则改版（2026新规则：黑/绿/蓝 = 不能过/能过/单相通过）。颜色常量改通行语义命名 `CAN_PASS/ONE_WAY_PASS/NO_PASS`，与具体颜色解耦（下次改色只需改 barrier.h 映射 + Door_ReadPass 传感器识别，逻辑代码不用动）；`color_flag→door_pass`、`debug_color_flag→debug_door_pass`、`Door_ReadColor→Door_ReadPass`、局部 `door_color→pass_state`。
