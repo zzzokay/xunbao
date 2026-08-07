@@ -161,96 +161,96 @@ void Process_COLOR_Data(uint8_t color_value) {
 frame_type 1：表示二维码识别模式  2：表示数字识别模式 3：表示颜色识别模式
 
 */
-//void UART5_IRQHandler(void)
-//{
-//    HAL_UART_IRQHandler(&huart5);
+void UART5_IRQHandler(void)
+{
+   HAL_UART_IRQHandler(&huart5);
 
-//    static uint8_t flag = 0;
-//    static uint8_t frame_type = 0; // 帧类型：1-QR帧，2-OCR帧，3-COLOR帧
-//    static uint8_t data_buffer[3]; // 数据缓冲区（QR:3字节，OCR/COLOR:1字节）
-//    static uint8_t data_index = 0; // 数据缓冲区索引
-//    
-//	  //模式确认切换成功
-//	  if(Maxicam_Rx == 0x94)
-//		{
-//			 if(open_QR_mode_sign == 1)
-//				 open_QR_mode_sign=0;
-//			 if(open_OCR_mode_sign == 1)
-//				open_OCR_mode_sign = 0;
-//			 if(open_COLOR_L_mode_sign == 1)
-//				 open_COLOR_L_mode_sign=0;
-//			 if(open_COLOR_R_mode_sign == 1)
-//				 open_COLOR_R_mode_sign=0;
-//		}
-//    // 帧头检测
-//    if (Maxicam_Rx == 0x01 && flag == 0) {
-//        flag = 1; // 收到第一个0x01（QR帧头）
-//    } 
-//    else if (Maxicam_Rx == 0x01 && flag == 1) {
-//        frame_type = 1; // 确认QR帧
-//        flag = 2;
-//        data_index = 0; 
-//        memset(data_buffer, 0, sizeof(data_buffer)); 
-//    }
-//    else if (Maxicam_Rx == 0x02 && flag == 0) {
-//        flag = 1; // 收到第一个0x02（OCR帧头）
-//    }
-//    else if (Maxicam_Rx == 0x02 && flag == 1) {
-//        frame_type = 2; // 确认OCR帧
-//        flag = 2;
-//        data_index = 0; 
-//        memset(data_buffer, 0, sizeof(data_buffer)); 
-//    }
-//    // COLOR帧头检测（0x03 0x03）
-//    else if (Maxicam_Rx == 0x03 && flag == 0) {
-//        flag = 1; // 收到第一个0x03（COLOR帧头第一字节）
-//    }
-//    else if (Maxicam_Rx == 0x03 && flag == 1) {
-//        frame_type = 3; // 确认COLOR帧
-//        flag = 2;
-//        data_index = 0; 
-//        memset(data_buffer, 0, sizeof(data_buffer)); 
-//    }
-//    // 数据接收处理（所有帧类型共用）
-//    else if (flag == 2 && Maxicam_Rx != 0x0a)
-//    {
-//        if(data_index < sizeof(data_buffer)) {
-//            data_buffer[data_index++] = Maxicam_Rx;
-//        }
-//    }
-//    // 帧尾检测（0x0a），处理各类型帧数据
-//    else if (flag == 2 && Maxicam_Rx == 0x0a)
-//    {
-//        // QR帧处理
-//        if(frame_type == 1 && data_index == 3) {
-//            Process_QR_Data(data_buffer[0]-'0', data_buffer[1]-'0', data_buffer[2]-'0');
-//        }
-//        // OCR帧处理
-//        else if(frame_type == 2 && data_index == 1) {
-//            if ((nodesr.nowNode.nodenum == P5 && (clue_A_stage == 6)) ||
-//                (nodesr.nowNode.nodenum == P6 && (clue_A_stage == 5)) ||
-//                (nodesr.nowNode.nodenum == P7 && (clue_B_stage == 8)) ||
-//                (nodesr.nowNode.nodenum == P8 && (clue_B_stage == 7)))
-//            {
-//                Process_OCR_Data(data_buffer[0]-'0');
-//            }
-////						//test
-////						Process_OCR_Data(data_buffer[0]-'0');
+   static uint8_t flag = 0;
+   static uint8_t frame_type = 0; // 帧类型：1-QR帧，2-OCR帧，3-COLOR帧
+   static uint8_t data_buffer[3]; // 数据缓冲区（QR:3字节，OCR/COLOR:1字节）
+   static uint8_t data_index = 0; // 数据缓冲区索引
+   
+	  //模式确认切换成功
+	  if(Maxicam_Rx == 0x94)
+		{
+			 if(open_QR_mode_sign == 1)
+				 open_QR_mode_sign=0;
+			 if(open_OCR_mode_sign == 1)
+				open_OCR_mode_sign = 0;
+			 if(open_COLOR_L_mode_sign == 1)
+				 open_COLOR_L_mode_sign=0;
+			 if(open_COLOR_R_mode_sign == 1)
+				 open_COLOR_R_mode_sign=0;
+		}
+   // 帧头检测
+   if (Maxicam_Rx == 0x01 && flag == 0) {
+       flag = 1; // 收到第一个0x01（QR帧头）
+   } 
+   else if (Maxicam_Rx == 0x01 && flag == 1) {
+       frame_type = 1; // 确认QR帧
+       flag = 2;
+       data_index = 0; 
+       memset(data_buffer, 0, sizeof(data_buffer)); 
+   }
+   else if (Maxicam_Rx == 0x02 && flag == 0) {
+       flag = 1; // 收到第一个0x02（OCR帧头）
+   }
+   else if (Maxicam_Rx == 0x02 && flag == 1) {
+       frame_type = 2; // 确认OCR帧
+       flag = 2;
+       data_index = 0; 
+       memset(data_buffer, 0, sizeof(data_buffer)); 
+   }
+   // COLOR帧头检测（0x03 0x03）
+   else if (Maxicam_Rx == 0x03 && flag == 0) {
+       flag = 1; // 收到第一个0x03（COLOR帧头第一字节）
+   }
+   else if (Maxicam_Rx == 0x03 && flag == 1) {
+       frame_type = 3; // 确认COLOR帧
+       flag = 2;
+       data_index = 0; 
+       memset(data_buffer, 0, sizeof(data_buffer)); 
+   }
+   // 数据接收处理（所有帧类型共用）
+   else if (flag == 2 && Maxicam_Rx != 0x0a)
+   {
+       if(data_index < sizeof(data_buffer)) {
+           data_buffer[data_index++] = Maxicam_Rx;
+       }
+   }
+   // 帧尾检测（0x0a），处理各类型帧数据
+   else if (flag == 2 && Maxicam_Rx == 0x0a)
+   {
+       // QR帧处理
+       if(frame_type == 1 && data_index == 3) {
+           Process_QR_Data(data_buffer[0]-'0', data_buffer[1]-'0', data_buffer[2]-'0');
+       }
+       // OCR帧处理
+       else if(frame_type == 2 && data_index == 1) {
+           if ((nodesr.nowNode.nodenum == P5 && (clue_A_stage == 6)) ||
+               (nodesr.nowNode.nodenum == P6 && (clue_A_stage == 5)) ||
+               (nodesr.nowNode.nodenum == P7 && (clue_B_stage == 8)) ||
+               (nodesr.nowNode.nodenum == P8 && (clue_B_stage == 7)))
+           {
+               Process_OCR_Data(data_buffer[0]-'0');
+           }
+//						//test
+//						Process_OCR_Data(data_buffer[0]-'0');
 
-//        }
-//        // COLOR帧处理
-//        else if(frame_type == 3 && data_index == 1) {
-//            Process_COLOR_Data(data_buffer[0] - '0');
-//        }
-//        
-//        flag = 0; 
-//        frame_type = 0;
-//        memset(data_buffer, 0, sizeof(data_buffer)); 
-//        data_index = 0;
-//    }
+       }
+       // COLOR帧处理
+       else if(frame_type == 3 && data_index == 1) {
+           Process_COLOR_Data(data_buffer[0] - '0');
+       }
+       
+       flag = 0; 
+       frame_type = 0;
+       memset(data_buffer, 0, sizeof(data_buffer)); 
+       data_index = 0;
+   }
 
-//    HAL_UART_Receive_IT(&huart5, &Maxicam_Rx, 1);
-//}
+   HAL_UART_Receive_IT(&huart5, &Maxicam_Rx, 1);
+}
 
 
 
