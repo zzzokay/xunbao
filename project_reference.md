@@ -249,6 +249,9 @@ Cross()
 | IMU 偶发初始化失败修复（USART3_IRQHandler HAL_UART_IRQHandler 冲突 + 死代码 gyro_init 删除） | 2026-07-18 |
 | scaner.c 循迹显式化：内部去重（count_led_line/pick_best_cluster/ReadLineSensorDetail）+ 合并 getline_error*/getline_error_ex 为 Scaner_Update() + line_data 转 static（新增 ClearLineData/IsLineLost） | 2026-08-06 |
 | 红绿灯改版（2026新规则 黑/绿/蓝=不能过/能过/单相通过）：颜色常量改通行语义命名 `CAN_PASS/ONE_WAY_PASS/NO_PASS`（与具体颜色解耦，改色只改 barrier.h 映射 + Door_ReadPass 传感器识别）；`color_flag→door_pass`、`debug_color_flag→debug_door_pass`、`Door_ReadColor→Door_ReadPass` | 2026-08-07 |
+| `PIG`→`MIKU` 舵机宏改名（Rudder_control.h/c + barrier.c zhunbei）；修复红绿灯改版遗留漏改 `debug_color_flag→debug_door_pass`（Door_ReadPass DEBUG 分支，编译报 #20 undefined） | 2026-08-07 |
+| 修复 K210.c OCR 帧处理遗留旧名 `nodesr→nodes`、`clue_A_stage→flag_clue_stage_A`、`clue_B_stage→flag_clue_stage_B`（P5/P6/P7/P8 门控条件不变，编译报 #20 undefined）；其余 nodesr 引用在注释中 | 2026-08-07 |
+| 修复链接 L6200E `UART5_IRQHandler multiply defined`：实际协议处理在 K210.c，CubeMX 生成的 stm32f7xx_it.c 同函数 `#if 0` 禁用。uart.c 不在 Keil 工程；USART3 由 imu.c 提供（it.c 已注释）；USART1 以 stm32f7xx_it.c 为准 | 2026-08-07 |
 
 ---
 

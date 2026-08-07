@@ -14,7 +14,7 @@ void Rudder_Init(uint32_t bound);
 #define RARM        1
 #define LARM        2
 #define HEAD        3
-#define PIG         4
+#define MIKU        4
 #define CAMERA      5
 
 #define UP          0

@@ -424,7 +424,9 @@ void UART4_IRQHandler(void)
 
 /**
   * @brief This function handles UART5 global interrupt.
+  *        实际协议处理在 K210.c 的 UART5_IRQHandler，此处去重（否则 L6200E multiply defined）
   */
+#if 0
 void UART5_IRQHandler(void)
 {
   /* USER CODE BEGIN UART5_IRQn 0 */
@@ -434,6 +436,7 @@ void UART5_IRQHandler(void)
 
   /* USER CODE END UART5_IRQn 1 */
 }
+#endif
 
 /**
   * @brief This function handles DMA2 stream2 global interrupt.

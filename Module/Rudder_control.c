@@ -80,9 +80,9 @@ void Robot_Work(uint8_t id,uint8_t aim)//70-500
 			{moveServo(0, 500, 200);
 			vTaskDelay(200);}
 	}
-	else if(id == PIG)   
+	else if(id == MIKU)
 	{
-		//PIG左右摇摆
+		//MIKU左右摇摆
 		if (aim == HEAD_LEFT)
 			{moveServo(12, 1150, 300); 
 			vTaskDelay(200);}

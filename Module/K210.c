@@ -227,10 +227,10 @@ void UART5_IRQHandler(void)
        }
        // OCR帧处理
        else if(frame_type == 2 && data_index == 1) {
-           if ((nodesr.nowNode.nodenum == P5 && (clue_A_stage == 6)) ||
-               (nodesr.nowNode.nodenum == P6 && (clue_A_stage == 5)) ||
-               (nodesr.nowNode.nodenum == P7 && (clue_B_stage == 8)) ||
-               (nodesr.nowNode.nodenum == P8 && (clue_B_stage == 7)))
+           if ((nodes.nowNode.nodenum == P5 && (flag_clue_stage_A == 6)) ||
+               (nodes.nowNode.nodenum == P6 && (flag_clue_stage_A == 5)) ||
+               (nodes.nowNode.nodenum == P7 && (flag_clue_stage_B == 8)) ||
+               (nodes.nowNode.nodenum == P8 && (flag_clue_stage_B == 7)))
            {
                Process_OCR_Data(data_buffer[0]-'0');
            }

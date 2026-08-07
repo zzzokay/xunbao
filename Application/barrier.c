@@ -37,7 +37,7 @@
  *
  *  工具函数          Stage_HasTreasure / Stage_CollectTreasure
  *                    GyroStableReset / Stage_DetectedRamp
- *                    RampCtrl_Blocking / Stage_ScanAndRead
+ *                    RampCtrl_Blocking / Stage_Action
  *  平台              Stage( / Stage_Home
  *  长桥              Barrier_Bridge
  *  楼梯              Barrier_Hill
@@ -252,7 +252,7 @@ void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
 	}
 }
 
-static void Stage_ScanAndRead(void)
+static void Stage_Action(void)
 {
 	// 平台动作
 	switch (nodes.nowNode.nodenum)
@@ -264,17 +264,22 @@ static void Stage_ScanAndRead(void)
 	case P6: send_play_specified_command(1); break;
 	default: break;
 	}
+	if (nodes.nowNode.nodenum == P1 && treasure == 0){
+		// 先把摄像头转到二维码方向
+		Robot_Work(HEAD, HEAD_MID);	
+		vTaskDelay(300);
+		// 读取二维码
+		open_QR_mode();
+	}
+		
 	Arrived_Stage();
-	Arrived_Stage();
-	//vTaskDelay(500);
 
-	// 宝物线索：由标志位计算
-	if (treasure == 0)
-		treasure = flag_clue_A + flag_clue_B;
-
-	// P1 路线更新
-	if (nodes.nowNode.nodenum == P1)
+	if (nodes.nowNode.nodenum == P1 && treasure == 0){
+		WaitFor_QR();	
+		// P1 路线更新
 		update_route_at_P1();
+	}
+		
 }
 
 /*平台 - 不包括P2*/
@@ -314,6 +319,7 @@ void Stage(void)
 		case STAGE_TOP:
 			if (sub_stage == 0)
 			{
+				Robot_Work(BODY, UP); 	//人站起来
 				Chassis_DriveDistance_Blocking(is_Gyro,27,GoStage_Speed,oringinal_angle,0);
 				CarBrake();
 				sub_stage = 1;
@@ -332,31 +338,16 @@ void Stage(void)
 
 		case STAGE_SCAN:
 
-			Stage_ScanAndRead();
-
-			// P1 路线更新：根据 flag_line_clue 标志位决定去 P3/P4 或跳过
-			// if (nodes.nowNode.nodenum == P1 && treasure == 0)
-			// 	update_route_at_P1();
-			// if (nodes.nowNode.nodenum == P1 && get_cude == 0)//接入摄像头后判断get_cude
-			if (nodes.nowNode.nodenum == P1 && treasure == 0)
-			{
-				// 先把摄像头转到二维码方向
-				Robot_Work(HEAD, HEAD_MID);
-				vTaskDelay(300);
-
-				open_QR_mode();
-				WaitFor_QR();
-
-				// 二维码读取完成后，根据二维码更新路线
-				update_route_at_P1();
-			}
+			Stage_Action();		
 
 			if(Stage_HasTreasure())
 				Stage_CollectTreasure();
 
 			// 转身180
 			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ(), 20.0f);
-			Chassis_EnableStallProtection();
+
+			Robot_Work(BODY, DOWN); 	//人躺下
+			//Chassis_EnableStallProtection();
 			state = STAGE_TREASURE;
 			break;
 
@@ -414,18 +405,17 @@ void Stage_Home(void)
 		case P2_TOP:
 			Chassis_DriveDistance_Blocking(is_Gyro, 15, GoStage_Speed, getAngleZ(), 0);
 			CarBrake();
-			vTaskDelay(200);
 	
-	//回家恢复原形
-			Robot_Work(LARM, DOWN);		//左手放下
-			vTaskDelay(100);
-			Robot_Work(RARM, DOWN);		//右手放下
-			vTaskDelay(100);
-			Robot_Work(BODY, DOWN);		//人躺下
-			vTaskDelay(100);
-			Robot_Work(HEAD,HEAD_MID);
-			vTaskDelay(100);
-			Robot_Work(HEAD,UP);
+			// //回家恢复原形
+			// Robot_Work(LARM, DOWN);		//左手放下
+			// vTaskDelay(100);
+			// Robot_Work(RARM, DOWN);		//右手放下
+			// vTaskDelay(100);
+			// Robot_Work(BODY, DOWN);		//人躺下
+			// vTaskDelay(100);
+			// Robot_Work(HEAD,HEAD_MID);
+			// vTaskDelay(100);
+			// Robot_Work(HEAD,UP);
 
 			state = P2_TURN;
 			break;
@@ -1493,7 +1483,7 @@ static uint8_t Door_ReadPass(uint8_t door_state)
 
 #if DEBUG
 	static const uint8_t state_to_idx[] = {0, 1, 2, 3, 2}; // D2→0, D3→1, D4→2, D5→3, D4_AGAIN→2
-	return debug_color_flag[state_to_idx[door_state]];
+	return debug_door_pass[state_to_idx[door_state]];
 #else
 	/* TODO: 读取真实左右颜色传感器
 	 *   左传感器 → UART4_RX (PC11) 读取颜色值
@@ -2509,25 +2499,17 @@ uint16_t AD_Value[4];//定义一个数组
 /*启动流程*/
 void zhunbei(void)
 {
-
 	/*停车*/
 	Chassis_MotorControl(is_No, 0, 0, 0);
 
-//	/*机器人动作*/
+	/*机器人动作*/
 	Robot_Work(BODY, UP); 	//人站起来
 	vTaskDelay(1000);
-	Robot_Work(PIG, HEAD_LEFT); //转头
+	Robot_Work(MIKU, HEAD_LEFT); //转头
 	vTaskDelay(500);
-	Robot_Work(PIG, HEAD_RIGHT); 	
+	Robot_Work(MIKU, HEAD_RIGHT);
 	vTaskDelay(500);
-	/*蜂鸣器提示初始化完成 - 调试用*/
-	buzzer_on();
-	
-//	// i = HAL_GPIO_ReadPin(GPIOC,GPIO_PIN_13);
-//	vTaskDelay(100);
-//	buzzer_off();
 
-//	close_Maxicam();
 	IMU_CalibrateZero(&basic_y, &basic_p, &basic_r);
 	vTaskDelay(100);
 	mpuZreset(get_latest_yaw(), nodes.nowNode.angle); // 用稳定后的实际角度计算补偿

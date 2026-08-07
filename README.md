@@ -99,3 +99,9 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
 **2026-08-06** — 堵转保护调用点全部注释停用：`map.c` `Nav_TurnAndAdvance`、`barrier.c` 南极 `SP_IMPACT` 两处 `Chassis_DisableStallProtection()`。检测逻辑保留但 `stall_protect_enabled` 恒为 0，运行时不再触发（PWM 硬上限 + 比值累积两条防线均失效）。恢复：取消调用点注释即可。
 
 **2026-08-07** — 红绿灯规则改版（2026新规则：黑/绿/蓝 = 不能过/能过/单相通过）。颜色常量改通行语义命名 `CAN_PASS/ONE_WAY_PASS/NO_PASS`，与具体颜色解耦（下次改色只需改 barrier.h 映射 + Door_ReadPass 传感器识别，逻辑代码不用动）；`color_flag→door_pass`、`debug_color_flag→debug_door_pass`、`Door_ReadColor→Door_ReadPass`、局部 `door_color→pass_state`。
+
+**2026-08-07** — `PIG` 舵机宏改名 `MIKU`（Rudder_control.h 定义 + Rudder_control.c 判定 + barrier.c zhunbei 动作）；并修复红绿灯改版遗留漏改：`Door_ReadPass()` DEBUG 分支仍引用旧名 `debug_color_flag`（编译报 `#20 identifier undefined`），改为 `debug_door_pass`。
+
+**2026-08-07** — 修复 K210.c OCR 帧处理遗留旧名：`nodesr`→`nodes`、`clue_A_stage`→`flag_clue_stage_A`、`clue_B_stage`→`flag_clue_stage_B`（编译报 `#20 undefined`，P5/P6/P7/P8 阶段门控条件语义不变）。其余 `nodesr` 引用均在注释中，无需处理。
+
+**2026-08-07** — 修复链接错误 `L6200E: UART5_IRQHandler multiply defined`：协议处理在 K210.c，CubeMX 生成的 stm32f7xx_it.c 里同函数用 `#if 0` 禁用（函数体内有 `/* */` 注释，不能直接块注释）。注意 uart.c 不在 Keil 工程里（USART1 处理以 stm32f7xx_it.c 为准），USART3 已在 it.c 注释、由 imu.c 提供。
