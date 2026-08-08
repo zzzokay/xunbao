@@ -75,7 +75,7 @@ void undermou(void);
 //void Special_Node(void);
 void get_newroute(void);
 #define OCR_SCAN_SUCCESS 1U
-#define OCR_SCAN_FAILED  0U
+#define OCR_SCAN_FAILED  10U
 
 uint8_t WaitFor_OCR(void);
 uint8_t WaitFor_QR(void);
@@ -97,6 +97,7 @@ void update_route_by_door_3(void);
 void update_route_by_door_4(void);
 void update_route_at_P1(void);
 void update_route_at_door_for_clue(void);
+void update_route_at_door_for_stageAB(void);
 void update_route_at_P7_for_treasure(void);
 void update_route_at_P8_for_treasure(void);
 int Six2Zero(void);

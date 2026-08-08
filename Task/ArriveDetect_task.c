@@ -75,11 +75,13 @@ void arrive_detect_task(void *pvParameters)
 	28  B5
 	29  B6
 */
+#define VOICE_TRACK_OFFSET 0  /* hard offset: code 7 -> module track 12 */
+
 void send_play_specified_command(uint8_t index)
 {
 	// 7E 05 41 00(歌曲高位) 01(歌曲低位) 45(校验和) EF
 	uint8_t data[7] = {0x7e, 0x05, 0x41, 0x00, 0x00, 0x00, 0xef};
-	data[4] = index;
+	data[4] = index + VOICE_TRACK_OFFSET;
 	uint8_t sum = data[1] ^ data[2] ^ data[3] ^ data[4];
 	data[5] = sum;
 	for (uint8_t i = 0; i < 7; i++)
@@ -98,7 +100,7 @@ uint8_t deal_arrive(volatile SCANER *scaner, uint32_t node_flag)
 	if ((node_flag & DLEFT) == DLEFT)  //左半边
 	{
 		//左边6个灯任意5个亮即可
-		if (scaner->ledNum>=5)
+		if (scaner->ledNum>=4)
 		{
 			seed = 0X8000;
 			for (i = 0; i<6; i++)
@@ -117,7 +119,7 @@ uint8_t deal_arrive(volatile SCANER *scaner, uint32_t node_flag)
 	if ((node_flag & DRIGHT) == DRIGHT)//右半边
 	{
 		//右边6个灯任意5个亮即可
-		if (scaner->ledNum >= 5)
+		if (scaner->ledNum >= 4)
 		{
 			seed = 0X0001;
 			for (i = 0; i<6; i++)
