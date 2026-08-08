@@ -27,7 +27,7 @@
 #define MAIN_DEBUG 1
 
 
-uint8_t test_flag = 9;
+uint8_t test_flag = 10;
 float temp_speed=25;
 #if MAIN_DEBUG
 

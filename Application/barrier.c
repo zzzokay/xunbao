@@ -257,11 +257,13 @@ void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
 	}
 }
 
-static uint8_t Stage_Action(void)
+static void Arrived_Stage(void)
 {
-	uint8_t need_ocr;
-
-	// 平台动作
+	Robot_Work(LARM, UP);
+	vTaskDelay(100);
+	Robot_Work(RARM, UP);
+	vTaskDelay(100);
+	/* 播报到达X号平台，规则要求转身180度后再播报 */
 	switch (nodes.nowNode.nodenum)
 	{
 	case P1: send_play_specified_command(5); break;
@@ -269,8 +271,20 @@ static uint8_t Stage_Action(void)
 	case P4: send_play_specified_command(3); break;
 	case P5: send_play_specified_command(2); break;
 	case P6: send_play_specified_command(1); break;
+	case P7: send_play_specified_command(12); break;
+	case P8: send_play_specified_command(14); break;
 	default: break;
 	}
+	Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 180, getAngleZ(), 20.0f);
+	Robot_Work(LARM, DOWN);
+	vTaskDelay(100);
+	Robot_Work(RARM, DOWN);
+	vTaskDelay(100);
+}
+
+static uint8_t Stage_Action(void)
+{
+	uint8_t need_ocr;
 
 	Arrived_Stage();
 

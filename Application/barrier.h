@@ -75,7 +75,7 @@ void undermou(void);
 //void Special_Node(void);
 void get_newroute(void);
 #define OCR_SCAN_SUCCESS 1U
-#define OCR_SCAN_FAILED  10U
+#define OCR_SCAN_FAILED  0U
 
 uint8_t WaitFor_OCR(void);
 uint8_t WaitFor_QR(void);
