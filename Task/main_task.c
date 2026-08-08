@@ -234,21 +234,14 @@ void main_task(void *pvParameters)
 		/*========== 正常运行模式 ==========*/
 
 		/*二轮处理*/
-//		if(map.routetime == 1)
-//		{
-//			map.routetime = 2;
-//			get_newroute();
+		if(map.routetime == 1)
+		{
+			map.routetime ++;
+			get_newroute();
+			zhunbei();
+		}
 
-//			// 陀螺仪角度复位，采样10次取平均值
-//			IMU_CalibrateZero(&basic_y, &basic_p, &basic_r);
-//			mpuZreset(basic_y, nodesr.nowNode.angle); // 把此时角度变为此结点角度
-//			zhunbei();
-
-//			encoder_clear(); // 路程记录清零
-//			Motor_Control(is_Line, SPEED0, SPEED0, 0);
-//		}
-
-		if(map.routetime == 0)
+		if(map.routetime == 0||map.routetime == 2)
 			Navigation();
 #endif
 
