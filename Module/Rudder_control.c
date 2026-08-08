@@ -36,39 +36,39 @@ void Robot_Work(uint8_t id,uint8_t aim)//70-500
 	if(id == BODY)  //身体
 	{
 		if(aim == UP)
-			{moveServo(2, 1600, 500); //1号舵机至500位置
-			vTaskDelay(2);}
+			{moveServo(3, 1600, 500); //1号舵机至500位置
+			vTaskDelay(3);}
 		else
-			{moveServo(2, 940, 500); //1号舵机至500位置
-			vTaskDelay(2);}
+			{moveServo(3, 940, 500); //1号舵机至500位置
+			vTaskDelay(3);}
 	}
 	else if(id == RARM)   //右臂
 	{
 		if (aim == UP)
-			{moveServo(14, 2500, 200); 
+			{moveServo(2, 2500, 200); 
 			vTaskDelay(2);}
 		else
-			{moveServo(14, 1005, 200); 
+			{moveServo(2, 1005, 200); 
 			vTaskDelay(2);}
 	}
 	else if(id == LARM)   //左臂
 	{
 		if (aim == UP)
-			{moveServo(15, 500, 200); 
+			{moveServo(1, 500, 200); 
 			vTaskDelay(2);}
 		else
-			{moveServo(15, 1885, 200); 
+			{moveServo(1, 1885, 200); 
 			vTaskDelay(2);}
 	}
-	else if(id == HEAD)   
+	else if(id == CAMERA)   
 	{
 		//头上下
-		if (aim == UP)
-			{moveServo(1, 1150, 300); 
-			vTaskDelay(2);}
-		else if(aim == DOWN)
-			{moveServo(1, 815, 100); 
-			vTaskDelay(2);}
+		// if (aim == UP)
+		// 	{moveServo(1, 1150, 300); 
+		// 	vTaskDelay(2);}
+		// else if(aim == DOWN)
+		// 	{moveServo(1, 815, 100); 
+		// 	vTaskDelay(2);}
 		//头左右：头往左转，角度增大
 		if (aim == HEAD_MID)
 			{moveServo(0, 1500, 200);
@@ -80,14 +80,14 @@ void Robot_Work(uint8_t id,uint8_t aim)//70-500
 			{moveServo(0, 500, 200);
 			vTaskDelay(200);}
 	}
-	else if(id == MIKU)
+	else if(id == MIKU)//机器人头
 	{
 		//MIKU左右摇摆
 		if (aim == HEAD_LEFT)
-			{moveServo(12, 1150, 300); 
+			{moveServo(4, 1150, 300); 
 			vTaskDelay(200);}
 		else if(aim == HEAD_RIGHT)
-			{moveServo(12, 500, 300); 
+			{moveServo(4, 500, 300); 
 			vTaskDelay(200);}
 	}
 }

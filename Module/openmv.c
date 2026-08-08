@@ -10,8 +10,8 @@
 
 
 
-uint8_t Color_Left, Color_Right;
-uint8_t COLOR_flag=0;//为1就是看左边，为2就是看右边
+volatile uint8_t Color_Left, Color_Right;
+volatile uint8_t COLOR_flag=0;//为1就是看左边，为2就是看右边
 
 
 
@@ -25,7 +25,7 @@ void Open_COLOR_R()
 	
 //	while(retry--) {
 	while(1) {
-			HAL_UART_Transmit(&huart5, cmd, sizeof(cmd), 100);
+			HAL_UART_Transmit(&huart6, cmd, sizeof(cmd), 100);
 			HAL_Delay(20);
 			if(	open_COLOR_R_mode_sign==0)  break;
 			HAL_Delay(30);
@@ -43,7 +43,7 @@ void Open_COLOR_L()
 	open_COLOR_L_mode_sign=1;
 //	while(retry--) {
 	while(1) {
-			HAL_UART_Transmit(&huart5, cmd, sizeof(cmd), 100);
+			HAL_UART_Transmit(&huart6, cmd, sizeof(cmd), 100);
 			HAL_Delay(20);
 			if(open_COLOR_L_mode_sign==0) break;
 			HAL_Delay(30);

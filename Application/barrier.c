@@ -52,7 +52,7 @@
  *  红绿灯            Door_ReadPass / door_set_pass_node
  *                    door_retreat / door(
  *  路线更新（门/QR） update_route_at_P1
- *                    update_route_by_door_1~4 / update_route_at_door_for_stageAB
+ *                    update_route_by_door_1~4 / update_route_at_door_for_clue
  *  第二轮路线规划    get_newroute
  *  OCR 读数字        WaitFor_OCR
  *  QR 码读取         WaitFor_QR
@@ -65,20 +65,20 @@
 /*===== 调试：预设5个门颜色，door() 自动读取 =====*/
 uint8_t door_pass[5] = {0, 0, 0, 0, 0};
 #if DEBUG
-uint8_t debug_door_pass[5] = {NO_PASS, CAN_PASS, CAN_PASS, ONE_WAY_PASS, NO_PASS}; // 0:D2、1:D3、2:D4、3:D5、4:D1
-int8_t flag_line_clue    = 0;
-int8_t flag_clue_stage_A = 6;
-int8_t flag_clue_stage_B = 8;
+uint8_t debug_door_pass[5] = {NO_PASS, NO_PASS, CAN_PASS, ONE_WAY_PASS, NO_PASS}; // 0:D2、1:D3、2:D4、3:D5、4:D1
+volatile uint8_t flag_line_clue    = 0;
+volatile uint8_t flag_clue_stage_A = 5;
+volatile uint8_t flag_clue_stage_B = 8;
 // OCR 线索：P5/P6读clue_A，P7/P8读clue_B，treasure=clue_A+clue_B → 宝物平台编号
-int8_t flag_clue_A       = 1;
-int8_t flag_clue_B       = 1;
+uint8_t flag_clue_A       = 1;
+uint8_t flag_clue_B       = 1;
 #else
-int8_t flag_line_clue    = 0;
-int8_t flag_clue_stage_A = 0;
-int8_t flag_clue_stage_B = 0;
+volatile uint8_t flag_line_clue    = 0;
+volatile uint8_t flag_clue_stage_A = 0;
+volatile uint8_t flag_clue_stage_B = 0;
 // OCR 线索：P5/P6读clue_A，P7/P8读clue_B，treasure=clue_A+clue_B → 宝物平台编号
-int8_t flag_clue_A       = 0;
-int8_t flag_clue_B       = 0;
+uint8_t flag_clue_A       = 0;
+uint8_t flag_clue_B       = 0;
 #endif
 
 /*===== 导航标志位（无摄像头时手动预设）=====*/
@@ -89,7 +89,12 @@ uint8_t treasure = 0;			// 宝物平台编号 = flag_clue_A + flag_clue_B，自�
 								// 调用：update_route_at_P7_for_treasure/8() → door() 确定宝物平台后回家路线
 								//       Stage_HasTreasure() → Stage() 判断当前平台是否是宝物平台
 
-uint8_t get_cude = 0;
+volatile uint8_t get_cude = 0;
+
+/* MaixCam识别较慢：每轮保持模式的最长等待时间（FreeRTOS tick） */
+#define MAIXCAM_QR_WAIT_TICKS     1500U  /* 1500 × 3ms ≈ 4.5s */
+#define MAIXCAM_OCR_WAIT_TICKS    1500U  /* 1500 × 3ms ≈ 4.5s */
+#define MAIXCAM_COLOR_WAIT_TICKS  2000U  /* 2000 × 2ms ≈ 4.0s */
 
 static uint8_t Stage_HasTreasure(void)
 {
@@ -251,42 +256,14 @@ void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
 		vTaskDelay(5);
 	}
 }
-static void say_clue(void)
-{
-	if((nodes.nowNode.nodenum == P5 || nodes.nowNode.nodenum == P6) && treasure == 0){		
-		switch (flag_clue_A)
-		{
-		case 0: send_play_specified_command(16); break;
-		case 1: send_play_specified_command(17); break;
-		case 2: send_play_specified_command(18); break;
-		case 3: send_play_specified_command(19); break;
-		case 4: send_play_specified_command(20); break;
-		case 5: send_play_specified_command(21); break;
-		case 6: send_play_specified_command(22); break;
-		default: break;
-		}
-	}
-	if((nodes.nowNode.nodenum == P7 || nodes.nowNode.nodenum == P8) && treasure == 0){		
-		switch (flag_clue_B)
-		{
-		case 0: send_play_specified_command(23); break;
-		case 1: send_play_specified_command(24); break;
-		case 2: send_play_specified_command(25); break;
-		case 3: send_play_specified_command(26); break;
-		case 4: send_play_specified_command(27); break;
-		case 5: send_play_specified_command(28); break;
-		case 6: send_play_specified_command(29); break;
-		default: break;
-		}
-	}
-}
+
 static void Arrived_Stage(void)
 {
 	Robot_Work(LARM, UP);
 	vTaskDelay(100);
 	Robot_Work(RARM, UP);
 	vTaskDelay(100);
-	// 播报到达X号平台，规则要求转身180度后再播报
+	/* 播报到达X号平台，规则要求转身180度后再播报 */
 	switch (nodes.nowNode.nodenum)
 	{
 	case P1: send_play_specified_command(5); break;
@@ -298,83 +275,99 @@ static void Arrived_Stage(void)
 	case P8: send_play_specified_command(14); break;
 	default: break;
 	}
-	Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ(), 20.0f);
+	Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 180, getAngleZ(), 20.0f);
 	Robot_Work(LARM, DOWN);
 	vTaskDelay(100);
 	Robot_Work(RARM, DOWN);
 	vTaskDelay(100);
 }
+
 static void Stage_Action(float oringinal_angle)
 {
 	uint8_t stage_state = 0;
 	uint8_t again_required = 0;
-	
+	uint8_t need_ocr;
+	uint8_t retry_count = 0;
+
 	while(stage_state!=4){
 		//撞击
 		if (stage_state == 0 || again_required)
 		{
 			if(again_required)Chassis_DriveDistance_Blocking(is_Gyro,20,GoStage_Speed,getAngleZ(),0);
 			else Chassis_DriveDistance_Blocking(is_Gyro,29,GoStage_Speed,oringinal_angle,0);
-			CarBrake();		
-			mpuZreset(get_latest_yaw(), nodes.nowNode.angle);	
-			// 后退一段距离
+			CarBrake();
+			mpuZreset(get_latest_yaw(), nodes.nowNode.angle);
+			//后退一段距离
 			Chassis_DriveDistance_Blocking(is_Gyro,10,-GoStage_Speed,getAngleZ(),0);
 			CarBrake();
 			if(stage_state == 0)stage_state = 1;
 		}
-		// 扫描
+		//扫描
 		if(stage_state == 1 || again_required)
 		{
-			// 先把摄像头转到二维码方向
 			if(!again_required){
-				Robot_Work(HEAD, HEAD_MID);	
+				Robot_Work(CAMERA, HEAD_MID);
 				vTaskDelay(300);
-			}	
-			if (nodes.nowNode.nodenum == P1 && treasure == 0){
-				// 读取二维码
-				open_QR_mode();
-			}
-			if((nodes.nowNode.nodenum == P5||nodes.nowNode.nodenum == P6||nodes.nowNode.nodenum == P7||nodes.nowNode.nodenum == P8)&&treasure==0){
-				// 读取 OCR 线索
-				open_OCR_mode();
 			}
 			if(stage_state == 1)stage_state = 3;
 		}
 		//等待扫描结果
 		if(stage_state==3 || again_required)
 		{
-			if (nodes.nowNode.nodenum == P1 && treasure == 0){
+			need_ocr = ((nodes.nowNode.nodenum == P5 && flag_clue_stage_A == 5) ||
+				(nodes.nowNode.nodenum == P6 && flag_clue_stage_A == 6) ||
+				(nodes.nowNode.nodenum == P7 && flag_clue_stage_B == 7) ||
+				(nodes.nowNode.nodenum == P8 && flag_clue_stage_B == 8));
+			if (nodes.nowNode.nodenum == P1 && treasure == 0 && get_cude == 0)
+			{
 				if(WaitFor_QR()){
-					// P1 路线更新
 					update_route_at_P1();
 					stage_state = 4;
 					again_required = 0;
 				}
-				else{//如果失败就再撞一次
+				else{
 					again_required = 1;
-				}		
+					retry_count++;
+					if(retry_count >= 3){
+						// 兜底：QR连续失败，按预设flag更新路线继续
+						update_route_at_P1();
+						stage_state = 4;
+						again_required = 0;
+					}
+				}
 			}
-			else if((nodes.nowNode.nodenum == P5||nodes.nowNode.nodenum == P6||nodes.nowNode.nodenum == P7||nodes.nowNode.nodenum == P8)&&treasure==0){
-				if(WaitFor_OCR()){
-						//播报线索 
-					say_clue();
+			else if (nodes.nowNode.nodenum == P1 && treasure == 0)
+			{
+				// 预设/DEBUG：已有QR结果，直接按flag更新路线
+				update_route_at_P1();
+				stage_state = 4;
+				again_required = 0;
+			}
+			else if (treasure == 0 && need_ocr)
+			{
+				if(WaitFor_OCR() == OCR_SCAN_SUCCESS){
 					stage_state = 4;
 					again_required = 0;
-					// P1 路线更新
 				}
 				else{
 					again_required = 1;
-				}		
-				
+					retry_count++;
+					if(retry_count >= 3){
+						// 兜底：OCR连续失败，按预设flag计算宝物平台后继续
+						treasure = flag_clue_A + flag_clue_B;
+						stage_state = 4;
+						again_required = 0;
+					}
+				}
 			}
-			else stage_state = 4;	
+			else stage_state = 4;
 		}
 		if(stage_state == 4)
 		{
 			Arrived_Stage();
 		}
 		vTaskDelay(2);
-	}			
+	}
 }
 
 /*平台 - 不包括P2*/
@@ -383,7 +376,6 @@ void Stage(void)
 	enum {
 		STAGE_ASCEND,    // 上坡：RampCtrl_Blocking 处理
 		STAGE_TOP,       // 桥面行驶+站起+撞击
-		STAGE_SCAN,      // 后退+OCR/QR+转身180°
 		STAGE_TREASURE,  // 下坡：RampCtrl_Blocking 处理
 		STAGE_DONE       // 清标志，结束
 	} state = STAGE_ASCEND;
@@ -412,17 +404,14 @@ void Stage(void)
 			break;
 
 		case STAGE_TOP:
-				Robot_Work(BODY, UP); 	//人站起来
+			Robot_Work(BODY, UP); 	//人站起来
+			Stage_Action(oringinal_angle);
 
-				Stage_Action(oringinal_angle);	
+			if(Stage_HasTreasure())
+				Stage_CollectTreasure();
 
-				if(Stage_HasTreasure()){
-					Stage_CollectTreasure();
-				}
-	
-				Robot_Work(BODY, DOWN); 	//人站起来
-				state = STAGE_TREASURE;
-			
+			Robot_Work(BODY, DOWN); 	//人躺下
+			state = STAGE_TREASURE;
 			break;
 
 		case STAGE_TREASURE:
@@ -487,9 +476,9 @@ void Stage_Home(void)
 			// vTaskDelay(100);
 			// Robot_Work(BODY, DOWN);		//人躺下
 			// vTaskDelay(100);
-			// Robot_Work(HEAD,HEAD_MID);
+			// Robot_Work(CAMERA,HEAD_MID);
 			// vTaskDelay(100);
-			// Robot_Work(HEAD,UP);
+			// Robot_Work(CAMERA,UP);
 
 			state = P2_TURN;
 			break;
@@ -531,7 +520,7 @@ void Barrier_Bridge(void)
 
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
 	Chassis_ClearMileage();
-	static uint16_t is_emergency = 0;
+	static uint8_t is_emergency = 0;
 	while (state != BRIDGE_DONE)
 	{
 		switch (state)
@@ -556,7 +545,7 @@ void Barrier_Bridge(void)
 	
 			while (fabsf(Chassis_GetMileage()) < 15)
 			{		
-				Chassis_CorrectByInfrared(0.07f, 2.0f, 1.0f);
+				Chassis_CorrectByInfrared(0.07f, 1.5f, 1.5f);
 				vTaskDelay(5);
 			}
 			//上桥结束检测
@@ -577,7 +566,7 @@ void Barrier_Bridge(void)
 			if (Cross_Scaner.detail & 0x7800)
 			{
 				if(is_emergency<=10)is_emergency++;
-				if(is_emergency == 10 || is_emergency == 500)
+				if(is_emergency == 10)
 				{
 					centered_samples = 0;
 					send_play_specified_command(33);
@@ -589,7 +578,7 @@ void Barrier_Bridge(void)
 			else if (Cross_Scaner.detail & 0x007E)
 			{
 				if(is_emergency<=10)is_emergency++;
-				if(is_emergency == 10 || is_emergency == 500)
+				if(is_emergency == 10)
 				{
 					centered_samples = 0;
 					send_play_specified_command(33);
@@ -614,9 +603,9 @@ void Barrier_Bridge(void)
 				{
 					centered_samples = 0;
 					if(mileage_br<=15.0f){
-						Chassis_CorrectByInfrared(0.04f, 1.3f, 1.0f);
+						Chassis_CorrectByInfrared(0.04f, 1.5f, 1.0f);
 					}
-					else{Chassis_CorrectByInfrared(0.03f, 1.3f, 1.0f);}
+					else{Chassis_CorrectByInfrared(0.03f, 1.5f, 1.0f);}
 					
 					Chassis_SetTargetSpeed(SPEED1);
 				}
@@ -709,7 +698,7 @@ void Barrier_Hill(void)
 
 		case HILL_DESCEND:
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
-				basic_p, UpDownStage_Speed_high, basic_p-10, UpDownStage_Speed_high, basic_p-3, 0.10, 15.0f, 35.0f);
+				basic_p, UpDownStage_Speed_low, basic_p-10, UpDownStage_Speed_low, basic_p-3, 0.10, 15.0f, 35.0f);
   
 			state = HILL_DONE;
 			break;
@@ -905,21 +894,21 @@ void Barrier_HighMountain(void)
 			break;
 
 		case HM_IMPACT:
-				Robot_Work(BODY, UP); 	//人站起来
-				//平台动作
-				Stage_Action(getAngleZ());
+			Robot_Work(BODY, UP); 	//人站起来
+			//平台动作
+			Stage_Action(getAngleZ());
 
-				// 宝物线索：由标志位计算，不依赖摄像头
-				if (treasure == 0){
-					treasure = flag_clue_A + flag_clue_B;
+			if (treasure == 0)
+			{
+				treasure = flag_clue_A + flag_clue_B;
+				if (map.routetime == 0)
 					update_route_at_P8_for_treasure();
-				}
-		
-				Robot_Work(BODY, DOWN); 	//人坐下
+			}
 
-				origin_angle = getAngleZ();
-				sub_stage = 0;
-				state = HM_DESCEND_1;
+			Robot_Work(BODY, DOWN); 	//人坐下
+			origin_angle = getAngleZ();
+			sub_stage = 0;
+			state = HM_DESCEND_1;
 			break;
 
 		case HM_DESCEND_1:
@@ -1123,16 +1112,16 @@ void South_Pole(void)
 			break;
 
 		case SP_IMPACT:
-			
-			Robot_Work(BODY, UP); 
-
+			Robot_Work(BODY, UP);
+			//平台动作
 			Stage_Action(getAngleZ());
 
-			if (treasure == 0){
+			if (treasure == 0)
 				treasure = flag_clue_A + flag_clue_B;
+			if (map.routetime == 0 && flag_clue_stage_B == 7)
 				update_route_at_P7_for_treasure();
-			}
-			Robot_Work(BODY, DOWN); 	//人坐下
+
+			Robot_Work(BODY, DOWN);
 			state = SP_DESCEND;
 			break;
 
@@ -1200,7 +1189,7 @@ void update_route_at_P7_for_treasure(void)
 			case 5:
 				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N8,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
 				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
@@ -1219,7 +1208,7 @@ void update_route_at_P7_for_treasure(void)
 			case 5:
 				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N8,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
 				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
@@ -1546,24 +1535,87 @@ void QQB_1(void)
 	
 }
 
-/*读门灯通行状态（0=超时/未设置, 1=绿=能过, 2=蓝=单相通过, 3=黑=不能过）*/
-static uint8_t Door_ReadColor(void)
+/* 真实定义在下方，先声明后供测试入口调用 */
+static uint8_t Door_ReadPass(uint8_t door_state);
+
+uint8_t Door_ReadPass_Test(void)
 {
-	/* TODO: 在这里读取真实颜色传感器，并映射为通行状态 */
-	return 0;
+    return Door_ReadPass(0);   // 测试 D2
 }
 
+
+/*读门灯通行状态（0=超时/未设置, 1=绿=能过, 2=蓝=单相通过, 3=黑=不能过）*/
 static uint8_t Door_ReadPass(uint8_t door_state)
 {
 #if DEBUG
-	static const uint8_t state_to_idx[] = {0, 1, 2, 3, 2}; // D2->0, D3->1, D4->2, D5->3, D4_AGAIN->2
-	vTaskDelay(500);
+	static const uint8_t state_to_idx[] = {0, 1, 2, 3, 2}; // D2→0, D3→1, D4→2, D5→3, D4_AGAIN→2
 	return debug_door_pass[state_to_idx[door_state]];
 #else
-	uint8_t color = Door_ReadColor();
-	(void)door_state;
-	/* TODO: color -> CAN_PASS / ONE_WAY_PASS / NO_PASS */
-	return color;
+	/* TODO: 读取真实左右颜色传感器
+	 *   maixcam→ UART6_RX 读取颜色值
+	 *   返回值：1=Green, 2=Yellow, 3=Red, 0=未读到
+	 */
+
+   uint8_t retry;
+    uint8_t color = 0;
+
+    (void)door_state;
+
+    /*
+     * 只有一个 MaixCam，摄像头通过0号舵机向左看灯。
+     * Robot_Work() 内部已经包含约200 tick的等待。
+     */
+    Robot_Work(CAMERA, HEAD_LEFT);
+    vTaskDelay(100);
+
+    for (retry = 0; retry < 3; retry++)
+    {
+        uint32_t timeout = 0;
+
+        /*
+         * 清除上次识别结果，避免误用旧颜色。
+         */
+        Color_Left = 0;
+
+        /*
+         * 发送0x33并等待MaixCam返回0x94。
+         */
+        Open_COLOR_L();
+
+        /*
+         * 等待Process_COLOR_Data()连续收到3次相同颜色，
+         * 然后写入Color_Left。MaixCam识别较慢，单轮保持4秒。
+         */
+        while (Color_Left == 0 && timeout < MAIXCAM_COLOR_WAIT_TICKS)
+        {
+            vTaskDelay(2);
+            timeout++;
+        }
+
+        color = Color_Left;
+
+        if (color == CAN_PASS ||
+            color == ONE_WAY_PASS ||
+            color == NO_PASS)
+        {
+            /*
+             * Process_COLOR_Data()识别成功后已调用
+             * close_Maxicam()，可以直接返回。
+             */
+            return color;
+        }
+
+        /*
+         * 本轮超时：重新尝试。
+         */
+        vTaskDelay(50);
+    }
+
+    /*
+     * 连续3次识别失败。
+     */
+    close_Maxicam();
+	return 0;
 #endif
 }
 
@@ -1606,44 +1658,50 @@ void door()
 
 	CarBrake();
 	Chassis_Turn_By_StopGyro_Blocking(nodes.nowNode.angle, getAngleZ(), 30.0f);
+	vTaskDelay(500);
+	uint8_t pass_state = Door_ReadPass(state);
+	if (pass_state == 0)
+	{
+		// 兜底：摄像头读不到颜色时按“不能通过”处理
+		pass_state = NO_PASS;
+	}
 
 	/*公共初始化*/
 	map.point = 0;
 	route[0] = 0xFF;
-	uint8_t pass_state = Door_ReadPass(state);
-	
+
 	switch (state)
 	{
 	case DOOR_D2:
 		door_pass[0] = pass_state;
 		if (door_pass[0] == NO_PASS)
 		{
-			send_play_specified_command(11);//播放不可以通过
-			door_retreat(N5, N8);//退回到N8
+			send_play_specified_command(11);
+			door_retreat(N5, N8);
 			cross_event |= CROSS_EVENT_DOOR;
 			state = DOOR_D3;
 		}
 		else if (door_pass[0] == CAN_PASS)
 		{
 			send_play_specified_command(8);
-			//设置N5→N12通行节点
-			door_set_pass_node(N5, N12, 160, SPEED4);
-			door_set_pass_node(N12, N5, 160, SPEED4);
+			door_set_pass_node(N5, N12, 140, SPEED4);
+			door_set_pass_node(N12, N5, 140, SPEED4);
 			nodes.nowNode = Node[getNextConnectNode(N5, N12)];
 			nodes.nowNode.step = 60;
 			nodes.nowNode.speed = SPEED4;
-			update_route_at_door_for_stageAB();
+			update_route_at_door_for_clue();
 			cross_event |= CROSS_EVENT_DOOR;
 			state = DOOR_D2;
 		}
 		else // ONE_WAY_PASS
 		{
 			send_play_specified_command(10);
-			door_set_pass_node(N5, N12, 160, SPEED4);
+			door_set_pass_node(N5, N12, 140, SPEED4);
 			nodes.nowNode = Node[getNextConnectNode(N5, N12)];
+			nodes.nowNode.flag = DLEFT | DRIGHT | CRIGHT | LEFT_LINE;
 			nodes.nowNode.step = 60;
 			nodes.nowNode.speed = SPEED4;
-			update_route_at_door_for_stageAB();
+			update_route_at_door_for_clue();
 			cross_event |= CROSS_EVENT_DOOR;
 			state = DOOR_D5_BACK;
 		}
@@ -1661,15 +1719,15 @@ void door()
 		}
 		else // CAN_PASS 或 ONE_WAY_PASS
 		{
-			door_set_pass_node(N5, N8, 120, SPEED4);
+			door_set_pass_node(N5, N8, 120, SPEED3);
 			nodes.nowNode = Node[getNextConnectNode(N5, N8)];
 			nodes.nowNode.step = 60;
 			nodes.nowNode.speed = SPEED4;
-			update_route_at_door_for_stageAB();
+			update_route_at_door_for_clue();
 
 			if (door_pass[1] == CAN_PASS)
 			{
-				door_set_pass_node(N8, N5, 120, SPEED4);
+				door_set_pass_node(N8, N5, 120, SPEED3);
 				send_play_specified_command(8);
 				state = DOOR_D2;
 			}
@@ -1687,18 +1745,23 @@ void door()
 		if (door_pass[2] == CAN_PASS)
 		{
 			send_play_specified_command(8);
-			door_set_pass_node(N8, N3, 120, SPEED4);
+			door_set_pass_node(N8, N3, 140, SPEED3);
+		}
+		else if (door_pass[2] == NO_PASS)
+		{
+			// 兜底：D4读不到时停车，避免被当成蓝灯
+			CarBrake_Stop();
 		}
 		else // ONE_WAY_PASS
 		{
 			send_play_specified_command(10);
-			door_set_pass_node(N10, N3, 160, SPEED4);
+			door_set_pass_node(N10, N3, 140, SPEED3);
 		}
-		door_set_pass_node(N3, N8, 120, SPEED4);
+		door_set_pass_node(N3, N8, 120, SPEED3);
 		nodes.nowNode = Node[getNextConnectNode(N3, N8)];
 		nodes.nowNode.step = 60;
 		nodes.nowNode.speed = SPEED4;
-		update_route_at_door_for_stageAB();
+		update_route_at_door_for_clue();
 		cross_event |= CROSS_EVENT_DOOR;
 		state = DOOR_D2;
 		break;
@@ -1708,10 +1771,10 @@ void door()
 		if (door_pass[3] == CAN_PASS)
 		{
 			send_play_specified_command(8);
-			door_set_pass_node(N10, N3, 160, SPEED4);
+			door_set_pass_node(N10, N3, 140, SPEED3);
 			nodes.nowNode = Node[getNextConnectNode(N10, N3)];
 			nodes.nowNode.step = 30;
-			nodes.nowNode.speed = SPEED4;
+			nodes.nowNode.speed = SPEED3;
 			cross_event |= CROSS_EVENT_DOOR;
 			update_route_by_door_1();
 			state = DOOR_D2;
@@ -1730,8 +1793,8 @@ void door()
 			else if (door_pass[0] == NO_PASS && door_pass[1] == ONE_WAY_PASS)
 			{
 				door_retreat(N10, N8);
-				door_set_pass_node(N3, N8, 120, SPEED4);
-				door_set_pass_node(N8, N3, 120, SPEED4);
+				door_set_pass_node(N3, N8, 120, SPEED3);
+				door_set_pass_node(N8, N3, 120, SPEED3);
 				update_route_by_door_2();
 				cross_event |= CROSS_EVENT_DOOR;
 				state = DOOR_D2;
@@ -1744,11 +1807,11 @@ void door()
 		if (door_pass[2] == CAN_PASS)
 		{
 			send_play_specified_command(8);
-			door_set_pass_node(N3, N8, 120, SPEED4);
-			door_set_pass_node(N8, N3, 120, SPEED4);
+			door_set_pass_node(N3, N8, 120, SPEED3);
+			door_set_pass_node(N8, N3, 120, SPEED3);
 			nodes.nowNode = Node[getNextConnectNode(N8, N3)];
 			nodes.nowNode.step = 30;
-			nodes.nowNode.speed = SPEED4;
+			nodes.nowNode.speed = SPEED3;
 			nodes.nowNode.function = NONE;
 			cross_event |= CROSS_EVENT_DOOR;
 			update_route_by_door_3();
@@ -1758,8 +1821,8 @@ void door()
 		{
 			send_play_specified_command(11);
 			door_retreat(N8, N5);
-			door_set_pass_node(N8, N5, 160, SPEED4);
-			door_set_pass_node(N5, N8, 160, SPEED4);
+			door_set_pass_node(N8, N5, 140, SPEED3);
+			door_set_pass_node(N5, N8, 140, SPEED3);
 			cross_event |= CROSS_EVENT_DOOR;
 			update_route_by_door_4();
 		}
@@ -1873,7 +1936,7 @@ void update_route_by_door_4(void)
 }
 static uint8_t Can_Pass(uint8_t c) { return c == CAN_PASS || c == ONE_WAY_PASS; }
 
-void update_route_at_door_for_stageAB(void)
+void update_route_at_door_for_clue(void)
 {
 	// 按线索平台组合选择路线
 	if (flag_clue_stage_A == 5 && flag_clue_stage_B == 7)
@@ -1929,37 +1992,61 @@ void update_route_at_door_for_stageAB(void)
 /*第二轮路线规划*/
 void get_newroute(void)
 {
-	const u8 r[] = {B1, N1, P1, 0XFF};
-	load_route_at(0, r);
 	mapInit();
-	//全部运行通行
-	door_set_pass_node(N5, N12, 160, SPEED4);
-	door_set_pass_node(N12, N5, 160, SPEED4);
-	door_set_pass_node(N5, N8, 120, SPEED4);
-	door_set_pass_node(N8, N5, 120, SPEED4);
-	door_set_pass_node(N3, N8, 120, SPEED4);
-	door_set_pass_node(N8, N3, 120, SPEED4);
-	door_set_pass_node(N3, N10, 160, SPEED4);
-	door_set_pass_node(N10, N3, 160, SPEED4);
+	map.point = 0;
+	for (int i = 0; i < 126; i++)
+	{
+		if (Node[i].function == DOOR)
+		{
+			Node[i].function = NONE;
+			Node[i].step *= 2;
+			Node[i].speed = SPEED3;
+		}
+	}
 
 	if(door_pass[0]==CAN_PASS)//第一个门开
 	{
+		Node[getNextConnectNode(P3, N3)].flag |= STOPTURN;
 		switch(treasure)
 		{
-			case 6:								//宝藏=6：去1、3、4、6后直接回家
-				u8 temp_6[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N12,N11,N10,N9,B9,N7,P6,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF};
+			case 2:
+				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
-					route[i]=temp_6[i];
-					if(temp_6[i]==0xff)
+					route[i]=temp_1[i];
+					if(temp_1[i]==0xff)
 						break;
 				}
 				break;
-			case 2:
 			case 3:
+				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_2[i];
+					if(temp_2[i]==0xff)
+						break;
+				}
+				break;
 			case 4:
-			case 5:								//宝藏≠6：去1、3、4、5后直接回家
-				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N12,N13,P5,N13,N12,N5,N4,B3,N2,P2,0XFF};
+				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_3[i];
+					if(temp_3[i]==0xff)
+						break;
+				}
+				break;
+			case 5:
+				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_4[i];
+					if(temp_4[i]==0xff)
+						break;
+				}
+				break;
+			case 6:
+				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N5,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
 					route[i]=temp_5[i];
@@ -1972,23 +2059,47 @@ void get_newroute(void)
 	}
 	else if(door_pass[0]==ONE_WAY_PASS && door_pass[3]==CAN_PASS)
 	{
-		
+		Node[getNextConnectNode(S1, N3)].flag |= STOPTURN;
 		switch(treasure)
 		{
-			case 6:								//宝藏=6：去1、3、4、6后直接回家
-				u8 temp_6[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N12,N11,N10,N9,B9,N7,P6,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+			case 2:
+				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
-					route[i]=temp_6[i];
-					if(temp_6[i]==0xff)
+					route[i]=temp_1[i];
+					if(temp_1[i]==0xff)
 						break;
 				}
 				break;
-			case 2:
 			case 3:
+				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_2[i];
+					if(temp_2[i]==0xff)
+						break;
+				}
+				break;
 			case 4:
-			case 5:								//宝藏≠6：去1、3、4、5后直接回家
-				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N12,N13,P5,N13,N12,N11,N10,N3,N4,B3,N2,P2,0XFF};
+				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_3[i];
+					if(temp_3[i]==0xff)
+						break;
+				}
+				break;
+			case 5:
+				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_4[i];
+					if(temp_4[i]==0xff)
+						break;
+				}
+				break;
+			case 6:
+				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
 					route[i]=temp_5[i];
@@ -2000,23 +2111,47 @@ void get_newroute(void)
 	}
 	else if(door_pass[0]==ONE_WAY_PASS && door_pass[3]==NO_PASS && door_pass[2]==CAN_PASS)
 	{
-	
+		Node[getNextConnectNode(S1, N3)].flag |= STOPTURN;
 		switch(treasure)
 		{
-			case 6:								//宝藏=6：去1、3、4、6后直接回家
-				u8 temp_6[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N12,N11,N10,N9,B9,N7,P6,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+			case 2:
+				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
-					route[i]=temp_6[i];
-					if(temp_6[i]==0xff)
+					route[i]=temp_1[i];
+					if(temp_1[i]==0xff)
 						break;
 				}
 				break;
-			case 2:
 			case 3:
+				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_2[i];
+					if(temp_2[i]==0xff)
+						break;
+				}
+				break;
 			case 4:
-			case 5:								//宝藏≠6：去1、3、4、5后直接回家
-				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N12,N13,P5,N13,N12,N11,N10,N8,N3,N4,B3,N2,P2,0XFF};
+				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_3[i];
+					if(temp_3[i]==0xff)
+						break;
+				}
+				break;
+			case 5:
+				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_4[i];
+					if(temp_4[i]==0xff)
+						break;
+				}
+				break;
+			case 6:
+				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N8,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
 					route[i]=temp_5[i];
@@ -2028,23 +2163,47 @@ void get_newroute(void)
 	} 
 	else if(door_pass[0]==ONE_WAY_PASS && door_pass[3]==NO_PASS && door_pass[2]==NO_PASS)
 	{
-	
+		Node[getNextConnectNode(P3, N3)].flag |= STOPTURN;
 		switch(treasure)
 		{
-			case 6:								//宝藏=6：去1、3、4、6后直接回家
-				u8 temp_6[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N12,N11,N10,N9,B9,N7,P6,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
+			case 2:
+				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
-					route[i]=temp_6[i];
-					if(temp_6[i]==0xff)
+					route[i]=temp_1[i];
+					if(temp_1[i]==0xff)
 						break;
 				}
 				break;
-			case 2:
 			case 3:
+				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_2[i];
+					if(temp_2[i]==0xff)
+						break;
+				}
+				break;
 			case 4:
-			case 5:								//宝藏≠6：去1、3、4、5后直接回家
-				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N12,N13,P5,N13,N12,N11,N10,N8,N5,N4,B3,N2,P2,0XFF};
+				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_3[i];
+					if(temp_3[i]==0xff)
+						break;
+				}
+				break;
+			case 5:
+				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_4[i];
+					if(temp_4[i]==0xff)
+						break;
+				}
+				break;
+			case 6:
+				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N8,N5,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
 					route[i]=temp_5[i];
@@ -2056,23 +2215,47 @@ void get_newroute(void)
 	}
 	else if(door_pass[0]==NO_PASS && door_pass[1]==CAN_PASS)
 	{
-	
+		Node[getNextConnectNode(P3, N3)].flag |= STOPTURN;
 		switch(treasure)
 		{
-			case 6:								//宝藏=6：去1、3、4、6后直接回家
-				u8 temp_6[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N8,N12,N11,N10,N9,B9,N7,P6,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
+			case 2:
+				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
-					route[i]=temp_6[i];
-					if(temp_6[i]==0xff)
+					route[i]=temp_1[i];
+					if(temp_1[i]==0xff)
 						break;
 				}
 				break;
-			case 2:
 			case 3:
+				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_2[i];
+					if(temp_2[i]==0xff)
+						break;
+				}
+				break;
 			case 4:
-			case 5:								//宝藏≠6：去1、3、4、5后直接回家
-				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N8,N12,N13,P5,N13,N12,N11,N10,N8,N5,N4,B3,N2,P2,0XFF};
+				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_3[i];
+					if(temp_3[i]==0xff)
+						break;
+				}
+				break;
+			case 5:
+				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_4[i];
+					if(temp_4[i]==0xff)
+						break;
+				}
+				break;
+			case 6: 									//可不过刀山		
+				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N8,N5,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
 					route[i]=temp_5[i];
@@ -2084,23 +2267,47 @@ void get_newroute(void)
 	}
 	else if(door_pass[0]==NO_PASS && door_pass[1]==ONE_WAY_PASS && door_pass[3]==CAN_PASS)
 	{
-
+		Node[getNextConnectNode(S1, N3)].flag |= STOPTURN;
 		switch(treasure)
 		{
-			case 6:								//宝藏=6：去1、3、4、6后直接回家
-				u8 temp_6[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N8,N12,N11,N10,N9,B9,N7,P6,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+			case 2:
+				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
-					route[i]=temp_6[i];
-					if(temp_6[i]==0xff)
+					route[i]=temp_1[i];
+					if(temp_1[i]==0xff)
 						break;
 				}
 				break;
-			case 2:
 			case 3:
+				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_2[i];
+					if(temp_2[i]==0xff)
+						break;
+				}
+				break;
 			case 4:
-			case 5:								//宝藏≠6：去1、3、4、5后直接回家
-				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N8,N12,N13,P5,N13,N12,N11,N10,N3,N4,B3,N2,P2,0XFF};
+				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_3[i];
+					if(temp_3[i]==0xff)
+						break;
+				}
+				break;
+			case 5:
+				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_4[i];
+					if(temp_4[i]==0xff)
+						break;
+				}
+				break;
+			case 6: 									//可不过刀山		
+				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
 					route[i]=temp_5[i];
@@ -2112,23 +2319,47 @@ void get_newroute(void)
 	}
 	else if(door_pass[0]==NO_PASS && door_pass[1]==ONE_WAY_PASS && door_pass[3]==NO_PASS)//D4绿
 	{
-	
+		Node[getNextConnectNode(S1, N3)].flag |= STOPTURN;
 		switch(treasure)
 		{
-			case 6:								//宝藏=6：去1、3、4、6后直接回家
-				u8 temp_6[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N8,N12,N11,N10,N9,B9,N7,P6,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+			case 2:
+				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
-					route[i]=temp_6[i];
-					if(temp_6[i]==0xff)
+					route[i]=temp_1[i];
+					if(temp_1[i]==0xff)
 						break;
 				}
 				break;
-			case 2:
 			case 3:
+				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_2[i];
+					if(temp_2[i]==0xff)
+						break;
+				}
+				break;
 			case 4:
-			case 5:								//宝藏≠6：去1、3、4、5后直接回家
-				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N8,N12,N13,P5,N13,N12,N11,N10,N8,N3,N4,B3,N2,P2,0XFF};
+				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_3[i];
+					if(temp_3[i]==0xff)
+						break;
+				}
+				break;
+			case 5:
+				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_4[i];
+					if(temp_4[i]==0xff)
+						break;
+				}
+				break;
+			case 6: 									//可不过刀山		
+				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N8,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
 					route[i]=temp_5[i];
@@ -2140,23 +2371,47 @@ void get_newroute(void)
 	}
 	else if(door_pass[0]==NO_PASS && door_pass[1]==NO_PASS && door_pass[2]==CAN_PASS)//从最外面出去吧
 	{
-
+		Node[getNextConnectNode(P3, N3)].flag |= STOPTURN;
 		switch(treasure)
 		{
-			case 6:								//宝藏=6：去1、3、4、6后直接回家
-				u8 temp_6[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N4,N3,N8,N10,N9,B9,N7,P6,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+			case 2:
+				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
-					route[i]=temp_6[i];
-					if(temp_6[i]==0xff)
+					route[i]=temp_1[i];
+					if(temp_1[i]==0xff)
 						break;
 				}
 				break;
-			case 2:
 			case 3:
+				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_2[i];
+					if(temp_2[i]==0xff)
+						break;
+				}
+				break;
 			case 4:
-			case 5:								//宝藏≠6：去1、3、4、5后直接回家
-				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P5,N13,N12,N8,N3,N4,B3,N2,P2,0XFF};
+				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_3[i];
+					if(temp_3[i]==0xff)
+						break;
+				}
+				break;
+			case 5:
+				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_4[i];
+					if(temp_4[i]==0xff)
+						break;
+				}
+				break;
+			case 6: 									//可不过刀山		
+				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N8,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
 					route[i]=temp_5[i];
@@ -2168,23 +2423,47 @@ void get_newroute(void)
 	}
 	else if(door_pass[0]==NO_PASS && door_pass[1]==NO_PASS && door_pass[2]==ONE_WAY_PASS)//从最外面出去吧
 	{
-
+		Node[getNextConnectNode(P3, N3)].flag |= STOPTURN;
 		switch(treasure)
 		{
-			case 6:								//宝藏=6：去1、3、4、6后直接回家
-				u8 temp_6[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N4,N3,N8,N10,N9,B9,N7,P6,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+			case 2:
+				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
-					route[i]=temp_6[i];
-					if(temp_6[i]==0xff)
+					route[i]=temp_1[i];
+					if(temp_1[i]==0xff)
 						break;
 				}
 				break;
-			case 2:
 			case 3:
+				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_2[i];
+					if(temp_2[i]==0xff)
+						break;
+				}
+				break;
 			case 4:
-			case 5:								//宝藏≠6：去1、3、4、5后直接回家
-				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P5,N13,N12,N11,N10,N3,N4,B3,N2,P2,0XFF};
+				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_3[i];
+					if(temp_3[i]==0xff)
+						break;
+				}
+				break;
+			case 5:
+				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_4[i];
+					if(temp_4[i]==0xff)
+						break;
+				}
+				break;
+			case 6: 									//可不过刀山		
+				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
 					route[i]=temp_5[i];
@@ -2198,94 +2477,145 @@ void get_newroute(void)
 		CarBrake_Stop();
 }
 
-/*maixcam读数字*/
+/* MaixCam读取数字线索：成功返回OCR_SCAN_SUCCESS，超时或平台不匹配返回OCR_SCAN_FAILED */
 uint8_t WaitFor_OCR(void)
 {
 #if DEBUG
-	return 1;
+	return OCR_SCAN_SUCCESS;
 #else
-	uint16_t break_times = 0;
-	uint8_t ReturnFlag = 0;
+	static uint8_t clue_A_collected = 0;
+	static uint8_t clue_B_collected = 0;
+	uint8_t is_clue_A_stage;
+	uint8_t is_clue_B_stage;
+	uint8_t retry;
+	uint8_t clue_value;
+
+	is_clue_A_stage = ((nodes.nowNode.nodenum == P5 && flag_clue_stage_A == 5) ||
+		(nodes.nowNode.nodenum == P6 && flag_clue_stage_A == 6));
+	is_clue_B_stage = ((nodes.nowNode.nodenum == P7 && flag_clue_stage_B == 7) ||
+		(nodes.nowNode.nodenum == P8 && flag_clue_stage_B == 8));
+
+	/* 只在二维码指定的平台读取；已经采集过则直接视为成功 */
+	if ((!is_clue_A_stage && !is_clue_B_stage) ||
+		(is_clue_A_stage && clue_A_collected) ||
+		(is_clue_B_stage && clue_B_collected))
+	{
+		return ((is_clue_A_stage && clue_A_collected) ||
+			(is_clue_B_stage && clue_B_collected)) ? OCR_SCAN_SUCCESS : OCR_SCAN_FAILED;
+	}
 
 	K210_Rece = 0;
-	while (K210_Rece == 0)
+	Clue_Num = 0;
+
+	for (retry = 0; retry < 5; retry++)
 	{
-		vTaskDelay(3);
-		break_times++;
-		if (break_times >= 600)
+		uint16_t timeout = 0;
+
+		/* 每轮开始时立即发送0x22，不能先空等 */
+		open_OCR_mode();
+
+		/* MaixCam识别较慢，保持OCR模式约4.5秒；收到有效结果立即退出 */
+		while (K210_Rece == 0 && timeout < MAIXCAM_OCR_WAIT_TICKS)
 		{
-			break_times = 0;
-			moveServo(0, 1610, 1000);
-			vTaskDelay(2000);
-			moveServo(0, 1330, 1000);
-			vTaskDelay(2000);
-			open_OCR_mode();
-			ReturnFlag++;
-			if (ReturnFlag >= 4)
-			{
-				return 0;
-			}
+			vTaskDelay(3);
+			timeout++;
 		}
+
+		if (K210_Rece != 0)
+			break;
+
+		/* 本轮失败，关闭任务并调整摄像头/车位后再试 */
+		close_Maxicam();
+		if ((retry & 1U) == 0)
+			moveServo(0, 1610, 1000);
+		else
+			moveServo(0, 1330, 1000);
+		vTaskDelay(1200);
+
+		Chassis_MotorControl(is_No, 5, 5, 0);
+		Want2Go(3);
+		CarBrake();
+		Chassis_ClearMileage();
 	}
 
+	/* 失败时不得保存Clue_Num，也不得置采集完成标志 */
+	if (K210_Rece == 0)
+	{
+		close_Maxicam();
+		Clue_Num = 0;
+		return OCR_SCAN_FAILED;
+	}
+
+	/* 必须先保存成功结果，再清接收标志 */
+	clue_value = Clue_Num;
 	K210_Rece = 0;
-	if (nodes.nowNode.nodenum == P5 || nodes.nowNode.nodenum == P6)
+	Clue_Num = 0;
+	close_Maxicam();
+
+	if (is_clue_A_stage)
 	{
-		HAL_UART_AbortReceive_IT(&huart5);
-		close_Maxicam();
-		Maxicam_Enable();
-		flag_clue_A = Clue_Num;
-		K210_Rece = 0;
-		Clue_Num = 0;
+		flag_clue_A = clue_value;
+		clue_A_collected = 1;
+		if (flag_clue_A == 0)
+			send_play_specified_command(29);
+		else
+			send_play_specified_command(22 + flag_clue_A);
 	}
-	else if (nodes.nowNode.nodenum == P7 || nodes.nowNode.nodenum == P8)
+	else
 	{
-		HAL_UART_AbortReceive_IT(&huart5);
-		close_Maxicam();
-		Maxicam_Enable();
-		flag_clue_B = Clue_Num;
-		K210_Rece = 0;
+		flag_clue_B = clue_value;
+		clue_B_collected = 1;
+		send_play_specified_command(16 + flag_clue_B);
 		treasure = flag_clue_A + flag_clue_B;
-		Clue_Num = 0;
 	}
 
-	close_Maxicam();
 	buzzer_on();
 	vTaskDelay(100);
 	buzzer_off();
-	return 1;
+	return OCR_SCAN_SUCCESS;
 #endif
 }
 
+/* MaixCam读取二维码：成功返回1，连续超时返回0 */
 uint8_t WaitFor_QR(void)
 {
 #if DEBUG
 	return 1;
 #else
-	uint16_t break_times = 0;
-	uint8_t ReturnFlag = 0;
+	uint8_t retry;
 
-	get_cude = 0;
-	while (!get_cude)
+	for (retry = 0; retry < 4; retry++)
 	{
-		vTaskDelay(3);
-		break_times++;
-		if (break_times >= 500)
+		uint16_t timeout = 0;
+
+		/* 每轮重试都重新发送0x11并等待0x94确认 */
+		open_QR_mode();
+
+		/* MaixCam识别较慢，保持QR模式约4.5秒；收到有效结果立即退出 */
+		while (get_cude == 0 && timeout < MAIXCAM_QR_WAIT_TICKS)
 		{
-			break_times = 0;
-			Chassis_DriveDistance_Blocking(is_Gyro, 3, -GoStage_Speed, getAngleZ(), 0);
-			CarBrake();
-			ReturnFlag++;
-			if (ReturnFlag == 2)
-			{
-				return 0;
-			}
+			vTaskDelay(3);
+			timeout++;
 		}
+
+		if (get_cude != 0)
+			return 1;
+
+		/*
+		 * 未及时收到QR结果时直接重新发送0x11。
+		 * 不在这里移动小车：Want2Go()依赖里程更新，架车测试时会永久阻塞，
+		 * 导致后续重试和main_task外层循环都无法执行。
+		 * 也不发送0x66，保持MaixCam处于QR模式等待下一次启动命令。
+		 */
+		vTaskDelay(100);
 	}
-	return 1;
+
+	/* 全部重试失败后关闭MaixCam，下一次平台扫描从已关闭状态重新启动。 */
+	close_Maxicam();
+	return 0;
 #endif
 }
-	
+
 //int i=0;
 uint16_t AD_Value[4];//定义一个数组
 /*启动流程*/
@@ -2326,9 +2656,9 @@ void zhunbei(void)
 	vTaskDelay(100);
 	Robot_Work(BODY, DOWN);		//人躺下
 	vTaskDelay(100);
-	Robot_Work(HEAD,HEAD_MID);
+	Robot_Work(CAMERA,HEAD_MID);
 	vTaskDelay(100);
-	Robot_Work(HEAD,UP);
+	Robot_Work(CAMERA,UP);
 	
 
 	RampCtrl_Blocking(RAMP_DESCEND, GoStage_Speed, getAngleZ(),

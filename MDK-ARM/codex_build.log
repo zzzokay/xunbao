@@ -1,0 +1,321 @@
+*** Using Compiler 'V5.06 update 6 (build 750)', folder: 'C:\keil\ARM\ARMCC\Bin'
+Build target 'test1'
+compiling gpio.c...
+compiling adc.c...
+compiling stm32f7xx_hal_msp.c...
+compiling dma.c...
+compiling freertos.c...
+compiling stm32f7xx_hal_timebase_tim.c...
+compiling stm32f7xx_it.c...
+../Module/Rec_usart.h(22): warning:  #1295-D: Deprecated declaration get_PIDdata - give arg types
+  void get_PIDdata();
+../Core/Src/stm32f7xx_it.c: 1 warning, 0 errors
+compiling main.c...
+compiling tim.c...
+compiling usart.c...
+../Module/Rec_usart.h(22): warning:  #1295-D: Deprecated declaration get_PIDdata - give arg types
+  void get_PIDdata();
+../Core/Src/usart.c: 1 warning, 0 errors
+compiling stm32f7xx_hal_tim.c...
+compiling stm32f7xx_hal_adc.c...
+compiling stm32f7xx_hal_flash.c...
+compiling stm32f7xx_hal_rcc.c...
+compiling stm32f7xx_hal_adc_ex.c...
+compiling stm32f7xx_hal_rcc_ex.c...
+compiling stm32f7xx_hal_tim_ex.c...
+compiling stm32f7xx_hal_flash_ex.c...
+compiling stm32f7xx_hal_gpio.c...
+compiling stm32f7xx_hal_dma_ex.c...
+compiling stm32f7xx_hal_dma.c...
+compiling stm32f7xx_hal_pwr.c...
+compiling croutine.c...
+compiling event_groups.c...
+compiling stm32f7xx_hal_pwr_ex.c...
+compiling stm32f7xx_hal.c...
+compiling stm32f7xx_hal_cortex.c...
+compiling stm32f7xx_hal_i2c_ex.c...
+compiling list.c...
+compiling stm32f7xx_hal_exti.c...
+compiling stm32f7xx_hal_uart_ex.c...
+compiling system_stm32f7xx.c...
+compiling timers.c...
+compiling stm32f7xx_hal_uart.c...
+compiling heap_4.c...
+Error: C4051E: couldn't write file 'test1\heap_4.o': Invalid argument
+compiling queue.c...
+Error: C4051E: couldn't write file 'test1\queue.o': Invalid argument
+compiling stream_buffer.c...
+compiling port.c...
+Error: C4051E: couldn't write file 'test1\port.o': Invalid argument
+compiling cmsis_os.c...
+Error: C4051E: couldn't write file 'test1\cmsis_os.o': Invalid argument
+compiling tasks.c...
+compiling speed_ctrl.c...
+Error: C4051E: couldn't write file 'test1\speed_ctrl.o': Invalid argument
+compiling motor.c...
+Error: C4051E: couldn't write file 'test1\motor.o': Invalid argument
+compiling stm32f7xx_hal_i2c.c...
+Error: L6449E: While processing test1\stm32f7xx_hal_i2c.o: I/O error writing file 'test1\stm32f7xx_hal_i2c.o': Invalid argument
+Finished: 0 information, 0 warning and 1 error messages.
+compiling Encoder.c...
+Error: C4051E: couldn't write file 'test1\encoder.o': Invalid argument
+compiling ArriveDetect_task.c...
+Error: C4051E: couldn't write file 'test1\arrivedetect_task.o': Invalid argument
+compiling motor_task.c...
+../Module/Rec_usart.h(22): warning:  #1295-D: Deprecated declaration get_PIDdata - give arg types
+  void get_PIDdata();
+..\Task\motor_task.c(425): warning:  #1-D: last line of file ends without a newline
+  }
+..\Task\motor_task.c(311): warning:  #177-D: function "handle_led_mouse"  was declared but never referenced
+  static void handle_led_mouse(void)
+Error: C4051E: couldn't write file 'test1\motor_task.o': Invalid argument
+compiling task_create.c...
+..\Task\task_create.c(60): warning:  #1-D: last line of file ends without a newline
+  }
+Error: C4051E: couldn't write file 'test1\task_create.o': Invalid argument
+compiling filter.c...
+Error: C4051E: couldn't write file 'test1\filter.o': Invalid argument
+compiling main_task.c...
+Error: C4051E: couldn't write file 'test1\main_task.o': Invalid argument
+compiling pid.c...
+..\Math\pid.c(78): warning:  #223-D: function "fabsf" declared implicitly
+  	if (motor->target == 0 && fabsf(motor->measure) < 0.5f) // 如果有轻微抖动，也可改成 abs(motor->measure) < 2
+Error: C4051E: couldn't write file 'test1\pid.o': Invalid argument
+compiling sin_generate.c...
+Error: C4051E: couldn't write file 'test1\sin_generate.o': Invalid argument
+compiling temporary_task.c...
+../Module/Rec_usart.h(22): warning:  #1295-D: Deprecated declaration get_PIDdata - give arg types
+  void get_PIDdata();
+..\Task\temporary_task.c: 1 warning, 0 errors
+compiling sys.c...
+compiling imu.c...
+compiling bsp_linefollower.c...
+compiling bsp_buzzer.c...
+compiling Rudder_control.c...
+compiling openmv.c...
+..\Module\openmv.c(24): warning:  #177-D: variable "retry"  was declared but never referenced
+  	uint8_t retry = 5;
+..\Module\openmv.c(42): warning:  #177-D: variable "retry"  was declared but never referenced
+  	uint8_t retry = 5;
+..\Module\openmv.c: 2 warnings, 0 errors
+compiling Rec_usart.c...
+..\Module\Rec_usart.h(22): warning:  #1295-D: Deprecated declaration get_PIDdata - give arg types
+  void get_PIDdata();
+..\Module\Rec_usart.c: 1 warning, 0 errors
+compiling K210.c...
+..\Module\K210.c(106): warning:  #186-D: pointless comparison of unsigned integer with zero
+    		if(ocr_value<=6 && ocr_value>=0)	
+..\Module\K210.c: 1 warning, 0 errors
+compiling interrupt_router.c...
+..\Module\Rec_usart.h(22): warning:  #1295-D: Deprecated declaration get_PIDdata - give arg types
+  void get_PIDdata();
+..\Module\interrupt_router.c: 1 warning, 0 errors
+compiling delay.c...
+compiling IIC.c...
+compiling gray.c...
+..\Application\gray.c(96): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  		case 0: return base_angle*1.4;   // 最�? �? 偏右，向左修�?
+..\Application\gray.c(99): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  		case 3: return -base_angle*1.4;   // 最�? �? 向右修正
+..\Application\gray.c: 2 warnings, 0 errors
+compiling map_message.c...
+compiling map.c...
+compiling motion.c...
+compiling barrier.c...
+..\Application\barrier.c(463): warning:  #546-D: transfer of control bypasses initialization of:
+            variable "mileage_br"  (declared at line 500)
+  		switch (state)
+  		^
+..\Application\barrier.c(681): warning:  #177-D: variable "approach_timeout"  was declared but never referenced
+  	uint16_t approach_timeout = 0;
+..\Application\barrier.c(1946): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(1955): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(1964): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(1973): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(1982): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N5,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(1943): warning:  #546-D: transfer of control bypasses initialization of:
+            variable "temp_1"  (declared at line 1946)
+            variable "temp_2"  (declared at line 1955)
+            variable "temp_3"  (declared at line 1964)
+            variable "temp_4"  (declared at line 1973)
+  		switch(treasure)
+  		^
+..\Application\barrier.c(1999): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2008): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2017): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2026): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2035): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(1996): warning:  #546-D: transfer of control bypasses initialization of:
+            variable "temp_1"  (declared at line 1999)
+            variable "temp_2"  (declared at line 2008)
+            variable "temp_3"  (declared at line 2017)
+            variable "temp_4"  (declared at line 2026)
+  		switch(treasure)
+  		^
+..\Application\barrier.c(2051): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2060): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2069): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2078): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2087): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N8,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2048): warning:  #546-D: transfer of control bypasses initialization of:
+            variable "temp_1"  (declared at line 2051)
+            variable "temp_2"  (declared at line 2060)
+            variable "temp_3"  (declared at line 2069)
+            variable "temp_4"  (declared at line 2078)
+  		switch(treasure)
+  		^
+..\Application\barrier.c(2103): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2112): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2121): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2130): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2139): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N8,N5,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2100): warning:  #546-D: transfer of control bypasses initialization of:
+            variable "temp_1"  (declared at line 2103)
+            variable "temp_2"  (declared at line 2112)
+            variable "temp_3"  (declared at line 2121)
+            variable "temp_4"  (declared at line 2130)
+  		switch(treasure)
+  		^
+..\Application\barrier.c(2155): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2164): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2173): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2182): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2191): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N8,N5,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2152): warning:  #546-D: transfer of control bypasses initialization of:
+            variable "temp_1"  (declared at line 2155)
+            variable "temp_2"  (declared at line 2164)
+            variable "temp_3"  (declared at line 2173)
+            variable "temp_4"  (declared at line 2182)
+  		switch(treasure)
+  		^
+..\Application\barrier.c(2207): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2216): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2225): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2234): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2243): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2204): warning:  #546-D: transfer of control bypasses initialization of:
+            variable "temp_1"  (declared at line 2207)
+            variable "temp_2"  (declared at line 2216)
+            variable "temp_3"  (declared at line 2225)
+            variable "temp_4"  (declared at line 2234)
+  		switch(treasure)
+  		^
+..\Application\barrier.c(2259): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2268): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2277): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2286): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2295): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N8,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2256): warning:  #546-D: transfer of control bypasses initialization of:
+            variable "temp_1"  (declared at line 2259)
+            variable "temp_2"  (declared at line 2268)
+            variable "temp_3"  (declared at line 2277)
+            variable "temp_4"  (declared at line 2286)
+  		switch(treasure)
+  		^
+..\Application\barrier.c(2311): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2320): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2329): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2338): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2347): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N8,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2308): warning:  #546-D: transfer of control bypasses initialization of:
+            variable "temp_1"  (declared at line 2311)
+            variable "temp_2"  (declared at line 2320)
+            variable "temp_3"  (declared at line 2329)
+            variable "temp_4"  (declared at line 2338)
+  		switch(treasure)
+  		^
+..\Application\barrier.c(2363): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2372): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2381): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2390): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P8,C9,N22,B6,N20,P7,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2399): warning:  #1182-D: a declaration cannot have a label
+  				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P7,N20,B6,N22,C9,P8,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N3,N4,B3,N2,P2,0XFF};
+..\Application\barrier.c(2360): warning:  #546-D: transfer of control bypasses initialization of:
+            variable "temp_1"  (declared at line 2363)
+            variable "temp_2"  (declared at line 2372)
+            variable "temp_3"  (declared at line 2381)
+            variable "temp_4"  (declared at line 2390)
+  		switch(treasure)
+  		^
+..\Application\barrier.c(656): warning:  #177-D: function "Sword_CorrectByScanner"  was declared but never referenced
+  static void Sword_CorrectByScanner(float correct_angle)
+Error: L6449E: While processing test1\barrier.o: I/O error writing file 'test1\barrier.o': Invalid argument
+Finished: 0 information, 0 warning and 1 error messages.
+..\Application\barrier.c: 57 warnings, 0 errors
+compiling turn.c...
+compiling command.c...
+compiling scaner.c...
+..\Application\scaner.c(581): warning:  #1-D: last line of file ends without a newline
+  }
+..\Application\scaner.c: 1 warning, 0 errors
+compiling chassis_api.c...
+..\Application\chassis_api.c(53): warning:  #188-D: enumerated type mixed with another type
+  static ChassisState_t chassis = {0};
+..\Application\chassis_api.c(629): warning:  #223-D: function "send_play_specified_command" declared implicitly
+          send_play_specified_command(31);    
+..\Application\chassis_api.c(692): warning:  #223-D: function "send_play_specified_command" declared implicitly
+              if(chassis.anti_snake_err_count==1)send_play_specified_command(33);
+..\Application\chassis_api.c(710): warning:  #223-D: function "send_play_specified_command" declared implicitly
+                      send_play_specified_command(30);
+..\Application\chassis_api.c(713): warning:  #111-D: statement is unreachable
+                      return;
+..\Application\chassis_api.c(733): warning:  #223-D: function "send_play_specified_command" declared implicitly
+              send_play_specified_command(33);
+..\Application\chassis_api.c(761): warning:  #223-D: function "send_play_specified_command" declared implicitly
+                  send_play_specified_command(33);
+..\Application\chassis_api.c(930): warning:  #223-D: function "send_play_specified_command" declared implicitly
+              if (error_now & 0x01) send_play_specified_command(33);//陀螺仪（偏移）
+..\Application\chassis_api.c(931): warning:  #223-D: function "send_play_specified_command" declared implicitly
+              if (error_now & 0x02) send_play_specified_command(31);//灰度（过高）
+..\Application\chassis_api.c(932): warning:  #223-D: function "send_play_specified_command" declared implicitly
+              if (error_now & 0x04) send_play_specified_command(30);//循迹板（检测到线）
+..\Application\chassis_api.c(937): warning:  #1-D: last line of file ends without a newline
+  }
+..\Application\chassis_api.c: 11 warnings, 0 errors
+"test1\test1.axf" - 12 Error(s), 84 Warning(s).
+Target not created.
+Build Time Elapsed:  00:00:04
