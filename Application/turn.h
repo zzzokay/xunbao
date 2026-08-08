@@ -19,6 +19,7 @@ uint8_t Stage_turn_Angle(float Angle);
 void Turn_Angle_Relative(float Angle1);
 void Turn_Angle_Relative_Open(float Angle1);
 void mpuZreset(float sensorangle, float referangle);
+void IMU_Calibrate_Yaw(float referangle);
 void Turn_Angle360(void);
 void FreeTurn(float Angle, float L, float R);
 

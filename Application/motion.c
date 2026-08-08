@@ -12,15 +12,8 @@
 #include "rudder_control.h"
 #include "motion.h"
 
-/*机器人动作*/
-void Arrived_Stage(void)
-{
-	Robot_Work(LARM, UP); // 450左手放下  150举起
-	vTaskDelay(100);
-	Robot_Work(RARM, UP); // 130右手放下  400举起
-	vTaskDelay(100);
-	Robot_Work(LARM, DOWN); // 450左手放下  150举起
-	vTaskDelay(100);
-	Robot_Work(RARM, DOWN); // 130右手放下  400举起
-}
+
+
+	
+
 

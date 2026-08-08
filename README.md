@@ -105,3 +105,16 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
 **2026-08-07** — 修复 K210.c OCR 帧处理遗留旧名：`nodesr`→`nodes`、`clue_A_stage`→`flag_clue_stage_A`、`clue_B_stage`→`flag_clue_stage_B`（编译报 `#20 undefined`，P5/P6/P7/P8 阶段门控条件语义不变）。其余 `nodesr` 引用均在注释中，无需处理。
 
 **2026-08-07** — 修复链接错误 `L6200E: UART5_IRQHandler multiply defined`：协议处理在 K210.c，CubeMX 生成的 stm32f7xx_it.c 里同函数用 `#if 0` 禁用（函数体内有 `/* */` 注释，不能直接块注释）。注意 uart.c 不在 Keil 工程里（USART1 处理以 stm32f7xx_it.c 为准），USART3 已在 it.c 注释、由 imu.c 提供。
+
+**2026-08-07** — 全量核对平台连接（按 map_message.c：P5↔N13、P6↔N7、P8↔N20、P7↔C9），修复四处平台编号写反：
+  - barrier.c `get_newroute()` 全部 45 条 temp 路线：`N13,P6`→`N13,P5`、`N7,P5`→`N7,P6`、`C9,P8`→`C9,P7`、`N20,P7`→`N20,P8`
+  - barrier.c `update_route_at_P7_for_treasure()` 2 条（1150/1169 行）：`N20,P7`→`N20,P8`（其中 `N13,P5`/`N7,P6` 原本正确）
+  - map.c 未引用的门路线 door2/3_1/4/5/9/10/12route 同步修正：`C9,P8`→`C9,P7`、`N20,P7`→`N20,P8`（door1/6/7/8/11route 与 rout_57/58/67/68 原本正确）
+  - barrier.c `WaitFor_OCR()` 2350 行重复条件 `P5 || P5`→`P5 || P6`（与 2411 行 P5/P6 线索A平台对一致）
+
+**2026-08-07** — 重写第二轮路线 `get_newroute()`（barrier.c）：第二轮不再全平台扫描，改为目标平台直达后回家——
+  - 宝藏=6：只去 P1→P3→P4→P6，然后直接回家
+  - 宝藏≠6（2/3/4/5）：只去 P1→P3→P4→P5，然后直接回家
+  - 全部 9 个门分支的 `switch(treasure)` 由原 5 case（2/3/4/5/6）统一合并为 2 case（`case 6` + `case 2/3/4/5`），删除各分支 P7/P8 绕行段，保留各分支门控有效路径段（D2/D3/D4/D5 不通时的绕行路径不变）
+
+**2026-08-07** — IMU 零位校准 + 角度补偿三行（`IMU_CalibrateZero` + `vTaskDelay(100)` + `mpuZreset`）包装为公共函数 `IMU_Calibrate_Yaw(float referangle)`，放 turn.c/turn.h（`mpuZreset` 同族，turn.c 已含 imu.h 零新增依赖；非 imu.c 因避免 Module 层倒挂 Application 层）。参考角度由调用方传入（main_task.c 传 `nodes.nowNode.angle`），与 map 全局解耦。

@@ -43,6 +43,14 @@ void mpuZreset(float sensorangle, float referangle)
 	imu.compensateZ = need2turn(sensorangle, referangle);
 }
 
+/*IMU 零位校准 + 角度补偿：把当前实际角度归到参考角度（调用方传，如当前节点角度），等稳定后取均值*/
+void IMU_Calibrate_Yaw(float referangle)
+{
+	IMU_CalibrateZero(&basic_y, &basic_p, &basic_r);
+	vTaskDelay(100);
+	mpuZreset(get_latest_yaw(), referangle); // 用稳定后的实际角度计算补偿
+}
+
 /*返回瞬时测量值+补正值*/
 float getAngleZ(void)
 {

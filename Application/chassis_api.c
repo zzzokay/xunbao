@@ -843,16 +843,16 @@ void Chassis_CorrectByInfrared(float correct_angle, float multiplier, float K)
 	Cross_getline(&Cross_Scaner);	// 陀螺仪模式下 Scaner 不更新，主动拍快照
 	if ((infrared.head_left == 0 && infrared.head_right == 1) )
 		angle.AngleG += correct_angle;
-    else if ((Cross_Scaner.detail & 0X0003))
-        angle.AngleG += correct_angle * multiplier;
-    else if ((Cross_Scaner.detail & 0X00FF))
-        angle.AngleG += correct_angle * multiplier*K;
     else if ((infrared.head_left == 1 && infrared.head_right == 0) )
         angle.AngleG -= correct_angle;
-	else if ((Cross_Scaner.detail & 0XC000))
+    else if ((Cross_Scaner.detail & 0X0003))
+        angle.AngleG += correct_angle * multiplier;
+    else if ((Cross_Scaner.detail & 0XC000))
 		angle.AngleG -= correct_angle * multiplier;
+    else if ((Cross_Scaner.detail & 0X00FF))
+        angle.AngleG += correct_angle * multiplier*K;
     else if ((Cross_Scaner.detail & 0XFF00))
-        angle.AngleG -= correct_angle * multiplier*2*K;
+        angle.AngleG -= correct_angle * multiplier*K;
 }
 
 /**

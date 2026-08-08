@@ -21,16 +21,27 @@
 #include "scaner.h"
 #include "motor.h"
 #include "chassis_api.h"
+#include "ArriveDetect_task.h"
 
 
 /*===== 独立调试开关 =====*/
-#define MAIN_DEBUG 0 
+#define MAIN_DEBUG 1 
 
 													   
-uint8_t test_flag = 0;
+uint8_t test_flag = 3;
 float temp_speed=25;
-#if MAIN_DEBUG
 
+
+
+#if MAIN_DEBUG
+static void voice_test_all(void)
+{
+	for (uint8_t i = 1; i <= 33; i++)
+	{
+		send_play_specified_command(i);
+		vTaskDelay(2000);
+	}
+}
 
 #endif                          
 
@@ -43,9 +54,7 @@ void main_task(void *pvParameters)
 #if MAIN_DEBUG
 	Chassis_MotorControl(is_No, 0, 0, 0);
 	/*调试模式：跳过传感器初始化，只做基本的地图加载*/
-	IMU_CalibrateZero(&basic_y, &basic_p, &basic_r);
-	vTaskDelay(100);
-	mpuZreset(get_latest_yaw(), nodes.nowNode.angle); // 用稳定后的实际角度计算补偿
+	IMU_Calibrate_Yaw(0);
 	
 	/*等待挡板*/                           
 	while (Infrared_ahead == 0)
@@ -54,12 +63,14 @@ void main_task(void *pvParameters)
 	/*等待移除挡板*/
 	while(Infrared_ahead == 1)
 		vTaskDelay(5);
+	//voice_test_all(); // 依次播报 1-33，检查语音卡
 	//ScanerMode_Switch(Gray);
 #else
 	/*正常模式：完整初始化流程*/
+	
 	mapInit();
-	zhunbei(); // 启动流程（红外等待、IMU校准）
-	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
+	IMU_Calibrate_Yaw(0);
+	zhunbei(); // 启动流程（红外等待）
 #endif
 
 	while (1)
@@ -94,8 +105,9 @@ void main_task(void *pvParameters)
 		{
 			//Barrier_Hill();
 			//Sword_Mountain();
-			//QQB_1();
-			Barrier_HighMountain();
+			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-150, getAngleZ(), 20.0f);
+			QQB_1();
+			//Barrier_HighMountain();
 			CarBrake();
 			test_flag = 0;
 		}
@@ -131,21 +143,14 @@ void main_task(void *pvParameters)
 		/*========== 正常运行模式 ==========*/
 
 		/*二轮处理*/
-//		if(map.routetime == 1)
-//		{
-//			map.routetime = 2;
-//			get_newroute();
+		if(map.routetime == 1)
+		{
+			map.routetime ++;
+			get_newroute();
+			zhunbei();
+		}
 
-//			// 陀螺仪角度复位，采样10次取平均值
-//			IMU_CalibrateZero(&basic_y, &basic_p, &basic_r);
-//			mpuZreset(basic_y, nodesr.nowNode.angle); // 把此时角度变为此结点角度
-//			zhunbei();
-
-//			encoder_clear(); // 路程记录清零
-//			Motor_Control(is_Line, SPEED0, SPEED0, 0);
-//		}
-
-		if(map.routetime == 0)
+		if(map.routetime == 0||map.routetime == 2)
 			Navigation();
 #endif
 

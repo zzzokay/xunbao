@@ -39,9 +39,9 @@ void open_QR_mode(void)
     while(retry--) {
         // 发送指令
         HAL_UART_Transmit(&huart5, &cmd, 1, 100);
-			  HAL_Delay(20);
+        vTaskDelay(20); // 等待一段时间，确保指令发送完成
+        // 检查确认标志位		
         if(open_QR_mode_sign == 0) break;
-        HAL_Delay(30); // 短间隔重试
     }
 
 }
@@ -55,9 +55,8 @@ void open_OCR_mode(void)
     
     while(retry--) {
 				HAL_UART_Transmit(&huart5, cmd, sizeof(cmd), 100);
-				HAL_Delay(20);
+				vTaskDelay(20);
         if(open_OCR_mode_sign==0) break;       
-        HAL_Delay(30);
     }
 }
 

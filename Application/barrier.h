@@ -50,11 +50,11 @@ extern uint8_t treasure;
 /*调试：预设5个门颜色（无传感器时）*/
 
 extern uint8_t door_pass[5];
-extern uint8_t flag_line_clue;     // QR百位：0=跳过P3/P4，3=P3，4=P4
-extern uint8_t flag_clue_stage_A;  // QR十位：5=P5（原P6），6=P6（原P5）
-extern uint8_t flag_clue_stage_B;  // QR个位：7=P7（原P8），8=P8（原P7）
-extern uint8_t flag_clue_A;        // P5/P6 线索数字
-extern uint8_t flag_clue_B;        // P7/P8 线索数字
+extern int8_t flag_line_clue;     // QR百位：0=跳过P3/P4，3=P3，4=P4
+extern int8_t flag_clue_stage_A;  // QR十位：5=P5（原P6），6=P6（原P5）
+extern int8_t flag_clue_stage_B;  // QR个位：7=P7（原P8），8=P8（原P7）
+extern int8_t flag_clue_A;        // P5/P6 线索数字
+extern int8_t flag_clue_B;        // P7/P8 线索数字
 extern uint8_t get_cude;
 void Stage(void);
 void Barrier_Bridge(void);
@@ -94,6 +94,8 @@ void update_route_by_door_3(void);
 void update_route_by_door_4(void);
 void update_route_at_P1(void);
 void update_route_at_door_for_clue(void);
+void update_route_at_door_for_stageAB(void);
+void update_route_at_P7_for_treasure(void);
 void update_route_at_P8_for_treasure(void);
 int Six2Zero(void);
 #endif
