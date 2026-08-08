@@ -1,8 +1,8 @@
 test1\imu.o: ..\Module\imu.c
 test1\imu.o: ..\Module\imu.h
 test1\imu.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
-test1\imu.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stddef.h
-test1\imu.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdint.h
+test1\imu.o: C:\keil\ARM\ARMCC\Bin\..\include\stddef.h
+test1\imu.o: C:\keil\ARM\ARMCC\Bin\..\include\stdint.h
 test1\imu.o: ../Core/Inc/FreeRTOSConfig.h
 test1\imu.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
 test1\imu.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
@@ -53,11 +53,11 @@ test1\imu.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
 test1\imu.o: ../Core/Inc/usart.h
 test1\imu.o: ../USMAT/uart.h
 test1\imu.o: ../USMAT/sys.h
-test1\imu.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\stdio.h
-test1\imu.o: D:\KEIL5\Core\ARM\version5\Bin\..\include\string.h
+test1\imu.o: C:\keil\ARM\ARMCC\Bin\..\include\stdio.h
+test1\imu.o: C:\keil\ARM\ARMCC\Bin\..\include\string.h
 test1\imu.o: ../Math/filter.h
 test1\imu.o: ../Task/motor_task.h
 test1\imu.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 test1\imu.o: ..\Module\bsp_buzzer.h
 test1\imu.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
-test1\imu.o: ..\Application\delay.h
+test1\imu.o: ../Application/delay.h

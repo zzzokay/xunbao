@@ -3,6 +3,7 @@
 #include "sys.h"
 #include "math.h"
 #include "chassis_api.h"
+#include "stdio.h"
 
 /* 从 task_create.h 迁入，避免 map.c 越层包含 */
 extern TaskHandle_t xHandle_ArriveDetect;

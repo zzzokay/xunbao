@@ -25,6 +25,7 @@
 #include "usart.h"
 #include "stdio.h"
 #include "Rec_usart.h"
+#include "K210.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -77,6 +78,7 @@ extern UART_HandleTypeDef huart7;
 extern UART_HandleTypeDef huart8;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart3;
+extern UART_HandleTypeDef huart6;
 extern TIM_HandleTypeDef htim14;
 
 /* USER CODE BEGIN EV */
@@ -424,9 +426,7 @@ void UART4_IRQHandler(void)
 
 /**
   * @brief This function handles UART5 global interrupt.
-  *        实际协议处理在 K210.c 的 UART5_IRQHandler，此处去重（否则 L6200E multiply defined）
   */
-#if 0
 void UART5_IRQHandler(void)
 {
   /* USER CODE BEGIN UART5_IRQn 0 */
@@ -436,7 +436,6 @@ void UART5_IRQHandler(void)
 
   /* USER CODE END UART5_IRQn 1 */
 }
-#endif
 
 /**
   * @brief This function handles DMA2 stream2 global interrupt.
@@ -450,6 +449,25 @@ void DMA2_Stream2_IRQHandler(void)
   /* USER CODE BEGIN DMA2_Stream2_IRQn 1 */
 
   /* USER CODE END DMA2_Stream2_IRQn 1 */
+}
+
+/**
+  * @brief This function handles USART6 global interrupt.
+  */
+void USART6_IRQHandler(void)
+{
+  /* USER CODE BEGIN USART6_IRQn 0 */
+
+  /* USER CODE END USART6_IRQn 0 */
+  HAL_UART_IRQHandler(&huart6);
+  /* USER CODE BEGIN USART6_IRQn 1 */
+  /* HAL完成单字节接收后，解析本字节并继续接收下一字节 */
+  if (HAL_UART_GetState(&huart6) == HAL_UART_STATE_READY)
+  {
+    Maxicam_ProcessRxByte(Maxicam_Rx);
+    HAL_UART_Receive_IT(&huart6, (uint8_t *)&Maxicam_Rx, 1);
+  }
+  /* USER CODE END USART6_IRQn 1 */
 }
 
 /**

@@ -66,16 +66,16 @@
 uint8_t door_pass[5] = {0, 0, 0, 0, 0};
 #if DEBUG
 uint8_t debug_door_pass[5] = {NO_PASS, NO_PASS, CAN_PASS, ONE_WAY_PASS, NO_PASS}; // 0:D2、1:D3、2:D4、3:D5、4:D1
-uint8_t flag_line_clue    = 0;
-uint8_t flag_clue_stage_A = 5;
-uint8_t flag_clue_stage_B = 8;
+volatile uint8_t flag_line_clue    = 0;
+volatile uint8_t flag_clue_stage_A = 5;
+volatile uint8_t flag_clue_stage_B = 8;
 // OCR 线索：P5/P6读clue_A，P7/P8读clue_B，treasure=clue_A+clue_B → 宝物平台编号
 uint8_t flag_clue_A       = 1;
 uint8_t flag_clue_B       = 1;
 #else
-uint8_t flag_line_clue    = 0;
-uint8_t flag_clue_stage_A = 0;
-uint8_t flag_clue_stage_B = 0;
+volatile uint8_t flag_line_clue    = 0;
+volatile uint8_t flag_clue_stage_A = 0;
+volatile uint8_t flag_clue_stage_B = 0;
 // OCR 线索：P5/P6读clue_A，P7/P8读clue_B，treasure=clue_A+clue_B → 宝物平台编号
 uint8_t flag_clue_A       = 0;
 uint8_t flag_clue_B       = 0;
@@ -89,7 +89,12 @@ uint8_t treasure = 0;			// 宝物平台编号 = flag_clue_A + flag_clue_B，自�
 								// 调用：update_route_at_P7_for_treasure/8() → door() 确定宝物平台后回家路线
 								//       Stage_HasTreasure() → Stage() 判断当前平台是否是宝物平台
 
-uint8_t get_cude = 0;
+volatile uint8_t get_cude = 0;
+
+/* MaixCam识别较慢：每轮保持模式的最长等待时间（FreeRTOS tick） */
+#define MAIXCAM_QR_WAIT_TICKS     1500U  /* 1500 × 3ms ≈ 4.5s */
+#define MAIXCAM_OCR_WAIT_TICKS    1500U  /* 1500 × 3ms ≈ 4.5s */
+#define MAIXCAM_COLOR_WAIT_TICKS  2000U  /* 2000 × 2ms ≈ 4.0s */
 
 static uint8_t Stage_HasTreasure(void)
 {
@@ -252,8 +257,10 @@ void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
 	}
 }
 
-static void Stage_Action(void)
+static uint8_t Stage_Action(void)
 {
+	uint8_t need_ocr;
+
 	// 平台动作
 	switch (nodes.nowNode.nodenum)
 	{
@@ -264,22 +271,28 @@ static void Stage_Action(void)
 	case P6: send_play_specified_command(1); break;
 	default: break;
 	}
-	if (nodes.nowNode.nodenum == P1 && treasure == 0){
-		// 先把摄像头转到二维码方向
-		Robot_Work(HEAD, HEAD_MID);	
-		vTaskDelay(300);
-		// 读取二维码
-		open_QR_mode();
-	}
-		
+
 	Arrived_Stage();
 
-	if (nodes.nowNode.nodenum == P1 && treasure == 0){
-		WaitFor_QR();	
-		// P1 路线更新
+	/* 二维码平台；get_cude防止重复扫描 */
+	if (nodes.nowNode.nodenum == P1 && get_cude == 0)
+	{
+		Robot_Work(CAMERA, HEAD_MID);
+		vTaskDelay(300);
+		if (WaitFor_QR() == 0)
+			return 0;
 		update_route_at_P1();
 	}
-		
+
+	/* 只在QR指定的A/B线索平台启动OCR */
+	need_ocr = ((nodes.nowNode.nodenum == P5 && flag_clue_stage_A == 5) ||
+		(nodes.nowNode.nodenum == P6 && flag_clue_stage_A == 6) ||
+		(nodes.nowNode.nodenum == P7 && flag_clue_stage_B == 7) ||
+		(nodes.nowNode.nodenum == P8 && flag_clue_stage_B == 8));
+	if (treasure == 0 && need_ocr && WaitFor_OCR() == OCR_SCAN_FAILED)
+		return 0;
+
+	return 1;
 }
 
 /*平台 - 不包括P2*/
@@ -338,7 +351,12 @@ void Stage(void)
 
 		case STAGE_SCAN:
 
-			Stage_Action();		
+			/* 二维码/OCR失败时留在平台，下轮状态机重新识别 */
+			if (Stage_Action() == 0)
+			{
+				vTaskDelay(100);
+				break;
+			}
 
 			if(Stage_HasTreasure())
 				Stage_CollectTreasure();
@@ -413,9 +431,9 @@ void Stage_Home(void)
 			// vTaskDelay(100);
 			// Robot_Work(BODY, DOWN);		//人躺下
 			// vTaskDelay(100);
-			// Robot_Work(HEAD,HEAD_MID);
+			// Robot_Work(CAMERA,HEAD_MID);
 			// vTaskDelay(100);
-			// Robot_Work(HEAD,UP);
+			// Robot_Work(CAMERA,UP);
 
 			state = P2_TURN;
 			break;
@@ -843,7 +861,16 @@ void Barrier_HighMountain(void)
 				vTaskDelay(100);
 				Chassis_DriveDistance_Blocking(is_Gyro, 10, -GoStage_Speed, getAngleZ(), 0);
 				CarBrake();
-				// 宝物线索：由标志位计算，不依赖摄像头
+				sub_stage = 2;
+			}
+			else if (sub_stage == 2)
+			{
+				/* P8是QR指定的B线索平台时，在离开平台前完成OCR */
+				if (treasure == 0 && flag_clue_stage_B == 8 && WaitFor_OCR() == OCR_SCAN_FAILED)
+				{
+					vTaskDelay(100);
+					break;
+				}
 				if (treasure == 0)
 					treasure = flag_clue_A + flag_clue_B;
 				if (map.routetime == 0)
@@ -1071,10 +1098,20 @@ void South_Pole(void)
 				vTaskDelay(100);
 				Chassis_DriveDistance_Blocking(is_Gyro, 10, -GoStage_Speed, getAngleZ(), 0);
 				CarBrake();
-				// if (treasure == 0)
-				// 	treasure = flag_clue_A + flag_clue_B;
-				// if (map.routetime == 0 && flag_clue_stage_B == 7)
-				// 	update_route_at_P7_for_treasure();
+				sub_stage = 2;
+			}
+			else if (sub_stage == 2)
+			{
+				/* P7是QR指定的B线索平台时，在离开平台前完成OCR */
+				if (treasure == 0 && flag_clue_stage_B == 7 && WaitFor_OCR() == OCR_SCAN_FAILED)
+				{
+					vTaskDelay(100);
+					break;
+				}
+				if (treasure == 0)
+					treasure = flag_clue_A + flag_clue_B;
+				if (map.routetime == 0 && flag_clue_stage_B == 7)
+					update_route_at_P7_for_treasure();
 				send_play_specified_command(12);
 				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 180, getAngleZ(), 20.0f);
 				// Chassis_DisableStallProtection();  // 堵转保护已停用
@@ -1475,24 +1512,86 @@ void QQB_1(void)
 	
 }
 
+/* 真实定义在下方，先声明后供测试入口调用 */
+static uint8_t Door_ReadPass(uint8_t door_state);
+
+uint8_t Door_ReadPass_Test(void)
+{
+    return Door_ReadPass(0);   // 测试 D2
+}
+
+
 /*读门灯通行状态（0=超时/未设置, 1=绿=能过, 2=蓝=单相通过, 3=黑=不能过）*/
 static uint8_t Door_ReadPass(uint8_t door_state)
 {
-	uint32_t timeout = 0;
-    uint8_t color = 0;
-
 #if DEBUG
 	static const uint8_t state_to_idx[] = {0, 1, 2, 3, 2}; // D2→0, D3→1, D4→2, D5→3, D4_AGAIN→2
 	return debug_door_pass[state_to_idx[door_state]];
 #else
 	/* TODO: 读取真实左右颜色传感器
-	 *   左传感器 → UART4_RX (PC11) 读取颜色值
+	 *   maixcam→ UART6_RX 读取颜色值
 	 *   返回值：1=Green, 2=Yellow, 3=Red, 0=未读到
 	 */
 
-	Robot_Work(CAMERA, HEAD_LEFT);
+   uint8_t retry;
+    uint8_t color = 0;
 
+    (void)door_state;
 
+    /*
+     * 只有一个 MaixCam，摄像头通过0号舵机向左看灯。
+     * Robot_Work() 内部已经包含约200 tick的等待。
+     */
+    Robot_Work(CAMERA, HEAD_LEFT);
+    vTaskDelay(100);
+
+    for (retry = 0; retry < 3; retry++)
+    {
+        uint32_t timeout = 0;
+
+        /*
+         * 清除上次识别结果，避免误用旧颜色。
+         */
+        Color_Left = 0;
+
+        /*
+         * 发送0x33并等待MaixCam返回0x94。
+         */
+        Open_COLOR_L();
+
+        /*
+         * 等待Process_COLOR_Data()连续收到3次相同颜色，
+         * 然后写入Color_Left。MaixCam识别较慢，单轮保持4秒。
+         */
+        while (Color_Left == 0 && timeout < MAIXCAM_COLOR_WAIT_TICKS)
+        {
+            vTaskDelay(2);
+            timeout++;
+        }
+
+        color = Color_Left;
+
+        if (color == CAN_PASS ||
+            color == ONE_WAY_PASS ||
+            color == NO_PASS)
+        {
+            /*
+             * Process_COLOR_Data()识别成功后已调用
+             * close_Maxicam()，可以直接返回。
+             */
+            return color;
+        }
+
+        /*
+         * 本轮超时：重新尝试。
+         */
+        vTaskDelay(50);
+    }
+
+    /*
+     * 连续3次识别失败。
+     */
+    close_Maxicam();
 	return 0;
 #endif
 }
@@ -2345,155 +2444,137 @@ void get_newroute(void)
 		CarBrake_Stop();
 }
 
-/*maixcam读数字*/
+/* MaixCam读取数字线索：成功返回OCR_SCAN_SUCCESS，超时或平台不匹配返回OCR_SCAN_FAILED */
 uint8_t WaitFor_OCR(void)
 {
-	static uint8_t No2Tra = 0;
-	static uint8_t No3Tra = 0;
+	static uint8_t clue_A_collected = 0;
+	static uint8_t clue_B_collected = 0;
+	uint8_t is_clue_A_stage;
+	uint8_t is_clue_B_stage;
+	uint8_t retry;
+	uint8_t clue_value;
 
-	if (((nodes.nowNode.nodenum == P5 || nodes.nowNode.nodenum == P5) && No2Tra == 1) ||
-		((nodes.nowNode.nodenum == P7 || nodes.nowNode.nodenum == P8) && No3Tra == 1))
-		return 0;
+	is_clue_A_stage = ((nodes.nowNode.nodenum == P5 && flag_clue_stage_A == 5) ||
+		(nodes.nowNode.nodenum == P6 && flag_clue_stage_A == 6));
+	is_clue_B_stage = ((nodes.nowNode.nodenum == P7 && flag_clue_stage_B == 7) ||
+		(nodes.nowNode.nodenum == P8 && flag_clue_stage_B == 8));
 
-	/*等待看完*/
-	uint16_t break_times = 0;
-	uint8_t ReturnFlag = 0;
-
-	while (K210_Rece == 0)
+	/* 只在二维码指定的平台读取；已经采集过则直接视为成功 */
+	if ((!is_clue_A_stage && !is_clue_B_stage) ||
+		(is_clue_A_stage && clue_A_collected) ||
+		(is_clue_B_stage && clue_B_collected))
 	{
-		//buzzer_on();
-		vTaskDelay(3);
-		break_times++;
-		
-		if (break_times >= 600)//500
-		{	
-//			Chassis_MotorControl(is_No, -3, -3, 0);
-			moveServo(0, 1610, 1000);//头向左摆一点
-			vTaskDelay(2000);
-			moveServo(0, 1330, 1000);//头向右摆一点
-			vTaskDelay(2000);
-//			Want2Go(1);
-			
-			CarBrake();
-			Chassis_ClearMileage();
-			open_OCR_mode();
-			break_times = 0;
-			ReturnFlag++;
-			if(ReturnFlag==1||ReturnFlag==3)
-			{
-				Chassis_MotorControl(is_No, 5, 5, 0);
-				Want2Go(3);	
-				CarBrake();
-				Chassis_ClearMileage();
-			}
-			if(ReturnFlag==2||ReturnFlag==4)
-			{
-				Chassis_MotorControl(is_No, 5, 5, 0);
-				Want2Go(3);	
-				CarBrake();
-				Chassis_ClearMileage();
-			}
-			if(ReturnFlag > 4)
-			{
-				break;
-			}
-		}
-
+		return ((is_clue_A_stage && clue_A_collected) ||
+			(is_clue_B_stage && clue_B_collected)) ? OCR_SCAN_SUCCESS : OCR_SCAN_FAILED;
 	}
 
 	K210_Rece = 0;
-	/*记录宝藏*/
-	if (nodes.nowNode.nodenum == P1)
+	Clue_Num = 0;
+
+	for (retry = 0; retry < 5; retry++)
 	{
-		Clue_Num = 0;
-	}
-	else if (nodes.nowNode.nodenum == P3 || nodes.nowNode.nodenum == P4)
-	{
-		Clue_Num = 0;
-	}
-	else if (nodes.nowNode.nodenum == P5 || nodes.nowNode.nodenum == P6)
-	{
-		No2Tra = 1;
-		HAL_UART_AbortReceive_IT(&huart5);
+		uint16_t timeout = 0;
+
+		/* 每轮开始时立即发送0x22，不能先空等 */
+		open_OCR_mode();
+
+		/* MaixCam识别较慢，保持OCR模式约4.5秒；收到有效结果立即退出 */
+		while (K210_Rece == 0 && timeout < MAIXCAM_OCR_WAIT_TICKS)
+		{
+			vTaskDelay(3);
+			timeout++;
+		}
+
+		if (K210_Rece != 0)
+			break;
+
+		/* 本轮失败，关闭任务并调整摄像头/车位后再试 */
 		close_Maxicam();
-		Maxicam_Enable();
-		flag_clue_A = Clue_Num;
-		K210_Rece = 0;
+		if ((retry & 1U) == 0)
+			moveServo(0, 1610, 1000);
+		else
+			moveServo(0, 1330, 1000);
+		vTaskDelay(1200);
+
+		Chassis_MotorControl(is_No, 5, 5, 0);
+		Want2Go(3);
+		CarBrake();
+		Chassis_ClearMileage();
+	}
+
+	/* 失败时不得保存Clue_Num，也不得置采集完成标志 */
+	if (K210_Rece == 0)
+	{
+		close_Maxicam();
+		Clue_Num = 0;
+		return OCR_SCAN_FAILED;
+	}
+
+	/* 必须先保存成功结果，再清接收标志 */
+	clue_value = Clue_Num;
+	K210_Rece = 0;
+	Clue_Num = 0;
+	close_Maxicam();
+
+	if (is_clue_A_stage)
+	{
+		flag_clue_A = clue_value;
+		clue_A_collected = 1;
 		if (flag_clue_A == 0)
 			send_play_specified_command(29);
 		else
-			send_play_specified_command(22+flag_clue_A);
-//		for(uint8_t i = 0;i<clue_A;i++)
-//		{
-//			buzzer_on();
-//			vTaskDelay(500);
-//			buzzer_off();
-//			vTaskDelay(500);
-//		}
-		Clue_Num = 0;
+			send_play_specified_command(22 + flag_clue_A);
 	}
-	else if (nodes.nowNode.nodenum == P7 || nodes.nowNode.nodenum == P8)
+	else
 	{
-		No3Tra = 1;
-		HAL_UART_AbortReceive_IT(&huart5);
-		close_Maxicam();
-		Maxicam_Enable();
-		flag_clue_B = Clue_Num;
-		K210_Rece = 0;
-		send_play_specified_command(16+flag_clue_B);
-//		for(uint8_t i = 0;i<clue_B;i++)
-//		{
-//			buzzer_on();
-//			vTaskDelay(500);
-//			buzzer_off();
-//			vTaskDelay(500);
-//		}
-		treasure = flag_clue_A+flag_clue_B;//获取宝物平台位置
-		Clue_Num = 0;
+		flag_clue_B = clue_value;
+		clue_B_collected = 1;
+		send_play_specified_command(16 + flag_clue_B);
+		treasure = flag_clue_A + flag_clue_B;
 	}
 
-	/*关闭Maxicam*/
-	close_Maxicam();
 	buzzer_on();
 	vTaskDelay(100);
 	buzzer_off();
+	return OCR_SCAN_SUCCESS;
+}
+
+/* MaixCam读取二维码：成功返回1，连续超时返回0 */
+uint8_t WaitFor_QR(void)
+{
+	uint8_t retry;
+
+	for (retry = 0; retry < 4; retry++)
+	{
+		uint16_t timeout = 0;
+
+		/* 每轮重试都重新发送0x11并等待0x94确认 */
+		open_QR_mode();
+
+		/* MaixCam识别较慢，保持QR模式约4.5秒；收到有效结果立即退出 */
+		while (get_cude == 0 && timeout < MAIXCAM_QR_WAIT_TICKS)
+		{
+			vTaskDelay(3);
+			timeout++;
+		}
+
+		if (get_cude != 0)
+			return 1;
+
+		/*
+		 * 未及时收到QR结果时直接重新发送0x11。
+		 * 不在这里移动小车：Want2Go()依赖里程更新，架车测试时会永久阻塞，
+		 * 导致后续重试和main_task外层循环都无法执行。
+		 * 也不发送0x66，保持MaixCam处于QR模式等待下一次启动命令。
+		 */
+		vTaskDelay(100);
+	}
+
+	/* 全部重试失败后关闭MaixCam，下一次平台扫描从已关闭状态重新启动。 */
+	close_Maxicam();
 	return 0;
 }
 
-uint8_t WaitFor_QR(void)
-{
-	/*等待看完*/
-	uint16_t break_times = 0;
-	uint8_t ReturnFlag = 0;
-	
-	while (get_cude == 0)
-	{
-		vTaskDelay(3);
-		break_times++;
-		if (break_times >= 500)//500
-		{
-			Chassis_MotorControl(is_No, -3, -3, 0);
-			Want2Go(5);
-			CarBrake();
-			Chassis_ClearMileage();
-			break_times = 0;
-			ReturnFlag++;
-			if(ReturnFlag > 3)
-			{				
-				return 0;
-			}
-				
-		}
-	
-	}
-//	if (nodes.nowNode.nodenum == P1)
-//	{
-//		flag_clue_stage_A = (QR_code/10)%10;//获取十位上的数字
-//		flag_clue_stage_B = QR_code%10;//获取个位上数字
-//	}
-	return 0;
-}
-	
 //int i=0;
 uint16_t AD_Value[4];//定义一个数组
 /*启动流程*/
@@ -2539,9 +2620,9 @@ void zhunbei(void)
 	vTaskDelay(100);
 	Robot_Work(BODY, DOWN);		//人躺下
 	vTaskDelay(100);
-	Robot_Work(HEAD,HEAD_MID);
+	Robot_Work(CAMERA,HEAD_MID);
 	vTaskDelay(100);
-	Robot_Work(HEAD,UP);
+	Robot_Work(CAMERA,UP);
 	
 
 	RampCtrl_Blocking(RAMP_DESCEND, GoStage_Speed, getAngleZ(),

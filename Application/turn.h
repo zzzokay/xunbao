@@ -3,7 +3,8 @@
 
 #include "sys.h"
 #include "imu.h"
-#include "chassis_api.h"
+
+struct Motors;
 
 struct Angle {
 	float AngleT;

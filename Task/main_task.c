@@ -13,7 +13,7 @@
 #include "motor_task.h"
 #include "openmv.h"
 #include "math.h"
-#include "barrier.h"                                                                                                                                   
+#include "barrier.h"
 #include "sin_generate.h"
 #include "gray.h"
 #include "QR.h"
@@ -21,18 +21,18 @@
 #include "scaner.h"
 #include "motor.h"
 #include "chassis_api.h"
-
+#include "Rudder_control.h"
 
 /*===== 独立调试开关 =====*/
-#define MAIN_DEBUG 0 
+#define MAIN_DEBUG 1
 
-													   
-uint8_t test_flag = 0;
+
+uint8_t test_flag = 9;
 float temp_speed=25;
 #if MAIN_DEBUG
 
 
-#endif                          
+#endif
 
 /*主任务*/
 void main_task(void *pvParameters)
@@ -46,14 +46,16 @@ void main_task(void *pvParameters)
 	IMU_CalibrateZero(&basic_y, &basic_p, &basic_r);
 	vTaskDelay(100);
 	mpuZreset(get_latest_yaw(), nodes.nowNode.angle); // 用稳定后的实际角度计算补偿
-	
-	/*等待挡板*/                           
-	while (Infrared_ahead == 0)
-	vTaskDelay(5);
 
-	/*等待移除挡板*/
-	while(Infrared_ahead == 1)
-		vTaskDelay(5);
+	/*等待挡板*/
+	if (test_flag != 10 && test_flag != 11 && test_flag != 12)
+	{
+		while (Infrared_ahead == 0)
+			vTaskDelay(5);
+
+		while (Infrared_ahead == 1)
+			vTaskDelay(5);
+	}
 	//ScanerMode_Switch(Gray);
 #else
 	/*正常模式：完整初始化流程*/
@@ -64,12 +66,12 @@ void main_task(void *pvParameters)
 
 	while (1)
 	{
-		
+
 #if MAIN_DEBUG
 		/*========== 调试模式：debug_test_item 控制 ==========*/
 		if (test_flag == 1)
 		{
-			
+
 			//ScanerMode_Switch(RF);
 			Chassis_SetTrackMode(TRACK_NEAR_CENTER);
 			//Chassis_DriveDistance_Blocking(is_Line,100,20,0,0);
@@ -82,7 +84,7 @@ void main_task(void *pvParameters)
 			//Chassis_OverrideTurnPid(6.0f, 0.0f, 90.0f, 30.0f);
 			//Chassis_MotorControl(is_No,2,-2,0);
 			//vTaskDelay(3000);
-			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ()); 
+			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ());
 			//Chassis_RestoreTurnPid();
 			//Chassis_DriveDistance_Blocking(is_Gyro, 20, Gyro_Speed, getAngleZ(), 0);
             //Chassis_Turn_By_Gyro_Blocking(getAngleZ()+90, getAngleZ());
@@ -126,6 +128,102 @@ void main_task(void *pvParameters)
 			Chassis_SelfCheck();
 			//vTaskDelay(100);
 		}
+
+		if(test_flag == 9)
+		{
+			Robot_Work(BODY, UP); 	//人站起来
+			vTaskDelay(800);
+			Robot_Work(LARM, UP);		// 左手举起
+			vTaskDelay(100);
+			Robot_Work(RARM, UP);		//右手举起
+			vTaskDelay(100);
+
+
+			vTaskDelay(1000);
+			Robot_Work(LARM, DOWN);		//左手放下
+			vTaskDelay(100);
+			Robot_Work(RARM, DOWN);		//右手放下
+			vTaskDelay(100);
+
+			Robot_Work(CAMERA, HEAD_RIGHT);		//左手放下
+			vTaskDelay(1000);
+			Robot_Work(CAMERA, HEAD_LEFT);		//右手放下
+			vTaskDelay(1000);
+			Robot_Work(CAMERA, HEAD_MID);		//右手放下
+			vTaskDelay(1000);
+			vTaskDelay(1000);
+		}
+
+		if(test_flag == 10)//测试摄像头颜色
+		{
+
+
+			printf("1");
+			uint8_t pass_state = Door_ReadPass_Test();
+			printf("Door pass state = %d\r\n", pass_state);
+			vTaskDelay(1000);
+
+				// test_flag =0;
+		}
+		if(test_flag == 11)//测试摄像头数字
+		{
+			uint8_t ocr_ok;
+
+			/* WaitFor_OCR只接收QR指定平台的数据，这里模拟到达P5 */
+//				test_flag = 0;              // 只测试一次，防止主循环重复进入
+			nodes.nowNode.nodenum = P5;
+			flag_clue_stage_A = 5;
+			K210_Rece = 0;
+			Clue_Num = 0;
+
+			Robot_Work(CAMERA, HEAD_MID);
+			vTaskDelay(300);
+
+			printf("OCR test start\r\n");
+			ocr_ok = WaitFor_OCR();
+			if (ocr_ok == OCR_SCAN_SUCCESS)
+				printf("OCR success: clue_A=%d\r\n", flag_clue_A);
+			else if (ocr_ok == OCR_SCAN_FAILED)
+				printf("OCR timeout or invalid result\r\n");
+		}
+		
+		
+		
+		if(test_flag == 12)//测试摄像头扫二维码
+		{
+//			uint8_t cmd = 0x11;  // QR模式指令码
+//       		HAL_UART_Transmit(&huart6, &cmd, 1, 100);
+//			printf("3");
+
+
+			uint8_t qr_ok;
+
+			//test_flag = 0;              // 只测试一次，防止主循环重复进入
+			get_cude = 0;
+			flag_line_clue = 0;
+			flag_clue_stage_A = 0;
+			flag_clue_stage_B = 0;
+
+			Robot_Work(CAMERA, HEAD_MID);
+			vTaskDelay(300);
+
+			printf("QR test start\r\n");
+			qr_ok = WaitFor_QR();
+			if (qr_ok)
+			{
+				printf("QR success: line=%d, stageA=%d, stageB=%d\r\n",
+					flag_line_clue, flag_clue_stage_A, flag_clue_stage_B);
+			}
+			else
+			{
+				printf("QR timeout or invalid result\r\n");
+			}
+			
+			
+					vTaskDelay(2000);
+	
+		}
+
 		/*调试模式下不执行 Navigation()，避免无传感器跑飞*/
 #else
 		/*========== 正常运行模式 ==========*/

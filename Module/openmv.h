@@ -4,9 +4,9 @@
 #include "task.h"
 #include "main.h"
 #include "cmsis_os.h"
-extern uint8_t Color_Right;
-extern uint8_t Color_Left;
-extern uint8_t COLOR_flag;
+extern volatile uint8_t Color_Right;
+extern volatile uint8_t Color_Left;
+extern volatile uint8_t COLOR_flag;
 
 void Open_COLOR_R(void);
 //void Close_MV_R(void);

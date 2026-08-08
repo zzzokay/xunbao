@@ -44,18 +44,18 @@ void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
 #define ONE_WAY_PASS  2   /* 蓝：单相通过 */
 #define NO_PASS       3   /* 黑：不能过 */
 
-#define DEBUG 1
+#define DEBUG 0
 extern uint8_t treasure;
 
 /*调试：预设5个门颜色（无传感器时）*/
 
 extern uint8_t door_pass[5];
-extern uint8_t flag_line_clue;     // QR百位：0=跳过P3/P4，3=P3，4=P4
-extern uint8_t flag_clue_stage_A;  // QR十位：5=P5（原P6），6=P6（原P5）
-extern uint8_t flag_clue_stage_B;  // QR个位：7=P7（原P8），8=P8（原P7）
-extern uint8_t flag_clue_A;        // P5/P6 线索数字
-extern uint8_t flag_clue_B;        // P7/P8 线索数字
-extern uint8_t get_cude;
+extern volatile uint8_t flag_line_clue;     // QR百位：0=跳过P3/P4，3=P3，4=P4
+extern volatile uint8_t flag_clue_stage_A;  // QR十位：5=P5，6=P6
+extern volatile uint8_t flag_clue_stage_B;  // QR个位：7=P7，8=P8
+extern uint8_t flag_clue_A;                 // P5/P6 线索数字
+extern uint8_t flag_clue_B;                 // P7/P8 线索数字
+extern volatile uint8_t get_cude;
 void Stage(void);
 void Barrier_Bridge(void);
 void Barrier_Hill(void) ;
@@ -74,6 +74,9 @@ void Stage_Home(void);
 void undermou(void);
 //void Special_Node(void);
 void get_newroute(void);
+#define OCR_SCAN_SUCCESS 1U
+#define OCR_SCAN_FAILED  0U
+
 uint8_t WaitFor_OCR(void);
 uint8_t WaitFor_QR(void);
 void zhunbei(void);
@@ -94,6 +97,10 @@ void update_route_by_door_3(void);
 void update_route_by_door_4(void);
 void update_route_at_P1(void);
 void update_route_at_door_for_clue(void);
+void update_route_at_P7_for_treasure(void);
 void update_route_at_P8_for_treasure(void);
 int Six2Zero(void);
+
+uint8_t Door_ReadPass_Test(void);
+
 #endif
