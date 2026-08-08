@@ -96,7 +96,6 @@ void update_route_by_door_2(void);
 void update_route_by_door_3(void);
 void update_route_by_door_4(void);
 void update_route_at_P1(void);
-void update_route_at_door_for_clue(void);
 void update_route_at_door_for_stageAB(void);
 void update_route_at_P7_for_treasure(void);
 void update_route_at_P8_for_treasure(void);
