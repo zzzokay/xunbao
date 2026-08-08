@@ -25,7 +25,7 @@
 
 
 /*===== 独立调试开关 =====*/
-#define MAIN_DEBUG 1 
+#define MAIN_DEBUG 0 
 
 													   
 uint8_t test_flag = 3;
@@ -105,7 +105,8 @@ void main_task(void *pvParameters)
 		{
 			//Barrier_Hill();
 			//Sword_Mountain();
-			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-150, getAngleZ(), 20.0f);
+			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-160, getAngleZ(), 20.0f);
+			Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
 			QQB_1();
 			//Barrier_HighMountain();
 			CarBrake();

@@ -1365,6 +1365,7 @@ void update_route_at_P8_for_treasure(void)
 	}
 }
 /*跷跷板*/
+#define CENTER 7
 void QQB_1(void)
 {
 	enum {
@@ -1385,7 +1386,7 @@ void QQB_1(void)
 		case QQB_INIT:
 			send_play_specified_command(7);
 			//改变小车循迹中心，根据实际情况硬补偿
-			//Chassis_SetCatchSensorNum(line_weight_default[7]);
+			Chassis_SetCatchSensorNum(line_weight_default[CENTER]);
 			//改变循迹模式为左边循迹
 			Chassis_SetTrackMode(TRACK_LEFT_EDGE);
 			
@@ -1406,10 +1407,11 @@ void QQB_1(void)
 			
 			Cross_getline(&Cross_Scaner);
 			//防止循迹受到旁边红线的干扰
-			if(imu.pitch>=After_up ||Cross_Scaner.ledNum>=4||Cross_Scaner.lineNum>=2)Chassis_SetEdgeIgnore(4);
+			//if(imu.pitch>=After_up ||Cross_Scaner.ledNum>=4||Cross_Scaner.lineNum>=2)Chassis_SetEdgeIgnore(4);
 			//等待对其
-			if ((imu.yaw >=70&&imu.yaw <=110)||(imu.yaw <=-70&&imu.yaw >=-110))
-			{		
+			if ((imu.yaw >=70&&imu.yaw <=110)||(imu.yaw <=-70&&imu.yaw >=-110)||Cross_Scaner.ledNum>=4||Cross_Scaner.lineNum>=2)
+			{	
+				send_play_specified_command(7);	
 				Chassis_OverrideGyroPid(4, 0, 70, 5);  
 				Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ()>0?90:-90);
 				Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);	
@@ -1434,31 +1436,41 @@ void QQB_1(void)
 			{	
 				is_emergency++;
 				send_play_specified_command(33);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 15, getAngleZ(), 15.0f);
+				send_play_specified_command(33);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 20, getAngleZ(), 15.0f);
 				Chassis_DriveDistance_Blocking(is_Gyro, 10, -SPEED0, getAngleZ(), 0);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 15, getAngleZ(), 15.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 20, getAngleZ(), 15.0f);
 				Chassis_DriveDistance_Blocking(is_Gyro, 18, SPEED0, getAngleZ(), 0);
 			}
 			else if ((Cross_Scaner.detail & 0x0038)&&is_emergency==1)
 			{			
 				is_emergency++;
 				send_play_specified_command(33);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 15, getAngleZ(), 15.0f);
+				send_play_specified_command(33);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 20, getAngleZ(), 15.0f);
 				Chassis_DriveDistance_Blocking(is_Gyro, 10, -SPEED0, getAngleZ(), 0);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 15, getAngleZ(), 15.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 20, getAngleZ(), 15.0f);
 				Chassis_DriveDistance_Blocking(is_Gyro, 18, SPEED0, getAngleZ(), 0);
 			}
 			else if ((Cross_Scaner.detail & 0xF000)&&is_emergency==1)
 			{	
 				is_emergency++;
 				send_play_specified_command(33);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 8, getAngleZ(), 10.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 10, getAngleZ(), 15.0f);
+				Chassis_DriveDistance_Blocking(is_Gyro, 10, -SPEED0, getAngleZ(), 0);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 10, getAngleZ(), 15.0f);
+				Chassis_DriveDistance_Blocking(is_Gyro, 18, SPEED0, getAngleZ(), 0);
+				
 			}
 			else if ((Cross_Scaner.detail & 0x000F)&&is_emergency==1)
 			{			
 				is_emergency++;
 				send_play_specified_command(33);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 8, getAngleZ(), 10.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 10, getAngleZ(), 15.0f);
+				Chassis_DriveDistance_Blocking(is_Gyro, 10, -SPEED0, getAngleZ(), 0);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 10, getAngleZ(), 15.0f);
+				Chassis_DriveDistance_Blocking(is_Gyro, 18, SPEED0, getAngleZ(), 0);
+				
 			}
 			else if(is_emergency){
 			is_emergency=0;
@@ -1468,11 +1480,11 @@ void QQB_1(void)
 
 			if(is_emergency==0)Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);
 
-			if(imu.pitch>50){
+			if(imu.pitch>55){
 				Chassis_DriveDistance_Blocking(is_Gyro, 10, -SPEED0, getAngleZ(), 0);
 				CarBrake();
-				Chassis_DriveDistance_Blocking(is_Gyro, 5, SPEED0, getAngleZ(), 0);
-				Chassis_ClearMileage();
+				vTaskDelay(500);
+				state = QQB_WAIT_PITCH;
 			}
 
 			if(Chassis_GetMileage() > 40 && is_emergency == 0)
@@ -1494,16 +1506,17 @@ void QQB_1(void)
 			if (p < After_down)seen_negative = 1;	
 			if (seen_negative==1)
 			{ 
-				Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ());		
+				vTaskDelay(300);	
+				Chassis_RestoreGyroPid();
+				Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ());	
+				Chassis_Turn_By_Gyro_Blocking(getAngleZ()>0?145:-45, getAngleZ(), 20.0f);	
 				seen_negative=2;				
 			}
 			if(seen_negative==2)
 			{			
-				if(p > After_down) 
+				if(p > After_down-10) 
 				{	
-					Chassis_RestoreGyroPid();
-					Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ());	
-					Chassis_Turn_By_Gyro_Blocking(getAngleZ()>0?145:-45, getAngleZ(), 40.0f);	
+						
 					state = QQB_RECOVERY;
 				}	
 			}
@@ -1519,7 +1532,7 @@ void QQB_1(void)
 		vTaskDelay(2);
 	}  
 	Chassis_SetEdgeIgnore(0);
-	Chassis_SetCatchSensorNum(line_weight_default[12]);
+	Chassis_SetCatchSensorNum(line_weight_default[13]);
 	Chassis_SetTrackMode(TRACK_LEFT_EDGE);
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
 	Chassis_OverrideLinePid(17,0.02f,50,30);
