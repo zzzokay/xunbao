@@ -13,3 +13,25 @@
 # eide template
 *.ept
 *.eide-template
+
+# conversation/temporary artifacts
+*.diff
+
+# Keil build outputs and logs
+test1/
+*.log
+*.lst
+*.uvoptx
+*.uvguix.*
+.buildtest1.obj__Applicationbarrier.d
+*.o
+*.crf
+*.d
+*.map
+*.htm
+*.lnp
+*.axf
+*.hex
+*.sct
+*.dep
+*.build_log.htm
