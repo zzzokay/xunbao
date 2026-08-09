@@ -22,4 +22,5 @@ void Maxicam_ProcessRxByte(uint8_t rx_byte);
 void open_QR_mode(void);
 void open_OCR_mode(void);
 void close_Maxicam(void);
+void Reset_Process_State(void);
 #endif
