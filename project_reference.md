@@ -133,9 +133,14 @@ uint8_t QR_code, get_cude, get_a, get_b;
 
 `SPEED0=25, SPEED1=36, SPEED2=45, SPEED25=55, SPEED3=60, SPEED4=70, SPEED5=75`
 
-各速度对应PID参数在 `Chassis_SetTargetSpeed` 中设置：
-- SPEED4: kp=4, kd=250 | SPEED3: kp=7, kd=115 | SPEED25: kp=8, kd=140
-- SPEED2: kp=7, kd=80 | SPEED0/1: kp=7, kd=90 | 低速12/15: kp=20, kd=60
+速度→PID映射表 `line_pid_steps`（chassis_api.c 静态常量，2026-08-09 起改为**按当前实际速度阶梯选择**）：
+- SPEED5/4: kp=3.5, kd=200 | SPEED3: kp=4.0, kd=120 | SPEED25: kp=5.0, kd=150
+- SPEED2: kp=6.5, kd=110 | SPEED0/1/20: kp=6.0, kd=90 | 低速12/15: kp=15.0, kd=60
+
+**阶梯选择机制**：`Chassis_SetTargetSpeed` 只设置 `motor_all.Cspeed`（目标速度），不再写 `line_pid_param`；
+motor_task 每 5ms 调用 `Chassis_UpdateLinePidBySpeed()` 读取当前实际速度 `motor_all.encoder_avg`，规则：**只有当前速度 ≤ 某档速度才采样该档 PID**（即取所有 `档速 ≥ 当前速度` 中最低的一档，尽量向上取高速档低 Kp；超过最高档用最高档）。
+高速→低速减速过程中 PID 随实际速度逐级下调：减速前期一直保持高速低 Kp，实际速度真正降到某档以下才换更高 Kp —— 既不减速期套用低速高 Kp（12/15→15.0）导致摇摆，也不晚切导致不跟线。
+- 游龙 `Chassis_OverrideLinePid` 临时覆盖生效时（`line_pid_override_active`）优先级更高，不在此覆盖
 
 ---
 
@@ -256,6 +261,7 @@ Cross()
 | 重写第二轮路线 `get_newroute()`（barrier.c，9 门分支×2=18 条 temp 路线）：宝藏=6 只去 P1→P3→P4→P6 后直接回家；宝藏=2/3/4/5 只去 P1→P3→P4→P5 后直接回家。`switch(treasure)` 由原 5 case（2/3/4/5/6）合并为 2 case（`case 6` + `case 2/3/4/5`），删除各分支 P7/P8 绕行段，保留各分支门控有效路径段（D2/D3/D4/D5 不通时的绕行路径不变） | 2026-08-07 |
 | IMU 零位校准 + 角度补偿三行（`IMU_CalibrateZero` + `vTaskDelay(100)` + `mpuZreset`）包装为公共函数 `IMU_Calibrate_Yaw(float referangle)`，放 turn.c/turn.h（`mpuZreset` 同族，turn.c 已含 imu.h 零新增依赖；避免 Module 层 imu.c 倒挂 Application 层）。参考角度由调用方传（main_task.c 传 `nodes.nowNode.angle`），与 map 全局解耦 | 2026-08-07 |
 | 修复 barrier.c 编译错误 `#20 DOOR_D5_BACK/DOOR_D4_BACK undefined`：`enum DoorState` 定义在 `Door_ReadPass()`（1542 行）之后，C 枚举常量仅声明后可见；枚举前移到 `Door_ReadPass` 前置声明之前 | 2026-08-09 |
+| 巡线PID按当前实际速度阶梯选择（防高速→低速减速期摇摆/不跟线）：`Chassis_SetTargetSpeed` 不再写 `line_pid_param`；新增 `line_pid_steps` 阶梯表，motor_task 每5ms 调 `Chassis_UpdateLinePidBySpeed()` 读 `motor_all.encoder_avg`，规则为只有当前速度≤档速才采样该档PID（尽量向上取）；减速时 PID 逐级下调；游龙 override 生效时不覆盖 | 2026-08-09 |
 
 ---
 
@@ -272,6 +278,7 @@ Cross()
 | `Chassis_DriveDistance_Blocking(...)` | 临时模式行驶固定距离 | map.c |
 | `Chassis_OverrideLinePid(kp,ki,kd,max)` | 临时覆盖巡线PID | map.c |
 | `Chassis_Periodic_Update_5ms()` | 游龙+丢线+滚转+翘头保护 | motor_task |
+| `Chassis_UpdateLinePidBySpeed()` | 巡线PID阶梯选择(速度≤档速才取该档) | motor_task |
 | `Chassis_EnableAntiSnake()` | 激活游龙防护 | map.c |
 | `Chassis_EnableLineLostProtection()` | 开启丢线保护 | map.c |
 | `Chassis_EnableRollProtection()` | 使能横滚角保护(>40°死停) | map.c/barrier.c |

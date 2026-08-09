@@ -52,6 +52,30 @@ typedef struct {
 
 static ChassisState_t chassis = {0};
 
+/* 巡线PID按当前实际速度阶梯选择（速度→PID参数映射表，与各速度档一致）
+ * 规则：只有当前实际速度 ≤ 某档速度，才采样该档PID（尽量向上取高速档的低Kp）。
+ * 即取所有满足 档速 ≥ 当前速度 的档中速度最低的一档；当前速度超过最高档时用最高档。
+ * 高速→低速减速过程中 PID 随实际速度逐级下调：减速前期一直保持高速低Kp，实际速度真正降到
+ * 某档以下才换更高Kp —— 既不减速期套用低速高Kp(12/15→15.0)导致摇摆，也不晚切导致不跟线 */
+typedef struct {
+    uint8_t  speed;        /* 阶梯速度（编码器每5ms计数） */
+    float    kp, ki, kd;
+} LinePidStep_t;
+
+static const LinePidStep_t line_pid_steps[] = {
+    { 75, 3.5f, 0, 200 },   /* SPEED5 */
+    { 70, 3.5f, 0, 200 },   /* SPEED4 */
+    { 60, 4.0f, 0, 120 },   /* SPEED3 */
+    { 55, 5.0f, 0, 150 },   /* SPEED25 */
+    { 45, 6.5f, 0, 110 },   /* SPEED2 */
+    { 36, 7.5f, 0, 100 },    /* SPEED1 */
+    { 25, 9.0f, 0, 80 },    /* SPEED0 */
+    { 20, 12.0f, 0, 70 },
+    { 15, 15.0f, 0, 60 },
+    { 12, 15.0f, 0, 60 },
+};
+#define LINE_PID_STEP_NUM  (sizeof(line_pid_steps)/sizeof(line_pid_steps[0]))
+
 /* 角度归一化工具：将角度归约到 (-180, 180] */
 static inline float normalize_angle(float a)
 {
@@ -181,50 +205,12 @@ void Chassis_SetMode(uint8_t mode)
 
 void Chassis_SetTargetSpeed(float speed)
 {
-    chassis.target_speed = (uint8_t)(fabsf(speed)+0.5f); // 四舍五入取整（取绝对值用于PID参数选择）
+    chassis.target_speed = (uint8_t)(fabsf(speed)+0.5f); // 四舍五入取整（保留给游龙恢复等使用）
     if(PIDMode == is_Line)
     {
         motor_all.Cspeed = speed;
-        Chassis_RestoreLinePid();
-        switch (chassis.target_speed)
-			{
-                case SPEED5:
-				case SPEED4:
-					line_pid_param.kp = 4.0f;//5.0
-					line_pid_param.ki = 0;//0
-					line_pid_param.kd = 250;//200
-					break;		
-				case SPEED3://60 7 115
-					line_pid_param.kp = 4.0f;
-                    line_pid_param.ki = 0;
-                    line_pid_param.kd = 120;
-					break;
-				case SPEED25://55 8 140	
-                    line_pid_param.kp = 5.0f;
-                    line_pid_param.ki = 0;
-                    line_pid_param.kd = 150;
-                    break;
-				case SPEED2://45 7 80
-					line_pid_param.kp = 6.5f;
-                    line_pid_param.ki = 0;
-                    line_pid_param.kd = 110;
-					break;		
-				case SPEED0://25 7 90
-				case SPEED1://36 7 90
-                case 20://20 7 90
-					line_pid_param.kp = 6.0f;
-					line_pid_param.ki = 0;
-					line_pid_param.kd = 90;
-					break;   
-				case 12:
-                case 15:
-					line_pid_param.kp = 15.0f;
-					line_pid_param.ki = 0;
-					line_pid_param.kd = 60;
-				default:
-					break;
-                
-			}
+        Chassis_RestoreLinePid();  // 清除可能残留的游龙/巡线转向临时覆盖
+        // 注意：line_pid_param 不在此设置，由 motor_task 每5ms 按当前实际速度查阶梯表实时选择
     }
     else if (PIDMode == is_Gyro)
     {
@@ -468,6 +454,40 @@ void Chassis_RestoreLinePid(void)
         line_pid_param.kd = saved_line_kd;
         motor_all.Line_speedMax = saved_Line_speedMax;
         line_pid_override_active = 0;
+    }
+}
+
+/* 巡线PID按当前实际速度阶梯选择：放在 motor_task 5ms 循环中调用
+ * 规则：只有当前实际速度 ≤ 某档速度才采样该档PID（尽量向上取高速档低Kp）。
+ * 即取所有满足 档速 ≥ 当前速度 的档中速度最低的一档；当前速度超过最高档时用最高档。
+ * 游龙等临时覆盖(Chassis_OverrideLinePid)生效时优先级更高，不在此覆盖 */
+void Chassis_UpdateLinePidBySpeed(void)
+{
+    if (PIDMode != is_Line)
+        return;
+    if (line_pid_override_active)
+        return;
+
+    float cur = fabsf(motor_all.encoder_avg);
+    const LinePidStep_t *pick = NULL;
+    /* 表为降序(75→12)：从低速档往上找，第一个 档速 ≥ 当前速度 的档即为所求（速度最低的一档） */
+    for (uint8_t i = LINE_PID_STEP_NUM; i > 0; i--)
+    {
+        const LinePidStep_t *step = &line_pid_steps[i - 1];
+        if ((float)step->speed >= cur)
+        {
+            pick = step;
+            break;
+        }
+    }
+    if (pick == NULL)
+        pick = &line_pid_steps[0];  // 当前速度超过最高档(75)，用最高档
+
+    if (line_pid_param.kp != pick->kp || line_pid_param.ki != pick->ki || line_pid_param.kd != pick->kd)
+    {
+        line_pid_param.kp = pick->kp;
+        line_pid_param.ki = pick->ki;
+        line_pid_param.kd = pick->kd;
     }
 }
 
@@ -891,7 +911,7 @@ void Chassis_SelfCheck(void)
             angle_ready = 1;             // 首次只记录，不判断
         }
         last_angle = curr_angle;
-        printf("%.2f\r\n", curr_angle);
+       // printf("%.2f\r\n", curr_angle);
     }
 
     /* ---------- 2. 灰度传感器检查 ---------- */
@@ -906,7 +926,7 @@ void Chassis_SelfCheck(void)
                 break;
             }
         }
-       // printf("%d,%d,%d,%d\r\n", AD_Value_Gray[0], AD_Value_Gray[1], AD_Value_Gray[2], AD_Value_Gray[3]);
+       printf("%d,%d,%d,%d\r\n", AD_Value_Gray[0], AD_Value_Gray[1], AD_Value_Gray[2], AD_Value_Gray[3]);
     }
 
     /* ---------- 3. 循迹板检查 ---------- */

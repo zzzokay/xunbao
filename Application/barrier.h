@@ -44,7 +44,7 @@ void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
 #define ONE_WAY_PASS  3   /* 蓝：单相通过 */
 #define NO_PASS       1   /* 黑：不能过 */
 
-#define DEBUG 0
+
 extern uint8_t treasure;
 
 /*调试：预设5个门颜色（无传感器时）*/

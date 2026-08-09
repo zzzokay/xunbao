@@ -81,6 +81,9 @@ void motor_task(void *pvParameters)
 		/*2. 获取电机速度，内核实数值及路程累计*/
 		handle_motor_speed();
 
+		/*2.5 巡线PID阶梯选择：速度≤某档才取该档参数（减速时保持高速低Kp，实际降到档位才换高Kp）*/
+		Chassis_UpdateLinePidBySpeed();
+
 		/*3. 模式切换逻辑 - 确保模式切换平滑过渡*/
 		handle_mode_switch(PIDMode);
 

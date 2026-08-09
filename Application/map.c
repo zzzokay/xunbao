@@ -219,7 +219,7 @@ static void Nav_SegmentInit(void)
     else if ((nodes.nowNode.flag & NEAR_CENTER) == NEAR_CENTER)
         Chassis_SetTrackMode(TRACK_NEAR_CENTER);
     else
-        Chassis_SetTrackMode(TRACK_ALL);
+        Chassis_SetTrackMode(TRACK_NEAR_CENTER);
     // 设置当前边的模式和目标速度
     Chassis_SetMode(is_Line);
     Chassis_SetTargetSpeed(nodes.nowNode.speed);
@@ -401,8 +401,8 @@ void map_function(u8 fun)
 		case SM         : Sword_Mountain();						break;			//假山
 		case BSoutPole	: South_Pole();	          				break;			//南极
 		case QQB	    : QQB_1();	          					break;			//跷跷板
-		case BLBS       : Barrier_WavedPlate(45);	    		break;			//短波动板 速度：调试 80//85
-		case BLBL	    : Barrier_WavedPlate(90);	  			break;			//长波动板 速度：调试	//180
+		case BLBS       : Barrier_WavedPlate(50);	    		break;			//短波动板 速度：调试 80//85
+		case BLBL	    : Barrier_WavedPlate(100);	  			break;			//长波动板 速度：调试	//180
 		case DOOR	    : door();		                 	  	break;			//门
 		case BHM        : Barrier_HighMountain();				break;    		//高山
 		case UpStageHome	: Stage_Home();	                		break;

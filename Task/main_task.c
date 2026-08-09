@@ -24,14 +24,21 @@
 #include "Rudder_control.h"
 
 /*===== 独立调试开关 =====*/
-#define MAIN_DEBUG 0
+#define MAIN_DEBUG 1
 
 
-uint8_t test_flag = 10;
+uint8_t test_flag = 3; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
 float temp_speed=25;
 #if MAIN_DEBUG
-
-
+/*地图初始化*/
+void mapInit13()
+{
+	map = (struct Map_State){0,0};
+    nodes = (Nodes){0};	
+	cross_event = 0;       //起始点
+    nodes.nowNode = Node[getNextConnectNode(N13, P5)];  //起始目标点
+	nodes.nextNode.nodenum = 0xff;
+}
 #endif
 
 /*主任务*/
@@ -41,14 +48,14 @@ void main_task(void *pvParameters)
 	xLastWakeTime = xTaskGetTickCount();
 
 #if MAIN_DEBUG
-	Chassis_MotorControl(is_No, 0, 0, 0);
 	/*调试模式：跳过传感器初始化，只做基本的地图加载*/
+	mapInit13();
 	IMU_CalibrateZero(&basic_y, &basic_p, &basic_r);
 	vTaskDelay(100);
 	mpuZreset(get_latest_yaw(), nodes.nowNode.angle); // 用稳定后的实际角度计算补偿
 
 	/*等待挡板*/
-	if (test_flag != 10 && test_flag != 11 && test_flag != 12)
+	if (test_flag != 10 && test_flag != 11 && test_flag != 12 && test_flag != 7 && test_flag != 1)
 	{
 		while (Infrared_ahead == 0)
 			vTaskDelay(5);
@@ -78,9 +85,9 @@ void main_task(void *pvParameters)
 			//ScanerMode_Switch(RF);
 			Chassis_SetTrackMode(TRACK_NEAR_CENTER);
 			//Chassis_DriveDistance_Blocking(is_Line,100,20,0,0);
-			Chassis_DriveDistance_Blocking(is_Line, 40, 20, 0, 0);
+			Chassis_DriveDistance_Blocking(is_Line, 200, 45, 0, 0);
+			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ(),20.0f);
 			CarBrake();
-			test_flag = 0;
 		}
 		if (test_flag == 2)
 		{
@@ -97,11 +104,11 @@ void main_task(void *pvParameters)
 		}
 		if (test_flag == 3)
 		{
-			//Barrier_Hill();
+			Barrier_Hill();
 			//Sword_Mountain();
-			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-160, getAngleZ(), 20.0f);
-			Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
-			QQB_1();
+			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-160, getAngleZ(), 20.0f);
+			//Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
+			//QQB_1();
 			//Barrier_HighMountain();
 			CarBrake();
 			test_flag = 0;
@@ -228,7 +235,10 @@ void main_task(void *pvParameters)
 					vTaskDelay(2000);
 	
 		}
-
+		if(test_flag == 13)
+		{
+			Navigation();
+		}
 		/*调试模式下不执行 Navigation()，避免无传感器跑飞*/
 #else
 		/*========== 正常运行模式 ==========*/

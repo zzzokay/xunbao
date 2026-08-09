@@ -120,3 +120,5 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
 **2026-08-07** — IMU 零位校准 + 角度补偿三行（`IMU_CalibrateZero` + `vTaskDelay(100)` + `mpuZreset`）包装为公共函数 `IMU_Calibrate_Yaw(float referangle)`，放 turn.c/turn.h（`mpuZreset` 同族，turn.c 已含 imu.h 零新增依赖；非 imu.c 因避免 Module 层倒挂 Application 层）。参考角度由调用方传入（main_task.c 传 `nodes.nowNode.angle`），与 map 全局解耦。
 
 **2026-08-09** — 修复 barrier.c 编译错误 `#20 DOOR_D5_BACK/DOOR_D4_BACK undefined`：`enum DoorState` 定义位于使用它的 `Door_ReadPass()`（1542 行）之后，C 语言枚举常量仅在声明后可见导致报错。将枚举前移到 `Door_ReadPass` 前置声明之前，编译验证 0 errors。
+
+**2026-08-09** — 巡线PID按当前实际速度阶梯选择（防高速→低速减速期摇摆/不跟线）：`Chassis_SetTargetSpeed` 不再写 `line_pid_param`；新增阶梯表 `line_pid_steps`（速度→Kp/Kd，与各速度档一致），motor_task 每5ms 调 `Chassis_UpdateLinePidBySpeed()` 读取当前实际速度 `motor_all.encoder_avg`，规则为**只有当前速度 ≤ 某档速度才采样该档PID（尽量向上取高速档低Kp）**。减速时 PID 随实际速度逐级下调：减速前期保持高速低Kp，速度真正降到档位以下才换更高Kp。游龙 `Chassis_OverrideLinePid` 临时覆盖生效时优先级更高（不覆盖）。编译验证 0 errors。

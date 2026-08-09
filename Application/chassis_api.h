@@ -231,6 +231,14 @@ void Chassis_CorrectByInfrared(float correct_angle, float multiplier, float K);
  */
 void Chassis_Periodic_Update_5ms(void);
 
+/**
+ * @brief 巡线PID按当前实际速度阶梯选择，必须置于 motor_task 的 5ms 循环中（读取编码器均值之后）
+ * @note 规则：只有当前实际速度 ≤ 某档速度才采样该档PID（尽量向上取高速档低Kp）。
+ *       减速过程中 PID 随实际速度逐级下调：减速前期保持高速低Kp，速度真正降到某档以下才换更高Kp，
+ *       既不会减速期用低速高Kp摇摆，也不晚切导致不跟线
+ */
+void Chassis_UpdateLinePidBySpeed(void);
+
 void Want2Go(float Dis);
 
 /**
