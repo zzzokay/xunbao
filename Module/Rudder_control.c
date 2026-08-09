@@ -36,28 +36,28 @@ void Robot_Work(uint8_t id,uint8_t aim)//70-500
 	if(id == BODY)  //身体
 	{
 		if(aim == UP)
-			{moveServo(3, 1600, 500); //1号舵机至500位置
+			{moveServo(1, 1600, 500); //1号舵机至500位置
 			vTaskDelay(3);}
 		else
-			{moveServo(3, 940, 500); //1号舵机至500位置
+			{moveServo(1, 940, 500); //1号舵机至500位置
 			vTaskDelay(3);}
 	}
 	else if(id == RARM)   //右臂
 	{
 		if (aim == UP)
-			{moveServo(2, 2500, 200); 
+			{moveServo(13, 2500, 200); 
 			vTaskDelay(2);}
 		else
-			{moveServo(2, 1005, 200); 
+			{moveServo(13, 1005, 200); 
 			vTaskDelay(2);}
 	}
 	else if(id == LARM)   //左臂
 	{
 		if (aim == UP)
-			{moveServo(1, 500, 200); 
+			{moveServo(14, 500, 200); 
 			vTaskDelay(2);}
 		else
-			{moveServo(1, 1885, 200); 
+			{moveServo(14, 1885, 200); 
 			vTaskDelay(2);}
 	}
 	else if(id == CAMERA)   
@@ -84,10 +84,10 @@ void Robot_Work(uint8_t id,uint8_t aim)//70-500
 	{
 		//MIKU左右摇摆
 		if (aim == HEAD_LEFT)
-			{moveServo(4, 1150, 300); 
+			{moveServo(15, 1150, 300); 
 			vTaskDelay(200);}
 		else if(aim == HEAD_RIGHT)
-			{moveServo(4, 500, 300); 
+			{moveServo(15, 500, 300); 
 			vTaskDelay(200);}
 	}
 }

@@ -255,6 +255,7 @@ Cross()
 | 修复路线平台编号写错：按 map_message.c 连接表（P5↔N13、P6↔N7、P8↔N20、P7↔C9）核对，barrier.c `get_newroute()` 45 条 temp 路线 + `update_route_at_P7_for_treasure()` 2 条中 `N13,P6`/`N7,P5`/`C9,P8`/`N20,P7` 统一改 `N13,P5`/`N7,P6`/`C9,P7`/`N20,P8`；map.c 未引用门路线 door2/3_1/4/5/9/10/12route 同步修正（door1/6/7/8/11route 与 rout_57/58/67/68 原本正确）；barrier.c WaitFor_OCR 2350 行 `P5||P5`→`P5||P6` | 2026-08-07 |
 | 重写第二轮路线 `get_newroute()`（barrier.c，9 门分支×2=18 条 temp 路线）：宝藏=6 只去 P1→P3→P4→P6 后直接回家；宝藏=2/3/4/5 只去 P1→P3→P4→P5 后直接回家。`switch(treasure)` 由原 5 case（2/3/4/5/6）合并为 2 case（`case 6` + `case 2/3/4/5`），删除各分支 P7/P8 绕行段，保留各分支门控有效路径段（D2/D3/D4/D5 不通时的绕行路径不变） | 2026-08-07 |
 | IMU 零位校准 + 角度补偿三行（`IMU_CalibrateZero` + `vTaskDelay(100)` + `mpuZreset`）包装为公共函数 `IMU_Calibrate_Yaw(float referangle)`，放 turn.c/turn.h（`mpuZreset` 同族，turn.c 已含 imu.h 零新增依赖；避免 Module 层 imu.c 倒挂 Application 层）。参考角度由调用方传（main_task.c 传 `nodes.nowNode.angle`），与 map 全局解耦 | 2026-08-07 |
+| 修复 barrier.c 编译错误 `#20 DOOR_D5_BACK/DOOR_D4_BACK undefined`：`enum DoorState` 定义在 `Door_ReadPass()`（1542 行）之后，C 枚举常量仅声明后可见；枚举前移到 `Door_ReadPass` 前置声明之前 | 2026-08-09 |
 
 ---
 

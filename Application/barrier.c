@@ -296,7 +296,7 @@ static void Stage_Action(float oringinal_angle)
 			CarBrake();
 			mpuZreset(get_latest_yaw(), nodes.nowNode.angle);
 			//后退一段距离
-			Chassis_DriveDistance_Blocking(is_Gyro,10,-GoStage_Speed,getAngleZ(),0);
+			Chassis_DriveDistance_Blocking(is_Gyro,7,-GoStage_Speed,getAngleZ(),0);
 			CarBrake();
 			if(stage_state == 0)stage_state = 1;
 		}
@@ -339,6 +339,7 @@ static void Stage_Action(float oringinal_angle)
 		if(stage_state == 3)
 		{
 			Arrived_Stage();
+			stage_state = 4;
 		}
 		vTaskDelay(2);
 	}
@@ -1510,6 +1511,15 @@ void QQB_1(void)
 	
 }
 
+/* 门状态枚举，Door_ReadPass 在下方使用到，须在其之前定义 */
+enum DoorState {
+	DOOR_D2 = 0,   // 看D2
+	DOOR_D3,        // 看D3
+	DOOR_D4,        // 看D4
+	DOOR_D5_BACK,   // 看D5
+	DOOR_D4_BACK    // 看D4回退
+};
+
 /* 真实定义在下方，先声明后供测试入口调用 */
 static uint8_t Door_ReadPass(uint8_t door_state);
 
@@ -1534,12 +1544,16 @@ static uint8_t Door_ReadPass(uint8_t door_state)
    uint8_t retry;
     uint8_t color = 0;
 
-    (void)door_state;
-
     /*
      * 只有一个 MaixCam，摄像头通过0号舵机向左看灯。
      * Robot_Work() 内部已经包含约200 tick的等待。
      */
+	if (door_state == DOOR_D5_BACK||door_state == DOOR_D4_BACK)
+	{
+		Chassis_DriveDistance_Blocking(is_Line, 20, SPEED0, 0, 0);
+		Robot_Work(CAMERA, HEAD_LEFT);
+   		vTaskDelay(500);
+	}
     Robot_Work(CAMERA, HEAD_RIGHT);
     vTaskDelay(500);
 
@@ -1612,17 +1626,9 @@ static void door_retreat(uint8_t a, uint8_t b)
 	Chassis_Brake();
 	Chassis_Turn_By_StopGyro_Blocking(nodes.nowNode.angle, getAngleZ(), 30.0f);
 }
-
 /*看红绿灯 — 状态机*/
 void door()
 {
-	enum DoorState {
-		DOOR_D2 = 0,   // 看D2
-		DOOR_D3,        // 看D3
-		DOOR_D4,        // 看D4
-		DOOR_D5_BACK,   // 看D5
-		DOOR_D4_BACK    // 看D4回退
-	};
 	static enum DoorState state = DOOR_D2;
 
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
@@ -1633,7 +1639,7 @@ void door()
 
 	CarBrake();
 	Chassis_Turn_By_StopGyro_Blocking(nodes.nowNode.angle, getAngleZ(), 30.0f);
-	vTaskDelay(500);
+	
 	uint8_t pass_state = Door_ReadPass(state);
 	if (pass_state == 0)
 	{
@@ -1746,6 +1752,7 @@ void door()
 		break;
 
 	case DOOR_D5_BACK:
+		
 		door_pass[3] = pass_state;
 		if (door_pass[3] == CAN_PASS)
 		{
@@ -2291,8 +2298,9 @@ uint8_t WaitFor_OCR(void)
 		else
 			moveServo(0, 1330, 1000);
 		vTaskDelay(1200);
-
+		if(retry == 0)
 		Chassis_DriveDistance_Blocking(is_Gyro, 3, SPEED0, getAngleZ(), 0);
+		else if(retry == 1)Chassis_DriveDistance_Blocking(is_Gyro, 6,-SPEED0, getAngleZ(), 0);
 		CarBrake();
 		Chassis_ClearMileage();
 	}
@@ -2318,14 +2326,14 @@ uint8_t WaitFor_OCR(void)
 		if (flag_clue_A == 0)
 			send_play_specified_command(29);
 		else
-			send_play_specified_command(22 + flag_clue_A);
+			send_play_specified_command(16 + flag_clue_A);
 			vTaskDelay(1000);
 	}
 	else
 	{
 		flag_clue_B = clue_value;
 		clue_B_collected = 1;
-		send_play_specified_command(16 + flag_clue_B);
+		send_play_specified_command(22 + flag_clue_B);
 		vTaskDelay(1000);
 	}
 	return OCR_SCAN_SUCCESS;
@@ -2354,7 +2362,7 @@ uint8_t WaitFor_QR(void)
 
 		if (get_cude)
 			return 1;
-		else Chassis_DriveDistance_Blocking(is_Gyro, 3, -SPEED0, getAngleZ(), 0);
+		else {Chassis_DriveDistance_Blocking(is_Gyro, 3, -SPEED0, getAngleZ(), 0);CarBrake();}
 		/*
 		 * 未及时收到QR结果时直接重新发送0x11。
 		 * 不在这里移动小车：Want2Go()依赖里程更新，架车测试时会永久阻塞，
@@ -2378,6 +2386,7 @@ void zhunbei(void)
 	Chassis_MotorControl(is_No, 0, 0, 0);
 
 	/*机器人动作*/
+	Robot_Work(CAMERA,HEAD_MID); //摄像头复位
 	Robot_Work(BODY, UP); 	//人站起来
 	vTaskDelay(1000);
 	Robot_Work(MIKU, HEAD_LEFT); //转头

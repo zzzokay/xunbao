@@ -15,7 +15,8 @@
       "Read(//tmp/**)",
       "Bash(xxd)",
       "Bash(sed -i '68a\\\\\\\\t\\\\t/* M-hM-0M-^CM-hM-/M-^UM-fM-\\(M-!M-eM-<M-^OM-oM-<M-^ZM-hM-^\\\\M-\\)^M-iM-=M-5M-:M-^VM-hM-^PM-^PM-^AM-^?M-fM-^NM-^\\\\M-fM-^KM-^M */\\\\n\\\\t\\\\tChassis_SelfCheck\\(\\);' \"c:\\\\Users\\\\14166\\\\Desktop\\\\MC_32\\\\robotcup\\\\xunbao\\\\Task\\\\main_task.c\")",
-      "Read(//c/Users/14166/.claude/projects/c--Users-14166-Desktop-MC-32-robotcup-xunbao/memory/**)"
+      "Read(//c/Users/14166/.claude/projects/c--Users-14166-Desktop-MC-32-robotcup-xunbao/memory/**)",
+      "Bash(\"D:\\\\KEIL5\\\\Core\\\\ARM\\\\version5\\\\bin\\\\armcc.exe\" -c --apcs=interwork -I../Core/Inc -I../Drivers/STM32F7xx_HAL_Driver/Inc -I../Drivers/STM32F7xx_HAL_Driver/Inc/Legacy -I../Middlewares/Third_Party/FreeRTOS/Source/include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/r0p1 -I../Drivers/CMSIS/Device/ST/STM32F7xx/Include -I../Drivers/CMSIS/Include -I../Motor -I../Task -I../Math -I../USMAT -I../Module -I../Application -I.cmsis/include -IRTE/_test1 -D\"USE_HAL_DRIVER\" -D\"STM32F750xx\" --cpu Cortex-M7.fp.sp --li --c99 -D__MICROLIB -O3 --split_sections --diag_suppress=1 --diag_suppress=1295 -Ospace -g -o .\\\\build\\\\test1\\\\.obj\\\\__\\\\Application\\\\barrier.o --no_depend_system_headers --depend .\\\\build\\\\test1\\\\.obj\\\\__\\\\Application\\\\barrier.d .\\\\..\\\\Application\\\\barrier.c)"
     ],
     "additionalDirectories": [
       "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Application",
