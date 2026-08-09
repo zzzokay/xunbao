@@ -24,11 +24,10 @@
 #include "Rudder_control.h"
 
 /*===== 独立调试开关 =====*/
-#define MAIN_DEBUG 0
+#define MAIN_DEBUG 1
 
 
-uint8_t printf_count = 0;
-uint8_t test_flag =10;
+uint8_t test_flag = 10;
 float temp_speed=25;
 #if MAIN_DEBUG
 
@@ -137,31 +136,27 @@ void main_task(void *pvParameters)
 
 		if(test_flag == 9)
 		{
-			// Robot_Work(BODY, UP); 	//人站起来
-			// vTaskDelay(800);
-			// Robot_Work(LARM, UP);		// 左手举起
-			// vTaskDelay(100);
-			// Robot_Work(RARM, UP);		//右手举起
-			// vTaskDelay(100);
-			// Robot_Work(MIKU, HEAD_RIGHT); 	//人站起来
-			// vTaskDelay(800);
-			// Robot_Work(MIKU, HEAD_LEFT); 	//人站起来
-			// vTaskDelay(800);
+			Robot_Work(BODY, UP); 	//人站起来
+			vTaskDelay(800);
+			Robot_Work(LARM, UP);		// 左手举起
+			vTaskDelay(100);
+			Robot_Work(RARM, UP);		//右手举起
+			vTaskDelay(100);
 
 
-			// vTaskDelay(1000);
-			// Robot_Work(LARM, DOWN);		//左手放下
-			// vTaskDelay(100);
-			// Robot_Work(RARM, DOWN);		//右手放下
-			// vTaskDelay(100);
+			vTaskDelay(1000);
+			Robot_Work(LARM, DOWN);		//左手放下
+			vTaskDelay(100);
+			Robot_Work(RARM, DOWN);		//右手放下
+			vTaskDelay(100);
 
 			Robot_Work(CAMERA, HEAD_RIGHT);		//左手放下
 			vTaskDelay(1000);
-//			Robot_Work(CAMERA, HEAD_LEFT);		//右手放下
-//			vTaskDelay(1000);
-			// Robot_Work(CAMERA, HEAD_MID);		//右手放下
-			// vTaskDelay(1000);
-			// vTaskDelay(1000);
+			Robot_Work(CAMERA, HEAD_LEFT);		//右手放下
+			vTaskDelay(1000);
+			Robot_Work(CAMERA, HEAD_MID);		//右手放下
+			vTaskDelay(1000);
+			vTaskDelay(1000);
 		}
 
 		if(test_flag == 10)//测试摄像头颜色
@@ -239,34 +234,14 @@ void main_task(void *pvParameters)
 		/*========== 正常运行模式 ==========*/
 
 		/*二轮处理*/
-//		if(map.routetime == 1)
-//		{
-//			map.routetime = 2;
-//			get_newroute();
-
-//			// 陀螺仪角度复位，采样10次取平均值
-//			IMU_CalibrateZero(&basic_y, &basic_p, &basic_r);
-//			mpuZreset(basic_y, nodesr.nowNode.angle); // 把此时角度变为此结点角度
-//			zhunbei();
-
-//			encoder_clear(); // 路程记录清零
-//			Motor_Control(is_Line, SPEED0, SPEED0, 0);
-//		}
-
-		printf_count++;
-		if(printf_count>200)
+		if(map.routetime == 1)
 		{
-			printf_count=0;
-			printf("QR success: line=%d, stageA=%d, stageB=%d\r\n",
-					flag_line_clue, flag_clue_stage_A, flag_clue_stage_B);
-				printf("clue_A=%d\r\nclue_B=%d\r\n", flag_clue_A,flag_clue_B);
-			if(nodes.nowNode.nodenum == N20)
-			{
-				printf("nextnode:%d",nodes.nextNode.nodenum);
-			}
+			map.routetime ++;
+			get_newroute();
+			zhunbei();
 		}
 
-		if(map.routetime == 0)
+		if(map.routetime == 0||map.routetime == 2)
 			Navigation();
 #endif
 

@@ -52,7 +52,7 @@
  *  红绿灯            Door_ReadPass / door_set_pass_node
  *                    door_retreat / door(
  *  路线更新（门/QR） update_route_at_P1
- *                    update_route_by_door_1~4 / update_route_at_door_for_clue
+ *                    update_route_by_door_1~4 / update_route_at_door_for_stageAB
  *  第二轮路线规划    get_newroute
  *  OCR 读数字        WaitFor_OCR
  *  QR 码读取         WaitFor_QR
@@ -520,7 +520,7 @@ void Barrier_Bridge(void)
 
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
 	Chassis_ClearMileage();
-	static uint8_t is_emergency = 0;
+	static uint16_t is_emergency = 0;
 	while (state != BRIDGE_DONE)
 	{
 		switch (state)
@@ -545,7 +545,7 @@ void Barrier_Bridge(void)
 	
 			while (fabsf(Chassis_GetMileage()) < 15)
 			{		
-				Chassis_CorrectByInfrared(0.07f, 1.5f, 1.5f);
+				Chassis_CorrectByInfrared(0.07f, 2.0f, 1.0f);
 				vTaskDelay(5);
 			}
 			//上桥结束检测
@@ -566,7 +566,7 @@ void Barrier_Bridge(void)
 			if (Cross_Scaner.detail & 0x7800)
 			{
 				if(is_emergency<=10)is_emergency++;
-				if(is_emergency == 10)
+				if(is_emergency == 10 || is_emergency == 500)
 				{
 					centered_samples = 0;
 					send_play_specified_command(33);
@@ -578,7 +578,7 @@ void Barrier_Bridge(void)
 			else if (Cross_Scaner.detail & 0x007E)
 			{
 				if(is_emergency<=10)is_emergency++;
-				if(is_emergency == 10)
+				if(is_emergency == 10 || is_emergency == 500)
 				{
 					centered_samples = 0;
 					send_play_specified_command(33);
@@ -603,9 +603,9 @@ void Barrier_Bridge(void)
 				{
 					centered_samples = 0;
 					if(mileage_br<=15.0f){
-						Chassis_CorrectByInfrared(0.04f, 1.5f, 1.0f);
+						Chassis_CorrectByInfrared(0.04f, 1.3f, 1.0f);
 					}
-					else{Chassis_CorrectByInfrared(0.03f, 1.5f, 1.0f);}
+					else{Chassis_CorrectByInfrared(0.03f, 1.3f, 1.0f);}
 					
 					Chassis_SetTargetSpeed(SPEED1);
 				}
@@ -698,7 +698,7 @@ void Barrier_Hill(void)
 
 		case HILL_DESCEND:
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
-				basic_p, UpDownStage_Speed_low, basic_p-10, UpDownStage_Speed_low, basic_p-3, 0.10, 15.0f, 35.0f);
+				basic_p, UpDownStage_Speed_high, basic_p-10, UpDownStage_Speed_high, basic_p-3, 0.10, 15.0f, 35.0f);
   
 			state = HILL_DONE;
 			break;
@@ -901,9 +901,9 @@ void Barrier_HighMountain(void)
 			if (treasure == 0)
 			{
 				treasure = flag_clue_A + flag_clue_B;
-				if (map.routetime == 0)
-					update_route_at_P8_for_treasure();
 			}
+			if (map.routetime == 0 && flag_clue_stage_B == 8)
+				update_route_at_P8_for_treasure();
 
 			Robot_Work(BODY, DOWN); 	//人坐下
 			origin_angle = getAngleZ();
@@ -1221,15 +1221,15 @@ void update_route_at_P7_for_treasure(void)
 		switch (treasure)
 		{
 			case 3:
-				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 4:
-				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 5:
-				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N11,N10,N3,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N11,N10,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N3,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
-				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
 
                 break;	
@@ -1320,15 +1320,15 @@ void update_route_at_P8_for_treasure(void)
 		switch (treasure)
 		{
 			case 3:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 4:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 5:
-				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N11,N10,N3,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N11,N10,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N3,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
 
                 break;	
@@ -1694,7 +1694,7 @@ void door()
 			nodes.nowNode = Node[getNextConnectNode(N5, N12)];
 			nodes.nowNode.step = 60;
 			nodes.nowNode.speed = SPEED4;
-			update_route_at_door_for_clue();
+			update_route_at_door_for_stageAB();
 			cross_event |= CROSS_EVENT_DOOR;
 			state = DOOR_D2;
 		}
@@ -1706,7 +1706,7 @@ void door()
 			nodes.nowNode.flag = DLEFT | DRIGHT | CRIGHT | LEFT_LINE;
 			nodes.nowNode.step = 60;
 			nodes.nowNode.speed = SPEED4;
-			update_route_at_door_for_clue();
+			update_route_at_door_for_stageAB();
 			cross_event |= CROSS_EVENT_DOOR;
 			state = DOOR_D5_BACK;
 		}
@@ -1728,7 +1728,7 @@ void door()
 			nodes.nowNode = Node[getNextConnectNode(N5, N8)];
 			nodes.nowNode.step = 60;
 			nodes.nowNode.speed = SPEED4;
-			update_route_at_door_for_clue();
+			update_route_at_door_for_stageAB();
 
 			if (door_pass[1] == CAN_PASS)
 			{
@@ -1766,7 +1766,7 @@ void door()
 		nodes.nowNode = Node[getNextConnectNode(N3, N8)];
 		nodes.nowNode.step = 60;
 		nodes.nowNode.speed = SPEED4;
-		update_route_at_door_for_clue();
+		update_route_at_door_for_stageAB();
 		cross_event |= CROSS_EVENT_DOOR;
 		state = DOOR_D2;
 		break;
@@ -1941,7 +1941,7 @@ void update_route_by_door_4(void)
 }
 static uint8_t Can_Pass(uint8_t c) { return c == CAN_PASS || c == ONE_WAY_PASS; }
 
-void update_route_at_door_for_clue(void)
+void update_route_at_door_for_stageAB(void)
 {
 	// 按线索平台组合选择路线
 	if (flag_clue_stage_A == 5 && flag_clue_stage_B == 7)
@@ -1997,61 +1997,37 @@ void update_route_at_door_for_clue(void)
 /*第二轮路线规划*/
 void get_newroute(void)
 {
+	const u8 r[] = {B1, N1, P1, 0XFF};
+	load_route_at(0, r);
 	mapInit();
-	map.point = 0;
-	for (int i = 0; i < 126; i++)
-	{
-		if (Node[i].function == DOOR)
-		{
-			Node[i].function = NONE;
-			Node[i].step *= 2;
-			Node[i].speed = SPEED3;
-		}
-	}
+	//全部运行通行
+	door_set_pass_node(N5, N12, 160, SPEED4);
+	door_set_pass_node(N12, N5, 160, SPEED4);
+	door_set_pass_node(N5, N8, 120, SPEED4);
+	door_set_pass_node(N8, N5, 120, SPEED4);
+	door_set_pass_node(N3, N8, 120, SPEED4);
+	door_set_pass_node(N8, N3, 120, SPEED4);
+	door_set_pass_node(N3, N10, 160, SPEED4);
+	door_set_pass_node(N10, N3, 160, SPEED4);
 
 	if(door_pass[0]==CAN_PASS)//第一个门开
 	{
-		Node[getNextConnectNode(P3, N3)].flag |= STOPTURN;
 		switch(treasure)
 		{
+			case 6:								//宝藏=6：去1、3、4、6后直接回家
+				u8 temp_6[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N12,N11,N10,N9,B9,N7,P6,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_6[i];
+					if(temp_6[i]==0xff)
+						break;
+				}
+				break;
 			case 2:
-				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_1[i];
-					if(temp_1[i]==0xff)
-						break;
-				}
-				break;
 			case 3:
-				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_2[i];
-					if(temp_2[i]==0xff)
-						break;
-				}
-				break;
 			case 4:
-				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_3[i];
-					if(temp_3[i]==0xff)
-						break;
-				}
-				break;
-			case 5:
-				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_4[i];
-					if(temp_4[i]==0xff)
-						break;
-				}
-				break;
-			case 6:
-				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P8,N20,B6,N22,C9,P7,C9,N22,B7,C6,N19,B5,N18,N16,N12,N5,N4,B3,N2,P2,0XFF};
+			case 5:								//宝藏≠6：去1、3、4、5后直接回家
+				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N12,N13,P5,N13,N12,N5,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
 					route[i]=temp_5[i];
@@ -2064,47 +2040,23 @@ void get_newroute(void)
 	}
 	else if(door_pass[0]==ONE_WAY_PASS && door_pass[3]==CAN_PASS)
 	{
-		Node[getNextConnectNode(S1, N3)].flag |= STOPTURN;
+		
 		switch(treasure)
 		{
+			case 6:								//宝藏=6：去1、3、4、6后直接回家
+				u8 temp_6[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N12,N11,N10,N9,B9,N7,P6,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_6[i];
+					if(temp_6[i]==0xff)
+						break;
+				}
+				break;
 			case 2:
-				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_1[i];
-					if(temp_1[i]==0xff)
-						break;
-				}
-				break;
 			case 3:
-				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_2[i];
-					if(temp_2[i]==0xff)
-						break;
-				}
-				break;
 			case 4:
-				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_3[i];
-					if(temp_3[i]==0xff)
-						break;
-				}
-				break;
-			case 5:
-				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_4[i];
-					if(temp_4[i]==0xff)
-						break;
-				}
-				break;
-			case 6:
-				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P8,N20,B6,N22,C9,P7,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N3,N4,B3,N2,P2,0XFF};
+			case 5:								//宝藏≠6：去1、3、4、5后直接回家
+				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N12,N13,P5,N13,N12,N11,N10,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
 					route[i]=temp_5[i];
@@ -2116,47 +2068,23 @@ void get_newroute(void)
 	}
 	else if(door_pass[0]==ONE_WAY_PASS && door_pass[3]==NO_PASS && door_pass[2]==CAN_PASS)
 	{
-		Node[getNextConnectNode(S1, N3)].flag |= STOPTURN;
+	
 		switch(treasure)
 		{
+			case 6:								//宝藏=6：去1、3、4、6后直接回家
+				u8 temp_6[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N12,N11,N10,N9,B9,N7,P6,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_6[i];
+					if(temp_6[i]==0xff)
+						break;
+				}
+				break;
 			case 2:
-				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_1[i];
-					if(temp_1[i]==0xff)
-						break;
-				}
-				break;
 			case 3:
-				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_2[i];
-					if(temp_2[i]==0xff)
-						break;
-				}
-				break;
 			case 4:
-				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_3[i];
-					if(temp_3[i]==0xff)
-						break;
-				}
-				break;
-			case 5:
-				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_4[i];
-					if(temp_4[i]==0xff)
-						break;
-				}
-				break;
-			case 6:
-				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P8,N20,B6,N22,C9,P7,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N8,N3,N4,B3,N2,P2,0XFF};
+			case 5:								//宝藏≠6：去1、3、4、5后直接回家
+				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N12,N13,P5,N13,N12,N11,N10,N8,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
 					route[i]=temp_5[i];
@@ -2168,47 +2096,23 @@ void get_newroute(void)
 	} 
 	else if(door_pass[0]==ONE_WAY_PASS && door_pass[3]==NO_PASS && door_pass[2]==NO_PASS)
 	{
-		Node[getNextConnectNode(P3, N3)].flag |= STOPTURN;
+	
 		switch(treasure)
 		{
+			case 6:								//宝藏=6：去1、3、4、6后直接回家
+				u8 temp_6[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N12,N11,N10,N9,B9,N7,P6,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_6[i];
+					if(temp_6[i]==0xff)
+						break;
+				}
+				break;
 			case 2:
-				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_1[i];
-					if(temp_1[i]==0xff)
-						break;
-				}
-				break;
 			case 3:
-				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_2[i];
-					if(temp_2[i]==0xff)
-						break;
-				}
-				break;
 			case 4:
-				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_3[i];
-					if(temp_3[i]==0xff)
-						break;
-				}
-				break;
-			case 5:
-				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_4[i];
-					if(temp_4[i]==0xff)
-						break;
-				}
-				break;
-			case 6:
-				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P8,N20,B6,N22,C9,P7,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N8,N5,N4,B3,N2,P2,0XFF};
+			case 5:								//宝藏≠6：去1、3、4、5后直接回家
+				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N12,N13,P5,N13,N12,N11,N10,N8,N5,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
 					route[i]=temp_5[i];
@@ -2220,47 +2124,23 @@ void get_newroute(void)
 	}
 	else if(door_pass[0]==NO_PASS && door_pass[1]==CAN_PASS)
 	{
-		Node[getNextConnectNode(P3, N3)].flag |= STOPTURN;
+	
 		switch(treasure)
 		{
+			case 6:								//宝藏=6：去1、3、4、6后直接回家
+				u8 temp_6[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N8,N12,N11,N10,N9,B9,N7,P6,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_6[i];
+					if(temp_6[i]==0xff)
+						break;
+				}
+				break;
 			case 2:
-				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_1[i];
-					if(temp_1[i]==0xff)
-						break;
-				}
-				break;
 			case 3:
-				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_2[i];
-					if(temp_2[i]==0xff)
-						break;
-				}
-				break;
 			case 4:
-				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_3[i];
-					if(temp_3[i]==0xff)
-						break;
-				}
-				break;
-			case 5:
-				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_4[i];
-					if(temp_4[i]==0xff)
-						break;
-				}
-				break;
-			case 6: 									//可不过刀山		
-				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P8,N20,B6,N22,C9,P7,C9,N22,B7,C6,N19,B5,N18,N16,N12,N8,N5,N4,B3,N2,P2,0XFF};
+			case 5:								//宝藏≠6：去1、3、4、5后直接回家
+				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N8,N12,N13,P5,N13,N12,N11,N10,N8,N5,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
 					route[i]=temp_5[i];
@@ -2272,47 +2152,23 @@ void get_newroute(void)
 	}
 	else if(door_pass[0]==NO_PASS && door_pass[1]==ONE_WAY_PASS && door_pass[3]==CAN_PASS)
 	{
-		Node[getNextConnectNode(S1, N3)].flag |= STOPTURN;
+
 		switch(treasure)
 		{
+			case 6:								//宝藏=6：去1、3、4、6后直接回家
+				u8 temp_6[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N8,N12,N11,N10,N9,B9,N7,P6,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_6[i];
+					if(temp_6[i]==0xff)
+						break;
+				}
+				break;
 			case 2:
-				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_1[i];
-					if(temp_1[i]==0xff)
-						break;
-				}
-				break;
 			case 3:
-				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_2[i];
-					if(temp_2[i]==0xff)
-						break;
-				}
-				break;
 			case 4:
-				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_3[i];
-					if(temp_3[i]==0xff)
-						break;
-				}
-				break;
-			case 5:
-				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_4[i];
-					if(temp_4[i]==0xff)
-						break;
-				}
-				break;
-			case 6: 									//可不过刀山		
-				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P8,N20,B6,N22,C9,P7,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N3,N4,B3,N2,P2,0XFF};
+			case 5:								//宝藏≠6：去1、3、4、5后直接回家
+				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N8,N12,N13,P5,N13,N12,N11,N10,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
 					route[i]=temp_5[i];
@@ -2324,47 +2180,23 @@ void get_newroute(void)
 	}
 	else if(door_pass[0]==NO_PASS && door_pass[1]==ONE_WAY_PASS && door_pass[3]==NO_PASS)//D4绿
 	{
-		Node[getNextConnectNode(S1, N3)].flag |= STOPTURN;
+	
 		switch(treasure)
 		{
+			case 6:								//宝藏=6：去1、3、4、6后直接回家
+				u8 temp_6[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N8,N12,N11,N10,N9,B9,N7,P6,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_6[i];
+					if(temp_6[i]==0xff)
+						break;
+				}
+				break;
 			case 2:
-				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_1[i];
-					if(temp_1[i]==0xff)
-						break;
-				}
-				break;
 			case 3:
-				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_2[i];
-					if(temp_2[i]==0xff)
-						break;
-				}
-				break;
 			case 4:
-				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_3[i];
-					if(temp_3[i]==0xff)
-						break;
-				}
-				break;
-			case 5:
-				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_4[i];
-					if(temp_4[i]==0xff)
-						break;
-				}
-				break;
-			case 6: 									//可不过刀山		
-				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N8,N12,N13,P6,N13,N12,N11,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P8,N20,B6,N22,C9,P7,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N8,N3,N4,B3,N2,P2,0XFF};
+			case 5:								//宝藏≠6：去1、3、4、5后直接回家
+				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N8,N12,N13,P5,N13,N12,N11,N10,N8,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
 					route[i]=temp_5[i];
@@ -2376,47 +2208,23 @@ void get_newroute(void)
 	}
 	else if(door_pass[0]==NO_PASS && door_pass[1]==NO_PASS && door_pass[2]==CAN_PASS)//从最外面出去吧
 	{
-		Node[getNextConnectNode(P3, N3)].flag |= STOPTURN;
+
 		switch(treasure)
 		{
+			case 6:								//宝藏=6：去1、3、4、6后直接回家
+				u8 temp_6[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N4,N3,N8,N10,N9,B9,N7,P6,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_6[i];
+					if(temp_6[i]==0xff)
+						break;
+				}
+				break;
 			case 2:
-				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_1[i];
-					if(temp_1[i]==0xff)
-						break;
-				}
-				break;
 			case 3:
-				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_2[i];
-					if(temp_2[i]==0xff)
-						break;
-				}
-				break;
 			case 4:
-				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_3[i];
-					if(temp_3[i]==0xff)
-						break;
-				}
-				break;
-			case 5:
-				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_4[i];
-					if(temp_4[i]==0xff)
-						break;
-				}
-				break;
-			case 6: 									//可不过刀山		
-				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P8,N20,B6,N22,C9,P7,C9,N22,B7,C6,N19,B5,N18,N16,N12,N8,N3,N4,B3,N2,P2,0XFF};
+			case 5:								//宝藏≠6：去1、3、4、5后直接回家
+				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P5,N13,N12,N8,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
 					route[i]=temp_5[i];
@@ -2428,47 +2236,23 @@ void get_newroute(void)
 	}
 	else if(door_pass[0]==NO_PASS && door_pass[1]==NO_PASS && door_pass[2]==ONE_WAY_PASS)//从最外面出去吧
 	{
-		Node[getNextConnectNode(P3, N3)].flag |= STOPTURN;
+
 		switch(treasure)
 		{
+			case 6:								//宝藏=6：去1、3、4、6后直接回家
+				u8 temp_6[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N4,N3,N8,N10,N9,B9,N7,P6,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
+					for(int i=0;i<100;i++)
+				{
+					route[i]=temp_6[i];
+					if(temp_6[i]==0xff)
+						break;
+				}
+				break;
 			case 2:
-				u8 temp_1[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_1[i];
-					if(temp_1[i]==0xff)
-						break;
-				}
-				break;
 			case 3:
-				u8 temp_2[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_2[i];
-					if(temp_2[i]==0xff)
-						break;
-				}
-				break;
 			case 4:
-				u8 temp_3[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_3[i];
-					if(temp_3[i]==0xff)
-						break;
-				}
-				break;
-			case 5:
-				u8 temp_4[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P6,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P5,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF};
-					for(int i=0;i<100;i++)
-				{
-					route[i]=temp_4[i];
-					if(temp_4[i]==0xff)
-						break;
-				}
-				break;
-			case 6: 									//可不过刀山		
-				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N5,N6,P4,N6,N5,N4,N3,N8,N10,N9,B9,N7,P5,N7,B8,N9,C3,N14,C7,C8,C4,N20,P8,N20,B6,N22,C9,P7,C9,N22,B7,C6,N19,B5,N18,N16,N12,N11,N10,N3,N4,B3,N2,P2,0XFF};
+			case 5:								//宝藏≠6：去1、3、4、5后直接回家
+				u8 temp_5[100]={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,N4,N3,N8,N12,N13,P5,N13,N12,N11,N10,N3,N4,B3,N2,P2,0XFF};
 					for(int i=0;i<100;i++)
 				{
 					route[i]=temp_5[i];
@@ -2482,7 +2266,7 @@ void get_newroute(void)
 		CarBrake_Stop();
 }
 
-/* MaixCam读取数字线索：成功返回OCR_SCAN_SUCCESS，超时或平台不匹配返回OCR_SCAN_FAILED */
+/*maixcam读数字*/
 uint8_t WaitFor_OCR(void)
 {
 #if DEBUG
