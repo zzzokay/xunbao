@@ -118,4 +118,3 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
   - 全部 9 个门分支的 `switch(treasure)` 由原 5 case（2/3/4/5/6）统一合并为 2 case（`case 6` + `case 2/3/4/5`），删除各分支 P7/P8 绕行段，保留各分支门控有效路径段（D2/D3/D4/D5 不通时的绕行路径不变）
 
 **2026-08-07** — IMU 零位校准 + 角度补偿三行（`IMU_CalibrateZero` + `vTaskDelay(100)` + `mpuZreset`）包装为公共函数 `IMU_Calibrate_Yaw(float referangle)`，放 turn.c/turn.h（`mpuZreset` 同族，turn.c 已含 imu.h 零新增依赖；非 imu.c 因避免 Module 层倒挂 Application 层）。参考角度由调用方传入（main_task.c 传 `nodes.nowNode.angle`），与 map 全局解耦。
-**2026-08-09** — barrier.c `WaitFor_OCR()` 提前返回块去冗余：原 if + return 三元重复计算同一组条件，拆为两个直白守卫（已采集过→SUCCESS；不在二维码平台→FAILED），逻辑完全等价

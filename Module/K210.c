@@ -69,7 +69,7 @@ void close_Maxicam(void)
     HAL_UART_Transmit(&huart6, &cmd, 1, 100);
     HAL_UART_Transmit(&huart6, &cmd, 1, 100);
     HAL_UART_Transmit(&huart6, &cmd, 1, 100);
-	HAL_UART_Transmit(&huart6, &cmd, 1, 100);
+		HAL_UART_Transmit(&huart6, &cmd, 1, 100);
 }
 
 // QR码数据统计函数
