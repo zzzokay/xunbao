@@ -24,7 +24,7 @@
 #include "Rudder_control.h"
 
 /*===== 独立调试开关 =====*/
-#define MAIN_DEBUG 1
+#define MAIN_DEBUG 0
 
 
 uint8_t test_flag = 10;
