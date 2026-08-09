@@ -77,7 +77,7 @@ void Robot_Work(uint8_t id,uint8_t aim)//70-500
 			{moveServo(0, 2200, 200);
 			vTaskDelay(200);}
 		else if (aim == HEAD_RIGHT)
-			{moveServo(0, 500, 200);
+			{moveServo(0, 800, 200);
 			vTaskDelay(200);}
 	}
 	else if(id == MIKU)//机器人头

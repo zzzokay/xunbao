@@ -40,9 +40,9 @@ void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
 #define Champion_Speed      64
 
 /* 红绿灯按“通行语义”命名，与具体颜色解耦：规则改色只改此处映射即可 */
-#define CAN_PASS      1   /* 绿：能过 */
-#define ONE_WAY_PASS  2   /* 蓝：单相通过 */
-#define NO_PASS       3   /* 黑：不能过 */
+#define CAN_PASS      2   /* 绿：能过 */
+#define ONE_WAY_PASS  3   /* 蓝：单相通过 */
+#define NO_PASS       1   /* 黑：不能过 */
 
 #define DEBUG 0
 extern uint8_t treasure;
