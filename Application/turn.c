@@ -255,7 +255,13 @@ uint8_t Go_Angle(float angle_want, float speed,volatile struct Motors *motor)//T
 	{
 		GGspeed = -motor->GyroG_speedMax;
 	}
-
+	//每隔100ms打印一次目标角度和实际角度
+	static uint16_t tick = 0;
+	if (++tick >= 100 / 5) // 假设 vTaskDelay(2) 是 2ms
+	{
+		tick = 0;
+		printf("%.2f,  %.2f\n", angle_want, now_angle);
+	}
 	motor->Lspeed = speed + GGspeed;
 	motor->Rspeed = speed - GGspeed;
 

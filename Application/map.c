@@ -1,9 +1,11 @@
-#include "map.h"
+#include "map.h"//跑特点路线开关在这里面
 #include "barrier.h"
 #include "sys.h"
 #include "math.h"
 #include "chassis_api.h"
 #include "stdio.h"
+
+
 
 /* 从 task_create.h 迁入，避免 map.c 越层包含 */
 extern TaskHandle_t xHandle_ArriveDetect;
@@ -28,10 +30,11 @@ volatile uint8_t cross_event = 0;	//运行时阶段/事件标志，全局变量�
 /******************************************************************************/
 
 
-
-//u8 route[100] = {B1, N1, P1, N1, B2, N4, N5, N6, P4, N6, N5, N12, 0XFF};  //调试时的初始路径
+#if MAP_DEBUG
+u8 route[100] = {B9, N7,P6, N7, B8, N9,0XFF};
+#else 
 u8 route[100] = {B1, N1,P1, N1, B2, N4, N5,0XFF};  //初始路径
-
+#endif
 
 /************************************************************    *地图路径*    **********************************************************************************************************************************************88 */
 /*D2关D3关，去D4*/
@@ -76,8 +79,12 @@ void mapInit()
 {
 	map = (struct Map_State){0,0};
     nodes = (Nodes){0};	
-	cross_event = 0;       //起始点
+	cross_event = 0;       //起始点   
+#if MAP_DEBUG
+    nodes.nowNode = Node[getNextConnectNode(FIRST_POINT, SECOND_POINT)];  //起始目标点
+#else
     nodes.nowNode = Node[getNextConnectNode(P2, N2)];  //起始目标点
+#endif
 	nodes.nextNode = Node[getNextConnectNode(nodes.nowNode.nodenum, route[map.point++])];
 }
 
@@ -124,7 +131,6 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 	if (last == N8 && now == N3 && next == P3) return 15.0f;
 	if (last == N8 && now == N3 && next == N4) return 20.0f;
 	if (last == B8 && now == N9 && next == C3) return 0.0f;
-    if (last == N14 && now == C3 && next == N9) return 0.0f;
 	if (last == N10 && now == N9 && next == B9) return 40.0f;
 	if (last == B8 && now == N9 && next == N10) return 25.0f;
 	if (last == N5 && now == N8 && next == N12) return 5.0f;
@@ -141,7 +147,7 @@ static float GetForwardDistanceBeforeGyroTurn(u8 last, u8 now, u8 next)
 
 	if (last == N3 && now == N4 && next == B3) return 10.0f;
     if (last == N8 && now == N12 && next == N13) return 0.0f;
-
+    if (last == N4 && now == N5 && next == N12) return 5.0f;
 	if (last == N8 && now == N3 && next == P3) return 20.0f;
 	if (last == N8 && now == N3 && next == S1) return 0.0f;
 	if (last == P1 && now == N1 && next == B2)return 0.0f; 
@@ -279,8 +285,11 @@ static void Nav_TurnAndAdvance(void)
     if (route[map.point - 1] != 0xFF)
     {
         /* 无需转弯，直接直行通过 */
-        if ((fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) < 10.0f) ||
-            (nodes.nowNode.flag & NOTURN) == NOTURN)
+        if ((fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) < 10.0f) 
+            ||(fabsf(need2turn(nodes.nowNode.angle, nodes.nextNode.angle)) < 10.0f)
+            || (nodes.nowNode.flag & NOTURN) == NOTURN
+            ||  nodes.nowNode.function == UpStage 
+            ||  nodes.nowNode.function == UpStageHome)
         {
              /* 无需转弯，直接直行通过 */
         }
@@ -299,7 +308,7 @@ static void Nav_TurnAndAdvance(void)
             if ((nodes.nowNode.flag & STOPTURN && fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 30.0f)
             || (fabsf(need2turn(nodes.nowNode.angle, nodes.nextNode.angle)) > 90.0f)
             || nodes.nextNode.function == SM  && fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 30.0f
-            || ((nodes.nowNode.function == UpStage || nodes.nowNode.function == UpStageHome)&& fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 15.0f))
+            )
                 
             {
                 //走补偿距离然后停下

@@ -18,11 +18,25 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "Rec_usart.h"
+#include "stdio.h"
 
 /*开始任务*/
 void Start_task(void *pvParameters)
 {	
 	user_init();
+
+	/*IMU 上电自检：1s内若角度全为0判定串口/传感器无输出，重启串口再试一次*/
+	for (uint8_t imu_try = 0; imu_try < 2; imu_try++)
+	{
+		if (IMU_WaitData(1000))	// 1s 内出现非0角度 = 数据正常
+			break;
+		send_play_specified_command(33);
+		printf("[IMU] 第%d次上电自检失败：1s内角度全为0，重启串口...\r\n", imu_try + 1);
+		IMU_Reinit();			// 停DMA→清错误标志→重新挂接收
+		vTaskDelay(2000);
+		if (imu_try == 1)
+			printf("[IMU] 警告：重启后仍无数据，继续上电流程（请检查陀螺仪供电/接线）\r\n");
+	}
 
 	taskENTER_CRITICAL(); // 进入临界区
    

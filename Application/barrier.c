@@ -30,7 +30,7 @@
 #include "gray.h"
 #include "chassis_api.h"
 
-#define DEBUG 1
+#define DEBUG 0
 
 /*==============================================================================
  *  目录 / Table of Contents   按 Ctrl+F 搜索函数名快速跳转
@@ -161,7 +161,11 @@ static uint8_t Stage_DetectedRamp(float distance)
 	return (fabsf(Chassis_GetMileage()) >= distance||
 		imu.pitch >= 10.0f ||
 		Scaner.ledNum >= 4 ||
-		Scaner.lineNum >= 2 );
+		Scaner.lineNum >= 2 ||
+		Scaner.ledNum == 0 ||
+		Scaner.lineNum == 0||
+		Scaner.detail & 0xC003);
+	;
 }
 
 void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
@@ -290,23 +294,17 @@ static void Stage_Action(float oringinal_angle)
 		//撞击
 		if (stage_state == 0 || again_required)
 		{
-			if(again_required){Chassis_DriveDistance_Blocking(is_Gyro,15,GoStage_Speed,getAngleZ(),0);
+			if(again_required){Chassis_DriveDistance_Blocking(is_Gyro,20,GoStage_Speed,getAngleZ(),0);
 				Chassis_DriveDistance_Blocking(is_Free, 5,1500, 0, 0);}
 			else {Chassis_DriveDistance_Blocking(is_Gyro,24,GoStage_Speed,oringinal_angle,0);
 				Chassis_DriveDistance_Blocking(is_Free, 5,1500, 0, 0);}
 			CarBrake();
 			diff_angle = getAngleZ() - oringinal_angle;
-			mpuZreset(get_latest_yaw(), nodes.nowNode.angle);
-			if(fabsf(diff_angle) > 10.0f)
-			{
+			
+			if(stage_state == 0)mpuZreset(get_latest_yaw(), nodes.nowNode.angle);
 
-				Chassis_DriveDistance_Blocking(is_Gyro,10,-GoStage_Speed,getAngleZ()+diff_angle,0);
-				Chassis_Turn_By_StopGyro_Blocking(nodes.nowNode.angle,getAngleZ(),20.0f);	
-			}
-			else
-			{
-				Chassis_DriveDistance_Blocking(is_Gyro,5,-GoStage_Speed,getAngleZ(),0);
-			}
+			Chassis_DriveDistance_Blocking(is_Gyro,5,-GoStage_Speed,getAngleZ(),0);
+
 			//后退一段距离
 			
 			CarBrake();
@@ -370,7 +368,7 @@ void Stage(void)
 	uint8_t sub_stage = 0;
 	
 	float oringinal_angle = 0;
-	Chassis_EnableAntiSnake();
+	//
 	Chassis_MotorControl(is_Line, 15, 15, 0);//25
 	Chassis_ClearMileage();
 
@@ -379,11 +377,11 @@ void Stage(void)
 		switch (state)
 		{
 		case STAGE_ASCEND:
-			if (Stage_DetectedRamp(45.0f))
+			if (Stage_DetectedRamp(35.0f))
 			{
 				oringinal_angle = getAngleZ();
 				RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_high, oringinal_angle,
-					Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.05, 10.0f, 0.0f);
+					Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.03, 10.0f, 0.0f);
 
 				Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, oringinal_angle);
 				state = STAGE_TOP;
@@ -504,7 +502,7 @@ void Barrier_Bridge(void)
 
 	int centered_samples = 0;
 	float origin_angle = 0.0f;
-	Chassis_EnableAntiSnake();
+	//
 	Chassis_MotorControl(is_Line, 15, 15, 0);
 	Chassis_ClearMileage();
 	static uint16_t is_emergency = 0;
@@ -599,12 +597,12 @@ void Barrier_Bridge(void)
 			}
 			// 距离退出（保险兜底）
 			
-			if (mileage_br >= 70)
+			if (mileage_br >= 65)
 			{
 				centered_samples = 0;
 				state = BRIDGE_ON_BRIDGE;
 			}
-			else if (mileage_br >= 65)
+			else if (mileage_br >= 60)
 			{
 				Chassis_SetTargetSpeed(UpDownStage_Speed_low);
 			}
@@ -614,7 +612,7 @@ void Barrier_Bridge(void)
 		case BRIDGE_ON_BRIDGE:
 
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, getAngleZ(),
-				Begin_down, UpDownStage_Speed_low, down_pitch+5, SPEED0, down_pitch-20,0, 0, 0.0f);//下坡下一半
+				Begin_down, UpDownStage_Speed_low, down_pitch+5, SPEED0, down_pitch-20,0, 0, 50.0f);//下坡下一半
 
 			//加一点修正
 			Chassis_ClearMileage();
@@ -654,7 +652,7 @@ void Barrier_Hill(void)
 	} state = HILL_APPROACH;
 
 	float origin_angle = 0.0f;
-	Chassis_EnableAntiSnake();
+	//
 	Chassis_MotorControl(is_Line, 15, 15, 0);
 	//vTaskDelay(10);//刚进入is_line,scanner可能还没数据，先等motortask
 	Chassis_OverrideGyroPid(4,0,70,50);//上坡陀螺参数，增加kp和kd提高陀螺响应，防止上坡时姿态失稳
@@ -678,14 +676,14 @@ void Barrier_Hill(void)
 
 		case HILL_ASCEND:
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, origin_angle,
-				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.8f, 10.0f, 0.0f);
+				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.08f, 10.0f, 0.0f);
 	
 			state = HILL_DESCEND;
 			break;
 
 		case HILL_DESCEND:
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
-				basic_p, UpDownStage_Speed_high, basic_p-10, UpDownStage_Speed_high, basic_p-3, 1.0f, 10.0f, 35.0f);
+				basic_p, UpDownStage_Speed_low, basic_p-10, UpDownStage_Speed_high, basic_p-3, 0.1f, 10.0f, 35.0f);
   
 			state = HILL_DONE;
 			break;
@@ -729,7 +727,7 @@ void Sword_Mountain(void)
 	float recorded_angle = 0;
 	uint8_t angle_recorded = 0,is_up = 0;
 	uint16_t approach_timeout = 0;
-	Chassis_EnableAntiSnake();
+	//
 	Chassis_MotorControl(is_Line, 15, 15, 0);
 	Chassis_OverrideGyroPid(4, 0, 70, 5);
 	//buzzer_on();
@@ -836,7 +834,7 @@ void Barrier_HighMountain(void)
 	uint8_t sub_stage = 0;
 
 	Chassis_OverrideGyroPid(4, 0, 70, 10);
-	Chassis_EnableAntiSnake();
+	//
 	Chassis_MotorControl(is_Line, 15, 15, 0);
 	Chassis_ClearMileage();
 
@@ -1028,7 +1026,7 @@ void Barrier_WavedPlate(float lenght)
 		WP_DRIVE,      // RampCtrl_Blocking 用不可能俯仰角直走 lenght 距离
 		WP_DONE        // 清理收尾
 	} state = WP_APPROACH;
-	Chassis_EnableAntiSnake();
+	
 	Chassis_MotorControl(is_Line, 15, 15, 0);
 	Chassis_ClearMileage();
 
