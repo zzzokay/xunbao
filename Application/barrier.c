@@ -285,28 +285,21 @@ static void Stage_Action(float oringinal_angle)
 	uint8_t stage_state = 0;
 	uint8_t again_required = 0;
 	float now_angle = 0;
-	float diff_angle = 0;
+
 	while(stage_state!=4){
 		//撞击
 		if (stage_state == 0 || again_required)
 		{
-			if(again_required){Chassis_DriveDistance_Blocking(is_Gyro,15,GoStage_Speed,getAngleZ(),0);
+			if(again_required){Chassis_DriveDistance_Blocking(is_Gyro,24,GoStage_Speed,getAngleZ(),0);
 				Chassis_DriveDistance_Blocking(is_Free, 5,1500, 0, 0);}
 			else {Chassis_DriveDistance_Blocking(is_Gyro,24,GoStage_Speed,oringinal_angle,0);
 				Chassis_DriveDistance_Blocking(is_Free, 5,1500, 0, 0);}
 			CarBrake();
-			diff_angle = getAngleZ() - oringinal_angle;
-			mpuZreset(get_latest_yaw(), nodes.nowNode.angle);
-			if(fabsf(diff_angle) > 10.0f)
-			{
+			
+			if(stage_state == 0) mpuZreset(get_latest_yaw(), nodes.nowNode.angle);
+			now_angle = nodes.nowNode.angle;
+			Chassis_DriveDistance_Blocking(is_Gyro,5,-GoStage_Speed,now_angle,0);
 
-				Chassis_DriveDistance_Blocking(is_Gyro,10,-GoStage_Speed,getAngleZ()+diff_angle,0);
-				Chassis_Turn_By_StopGyro_Blocking(nodes.nowNode.angle,getAngleZ(),20.0f);	
-			}
-			else
-			{
-				Chassis_DriveDistance_Blocking(is_Gyro,5,-GoStage_Speed,getAngleZ(),0);
-			}
 			//后退一段距离
 			
 			CarBrake();
@@ -532,7 +525,7 @@ void Barrier_Bridge(void)
 	
 			while (fabsf(Chassis_GetMileage()) < 15)
 			{		
-				Chassis_CorrectByInfrared(0.07f, 2.0f, 1.0f);
+				Chassis_CorrectByInfrared(0.07f, 1.0f, 0.0f);
 				vTaskDelay(5);
 			}
 			//上桥结束检测
@@ -599,12 +592,12 @@ void Barrier_Bridge(void)
 			}
 			// 距离退出（保险兜底）
 			
-			if (mileage_br >= 70)
+			if (mileage_br >= 65)
 			{
 				centered_samples = 0;
 				state = BRIDGE_ON_BRIDGE;
 			}
-			else if (mileage_br >= 65)
+			else if (mileage_br >= 60)
 			{
 				Chassis_SetTargetSpeed(UpDownStage_Speed_low);
 			}
@@ -621,7 +614,7 @@ void Barrier_Bridge(void)
 			get_Infrared();
 			while (fabsf(Chassis_GetMileage()) < 15)
 			{	
-				Chassis_CorrectByInfrared(0.05f, 2.0f, 1.0f);
+				Chassis_CorrectByInfrared(0.05f, 0.0f, 1.0f);
 				vTaskDelay(5);
 			}
 
@@ -2305,7 +2298,15 @@ uint8_t WaitFor_OCR(void)
 			timeout++;
 		}
 
-		if (K210_Rece )
+		if (K210_Rece){
+			if(retry >=2 && retry <=4){
+				Chassis_DriveDistance_Blocking(is_Gyro, 3, -SPEED0, getAngleZ(), 0);
+				CarBrake();
+			}
+			if(retry >=5){
+				Chassis_DriveDistance_Blocking(is_Gyro, 3, SPEED0, getAngleZ(), 0);
+				CarBrake();
+		}
 			break;
 
 		/* 本轮失败，关闭任务并调整摄像头/车位后再试 */
@@ -2331,7 +2332,6 @@ uint8_t WaitFor_OCR(void)
 	/* 失败时不得保存Clue_Num，也不得置采集完成标志 */
 	if (K210_Rece == 0)
 	{
-
 		close_Maxicam();
 		Clue_Num = 0;
 		return OCR_SCAN_FAILED;
@@ -2387,7 +2387,7 @@ uint8_t WaitFor_QR(void)
 		if (get_cude)
 			return 1;
 		else {Chassis_DriveDistance_Blocking(is_Gyro, 3, -SPEED0, getAngleZ(), 0);CarBrake();
-			vTaskDelay(1000);
+			vTaskDelay(2000);
 		}
 		/*
 		 * 未及时收到QR结果时直接重新发送0x11。

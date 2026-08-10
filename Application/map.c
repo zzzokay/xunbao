@@ -124,7 +124,6 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 	if (last == N8 && now == N3 && next == P3) return 15.0f;
 	if (last == N8 && now == N3 && next == N4) return 20.0f;
 	if (last == B8 && now == N9 && next == C3) return 0.0f;
-    if (last == N14 && now == C3 && next == N9) return 0.0f;
 	if (last == N10 && now == N9 && next == B9) return 40.0f;
 	if (last == B8 && now == N9 && next == N10) return 25.0f;
 	if (last == N5 && now == N8 && next == N12) return 5.0f;
@@ -210,14 +209,13 @@ static void Nav_SegmentInit(void)
     Chassis_SetCatchSensorNum(0);
     //设置忽略边缘
     Chassis_SetEdgeIgnore(0);
-
     // 根据当前边的 flag 设置循迹模式
-    if ((nodes.nowNode.flag & LEFT_LINE) == LEFT_LINE)
+    if ((nodes.nowNode.flag & NEAR_CENTER) == NEAR_CENTER)
+        Chassis_SetTrackMode(TRACK_NEAR_CENTER);
+    else if ((nodes.nowNode.flag & LEFT_LINE) == LEFT_LINE)
         Chassis_SetTrackMode(TRACK_LEFT_EDGE);
     else if ((nodes.nowNode.flag & RIGHT_LINE) == RIGHT_LINE)
         Chassis_SetTrackMode(TRACK_RIGHT_EDGE);
-    else if ((nodes.nowNode.flag & NEAR_CENTER) == NEAR_CENTER)
-        Chassis_SetTrackMode(TRACK_NEAR_CENTER);
     else
         Chassis_SetTrackMode(TRACK_NEAR_CENTER);
     // 设置当前边的模式和目标速度

@@ -93,10 +93,10 @@ float Gray_GetCorrectAngle(float base_angle)
 
 	// 根据最大值位置输出角度
 	switch (max_idx) {
-		case 0: return base_angle*1.5;   // 最左 → 偏右，向左修正
+		case 0: return base_angle*1.3;   // 最左 → 偏右，向左修正
 		case 1: return base_angle;   // 中左
 		case 2: return -base_angle;   // 中右
-		case 3: return -base_angle*1.5;   // 最右 → 向右修正
+		case 3: return -base_angle*1.3;   // 最右 → 向右修正
 		default: return 0.0f;
 	}
 }
