@@ -4,6 +4,9 @@
 
 #include "map_message.h"
 
+#define MAP_DEBUG 0
+#define FIRST_POINT N10
+#define SECOND_POINT N9
 
 #define NO      	 (1<<0) 
 #define DLEFT 		 (1<<1)				//左边横线

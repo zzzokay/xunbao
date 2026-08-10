@@ -103,6 +103,7 @@ void motor_task(void *pvParameters)
 			if(++print_cnt >= 20) // 每100ms打印一次（20*5ms=100ms）{
 				print_cnt = 0;
 		// 调试信息（被注释掉的部分）
+		 //printf("%.2f,%.2f,%.2f\r\n", imu.yaw, imu.pitch, imu.roll);
 		/*陀螺仪模式*/ //printf("Gyro:%.2f LSP:%.2f RSP:%.2f L0:%.2f L1:%.2f R0:%.2f R1:%.2f\r\n", imu.yaw,motor_all.Lspeed,motor_all.Rspeed,motor_L0.output,motor_L1.output,motor_R0.output,motor_R1.output);
 		/*巡线值*/// printf_byte(Scaner.detail);
 		

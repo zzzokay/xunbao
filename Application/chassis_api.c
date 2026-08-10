@@ -914,6 +914,8 @@ void Chassis_SelfCheck(void)
         }
         last_angle = curr_angle;
        // printf("%.2f\r\n", curr_angle);
+       //打印所有初始角度
+       //printf("%.2f,%.2f,%.2f\r\n", imu.yaw, imu.pitch, imu.roll);
     }
 
     /* ---------- 2. 灰度传感器检查 ---------- */
@@ -949,9 +951,9 @@ void Chassis_SelfCheck(void)
         else
         {
            // printf("[SELFCHECK] FAIL -");
-            if (error_now & 0x01) send_play_specified_command(33);//陀螺仪（偏移）
-            if (error_now & 0x02) send_play_specified_command(31);//灰度（过高）
-            if (error_now & 0x04) send_play_specified_command(30);//循迹板（检测到线）
+            // if (error_now & 0x01) send_play_specified_command(33);//陀螺仪（偏移）
+            // if (error_now & 0x02) send_play_specified_command(31);//灰度（过高）
+            // if (error_now & 0x04) send_play_specified_command(30);//循迹板（检测到线）
            // printf("\r\n");
         }
         last_error = error_now;

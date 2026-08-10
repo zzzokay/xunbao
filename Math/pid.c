@@ -189,7 +189,7 @@ void pid_init(void)
 	/*自平衡*/
 	gyroG_pid_param.kp = 2;
 	gyroG_pid_param.ki = 0;
-	gyroG_pid_param.kd = 5;
+	gyroG_pid_param.kd = 10;
 	gyroG_pid_param.differential_filterK = 0.5;
 	gyroG_pid_param.outputMax = 80;
 	gyroG_pid_param.outputMin = -80;
