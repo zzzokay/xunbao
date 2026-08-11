@@ -24,10 +24,10 @@
 #include "Rudder_control.h"
 
 /*===== 独立调试开关 =====*/
-#define MAIN_DEBUG 00
+#define MAIN_DEBUG 1
 
 
-uint8_t test_flag = 3; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
+uint8_t test_flag = 1; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
 float temp_speed=25;
 #if MAIN_DEBUG
 /*地图初始化*/
@@ -55,14 +55,14 @@ void main_task(void *pvParameters)
 	mpuZreset(get_latest_yaw(), nodes.nowNode.angle); // 用稳定后的实际角度计算补偿
 
 	/*等待挡板*/
-	if (test_flag != 10 && test_flag != 11 && test_flag != 12 && test_flag != 7 && test_flag != 1)
-	{
-		while (Infrared_ahead == 0)
-			vTaskDelay(5);
+	// if (test_flag != 10 && test_flag != 11 && test_flag != 12 && test_flag != 7 && test_flag != 1)
+	// {
+	// 	while (Infrared_ahead == 0)
+	// 		vTaskDelay(5);
 
-		while (Infrared_ahead == 1)
-			vTaskDelay(5);
-	}
+	// 	while (Infrared_ahead == 1)
+	// 		vTaskDelay(5);
+	// }
 	//ScanerMode_Switch(Gray);
 #else
 	/*正常模式：完整初始化流程*/
@@ -70,7 +70,9 @@ void main_task(void *pvParameters)
 	IMU_CalibrateZero(&basic_y, &basic_p, &basic_r);
 	vTaskDelay(100);
 	mpuZreset(get_latest_yaw(), nodes.nowNode.angle); // 用稳定后的实际角度计算补偿
+	#if !MAP_DEBUG
 	zhunbei(); // 启动流程（红外等待）
+	#endif
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
 #endif
 
@@ -84,21 +86,28 @@ void main_task(void *pvParameters)
 
 			//ScanerMode_Switch(RF);
 			Chassis_SetTrackMode(TRACK_NEAR_CENTER);
+			Chassis_OverrideLinePid(25, 0, 150, 20);
 			//Chassis_DriveDistance_Blocking(is_Line,100,20,0,0);
-			Chassis_DriveDistance_Blocking(is_Line, 200, 45, 0, 0);
+			Chassis_DriveDistance_Blocking(is_Line, 300, 15, 0, 0);
+			//Chassis_DriveDistance_Blocking(is_Line, 100, 45, 0, 0);
+			//Chassis_DriveDistance_Blocking(is_Line, 100, 70, 0, 0);
+			//Chassis_DriveDistance_Blocking(is_Line, 100, 45, 0, 0);
+			//Chassis_DriveDistance_Blocking(is_Line, 100, 15, 0, 0);  
 			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ(),20.0f);
 			CarBrake();
+			vTaskDelay(2000);
 		}
 		if (test_flag == 2)
 		{
+			Chassis_OverrideGyroPid(2,0,10,50);
 			//Chassis_OverrideTurnPid(6.0f, 0.0f, 90.0f, 30.0f);
 			//Chassis_MotorControl(is_No,2,-2,0);
 			//vTaskDelay(3000);
 			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ());
 			//Chassis_RestoreTurnPid();
-			//Chassis_DriveDistance_Blocking(is_Gyro, 20, Gyro_Speed, getAngleZ(), 0);
+			Chassis_DriveDistance_Blocking(is_Gyro, 10, Gyro_Speed, getAngleZ(), 0);
             //Chassis_Turn_By_Gyro_Blocking(getAngleZ()+90, getAngleZ());
-			CarBrake();
+			//CarBrake();
 			//Chassis_Brake();
 			test_flag = 0;
 		}
@@ -118,8 +127,8 @@ void main_task(void *pvParameters)
 			// Gray_GetLine();
 			// float correct_angle = Gray_GetCorrectAngle(1);
 			// printf(" %.2f\n", correct_angle);
-			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
-				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.09,10,0);
+			Chassis_OverrideGyroPid(7,0,10,50);
+			//RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.03f,10,0);
 		}
 		if(test_flag == 5)
 		{

@@ -31,7 +31,10 @@ volatile uint8_t cross_event = 0;	//运行时阶段/事件标志，全局变量�
 
 
 #if MAP_DEBUG
-u8 route[100] = {B9, N7,P6, N7, B8, N9,0XFF};
+//u8 route[100] = {N4, N3,P3, N3, N4, N5,N6,P4,N6,0XFF};
+
+//u8 route[100] = {N4, B2,N1,P1, N1, B1, N2,P2,0XFF};
+u8 route[100] = { B5,N19,C6, B7, N22, B6,N20,P8,0XFF};
 #else 
 u8 route[100] = {B1, N1,P1, N1, B2, N4, N5,0XFF};  //初始路径
 #endif

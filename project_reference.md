@@ -266,6 +266,8 @@ Cross()
 | 修复 barrier.c 编译错误 `#20 DOOR_D5_BACK/DOOR_D4_BACK undefined`：`enum DoorState` 定义在 `Door_ReadPass()`（1542 行）之后，C 枚举常量仅声明后可见；枚举前移到 `Door_ReadPass` 前置声明之前 | 2026-08-09 |
 | 巡线PID按当前实际速度阶梯选择（防高速→低速减速期摇摆/不跟线）：`Chassis_SetTargetSpeed` 不再写 `line_pid_param`；新增 `line_pid_steps` 阶梯表，motor_task 每5ms 调 `Chassis_UpdateLinePidBySpeed()` 读 `motor_all.encoder_avg`，规则为只有当前速度≤档速才采样该档PID（尽量向上取）；减速时 PID 逐级下调；游龙 override 生效时不覆盖 | 2026-08-09 |
 | IMU 上电自检 + 串口恢复 + ISR 兜底（应对偶发上电角度恒为0，根因=HAL 对 ORE 采取"中止DMA+交用户恢复"策略，与自定义 ISR"先重挂DMA再调 HAL_UART_IRQHandler"叠加成死锁）：imu.c 新增 `IMU_IsDataActive`/`IMU_WaitData`/`IMU_Reinit`（停DMA→清错误标志→重挂→开中断前再清一次ORE）；`USART3_IRQHandler` 开头清 ORE（HAL abort 分支由 errorflags≠0 门控，先清则错误中断不再杀死重挂的 DMA）；Start_task 在 user_init() 后自检，1s 全0则重启串口等2s重试，仍无数据仅警告不阻塞 | 2026-08-10 |
+| 寻中线(TRACK_NEAR_CENTER/calc_near_center)：中心两灯(第7、8灯)任一亮即进入中心判定，且**只取最中心两灯**（与 calc_left/right_edge 一致最多取2灯，不再向左右扩出整个连续亮灯段），其余线一律忽略；误差按这两灯实际亮灯位置**成比例计算**（不强制0，避免5/6/7偏心线不修正）。中心灯全灭保持"离中心最近段"兜底。曾尝试强制 error=0+TRUTH_VALID（偏心线不修正）及扩出整段（被旁线拖偏）均撤回 | 2026-08-11 |
+| 回退寻中线核心改动（仅 scaner.c + chassis_api.h 改回提交版）：calc_near_center 恢复"中心两灯同时亮才判中心 + 误差强制0 + 离中心最近段兜底"，line_weight_default 权重还原，TRACK_NEAR_CENTER 注释还原；调试配套（main_task 循迹测试 / map 调试路线 / chassis_api.c PID 调参 / barrier.c 坡道时序）保留未提交 | 2026-08-11 |
 
 ---
 

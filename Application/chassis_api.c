@@ -63,13 +63,13 @@ typedef struct {
 } LinePidStep_t;
 
 static const LinePidStep_t line_pid_steps[] = {
-    { 75, 3.5f, 0, 200 },   /* SPEED5 */
-    { 70, 3.5f, 0, 200 },   /* SPEED4 */
-    { 60, 4.0f, 0, 120 },   /* SPEED3 */
-    { 55, 5.0f, 0, 150 },   /* SPEED25 */
-    { 45, 6.5f, 0, 110 },   /* SPEED2 */
-    { 36, 7.5f, 0, 100 },    /* SPEED1 */
-    { 25, 9.0f, 0, 80 },    /* SPEED0 */
+    { 75, 3.0f, 0, 220 },   /* SPEED5 */
+    { 70, 3.5f, 0, 220 },   /* SPEED4 */
+    { 60, 4.0f, 0, 170 },   /* SPEED3 */
+    { 55, 4.5f, 0, 150 },   /* SPEED25 */
+    { 45, 6.0f, 0, 120 },   /* SPEED2 */
+    { 36, 6.0f, 0, 120 },    /* SPEED1 */
+    { 25, 7.0f, 0, 90 },    /* SPEED0 */
     { 20, 12.0f, 0, 70 },
     { 15, 15.0f, 0, 60 },
     { 12, 15.0f, 0, 60 },
@@ -713,7 +713,8 @@ void Chassis_Periodic_Update_5ms(void)
             if(chassis.target_speed / 2>=15)
             motor_all.Cspeed = chassis.target_speed / 2; // 直接减半速度，增强稳定
             else motor_all.Cspeed = 15; // 最低速度限制，避免过慢导致失控
-            //Chassis_OverrideLinePid(18, 0, 100, motor_all.Cspeed); // 直接覆盖当前速度限制，确保稳定性
+            
+            if(TC_speed==15)Chassis_OverrideLinePid(20, 0, 120, motor_all.Cspeed); // 直接覆盖当前速度限制，确保稳定性
 
         }
 

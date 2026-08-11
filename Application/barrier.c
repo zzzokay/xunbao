@@ -161,7 +161,10 @@ static uint8_t Stage_DetectedRamp(float distance)
 	return (fabsf(Chassis_GetMileage()) >= distance||
 		imu.pitch >= 10.0f ||
 		Scaner.ledNum >= 4 ||
-		Scaner.lineNum >= 2 );
+		Scaner.lineNum >= 2 ||
+		Scaner.ledNum == 0 ||
+		Scaner.lineNum == 0 
+	 );
 }
 
 void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
@@ -376,7 +379,7 @@ void Stage(void)
 			{
 				oringinal_angle = getAngleZ();
 				RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_high, oringinal_angle,
-					Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.05, 10.0f, 0.0f);
+					Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.08, 10.0f, 0.0f);
 
 				Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, oringinal_angle);
 				state = STAGE_TOP;
@@ -650,7 +653,7 @@ void Barrier_Hill(void)
 	Chassis_EnableAntiSnake();
 	Chassis_MotorControl(is_Line, 15, 15, 0);
 	//vTaskDelay(10);//刚进入is_line,scanner可能还没数据，先等motortask
-	Chassis_OverrideGyroPid(4,0,70,50);//上坡陀螺参数，增加kp和kd提高陀螺响应，防止上坡时姿态失稳
+	Chassis_OverrideGyroPid(7,0,30,50);//上坡陀螺参数，增加kp和kd提高陀螺响应，防止上坡时姿态失稳
 	Chassis_ClearMileage();
 	while (state != HILL_DONE)
 	{
@@ -671,14 +674,14 @@ void Barrier_Hill(void)
 
 		case HILL_ASCEND:
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, origin_angle,
-				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.8f, 10.0f, 0.0f);
+				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.05f, 15.0f, 0.0f);
 	
 			state = HILL_DESCEND;
 			break;
 
 		case HILL_DESCEND:
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
-				basic_p, UpDownStage_Speed_high, basic_p-10, UpDownStage_Speed_high, basic_p-3, 1.0f, 10.0f, 35.0f);
+				basic_p, UpDownStage_Speed_high, basic_p-10, UpDownStage_Speed_high, basic_p-3, 0.04f, 10.0f, 35.0f);
   
 			state = HILL_DONE;
 			break;
@@ -857,7 +860,7 @@ void Barrier_HighMountain(void)
 			break;
 
 		case HM_FLAT:
-			Chassis_MotorControl(is_Gyro,UpDownStage_Speed_high , UpDownStage_Speed_high, getAngleZ());
+			Chassis_MotorControl(is_Gyro,UpDownStage_Speed_low , UpDownStage_Speed_low, getAngleZ());
 			if (imu.pitch >= Begin_up)
 			{
 				state = HM_ASCEND_2;
