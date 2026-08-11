@@ -63,12 +63,13 @@
 
 
 /*===== 调试：预设5个门颜色，door() 自动读取 =====*/
-uint8_t door_pass[5] = {0, 0, 0, 0, 0};
+uint8_t door_pass[5] = {ONE_WAY_PASS, ONE_WAY_PASS, CAN_PASS, CAN_PASS, NO_PASS};
+//uint8_t door_pass[5] = {0, 0, 0, 0, 0};
 #if DEBUG
-uint8_t debug_door_pass[5] = {CAN_PASS, ONE_WAY_PASS, CAN_PASS, CAN_PASS, NO_PASS}; // 0:D2、1:D3、2:D4、3:D5、4:D1
+uint8_t debug_door_pass[5] = {ONE_WAY_PASS, ONE_WAY_PASS, CAN_PASS, CAN_PASS, NO_PASS}; // 0:D2、1:D3、2:D4、3:D5、4:D1
 volatile uint8_t flag_line_clue    = 0;
-volatile uint8_t flag_clue_stage_A = 5;
-volatile uint8_t flag_clue_stage_B = 8;
+volatile uint8_t flag_clue_stage_A = 6;
+volatile uint8_t flag_clue_stage_B = 7;
 // OCR 线索：P5/P6读clue_A，P7/P8读clue_B，treasure=clue_A+clue_B → 宝物平台编号
 uint8_t flag_clue_A       = 0;
 uint8_t flag_clue_B       = 3;
@@ -158,12 +159,13 @@ static uint8_t GyroStableReset(uint8_t required, float *reset_angle)
 
 static uint8_t Stage_DetectedRamp(float distance)
 {
+	Cross_getline(&Cross_Scaner);
 	return (fabsf(Chassis_GetMileage()) >= distance||
 		imu.pitch >= 10.0f ||
-		Scaner.ledNum >= 4 ||
-		Scaner.lineNum >= 2 ||
-		Scaner.ledNum == 0 ||
-		Scaner.lineNum == 0 
+		Cross_Scaner.ledNum >= 4 ||
+		Cross_Scaner.lineNum >= 2 ||
+		Cross_Scaner.ledNum == 0 ||
+		Cross_Scaner.lineNum == 0 
 	 );
 }
 
@@ -586,7 +588,7 @@ void Barrier_Bridge(void)
 				{
 					centered_samples = 0;
 					if(mileage_br<=15.0f){
-						Chassis_CorrectByInfrared(0.04f, 1.3f, 1.0f);
+						Chassis_CorrectByInfrared(0.05f, 1.5f, 1.0f);
 					}
 					else{Chassis_CorrectByInfrared(0.02f, 1.3f, 1.0f);}
 					
@@ -653,7 +655,7 @@ void Barrier_Hill(void)
 	Chassis_EnableAntiSnake();
 	Chassis_MotorControl(is_Line, 15, 15, 0);
 	//vTaskDelay(10);//刚进入is_line,scanner可能还没数据，先等motortask
-	Chassis_OverrideGyroPid(7,0,30,50);//上坡陀螺参数，增加kp和kd提高陀螺响应，防止上坡时姿态失稳
+	Chassis_OverrideGyroPid(7,0,60,50);//上坡陀螺参数，增加kp和kd提高陀螺响应，防止上坡时姿态失稳
 	Chassis_ClearMileage();
 	while (state != HILL_DONE)
 	{
@@ -674,14 +676,14 @@ void Barrier_Hill(void)
 
 		case HILL_ASCEND:
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, origin_angle,
-				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.05f, 15.0f, 0.0f);
+				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.08f, 15.0f, 0.0f);
 	
 			state = HILL_DESCEND;
 			break;
 
 		case HILL_DESCEND:
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
-				basic_p, UpDownStage_Speed_high, basic_p-10, UpDownStage_Speed_high, basic_p-3, 0.04f, 10.0f, 35.0f);
+				basic_p, UpDownStage_Speed_high, basic_p-10, UpDownStage_Speed_high, basic_p-3, 0.08f, 10.0f, 35.0f);
   
 			state = HILL_DONE;
 			break;
@@ -785,9 +787,9 @@ void Sword_Mountain(void)
 				Chassis_MotorControl(is_Gyro, Gyro_Speed , Gyro_Speed , recorded_angle);
 			}
 
-
+			Cross_getline(&Cross_Scaner);
 			// 平台走完 or pitch 变负（开始下坡）
-			if (fabsf(Chassis_GetMileage()) > 120.0f || imu.pitch < After_down)
+			if (fabsf(Chassis_GetMileage()) > 120.0f || imu.pitch < After_down|| Cross_Scaner.ledNum <= 3)
 			{
 				state = SM_DESCEND;
 			}
@@ -1359,7 +1361,6 @@ void QQB_1(void)
 		switch (state)
 		{
 		case QQB_INIT:
-			send_play_specified_command(7);
 			//改变小车循迹中心，根据实际情况硬补偿
 			Chassis_SetCatchSensorNum(line_weight_default[CENTER]);
 			//改变循迹模式为左边循迹
@@ -1384,9 +1385,9 @@ void QQB_1(void)
 			//防止循迹受到旁边红线的干扰
 			//if(imu.pitch>=After_up ||Cross_Scaner.ledNum>=4||Cross_Scaner.lineNum>=2)Chassis_SetEdgeIgnore(4);
 			//等待对其
-			if ((imu.yaw >=70&&imu.yaw <=110)||(imu.yaw <=-70&&imu.yaw >=-110)||Cross_Scaner.ledNum>=4||Cross_Scaner.lineNum>=2)
-			{	
-				send_play_specified_command(7);	
+			if ((imu.yaw >=70&&imu.yaw <=110)||(imu.yaw <=-70&&imu.yaw >=-110)
+			||Cross_Scaner.ledNum>=4||Cross_Scaner.lineNum>=2||Cross_Scaner.ledNum==0||Cross_Scaner.lineNum==0)
+			{		
 				Chassis_OverrideGyroPid(4, 0, 70, 5);  
 				Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ()>0?90:-90);
 				Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);	
@@ -1415,7 +1416,7 @@ void QQB_1(void)
 				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 20, getAngleZ(), 15.0f);
 				Chassis_DriveDistance_Blocking(is_Gyro, 10, -SPEED0, getAngleZ(), 0);
 				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 20, getAngleZ(), 15.0f);
-				Chassis_DriveDistance_Blocking(is_Gyro, 18, SPEED0, getAngleZ(), 0);
+				Chassis_DriveDistance_Blocking(is_Gyro, 19, SPEED0, getAngleZ(), 0);
 			}
 			else if ((Cross_Scaner.detail & 0x0038)&&is_emergency==1)
 			{			
@@ -1425,7 +1426,7 @@ void QQB_1(void)
 				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 20, getAngleZ(), 15.0f);
 				Chassis_DriveDistance_Blocking(is_Gyro, 10, -SPEED0, getAngleZ(), 0);
 				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 20, getAngleZ(), 15.0f);
-				Chassis_DriveDistance_Blocking(is_Gyro, 18, SPEED0, getAngleZ(), 0);
+				Chassis_DriveDistance_Blocking(is_Gyro, 19, SPEED0, getAngleZ(), 0);
 			}
 			else if ((Cross_Scaner.detail & 0xF000)&&is_emergency==1)
 			{	
@@ -1434,7 +1435,7 @@ void QQB_1(void)
 				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 10, getAngleZ(), 15.0f);
 				Chassis_DriveDistance_Blocking(is_Gyro, 10, -SPEED0, getAngleZ(), 0);
 				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 10, getAngleZ(), 15.0f);
-				Chassis_DriveDistance_Blocking(is_Gyro, 18, SPEED0, getAngleZ(), 0);
+				Chassis_DriveDistance_Blocking(is_Gyro, 19, SPEED0, getAngleZ(), 0);
 				
 			}
 			else if ((Cross_Scaner.detail & 0x000F)&&is_emergency==1)
@@ -1444,7 +1445,7 @@ void QQB_1(void)
 				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 10, getAngleZ(), 15.0f);
 				Chassis_DriveDistance_Blocking(is_Gyro, 10, -SPEED0, getAngleZ(), 0);
 				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 10, getAngleZ(), 15.0f);
-				Chassis_DriveDistance_Blocking(is_Gyro, 18, SPEED0, getAngleZ(), 0);
+				Chassis_DriveDistance_Blocking(is_Gyro, 19, SPEED0, getAngleZ(), 0);
 				
 			}
 			else if(is_emergency){
@@ -1994,8 +1995,8 @@ void get_newroute(void)
 	load_route_at(0, r);
 	mapInit();
 	//全部运行通行
-	door_set_pass_node(N5, N12, 140, SPEED4);
-	door_set_pass_node(N12, N5, 140, SPEED4);
+	door_set_pass_node(N5, N12, 130, SPEED4);
+	door_set_pass_node(N12, N5, 130, SPEED4);
 	door_set_pass_node(N5, N8, 120, SPEED4);
 	door_set_pass_node(N8, N5, 120, SPEED4);
 	door_set_pass_node(N3, N8, 120, SPEED4);
