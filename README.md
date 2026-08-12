@@ -126,3 +126,16 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
 **2026-08-11** — 寻中线(TRACK_NEAR_CENTER/calc_near_center)：中心两灯(第7、8灯)任一亮即进入中心判定，且**只取最中心两灯**（与 calc_left/right_edge 一致最多取2灯，不再向左右扩出整个连续亮灯段），其余线一律忽略；误差按这两灯实际亮灯位置**成比例计算**（不强制为0：如 5/6/7 三灯亮会得到偏左的误差并修正，不会静止不动）。中心灯全灭时保持原"离中心最近段"兜底。演进过程：强制 error=0+TRUTH_VALID（偏心线不修正）→ 扩出整段（被旁线拖偏）→ 只取最中心两灯（均撤回前两种）。**随后回退核心改动（仅 scaner.c + chassis_api.h 改回提交版）**：`calc_near_center` 恢复"中心两灯同时亮才判中心、误差强制0、其余取离中心最近段兜底"，`line_weight_default` 权重还原，`TRACK_NEAR_CENTER` 注释还原。调试配套未动：main_task.c 循迹测试、map 调试路线、chassis_api.c PID 调参、barrier.c 坡道时序仍保留未提交。
 
 **2026-08-10** — IMU 上电自检 + 串口恢复（应对偶发上电读不到陀螺仪数据、角度恒为0）：imu.c 新增 `IMU_IsDataActive()`（互斥锁读 `imu_shared_data`，3角任一非0即有数据）/ `IMU_WaitData(ms)`（每50ms采样，1s窗口内全程为0才判失败）/ `IMU_Reinit()`（关USART3中断→停DMA→清 ORE/NE/FE/PE/IDLE 错误标志→清零缓冲→重新 `HAL_UART_Receive_DMA`+开IDLE→开中断前再清一次ORE堵死残余竞态）；`Start_task` 在 `user_init()` 后自检：1s 读不到数据则打印失败、`IMU_Reinit()`、等2s再试一次，仍无数据打印警告后继续上电流程（不阻塞任务创建）；`USART3_IRQHandler` 开头加 `__HAL_UART_CLEAR_OREFLAG`——HAL_UART_IRQHandler 仅在错误标志≠0时才中止DMA，先清 ORE 使错误中断进来时不会杀死刚重挂的 DMA（根因：HAL 对 ORE 是"中止+交用户恢复"策略，与自定义 ISR"先重挂再调 HAL"叠加成死锁）。temporary_task.c 补 `#include "stdio.h"`。
+
+**2026-08-12** — 寻中线(TRACK_NEAR_CENTER/calc_near_center)：**恢复"连续亮灯段"约束**（不再允许跨空隙取两灯），在选中的段内**只取离中心最近的 2 个灯**算位置/误差（取消整段平均，粗线不再拖偏；原 `MAX_LED>4` 段长否决随之失效，段内取 2 灯恒 ≤2）；中心两灯(7,8)同时亮仍走 center 快路径（error=0）。
+
+**2026-08-12** — 任务周期耗时测量（调试用，测完可删）：motor_task.c / main_task.c 各加 `timing_dwt_init()`（DWT 周期计数器 @216MHz 初始化，TRCENA+CYCCNTENA）与循环内测量块——motor_task 每 100ms 打印 `MOTOR cpu=xxus period=xxms`（本循环 CPU 耗时 + 实测周期，应≈5）；main_task 每 500ms 打印 `MAIN loop=xxus max=xxus`（单周期耗时含阻塞 + 历史最大值）。用于排查主任务是否饿死底层。当前优先级：motor_task=6 > main_task=5（configMAX_PRIORITIES=7），主任务已无法抢占饿死电机任务。
+
+**2026-08-12** — FPU 浮点修复：消除用户代码里的软件 double 运算，全部走单精度硬件 FPU（Cortex-M7 仅单精度 FPU）：
+- imu.c `USART3_IRQHandler`：`180.0`/`32768.0` → `180.0f`/`32768.0f`（IMU 中断每帧 3 次软件 double 乘除 + 4 次类型转换）
+- turn.c / barrier.c / scaner.c 共 11 处 `fabs()`（double 版）→ `fabsf()`（参数全为 float，原会被提升为 double）
+- turn.c:263 活着的 `printf("%.2f, %.2f\n", ...)` 注释掉（转弯循环里每 100ms 打印，把 float 提升 double 并拖进浮点格式化库 printfa/_fp_digits）
+- pid.c `speed_pid_kp/kd/ki`：`param / 10.0` / `/ 100.0` → `/ 10.0f` / `/ 100.0f`（int/double → 软件 double 除法）
+- Rec_usart.c `get_PIDdata()`：`atof()` → `strtof(value, NULL)`（atof 返回 double，拖进 `__strtod_int`/`_scanf_real` 556 字节；strtof 直接返回 float）
+- sin_generate.c `sin()` → `sinf()`（该函数当前无调用、链接器已 GC，属保险性修改）
+- 验证：修复前 map 文件最终 image 含 `__aeabi_dmul/ddiv/dadd/dsub/f2d/d2f/i2d`；修复后应全部消失（重编译后复查 map）。

@@ -157,7 +157,7 @@ uint8_t Turn_Angle(float Angle)
 float Change360Angle(float Angle)
 {
 	if (Angle < 0)
-		Angle = 360 - fabs(Angle);//360
+		Angle = 360 - fabsf(Angle);//360
 	return Angle;
 }
 
@@ -260,7 +260,7 @@ uint8_t Go_Angle(float angle_want, float speed,volatile struct Motors *motor)//T
 	if (++tick >= 100 / 5) // 假设 vTaskDelay(2) 是 2ms
 	{
 		tick = 0;
-		printf("%.2f,  %.2f\n", angle_want, now_angle);
+		//printf("%.2f,  %.2f\n", angle_want, now_angle);
 	}
 	motor->Lspeed = speed + GGspeed;
 	motor->Rspeed = speed - GGspeed;
@@ -296,7 +296,7 @@ void FreeTurn(float Angle, float L, float R)
 				if (nodes.nowNode.function != UpStage && nodes.nowNode.function != BSoutPole && nodes.nowNode.function != BHM)
 				{
 					Scaner_Update();
-					if (Scaner.lineNum == 1 && ((Scaner.detail & 0x7E0) != 0) && (fabs(need2turn(nodes.nextNode.angle, getAngleZ())) < fabs(need2turn(nodes.nextNode.angle, nodes.nowNode.angle)) * 0.3f))
+					if (Scaner.lineNum == 1 && ((Scaner.detail & 0x7E0) != 0) && (fabsf(need2turn(nodes.nextNode.angle, getAngleZ())) < fabsf(need2turn(nodes.nextNode.angle, nodes.nowNode.angle)) * 0.3f))
 					{
 						break;
 					}
@@ -315,7 +315,7 @@ void FreeTurn(float Angle, float L, float R)
 				if (nodes.nowNode.function != UpStage && nodes.nowNode.function != BSoutPole && nodes.nowNode.function != BHM)
 				{
 					Scaner_Update();
-					if (Scaner.lineNum == 1 && ((Scaner.detail & 0x7E0) != 0) && (fabs(need2turn(nodes.nextNode.angle, getAngleZ())) < fabs(need2turn(nodes.nextNode.angle, nodes.nowNode.angle)) * 0.3f))
+					if (Scaner.lineNum == 1 && ((Scaner.detail & 0x7E0) != 0) && (fabsf(need2turn(nodes.nextNode.angle, getAngleZ())) < fabsf(need2turn(nodes.nextNode.angle, nodes.nowNode.angle)) * 0.3f))
 					{
 						break;
 					}

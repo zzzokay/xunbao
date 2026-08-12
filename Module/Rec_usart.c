@@ -2,6 +2,7 @@
 #include "pid.h"
 #include "command.h"
 #include "dma.h"
+#include <stdlib.h>
 
 //本文件用于串口调参，中断将接收到的信息放入环形缓冲区
 
@@ -63,13 +64,13 @@ void get_PIDdata()
 		//printf("CMD: [%s][%s][%s]\r\n", dev, param, value);
 		 if(strcmp(dev,"slider")==0)
 		 {
-		 	if(strcmp(param,"kp")==0){temp_kp = atof(value);}
-		 	if(strcmp(param,"ki")==0){temp_ki = atof(value);}
-		 	if(strcmp(param,"kd")==0){temp_kd = atof(value);}
+		 	if(strcmp(param,"kp")==0){temp_kp = strtof(value, NULL);}
+		 	if(strcmp(param,"ki")==0){temp_ki = strtof(value, NULL);}
+		 	if(strcmp(param,"kd")==0){temp_kd = strtof(value, NULL);}
 			if(strcmp(param,"target")==0)
 		 	{  
 		 		
-				temp_speed = atof(value);
+				temp_speed = strtof(value, NULL);
 				
 		 	}
 		 	if(strcmp(param,"turn")==0)

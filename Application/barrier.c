@@ -63,16 +63,16 @@
 
 
 /*===== 调试：预设5个门颜色，door() 自动读取 =====*/
-uint8_t door_pass[5] = {ONE_WAY_PASS, ONE_WAY_PASS, CAN_PASS, CAN_PASS, NO_PASS};
-//uint8_t door_pass[5] = {0, 0, 0, 0, 0};
+//int8_t door_pass[5] = {ONE_WAY_PASS, ONE_WAY_PASS, CAN_PASS, CAN_PASS, NO_PASS};
+uint8_t door_pass[5] = {0, 0, 0, 0, 0};
 #if DEBUG
-uint8_t debug_door_pass[5] = {ONE_WAY_PASS, ONE_WAY_PASS, CAN_PASS, CAN_PASS, NO_PASS}; // 0:D2、1:D3、2:D4、3:D5、4:D1
+uint8_t debug_door_pass[5] = {ONE_WAY_PASS, NO_PASS, CAN_PASS, CAN_PASS, NO_PASS}; // 0:D2、1:D3、2:D4、3:D5、4:D1
 volatile uint8_t flag_line_clue    = 0;
 volatile uint8_t flag_clue_stage_A = 6;
-volatile uint8_t flag_clue_stage_B = 7;
+volatile uint8_t flag_clue_stage_B = 8;
 // OCR 线索：P5/P6读clue_A，P7/P8读clue_B，treasure=clue_A+clue_B → 宝物平台编号
 uint8_t flag_clue_A       = 0;
-uint8_t flag_clue_B       = 3;
+uint8_t flag_clue_B       = 2;
 #else
 volatile uint8_t flag_line_clue    = 0;
 volatile uint8_t flag_clue_stage_A = 0;
@@ -159,14 +159,23 @@ static uint8_t GyroStableReset(uint8_t required, float *reset_angle)
 
 static uint8_t Stage_DetectedRamp(float distance)
 {
+	while(1){
 	Cross_getline(&Cross_Scaner);
-	return (fabsf(Chassis_GetMileage()) >= distance||
+	if(fabsf(Chassis_GetMileage()) >= distance||
 		imu.pitch >= 10.0f ||
 		Cross_Scaner.ledNum >= 4 ||
 		Cross_Scaner.lineNum >= 2 ||
 		Cross_Scaner.ledNum == 0 ||
-		Cross_Scaner.lineNum == 0 
-	 );
+		Cross_Scaner.lineNum == 0 ||
+		Scaner.ledNum >= 4 ||
+		Scaner.lineNum >= 2 ||
+		Scaner.ledNum == 0 ||
+		Scaner.lineNum == 0 
+		
+	 ){return 1;}
+	vTaskDelay(2);
+	}
+	
 }
 
 void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
@@ -513,10 +522,9 @@ void Barrier_Bridge(void)
 		case BRIDGE_APPROACH:
 			GyroStableReset(40, &origin_angle);
 
-			if (Stage_DetectedRamp(45.0f))//检测到桥
+			if (Stage_DetectedRamp(40.0f))//检测到桥
 			{
 				if(origin_angle == 0)origin_angle = getAngleZ();				
-				Chassis_MotorControl(is_Gyro, SPEED0, SPEED0, origin_angle);
 				state = BRIDGE_ASCEND;
 			}
 			break;
@@ -530,7 +538,7 @@ void Barrier_Bridge(void)
 	
 			while (fabsf(Chassis_GetMileage()) < 15)
 			{		
-				Chassis_CorrectByInfrared(0.07f, 1.0f, 0.0f);
+				Chassis_CorrectByInfrared(0.08f, 1.0f, 0.0f);
 				vTaskDelay(5);
 			}
 			//上桥结束检测
@@ -587,7 +595,7 @@ void Barrier_Bridge(void)
 				else
 				{
 					centered_samples = 0;
-					if(mileage_br<=15.0f){
+					if(TG_speed<=20.0f){
 						Chassis_CorrectByInfrared(0.05f, 1.5f, 1.0f);
 					}
 					else{Chassis_CorrectByInfrared(0.02f, 1.3f, 1.0f);}
@@ -720,7 +728,7 @@ void Sword_Mountain(void)
 		SM_APPROACH,	// 0. 低速巡线接近，定中录角
 		SM_CLIMB_UP,	// 1. 上坡（陀螺仪 + 循迹板修正）
 		SM_ON_TOP,		// 2. 平台行驶（陀螺仪 + 循迹板修正）
-		SM_DESCEND,		// 3. 下坡（陀螺仪 + 循迹板修正）
+
 		SM_DONE
 	} state = SM_APPROACH;
 
@@ -749,11 +757,10 @@ void Sword_Mountain(void)
 
 			// 检测到刀山
 			Cross_getline(&Cross_Scaner);
-			if (Cross_Scaner.ledNum > 3)
+			if (Cross_Scaner.ledNum >= 5 )
 			{
 				if (!angle_recorded)
 					recorded_angle = getAngleZ();
-
 				Chassis_MotorControl(is_Gyro, 15 , 15 , recorded_angle);
 				Chassis_ClearMileage();
 				state = SM_CLIMB_UP;
@@ -789,21 +796,12 @@ void Sword_Mountain(void)
 
 			Cross_getline(&Cross_Scaner);
 			// 平台走完 or pitch 变负（开始下坡）
-			if (fabsf(Chassis_GetMileage()) > 120.0f || imu.pitch < After_down|| Cross_Scaner.ledNum <= 3)
-			{
-				state = SM_DESCEND;
-			}
-			break;
-
-		case SM_DESCEND:
-
-			// pitch 回升 or 超时 → 到底
-			if (fabsf(Chassis_GetMileage()) > 120.0f ||imu.pitch >= After_down)
+			if (fabsf(Chassis_GetMileage()) > 100.0f || imu.pitch < After_down|| Cross_Scaner.ledNum <= 3)
 			{
 				state = SM_DONE;
 			}
-			
-			break;		
+			break;
+
 		}
 		vTaskDelay(2);
 	}
@@ -836,6 +834,7 @@ void Barrier_HighMountain(void)
 	Chassis_OverrideGyroPid(4, 0, 70, 10);
 	Chassis_EnableAntiSnake();
 	Chassis_MotorControl(is_Line, 15, 15, 0);
+	Chassis_SetEdgeIgnore(4);
 	Chassis_ClearMileage();
 
 	while (state != HM_DONE)
@@ -851,8 +850,8 @@ void Barrier_HighMountain(void)
 
 		case HM_ASCEND_1:
 			//让车抬起后马上退出
-			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_high, getAngleZ(),
-				Begin_up, UpDownStage_Speed_high, up_pitch, 20, up_pitch+30, 0.07f, 10.0f, 20.0f);
+			RampCtrl_Blocking(RAMP_ASCEND, 15, getAngleZ(),
+				Begin_up, 15, up_pitch, 20, up_pitch+30, 0.07f, 10.0f, 20.0f);
 			//用循迹走
 			Chassis_DriveDistance_Blocking(is_Line, 45, 20, 0, 0);
 			//检测上坡结束
@@ -862,7 +861,7 @@ void Barrier_HighMountain(void)
 			break;
 
 		case HM_FLAT:
-			Chassis_MotorControl(is_Gyro,UpDownStage_Speed_low , UpDownStage_Speed_low, getAngleZ());
+			Chassis_MotorControl(is_Gyro,UpDownStage_Speed_high , UpDownStage_Speed_high, getAngleZ());
 			if (imu.pitch >= Begin_up)
 			{
 				state = HM_ASCEND_2;
@@ -870,8 +869,8 @@ void Barrier_HighMountain(void)
 			break;
 
 		case HM_ASCEND_2:
-			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_high, getAngleZ(),
-				Begin_up, UpDownStage_Speed_high, up_pitch, 20, up_pitch+30, 0.07f, 10.0f, 20.0f);
+			RampCtrl_Blocking(RAMP_ASCEND, 20, getAngleZ(),
+				Begin_up, 20, up_pitch, 20, up_pitch+30, 0.07f, 10.0f, 20.0f);
 			Chassis_DriveDistance_Blocking(is_Line, 45, 20, 0, 0);
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
 				Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.07f, 10.0f, 0.0f);
@@ -898,9 +897,9 @@ void Barrier_HighMountain(void)
 
 		case HM_DESCEND_1:
 			Chassis_DriveDistance_Blocking(is_Gyro, 8, UpDownStage_Speed_low, origin_angle, 0);
-			Chassis_DriveDistance_Blocking(is_Free, 15, 1000, 0, 0);
+			Chassis_DriveDistance_Blocking(is_Free, 15, 800, 0, 0);
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
-				Begin_down, UpDownStage_Speed_low, down_pitch, 20, down_pitch-30, 0.07f, 10.0f, 10.0f);
+				Begin_down, UpDownStage_Speed_low, down_pitch, 20, down_pitch-30, 0.07f, 10.0f, 30.0f);
 			Chassis_DriveDistance_Blocking(is_Line, 40, 20, 0, 0);
 			RampCtrl_Blocking(RAMP_DESCEND, 20, origin_angle,
 				Begin_down, 20, down_pitch, 20, After_down, 0.07f, 10.0f, 0.0f);
@@ -917,7 +916,7 @@ void Barrier_HighMountain(void)
 
 		case HM_DESCEND_2:
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
-				Begin_down, UpDownStage_Speed_low, down_pitch, 20, down_pitch-30, 0.07f, 10.0f, 10.0f);
+				Begin_down, UpDownStage_Speed_low, down_pitch, 20, down_pitch-30, 0.07f, 10.0f, 30.0f);
 			Chassis_DriveDistance_Blocking(is_Line, 40, 20, 0, 0);
 			RampCtrl_Blocking(RAMP_DESCEND, 20, origin_angle,
 				Begin_down, 20, down_pitch, 20, After_down, 0.07f, 10.0f, 0.0f);
@@ -1076,7 +1075,7 @@ void South_Pole(void)
 	float origin_angle = 0.0f;
 	uint8_t sub_stage = 0;
 
-	Chassis_OverrideGyroPid(4, 0, 70, 50);
+	Chassis_OverrideGyroPid(4, 0, 50, 50);
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
 	Chassis_ClearMileage();
 
@@ -1342,7 +1341,7 @@ void update_route_at_P8_for_treasure(void)
 	}
 }
 /*跷跷板*/
-#define CENTER 7
+#define CENTER 5
 void QQB_1(void)
 {
 	enum {
@@ -1372,7 +1371,7 @@ void QQB_1(void)
 
 			//等待小车行驶10cm后，改变循迹模式为中间循迹
 			Chassis_ClearMileage();
-			while(Chassis_GetMileage() < 40)vTaskDelay(2);	
+			while(Chassis_GetMileage() < 50)vTaskDelay(2);	
 			Chassis_SetTrackMode(TRACK_NEAR_CENTER);
 			Chassis_ClearMileage();
 			
@@ -1389,7 +1388,7 @@ void QQB_1(void)
 			||Cross_Scaner.ledNum>=4||Cross_Scaner.lineNum>=2||Cross_Scaner.ledNum==0||Cross_Scaner.lineNum==0)
 			{		
 				Chassis_OverrideGyroPid(4, 0, 70, 5);  
-				Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ()>0?90:-90);
+				Chassis_MotorControl(is_Gyro, 20, 20, getAngleZ()>0?90:-90);
 				Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);	
 			}
 			//等待小车爬上跷跷板，俯仰角大于 up_pitch 进入下一状态
@@ -1513,8 +1512,14 @@ void QQB_1(void)
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
 	Chassis_OverrideLinePid(17,0.02f,50,30);
 	Chassis_ClearMileage();
-	uint8_t dis = getAngleZ()>0?60:35;
+	uint8_t dis = getAngleZ()>0?60:30;
 	while(Chassis_GetMileage() < dis)vTaskDelay(2);
+
+	if(getAngleZ()<0){
+	Chassis_MotorControl(is_Gyro, 15, 15,0);
+	while(getAngleZ() < -10){Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);vTaskDelay(2);	}
+	}
+
 	Chassis_RestoreLinePid();
 	
 	nodes.nowNode.function = 0;
@@ -1618,9 +1623,9 @@ static void door_set_pass_node(uint8_t a, uint8_t b, uint16_t step, float speed)
 }
 
 /*红绿灯辅助：NO_PASS(不能过)后退+转头+重定向到目标节点*/
-static void door_retreat(uint8_t a, uint8_t b)
+static void door_retreat(uint8_t a, uint8_t b, float dis)
 {
-	Chassis_DriveDistance_Blocking(is_Gyro, 50, -SPEED2, getAngleZ(), 0);
+	Chassis_DriveDistance_Blocking(is_Gyro, dis, -SPEED2, getAngleZ(), 0);
 	nodes.lastNode = nodes.nowNode;
 	nodes.nowNode = Node[getNextConnectNode(a, b)];
 	Chassis_Brake();
@@ -1675,7 +1680,7 @@ void door()
 		if (door_pass[0] == NO_PASS)
 		{
 			send_play_specified_command(11);
-			door_retreat(N5, N8);
+			door_retreat(N5, N8, 50);
 			cross_event |= CROSS_EVENT_DOOR;
 			state = DOOR_D3;
 		}
@@ -1710,7 +1715,7 @@ void door()
 		if (door_pass[1] == NO_PASS)
 		{
 			send_play_specified_command(11);
-			door_retreat(N5, N4);
+			door_retreat(N5, N4, 50);
 			load_route_at(0, door1route);
 			cross_event |= CROSS_EVENT_DOOR;
 			state = DOOR_D4;
@@ -1785,13 +1790,13 @@ void door()
 			{
 				map.point -= 1;
 				route[map.point] = N3;
-				door_retreat(N10, N8);
+				door_retreat(N10, N8, 70);
 				cross_event |= CROSS_EVENT_DOOR;
 				state = DOOR_D4_BACK;
 			}
 			else if (door_pass[0] == NO_PASS && door_pass[1] == ONE_WAY_PASS)
 			{
-				door_retreat(N10, N8);
+				door_retreat(N10, N8, 70);
 				door_set_pass_node(N3, N8, 120, SPEED3);
 				door_set_pass_node(N8, N3, 120, SPEED3);
 				update_route_by_door_2();
@@ -1819,7 +1824,7 @@ void door()
 		else // NO_PASS
 		{
 			send_play_specified_command(11);
-			door_retreat(N8, N5);
+			door_retreat(N8, N5,70);
 			door_set_pass_node(N8, N5, 140, SPEED3);
 			door_set_pass_node(N5, N8, 140, SPEED3);
 			cross_event |= CROSS_EVENT_DOOR;
@@ -2310,8 +2315,9 @@ uint8_t WaitFor_OCR(void)
 			if(retry >=5){
 				Chassis_DriveDistance_Blocking(is_Gyro, 3, SPEED0, getAngleZ(), 0);
 				CarBrake();
-		}
+			}
 			break;
+		}
 
 		/* 本轮失败，关闭任务并调整摄像头/车位后再试 */
 		close_Maxicam();
@@ -2354,8 +2360,10 @@ uint8_t WaitFor_OCR(void)
 		if (flag_clue_A == 0)
 			send_play_specified_command(29);
 		else
+			{
 			send_play_specified_command(16 + flag_clue_A);
 			vTaskDelay(1000);
+			}
 	}
 	else
 	{

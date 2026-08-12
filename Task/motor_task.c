@@ -60,6 +60,14 @@ uint8_t open_qiang_jiao = 0;      // 墙角模式标志
 extern volatile uint8_t LEFT_RIGHT_LINE;
 extern uint8_t test_flag;
 
+/* ===== 周期耗时测量(调试用): DWT 周期计数器 @216MHz ===== */
+static void timing_dwt_init(void)
+{
+	CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk; // 使能 TRACE 才能访问 DWT
+	DWT->CYCCNT = 0;
+	DWT->CTRL  |= DWT_CTRL_CYCCNTENA_Msk;           // 使能周期计数器
+}
+
 /*主控制任务主体*/
 /*
  * 功能：周期5ms的巡线闭环
@@ -72,9 +80,11 @@ void motor_task(void *pvParameters)
 
 	// 初始化底盘API
 	Chassis_Init();
+	//timing_dwt_init();   // 周期耗时测量: 开启 DWT 周期计数器
 
 	while (1)
 	{
+		uint32_t cyc_t0 = DWT->CYCCNT;   // 本周期起点
 		//pid参数接口
 		get_PIDdata();
 
@@ -98,6 +108,22 @@ void motor_task(void *pvParameters)
 
 		/*7. 底盘API周期更新 - 调用防游龙算法*/
 		Chassis_Periodic_Update_5ms();
+
+		/*===== 周期耗时测量(调试用): cpu=本循环CPU耗时(µs); period=实测周期(ms, 应≈5) =====*/
+		// {
+		// 	static uint16_t m_cnt = 0;
+		// 	static uint32_t last_tick = 0;
+		// 	uint32_t tick = xTaskGetTickCount();
+		// 	uint32_t period_ms = last_tick ? (tick - last_tick) : 0;
+		// 	last_tick = tick;
+		// 	if (++m_cnt >= 20) // 每 100ms 打印一次
+		// 	{
+		// 		m_cnt = 0;
+		// 		printf("MOTOR cpu=%luus period=%lums\r\n",
+		// 			(unsigned long)((DWT->CYCCNT - cyc_t0) / 216u),
+		// 			(unsigned long)period_ms);
+		// 	}
+		// }
 		{
 			static uint16_t print_cnt = 0;
 			if(++print_cnt >= 20) // 每100ms打印一次（20*5ms=100ms）{

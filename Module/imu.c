@@ -273,9 +273,9 @@ void USART3_IRQHandler(void)
 			{
 				if (imu_rx_buf[2] == 0x01)
 				{
-					imu.roll   = 180.0 * (short)((imu_rx_buf[5] << 8) | imu_rx_buf[4]) / 32768.0;
-					imu.yaw    = 180.0 * (short)((imu_rx_buf[9] << 8) | imu_rx_buf[8]) / 32768.0;
-					imu.pitch  = -180.0 * (short)((imu_rx_buf[7] << 8) | imu_rx_buf[6]) / 32768.0;
+					imu.roll   = 180.0f * (short)((imu_rx_buf[5] << 8) | imu_rx_buf[4]) / 32768.0f;
+					imu.yaw    = 180.0f * (short)((imu_rx_buf[9] << 8) | imu_rx_buf[8]) / 32768.0f;
+					imu.pitch  = -180.0f * (short)((imu_rx_buf[7] << 8) | imu_rx_buf[6]) / 32768.0f;
 
 					imu.yaw -= basic_y;
 

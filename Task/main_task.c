@@ -27,7 +27,7 @@
 #define MAIN_DEBUG 0
 
 
-uint8_t test_flag = 3; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
+uint8_t test_flag = 1; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
 float temp_speed=25;
 #if MAIN_DEBUG
 /*地图初始化*/
@@ -41,11 +41,20 @@ void mapInit13()
 }
 #endif
 
+/*===== 周期耗时测量(调试用): DWT 周期计数器 @216MHz =====*/
+static void timing_dwt_init(void)
+{
+	CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk; // 使能 TRACE 才能访问 DWT
+	DWT->CYCCNT = 0;
+	DWT->CTRL  |= DWT_CTRL_CYCCNTENA_Msk;           // 使能周期计数器
+}
+
 /*主任务*/
 void main_task(void *pvParameters)
 {
 	portTickType xLastWakeTime;
 	xLastWakeTime = xTaskGetTickCount();
+	timing_dwt_init();   // 周期耗时测量: 开启 DWT 周期计数器
 
 #if MAIN_DEBUG
 	/*调试模式：跳过传感器初始化，只做基本的地图加载*/
@@ -55,14 +64,14 @@ void main_task(void *pvParameters)
 	mpuZreset(get_latest_yaw(), nodes.nowNode.angle); // 用稳定后的实际角度计算补偿
 
 	/*等待挡板*/
-	// if (test_flag != 10 && test_flag != 11 && test_flag != 12 && test_flag != 7 && test_flag != 1)
-	// {
-	// 	while (Infrared_ahead == 0)
-	// 		vTaskDelay(5);
+	if (test_flag != 10 && test_flag != 11 && test_flag != 12 && test_flag != 7)
+	{
+		while (Infrared_ahead == 0)
+			vTaskDelay(5);
 
-	// 	while (Infrared_ahead == 1)
-	// 		vTaskDelay(5);
-	// }
+		while (Infrared_ahead == 1)
+			vTaskDelay(5);
+	}
 	//ScanerMode_Switch(Gray);
 #else
 	/*正常模式：完整初始化流程*/
@@ -72,12 +81,19 @@ void main_task(void *pvParameters)
 	mpuZreset(get_latest_yaw(), nodes.nowNode.angle); // 用稳定后的实际角度计算补偿
 	#if !MAP_DEBUG
 	zhunbei(); // 启动流程（红外等待）
+	#else
+		while (Infrared_ahead == 0)
+			vTaskDelay(5);
+
+		while (Infrared_ahead == 1)
+			vTaskDelay(5);
 	#endif
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
 #endif
 
 	while (1)
 	{
+		uint32_t cyc_t0 = DWT->CYCCNT;   // 本周期起点(用于测主任务耗时)
 
 #if MAIN_DEBUG
 		/*========== 调试模式：debug_test_item 控制 ==========*/
@@ -85,27 +101,30 @@ void main_task(void *pvParameters)
 		{
 
 			//ScanerMode_Switch(RF);
-			Chassis_SetTrackMode(TRACK_NEAR_CENTER);
-			Chassis_OverrideLinePid(30, 0, 200, 30);
+			//Chassis_SetTrackMode(TRACK_NEAR_CENTER);
+			//Chassis_OverrideLinePid(30, 0, 200, 30);
 			//Chassis_DriveDistance_Blocking(is_Line,100,20,0,0);
-			Chassis_DriveDistance_Blocking(is_Line, 300, 15, 0, 0);
+			//Chassis_DriveDistance_Blocking(is_Line, 300, 15, 0, 0);
 			//Chassis_DriveDistance_Blocking(is_Line, 100, 45, 0, 0);
 			//Chassis_DriveDistance_Blocking(is_Line, 100, 70, 0, 0);
 			//Chassis_DriveDistance_Blocking(is_Line, 100, 45, 0, 0);
 			//Chassis_DriveDistance_Blocking(is_Line, 100, 15, 0, 0);  
-			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ(),20.0f);
-			CarBrake();
+			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ(),20.0f);
+			Chassis_MotorControl(is_Line, 10, 10, 0);
 			vTaskDelay(2000);
+			CarBrake();
+			
 		}
 		if (test_flag == 2)
 		{
-			Chassis_OverrideGyroPid(2,0,10,50);
+			//Chassis_OverrideGyroPid(2,0,10,50);
 			//Chassis_OverrideTurnPid(6.0f, 0.0f, 90.0f, 30.0f);
 			//Chassis_MotorControl(is_No,2,-2,0);
 			//vTaskDelay(3000);
 			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ());
 			//Chassis_RestoreTurnPid();
-			Chassis_DriveDistance_Blocking(is_Gyro, 10, Gyro_Speed, getAngleZ(), 0);
+			Chassis_DriveDistance_Blocking(is_Gyro, 65, -SPEED2, getAngleZ(), 0);
+			Chassis_Brake();
             //Chassis_Turn_By_Gyro_Blocking(getAngleZ()+90, getAngleZ());
 			//CarBrake();
 			//Chassis_Brake();
@@ -263,6 +282,19 @@ void main_task(void *pvParameters)
 		if(map.routetime == 0||map.routetime == 2)
 			Navigation();
 #endif
+
+		/*===== 主任务耗时测量(调试用): loop=单周期耗时(含阻塞µs); max=历史最大 =====*/
+		// {
+		// 	static uint32_t max_us = 0;
+		// 	static uint16_t m_cnt = 0;
+		// 	uint32_t us = (DWT->CYCCNT - cyc_t0) / 216u;
+		// 	if (us > max_us) max_us = us;
+		// 	if (++m_cnt >= 100) // 500ms 打印一次
+		// 	{
+		// 		m_cnt = 0;
+		// 		printf("MAIN loop=%luus max=%luus\r\n", (unsigned long)us, (unsigned long)max_us);
+		// 	}
+		// }
 
 		vTaskDelayUntil(&xLastWakeTime, (5/portTICK_RATE_MS));
 	}

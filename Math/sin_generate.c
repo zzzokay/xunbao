@@ -24,7 +24,7 @@ float sin_generator(struct sin_param *param)
 	
 	param->actual_t = param->time * param->angular_velocity;
 	
-	output = param->gain * sin(param->actual_t * PI/180.0f);
+	output = param->gain * sinf(param->actual_t * PI/180.0f);
 	
 	++param->time;
 	

@@ -268,7 +268,7 @@ static float calc_right_edge(volatile SCANER *scaner, int8_t edge_ignore, uint8_
 	return pos;
 }
 
-/*--- 流水巡线：取离中心最近的一段连续亮灯 ---*/
+/*--- 流水巡线：取离中心最近的一段连续亮灯，段内只用最靠中心的 2 个灯 ---*/
 static float calc_near_center(volatile SCANER *scaner, int8_t edge_ignore, uint8_t sensorNum, float *error, uint8_t *lednum)
 {
 	/* 最中心两个灯同时亮 → 线在中心，不受线宽影响 */
@@ -288,17 +288,18 @@ static float calc_near_center(volatile SCANER *scaner, int8_t edge_ignore, uint8
 	uint8_t temp_len = 0;
 	float center = ((float)(sensorNum - 1)) / 2;
 
+	/* 第一遍：扫描连续亮灯段，选出段中心离场地中心最近的一段 */
 	for (uint8_t i = edge_ignore; i < sensorNum - edge_ignore; i++)
 	{
-		if (scaner->detail & (1 << i))
+		if (scaner->detail & (1u << i))
 		{
 			temp_location += i;
 			temp_len++;
-			if (i == sensorNum - 1 || !(scaner->detail & (1 << (i + 1))))
+			if (i == sensorNum - 1 || !(scaner->detail & (1u << (i + 1))))
 			{
 				float seg_center = temp_location / (float)temp_len;
-				float best_dist = (best_location < 0) ? 9999.0f : fabs(best_location - center);
-				if (fabs(seg_center - center) < best_dist)
+				float best_dist = (best_location < 0) ? 9999.0f : fabsf(best_location - center);
+				if (fabsf(seg_center - center) < best_dist)
 				{
 					best_location = seg_center;
 					line_led_last = i;
@@ -311,16 +312,40 @@ static float calc_near_center(volatile SCANER *scaner, int8_t edge_ignore, uint8
 	}
 	if (len == 0) return -1;
 
+	/* 第二遍：段内只保留离中心最近的 2 个灯，粗线不再整段平均拖偏误差 */
+	uint8_t led[2] = {0, 0};
+	float dist[2] = {9999.0f, 9999.0f};
+	uint8_t lednum_tmp = 0;
 	for (uint8_t i = line_led_last - len + 1; i <= line_led_last; i++)
 	{
-		*lednum += (scaner->detail >> i) & 1;
-		*error += ((scaner->detail >> i) & 1) * line_weight[sensorNum - 1 - i];
-		if ((scaner->detail >> i) & 1)
-			pos += sensorNum - 1 - i;
+		float d = fabsf((float)i - center);
+		if (lednum_tmp < 2)
+		{
+			led[lednum_tmp] = i;
+			dist[lednum_tmp] = d;
+			lednum_tmp++;
+		}
+		else
+		{
+			uint8_t worse = (dist[0] >= dist[1]) ? 0 : 1;	// 两个中更远的一个
+			if (d < dist[worse])
+			{
+				led[worse] = i;
+				dist[worse] = d;
+			}
+		}
 	}
-	if (*lednum > MAX_LED || *lednum == 0)
-		return -1;
-	pos /= (float)(*lednum);
+	if (lednum_tmp == 0) return -1;
+
+	/* 第三遍：只用选中的灯算位置和误差 */
+	for (uint8_t k = 0; k < lednum_tmp; k++)
+	{
+		uint8_t i = led[k];
+		*error += line_weight[sensorNum - 1 - i];
+		pos += sensorNum - 1 - i;
+	}
+	*lednum = lednum_tmp;
+	pos /= (float)lednum_tmp;
 	return pos;
 }
 
@@ -403,7 +428,7 @@ uint8_t pos_detect(float pos)
 	// 有正确值对比
 	if (flag)
 	{
-		if (fabs(line_data[idx].pos - pos) < pos_max_error)
+		if (fabsf(line_data[idx].pos - pos) < pos_max_error)
 		{
 			return 1;
 		}
@@ -429,7 +454,7 @@ static ClusterPick pick_best_cluster(const float *pos_pos, uint8_t n)
 
 	for (uint8_t i = 0; i < n; i++)
 		for (uint8_t j = i + 1; j < n; j++)
-			if (fabs(pos_pos[i] - pos_pos[j]) <= POS_CLUSTER_RADIUS)
+			if (fabsf(pos_pos[i] - pos_pos[j]) <= POS_CLUSTER_RADIUS)
 			{
 				score[i]++;
 				score[j]++;
@@ -535,7 +560,7 @@ static uint8_t coarse_filter(u8 LED_Num, u8 Line_Num)
 {
 	
 	// 多灯 多线 无灯 灯数/线数 >=4						            LED_Num / Line_Num >= 4表示 平均每条线占太多灯
-	if (LED_Num >= 10 || Line_Num >= 4 || LED_Num == 0/*|| LED_Num / Line_Num >= 5*/ )
+	if (LED_Num >= 8 || Line_Num >= 3 || LED_Num == 0/*|| LED_Num / Line_Num >= 5*/ )
 	{
 		return 1;
 	}

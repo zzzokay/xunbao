@@ -70,9 +70,9 @@ static const LinePidStep_t line_pid_steps[] = {
     { 45, 6.0f, 0, 120 },   /* SPEED2 */
     { 36, 6.0f, 0, 120 },    /* SPEED1 */
     { 25, 7.0f, 0, 90 },    /* SPEED0 */
-    { 20, 12.0f, 0, 70 },
-    { 15, 20.0f, 0, 120 },
-    { 12, 25.0f, 0, 60 },
+    { 20, 10.0f, 0, 90 },
+    { 15, 24.0f, 0, 140 },
+    { 12, 30.0f, 0, 180 },
 };
 #define LINE_PID_STEP_NUM  (sizeof(line_pid_steps)/sizeof(line_pid_steps[0]))
 

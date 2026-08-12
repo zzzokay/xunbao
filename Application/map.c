@@ -35,7 +35,8 @@ volatile uint8_t cross_event = 0;	//运行时阶段/事件标志，全局变量�
 
 //u8 route[100] = {N4, B2,N1,P1, N1, B1, N2,P2,0XFF};
 //u8 route[100] = { B5,N19,C6, B7, N22, B6,N20,P8,0XFF};
-u8 route[100] = {C9,0XFF};
+//u8 route[100] = {C9,0XFF};
+u8 route[100] = {N20, 0XFF};
 #else 
 u8 route[100] = {B1, N1,P1, N1, B2, N4, N5,0XFF};  //初始路径
 #endif
@@ -137,7 +138,8 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 	if (last == N10 && now == N9 && next == B9) return 40.0f;
 	if (last == B8 && now == N9 && next == N10) return 25.0f;
 	if (last == N5 && now == N8 && next == N12) return 5.0f;
-	return 17.0f;
+    if (last == N5 && now == N12 && next == N11) return 20.0f;
+	return 15.0f;
 }
 
 /* 获取对应节点的陀螺仪不停车转弯前的前进距离判断 */
@@ -147,7 +149,7 @@ static float GetForwardDistanceBeforeGyroTurn(u8 last, u8 now, u8 next)
 	if (last == B3 && now == N2 && next == P2) return 15.0f;
     if (last == B2 && now == N1 && next == P1) return 15.0f;
 	if (last == P3 && now == N3 && next == N8) return 5.0f;
-    if (last == C4 && now == N20 && next == B6) return 10.0f;
+    if (last == C4 && now == N20 && next == B6) return 20.0f;
 	if (last == N3 && now == N4 && next == B3) return 10.0f;
     if (last == N8 && now == N12 && next == N13) return 0.0f;
     if (last == N4 && now == N5 && next == N12) return 5.0f;

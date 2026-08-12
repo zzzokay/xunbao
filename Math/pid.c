@@ -277,7 +277,7 @@ void chage_target(uint16_t targetq)
  */
 void speed_pid_kp(int param)
 {
-	motor_pid_paramL1.kp = param / 10.0;
+	motor_pid_paramL1.kp = param / 10.0f;
 	motor_pid_clear();
 }
 
@@ -288,7 +288,7 @@ void speed_pid_kp(int param)
  */
 void speed_pid_kd(int param)
 {
-	motor_pid_paramL1.kd = param / 10.0;
+	motor_pid_paramL1.kd = param / 10.0f;
 	motor_pid_clear();
 }
 
@@ -299,6 +299,6 @@ void speed_pid_kd(int param)
  */
 void speed_pid_ki(int param)
 {
-	motor_pid_paramL1.ki = param / 100.0;
+	motor_pid_paramL1.ki = param / 100.0f;
 	motor_pid_clear();
 }

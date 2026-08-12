@@ -9,7 +9,7 @@
 extern TaskHandle_t motor_handler ; 				//定义开始任务句柄
 void motor_task(void *pvParameters);//声明任务函数
 #define motor_size  512   					//任务堆栈大小
-#define motor_task_priority 4 // FreeRTOS priority: 0..configMAX_PRIORITIES-1		//任务优先级
+#define motor_task_priority 6 // FreeRTOS priority: 0..configMAX_PRIORITIES-1		//任务优先级
 #define PI  3.1415926535f
 #define is_Front 0
 #define is_Back  1

@@ -39,10 +39,10 @@ test1.ioc             # CubeMX配置
 |------|------|--------|--------|------|
 | Start_task | `Start_task()` | 6 | 256字 | 一次性(创建三任务后自删) |
 | main_task | `main_task()` | 5 | 2048字 | 5ms |
-| motor_task | `motor_task()` | 4 | 512字 | 5ms |
+| motor_task | `motor_task()` | 6 | 512字 | 5ms |
 | ArriveDetect_task | `arrive_detect_task()` | 3 | 512字 | - |
 
-> 注：motor_task 实际优先级为 **4**（motor_task.h），文档此前误写为 10；main_task(5) 高于 motor_task(4)。Start_task 现含 IMU 上电自检（见已修复表 2026-08-10）。
+> 注：motor_task 优先级为 **6**（motor_task.h，configMAX_PRIORITIES=7，合法 0~6，已是最高的合法优先级）；main_task(5) **低于** motor_task(6)，当前配置下主任务无法抢占饿死电机任务（FreeRTOS 数值越大优先级越高）。Start_task 现含 IMU 上电自检（见已修复表 2026-08-10）。
 
 **关键时序**: motor_task 每 5ms: 读编码器 → 模式切换 → 巡线/转弯/陀螺仪 → PID → 调PWM。
 
@@ -268,6 +268,9 @@ Cross()
 | IMU 上电自检 + 串口恢复 + ISR 兜底（应对偶发上电角度恒为0，根因=HAL 对 ORE 采取"中止DMA+交用户恢复"策略，与自定义 ISR"先重挂DMA再调 HAL_UART_IRQHandler"叠加成死锁）：imu.c 新增 `IMU_IsDataActive`/`IMU_WaitData`/`IMU_Reinit`（停DMA→清错误标志→重挂→开中断前再清一次ORE）；`USART3_IRQHandler` 开头清 ORE（HAL abort 分支由 errorflags≠0 门控，先清则错误中断不再杀死重挂的 DMA）；Start_task 在 user_init() 后自检，1s 全0则重启串口等2s重试，仍无数据仅警告不阻塞 | 2026-08-10 |
 | 寻中线(TRACK_NEAR_CENTER/calc_near_center)：中心两灯(第7、8灯)任一亮即进入中心判定，且**只取最中心两灯**（与 calc_left/right_edge 一致最多取2灯，不再向左右扩出整个连续亮灯段），其余线一律忽略；误差按这两灯实际亮灯位置**成比例计算**（不强制0，避免5/6/7偏心线不修正）。中心灯全灭保持"离中心最近段"兜底。曾尝试强制 error=0+TRUTH_VALID（偏心线不修正）及扩出整段（被旁线拖偏）均撤回 | 2026-08-11 |
 | 回退寻中线核心改动（仅 scaner.c + chassis_api.h 改回提交版）：calc_near_center 恢复"中心两灯同时亮才判中心 + 误差强制0 + 离中心最近段兜底"，line_weight_default 权重还原，TRACK_NEAR_CENTER 注释还原；调试配套（main_task 循迹测试 / map 调试路线 / chassis_api.c PID 调参 / barrier.c 坡道时序）保留未提交 | 2026-08-11 |
+| 寻中线(calc_near_center)：保留"连续亮灯段"约束（不跨空隙取灯），段内只取最靠中心 2 灯算位置/误差——线最粗 2 格，亮区超过 2 格视为多线/路口，取其中中心处 2 灯追最中线（取消整段平均，粗线不拖偏；原 `MAX_LED>4` 段长否决失效）；中心两灯(7,8)同亮仍走 center 快路径 | 2026-08-12 |
+| 任务周期耗时测量（调试用，测完可删）：motor_task.c/main_task.c 各加 `timing_dwt_init()`（DWT 周期计数器 @216MHz，TRCENA+CYCCNTENA）+ 循环内测量块。motor_task 每100ms 打印 `MOTOR cpu=xxus period=xxms`；main_task 每500ms 打印 `MAIN loop=xxus max=xxus`。用于排查任务饿死。注意 main_task 的 loop 值含阻塞等待（阻塞时 CPU 让出，期间 DWT 计数的是其它任务/ISR 的周期，非主任务自身 CPU 时间） | 2026-08-12 |
+| FPU 浮点修复（消除软件 double，全走单精度硬件 FPU；Cortex-M7 仅单精度 FPU）：imu.c `USART3_IRQHandler` `180.0/32768.0`→`180.0f/32768.0f`（中断每帧 3 次软件 double 乘除）；turn/barrier/scaner 11 处 `fabs()`→`fabsf()`（参数全 float）；turn.c:263 活的 `printf("%.2f...")` 注释（拖进 printfa/_fp_digits 浮点格式化库）；pid.c speed_pid_kp/kd/ki `10.0/100.0`→`10.0f/100.0f`；Rec_usart `atof()`→`strtof()`（atof 拖 `__strtod_int`/`_scanf_real`）；sin_generate `sin()`→`sinf()`（未使用、链接器已 GC，保险性修改）。验证：修复前最终 image 含 `__aeabi_dmul/ddiv/dadd/dsub/f2d/d2f/i2d`，修复后应全部消失 | 2026-08-12 |
 
 ---
 
