@@ -70,7 +70,7 @@ u8 door12route[100] = {N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B
 /*平台5到平台7*/
 u8 rout_57[50] = {N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9, 0XFF};
 /*平台5到平台8*/
-u8 rout_58[50] = {N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,B6,N20,P8,N20,0XFF};
+u8 rout_58[50] = {N13,P5,N13,N12,N11,N10,N9,C3,N14,C7,C8,C4,N20,P8,N20, 0XFF};
 /*平台6到平台8*/
 u8 rout_68[50] = {N9,B9,N7,P6,N7,B8,N9,C3,N14,C7,C8,C4,N20,P8,N20, 0XFF};
 /*平台6到平台7*/
@@ -139,6 +139,7 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 	if (last == B8 && now == N9 && next == N10) return 25.0f;
 	if (last == N5 && now == N8 && next == N12) return 5.0f;
     if (last == N5 && now == N12 && next == N11) return 20.0f;
+    if (last == B2 && now == N1 && next == P1) return 20.0f;
 	return 15.0f;
 }
 

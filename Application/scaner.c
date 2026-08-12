@@ -271,6 +271,14 @@ static float calc_right_edge(volatile SCANER *scaner, int8_t edge_ignore, uint8_
 /*--- 流水巡线：取离中心最近的一段连续亮灯，段内只用最靠中心的 2 个灯 ---*/
 static float calc_near_center(volatile SCANER *scaner, int8_t edge_ignore, uint8_t sensorNum, float *error, uint8_t *lednum)
 {
+	/* 亮灯 ≥ 4（疑为旁线/路口干扰）→ 保守认为线在中心，直行避免被旁线拖偏 */
+	if (scaner->ledNum >= 4)
+	{
+		*error = 0.0f;
+		*lednum = 2;
+		return ((float)(sensorNum - 1)) / 2;	// 场地中心位置
+	}
+
 	/* 最中心两个灯同时亮 → 线在中心，不受线宽影响 */
 	uint8_t center_idx = sensorNum / 2 - 1;		// 16灯→第7灯
 	if ((scaner->detail & (3 << center_idx)) == (3 << center_idx))
@@ -560,7 +568,7 @@ static uint8_t coarse_filter(u8 LED_Num, u8 Line_Num)
 {
 	
 	// 多灯 多线 无灯 灯数/线数 >=4						            LED_Num / Line_Num >= 4表示 平均每条线占太多灯
-	if (LED_Num >= 8 || Line_Num >= 3 || LED_Num == 0/*|| LED_Num / Line_Num >= 5*/ )
+	if (LED_Num >= 6 || Line_Num >= 3 || LED_Num == 0/*|| LED_Num / Line_Num >= 5*/ )
 	{
 		return 1;
 	}

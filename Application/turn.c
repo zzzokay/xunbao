@@ -96,7 +96,7 @@ static uint8_t Turn_Angle_Base(float Angle, float right_ratio, float force_thres
 	// 死区补偿：输出太小但误差仍存在时，固定输出 ±2（非累加，避免零附近抖振）
 	if (fabsf(GTspeed) < 5.0f && fabsf(gyroT_pid.measure) > 1.0f)
 	{
-		GTspeed = (GTspeed >= 0 ? 1.0f : -1.0f) * 3.0f;
+		GTspeed = (GTspeed >= 0 ? 1.0f : -1.0f) * 7.0f;
 	}
 
 	// 速度限幅（左右各自限幅，避免 right_ratio 导致单侧超限）
@@ -119,7 +119,7 @@ static uint8_t Turn_Angle_Base(float Angle, float right_ratio, float force_thres
 uint8_t Stage_turn_Angle(float Angle)
 {
 	// force_threshold = 150：Turn_Angle_Base 内部基于最新角度决策，避免 TOCTOU
-	return Turn_Angle_Base(Angle, 1.5f, 150.0f);
+	return Turn_Angle_Base(Angle, 1.0f, 150.0f);
 }
 
 
@@ -166,8 +166,8 @@ static float turn360_accumulated = 0;   // 已转过的累计角度
 static float turn360_prev_yaw = 0;      // 上一次的 yaw 值
 
 #define TURN360_FULL_SPEED   25.0f   // 全速阶段速度
-#define TURN360_MIN_SPEED     8.0f   // 起步/终点最低速度（克服摩擦）
-#define TURN360_ACCEL_END    30.0f   // 加速阶段结束角度
+#define TURN360_MIN_SPEED     6.0f   // 起步/终点最低速度（克服摩擦）
+#define TURN360_ACCEL_END    40.0f   // 加速阶段结束角度
 #define TURN360_DECEL_START 300.0f   // 开始减速的角度
 #define TURN360_STOP_ANGLE  358.0f   // 到位判定角度
 

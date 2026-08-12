@@ -27,7 +27,7 @@
 #define MAIN_DEBUG 0
 
 
-uint8_t test_flag = 1; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
+uint8_t test_flag = 8; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
 float temp_speed=25;
 #if MAIN_DEBUG
 /*地图初始化*/
@@ -101,17 +101,17 @@ void main_task(void *pvParameters)
 		{
 
 			//ScanerMode_Switch(RF);
-			//Chassis_SetTrackMode(TRACK_NEAR_CENTER);
+			Chassis_SetTrackMode(TRACK_NEAR_CENTER);
 			//Chassis_OverrideLinePid(30, 0, 200, 30);
-			//Chassis_DriveDistance_Blocking(is_Line,100,20,0,0);
+			Chassis_DriveDistance_Blocking(is_Line,200,15,0,0);
 			//Chassis_DriveDistance_Blocking(is_Line, 300, 15, 0, 0);
 			//Chassis_DriveDistance_Blocking(is_Line, 100, 45, 0, 0);
 			//Chassis_DriveDistance_Blocking(is_Line, 100, 70, 0, 0);
 			//Chassis_DriveDistance_Blocking(is_Line, 100, 45, 0, 0);
 			//Chassis_DriveDistance_Blocking(is_Line, 100, 15, 0, 0);  
-			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ(),20.0f);
-			Chassis_MotorControl(is_Line, 10, 10, 0);
-			vTaskDelay(2000);
+			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ(),20.0f);
+			//Chassis_MotorControl(is_Line, 20, 20, 0);
+			//vTaskDelay(2000);
 			CarBrake();
 			
 		}

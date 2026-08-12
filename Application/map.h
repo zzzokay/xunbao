@@ -4,7 +4,7 @@
 
 #include "map_message.h"
 
-#define MAP_DEBUG 1
+#define MAP_DEBUG 0
 #define FIRST_POINT N20
 #define SECOND_POINT P8
 

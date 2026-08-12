@@ -129,6 +129,8 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
 
 **2026-08-12** — 寻中线(TRACK_NEAR_CENTER/calc_near_center)：**恢复"连续亮灯段"约束**（不再允许跨空隙取两灯），在选中的段内**只取离中心最近的 2 个灯**算位置/误差（取消整段平均，粗线不再拖偏；原 `MAX_LED>4` 段长否决随之失效，段内取 2 灯恒 ≤2）；中心两灯(7,8)同时亮仍走 center 快路径（error=0）。
 
+**2026-08-12** — 寻中线(TRACK_NEAR_CENTER/calc_near_center)：**亮灯总数 ≥ 4 时保守认为线在中心**（error=0 直行），应对旁线/路口干扰、不被旁边线拖偏；原有中心两灯(7,8)快路径、连续亮灯段内取最靠中心 2 灯逻辑保持不变。
+
 **2026-08-12** — 任务周期耗时测量（调试用，测完可删）：motor_task.c / main_task.c 各加 `timing_dwt_init()`（DWT 周期计数器 @216MHz 初始化，TRCENA+CYCCNTENA）与循环内测量块——motor_task 每 100ms 打印 `MOTOR cpu=xxus period=xxms`（本循环 CPU 耗时 + 实测周期，应≈5）；main_task 每 500ms 打印 `MAIN loop=xxus max=xxus`（单周期耗时含阻塞 + 历史最大值）。用于排查主任务是否饿死底层。当前优先级：motor_task=6 > main_task=5（configMAX_PRIORITIES=7），主任务已无法抢占饿死电机任务。
 
 **2026-08-12** — FPU 浮点修复：消除用户代码里的软件 double 运算，全部走单精度硬件 FPU（Cortex-M7 仅单精度 FPU）：
@@ -139,3 +141,8 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
 - Rec_usart.c `get_PIDdata()`：`atof()` → `strtof(value, NULL)`（atof 返回 double，拖进 `__strtod_int`/`_scanf_real` 556 字节；strtof 直接返回 float）
 - sin_generate.c `sin()` → `sinf()`（该函数当前无调用、链接器已 GC，属保险性修改）
 - 验证：修复前 map 文件最终 image 含 `__aeabi_dmul/ddiv/dadd/dsub/f2d/d2f/i2d`；修复后应全部消失（重编译后复查 map）。
+**2026-08-12** — Barrier_HighMountain `HM_APPROACH` 提前切陀螺仪：坡底 `imu.pitch >= Begin_up`（basic_p+5，与 RampCtrl "刚上坡"定义一致）且里程≥15 即切 `HM_ASCEND_1`，不再等 `Stage_DetectedRamp` 的 10° 俯仰/循迹干扰条件。根因：`Stage_DetectedRamp` 俯仰阈值 `imu.pitch >= 10.0f` 约为 RampCtrl `Begin_up`(basic_p+5) 的两倍，车在 0°→10° 爬坡期间仍处于巡线模式，坡面无循迹线+干扰灯（幻影线）导致巡线跑偏；mile≥15 门限排除起步加速翘头误触发。切过去后 `RampCtrl_Blocking` 首个 RAMP_INIT 状态立即满足 `pitch >= Begin_up`，行为不变。仅作用于 HighMountain，其他平台沿用原 10° 阈值。
+
+**2026-08-12** — 修复 barrier.c 两处"参数未还原/未清零"遗留：
+- Barrier_Hill 楼梯 `Chassis_OverrideGyroPid(7,0,60,50)` 的唯一 `Chassis_RestoreGyroPid()` 在不可达的 `default:` 分支（HILL_DESCEND 直接置 HILL_DONE 退出循环，default 从不执行）→ 移到 while 循环结束后、与 `nodes.nowNode.function=0` 同处：楼梯完成后陀螺仪 PID 一定还原，不再污染后续陀螺仪模式行驶/转弯
+- Barrier_Bridge 长桥 `is_emergency` 计数上限 `<=10` 把计数卡死在 ~11（`==300` 死代码、`==10` 每个连续检测只触发一次）→ 改 `< 300`：连续偏出时第 10 次(≈50ms)与第 300 次(≈1.5s)各做一次 5° 硬修正

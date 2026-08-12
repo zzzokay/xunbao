@@ -22,7 +22,7 @@ void main_task(void *pvParameters);//声明任务函数
 extern TaskHandle_t xHandle_ArriveDetect;//定义检测节点任务
 //void ArriveDetect_task(void *pvParameters);//声明任务函数
 #define ArriveDetect_size  512   //任务堆栈大小
-#define ArriveDetect_task_priority 3   // FreeRTOS priority: 0..configMAX_PRIORITIES-1
+#define ArriveDetect_task_priority 5   // FreeRTOS priority: 0..configMAX_PRIORITIES-1
 
 void Start_task_create(void);
 void main_task_create(void);
