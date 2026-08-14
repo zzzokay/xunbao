@@ -63,16 +63,16 @@ typedef struct {
 } LinePidStep_t;
 
 static const LinePidStep_t line_pid_steps[] = {
-    { 75, 3.0f, 0, 220 },   /* SPEED5 */
-    { 70, 3.5f, 0, 220 },   /* SPEED4 */
-    { 60, 4.0f, 0, 170 },   /* SPEED3 */
-    { 55, 4.5f, 0, 150 },   /* SPEED25 */
-    { 45, 6.0f, 0, 120 },   /* SPEED2 */
-    { 36, 6.0f, 0, 120 },    /* SPEED1 */
-    { 25, 7.0f, 0, 90 },    /* SPEED0 */
-    { 20, 10.0f, 0, 70 },
-    { 15, 24.0f, 0, 140 },
-    { 12, 30.0f, 0, 180 },
+    { 75, 3.5f, 0, 200 },   /* SPEED5 */
+    { 70, 3.5f, 0, 200 },   /* SPEED4 */
+    { 60, 4.0f, 0, 120 },   /* SPEED3 */
+    { 55, 5.0f, 0, 150 },   /* SPEED25 */
+    { 45, 6.5f, 0, 110 },   /* SPEED2 */
+    { 36, 7.5f, 0, 100 },    /* SPEED1 */
+    { 25, 9.0f, 0, 80 },    /* SPEED0 */
+    { 20, 12.0f, 0, 70 },
+    { 15, 20.0f, 0, 140 },
+    { 12, 25.0f, 0, 140 },
 };
 #define LINE_PID_STEP_NUM  (sizeof(line_pid_steps)/sizeof(line_pid_steps[0]))
 
@@ -110,7 +110,7 @@ void Chassis_Init(void)
 	motor_all.GyroG_speedMax = 100;	// 自平衡左右偏差最大值10000
 	motor_all.GyroT_speedMax = 25;  	// 自转最大速度34//--->5760 //35
 	motor_all.Line_speedMax = 50;		// 巡线差速最大值
-	motor_all.Cincrement = 0.5;	   	// 循迹加速度 0.5
+	motor_all.Cincrement = 0.6;	   	// 循迹加速度 0.5
 	motor_all.CDOWNincrement = 0.6;	//循迹减速0.5
     motor_all.Gincrement = 0.6;	   	// 陀螺仪加速度0.5
     motor_all.GDOWNincrement=0.6;	// 陀螺仪减速度0.5
@@ -120,7 +120,7 @@ void Chassis_Init(void)
     TG_speed = 0;
     PIDMode = is_No;
     LEFT_RIGHT_LINE = 0;
-    MOTOR_PWM_MAX = 5000;
+    MOTOR_PWM_MAX = 8500;
     
 	ScanerMode_Switch(RF);
     //Chassis_EnableStallProtection(); // 激活堵转保护标志

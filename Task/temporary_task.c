@@ -30,7 +30,7 @@ void Start_task(void *pvParameters)
 	{
 		if (IMU_WaitData(1000))	// 1s 内出现非0角度 = 数据正常
 			break;
-		send_play_specified_command(33);
+		send_play_specified_command(34);
 		printf("[IMU] 第%d次上电自检失败：1s内角度全为0，重启串口...\r\n", imu_try + 1);
 		IMU_Reinit();			// 停DMA→清错误标志→重新挂接收
 		vTaskDelay(2000);

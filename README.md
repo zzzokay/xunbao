@@ -168,3 +168,7 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
 - 取值以 map 半长×2 为准：N5N8/N3N8 全长统一为 168（barrier 原 144 共 11 处改 168）；map 中不匹配值强制为 `宏/2`：N8→N3 `72→84`、N8→N5 `180→84`；`get_newroute()` 预置 N5N12 `156→168`（如需保留 156 需拆独立宏）
 
 **2026-08-13** — 修复 `Stage_correct()` 位运算优先级 bug（"平台段车不停下来"根因）：C 中 `==`/`!=` 优先级高于 `&`，故 `detail & 0xFFFF == 0xFFFF` 实为 `detail & (0xFFFF==0xFFFF)` = `detail & 1`，`detail & 0xFFFF != 0xFFFF` 实为 `detail & (0xFFFF!=0xFFFF)` = `detail & 0`（**恒假**）→ state 1 永不退出、`CarBrake()` 永不执行，车一直直线开。三处条件（state0/1 全16位判定 + case2 中心 0x0180/0x0100/0x0080 判定）全部补括号修复。另给 case2 加"停车 500ms 后无线形"重试兜底（新增 `state2_retry`，重扫 5 次仍无线则退出 state3），避免探头停偏后 `Stage_correct` 卡死循环
+
+**2026-08-14** — 修复"下了平台还没到下一节点突然停下来转弯"（barrier.c ×3 + map.c）：
+  - 根因：`Stage()`/`Stage_Home()`/`South_Pole()` 结束前把 `nodes.nowNode.function` 清 0，恰好跑在同一次 `Navigation()` 调用的 `Nav_TurnAndAdvance()` 之前，使"无需转弯跳过"条件（`function == UpStage/UpStageHome`）永远判假；而下坡段灰度修正（GrayCorrectAngle=0.1）允许实际朝向漂移 ±15°，超过跳过阈值 10°，且平台 return 边角度=上平台边+180° 恒>90°，于是强制走"补偿距离+刹车+原地转弯"分支
+  - 修复：三处平台函数**不再清 `nodes.nowNode.function`**（保留 UpStage/UpStageHome/BSoutPole），`Nav_TurnAndAdvance` 跳过条件补上 `BSoutPole`（南极与平台同为"180°转身+下坡回坡底"结构）；节点推进后 nowNode 变 return 边（function=NONE），`motor_task.c`/`turn.c` 的模式判定不受影响。BHM（高山）刻意不动（翻越型，坡顶需正常转弯）

@@ -68,11 +68,11 @@ uint8_t door_pass[5] = {0, 0, 0, 0, 0};
 #if DEBUG
 uint8_t debug_door_pass[5] = {ONE_WAY_PASS, NO_PASS, CAN_PASS, NO_PASS, NO_PASS}; // 0:D2、1:D3、2:D4、3:D5、4:D1
 volatile uint8_t flag_line_clue    = 0;
-volatile uint8_t flag_clue_stage_A = 5;
-volatile uint8_t flag_clue_stage_B = 8;
+volatile uint8_t flag_clue_stage_A = 6;
+volatile uint8_t flag_clue_stage_B = 7;
 // OCR 线索：P5/P6读clue_A，P7/P8读clue_B，treasure=clue_A+clue_B → 宝物平台编号
-uint8_t flag_clue_A       = 0;
-uint8_t flag_clue_B       = 6;
+uint8_t flag_clue_A       = 3;
+uint8_t flag_clue_B       = 0;
 #else
 volatile uint8_t flag_line_clue    = 0;
 volatile uint8_t flag_clue_stage_A = 0;
@@ -163,15 +163,12 @@ static uint8_t Stage_DetectedRamp(float distance)
 	while(1){
 	Cross_getline(&Cross_Scaner);
 	if(fabsf(Chassis_GetMileage()) >= distance||
-		imu.pitch >= 8.0f ||
-		Cross_Scaner.ledNum >= 4 ||
-		Cross_Scaner.lineNum >= 2 ||
-		Cross_Scaner.ledNum == 0 ||
-		Scaner.ledNum >= 4 ||
-		Scaner.lineNum >= 2 ||
-		Scaner.ledNum == 0 	
+		imu.pitch >= 9.0f ||
+		Cross_Scaner.ledNum >= 6 ||
+		Cross_Scaner.lineNum >= 3 ||
+		Cross_Scaner.ledNum == 0 
 	 ){return 1;}
-	vTaskDelay(2);
+	vTaskDelay(1);
 	}
 	
 }
@@ -179,7 +176,8 @@ static uint8_t Stage_DetectedRamp(float distance)
 static void Stage_correct(){
 	uint8_t state =0;
 	uint8_t state2_retry = 0;  // case2 无线形重试计数，防卡死
-	Chassis_DriveDistance_Blocking(is_Gyro, 4, -GoStage_Speed, getAngleZ(), 0);
+	uint16_t break_time = 0;	// case2 无线形重试计数，防卡死
+	Chassis_DriveDistance_Blocking(is_Gyro, 5, -GoStage_Speed, getAngleZ(), 0);
 	Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, getAngleZ());
 	while(state!=3)
 	{
@@ -187,7 +185,8 @@ static void Stage_correct(){
 		switch (state)
 		{
 		case 0:
-			if((Cross_Scaner.detail & 0xFFFF) == 0xFFFF)
+			if(++break_time>2000)state = 3;	// 超时退出
+			if((Cross_Scaner.ledNum>=15))
 			{
 				state = 1;
 			}
@@ -245,7 +244,7 @@ static void Stage_correct(){
 			break;
 		}
 		
-		vTaskDelay(2);
+		vTaskDelay(1);
 	}
 }
 void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
@@ -374,10 +373,10 @@ static void Stage_Action(float oringinal_angle)
 		//撞击
 		if (stage_state == 0 || again_required)
 		{
-			if(again_required){Chassis_DriveDistance_Blocking(is_Gyro,35,GoStage_Speed,getAngleZ(),0);
+			if(again_required){Chassis_DriveDistance_Blocking(is_Gyro,40,GoStage_Speed,getAngleZ(),0);
 				//Chassis_DriveDistance_Blocking(is_Free, 8,2000, 0, 0);
 				}
-			else {Chassis_DriveDistance_Blocking(is_Gyro,35,GoStage_Speed,oringinal_angle,0);
+			else {Chassis_DriveDistance_Blocking(is_Gyro,40,GoStage_Speed,oringinal_angle,0);
 				//Chassis_DriveDistance_Blocking(is_Free, 8,2000, 0, 0);
 				}
 			CarBrake();
@@ -451,7 +450,7 @@ void Stage(void)
 	float oringinal_angle = 0;
 	Chassis_EnableAntiSnake();
 	Chassis_MotorControl(is_Line, 15, 15, 0);//25
-	Chassis_OverrideLinePid(30, 0, 150, 30);
+	Chassis_OverrideLinePid(24, 0, 140, 30);
 	Chassis_ClearMileage();
 
 	while (state != STAGE_DONE)
@@ -459,12 +458,12 @@ void Stage(void)
 		switch (state)
 		{
 		case STAGE_ASCEND:
-			if (Stage_DetectedRamp(48))
+			if (Stage_DetectedRamp(50))
 			{
 				Chassis_RestoreLinePid();
 				oringinal_angle = getAngleZ();
 				RampCtrl_Blocking(RAMP_ASCEND, 15, oringinal_angle,
-					Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.08, 20.0f, 40);
+					Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.08, 20.0f, 0.0f);
 
 				Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, oringinal_angle);
 				state = STAGE_TOP;
@@ -499,7 +498,8 @@ void Stage(void)
 		vTaskDelay(2);
 	}
 
-	nodes.nowNode.function = 0;
+	/* 保留 nodes.nowNode.function=UpStage：map.c Nav_TurnAndAdvance 靠它跳过
+	   "下平台后的补偿距离+原地转弯"（平台内部已180°转身+下坡回到坡底，朝向已对准 return 边） */
 	cross_event |= CROSS_EVENT_ARRIVED;
 }
 
@@ -566,7 +566,8 @@ void Stage_Home(void)
 	}
 
 	
-	nodes.nowNode.function = 0;	// 清除障碍标志
+	/* 保留 nodes.nowNode.function=UpStageHome：map.c Nav_TurnAndAdvance 靠它跳过
+	   "返程上平台后的补偿距离+原地转弯" */
 	cross_event |= CROSS_EVENT_ARRIVED;	// 到达路口
 }
 
@@ -589,7 +590,7 @@ void Barrier_Bridge(void)
 	float origin_angle = 0.0f;
 	Chassis_EnableAntiSnake();
 	Chassis_MotorControl(is_Line, 15, 15, 0);
-	Chassis_OverrideLinePid(30, 0, 150, 30);
+	Chassis_OverrideLinePid(24, 0, 140, 30);
 	Chassis_ClearMileage();
 	uint16_t is_emergency = 0;
 	while (state != BRIDGE_DONE)
@@ -616,7 +617,7 @@ void Barrier_Bridge(void)
 	
 			while (fabsf(Chassis_GetMileage()) < 18)
 			{		
-				Chassis_CorrectByInfrared(0.10f, 1.0f, 0.0f);
+				Chassis_CorrectByInfrared(0.07f, 1.0f, 0.0f);
 				vTaskDelay(5);
 			}
 			//上桥结束检测
@@ -637,7 +638,7 @@ void Barrier_Bridge(void)
 			if (Cross_Scaner.detail & 0x7800)
 			{
 				if(is_emergency < 300)is_emergency++;
-				if(is_emergency == 10 || is_emergency == 300)
+				if(is_emergency == 10 || is_emergency == 400)
 				{
 					centered_samples = 0;
 					send_play_specified_command(33);
@@ -651,14 +652,14 @@ void Barrier_Bridge(void)
 			else if (Cross_Scaner.detail & 0x007E)
 			{
 				if(is_emergency < 300)is_emergency++;
-				if(is_emergency == 10 || is_emergency == 300)
+				if(is_emergency == 10 || is_emergency == 400)
 				{
 					centered_samples = 0;
 					send_play_specified_command(33);
 					if(is_emergency == 10)
 						angle.AngleG = getAngleZ() + BRIDGE_EMERGENCY_ANGLE;
 					else
-						angle.AngleG = getAngleZ() + (BRIDGE_EMERGENCY_ANGLE-2);
+						angle.AngleG = getAngleZ() + (BRIDGE_EMERGENCY_ANGLE-3);
 					Chassis_SetTargetSpeed(UpDownStage_Speed_low);
 				}
 			}
@@ -679,7 +680,7 @@ void Barrier_Bridge(void)
 				{
 					centered_samples = 0;
 					if(TG_speed<=20.0f){
-						Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);
+						Chassis_CorrectByInfrared(0.06f, 1.5f, 1.5f);
 					}
 					else{Chassis_CorrectByInfrared(0.02f, 1.3f, 1.0f);}
 					
@@ -696,6 +697,7 @@ void Barrier_Bridge(void)
 			else if (mileage_br >= 72)
 			{
 				Chassis_SetTargetSpeed(UpDownStage_Speed_low);
+				Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);
 			}
 			break;
 		
@@ -710,7 +712,7 @@ void Barrier_Bridge(void)
 			get_Infrared();
 			while (fabsf(Chassis_GetMileage()) < 18)
 			{	
-				Chassis_CorrectByInfrared(0.04f, 0.0f, 1.0f);
+				Chassis_CorrectByInfrared(0.04f, 1.0f, 1.0f);
 				vTaskDelay(5);
 			}
 
@@ -745,7 +747,7 @@ void Barrier_Hill(void)
 	float origin_angle = 0.0f;
 	Chassis_EnableAntiSnake();
 	Chassis_MotorControl(is_Line, 15, 15, 0);
-	Chassis_OverrideLinePid(30, 0, 150, 30);
+	Chassis_OverrideLinePid(24, 0, 140, 30);
 	//vTaskDelay(10);//刚进入is_line,scanner可能还没数据，先等motortask
 	Chassis_OverrideGyroPid(7,0,60,50);//上坡陀螺参数，增加kp和kd提高陀螺响应，防止上坡时姿态失稳
 	Chassis_ClearMileage();
@@ -822,7 +824,7 @@ void Sword_Mountain(void)
 	uint16_t approach_timeout = 0;
 	Chassis_EnableAntiSnake();
 	Chassis_MotorControl(is_Line, 15, 15, 0);
-	Chassis_OverrideLinePid(30, 0, 150, 30);
+	Chassis_OverrideLinePid(24, 0, 140, 30);
 	Chassis_OverrideGyroPid(4, 0, 70, 5);
 	//buzzer_on();
 
@@ -921,7 +923,7 @@ void Barrier_HighMountain(void)
 	Chassis_OverrideGyroPid(4, 0, 70, 10);
 	Chassis_EnableAntiSnake();
 	Chassis_MotorControl(is_Line, 15, 15, 0);
-	Chassis_OverrideLinePid(30, 0, 150, 30);
+	Chassis_OverrideLinePid(24, 0, 140, 30);
 	Chassis_SetTrackMode(TRACK_NEAR_CENTER);
 	Chassis_ClearMileage();
 	while (state != HM_DONE)
@@ -977,6 +979,7 @@ void Barrier_HighMountain(void)
 			}
 			if (map.routetime == 0 && flag_clue_stage_B == 8)
 				update_route_at_P8_for_treasure();
+			Stage_correct();
 
 			Robot_Work(BODY, DOWN); 	//人坐下
 			origin_angle = getAngleZ();
@@ -985,10 +988,9 @@ void Barrier_HighMountain(void)
 			break;
 
 		case HM_DESCEND_1:
-			Chassis_DriveDistance_Blocking(is_Gyro, 10, UpDownStage_Speed_low, origin_angle, 0);
-			Chassis_DriveDistance_Blocking(is_Free, 18, 700, 0, 0);
+			//Chassis_DriveDistance_Blocking(is_Free, 10, 500, 0, 0);
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
-				Begin_down, UpDownStage_Speed_low, down_pitch, 20, down_pitch-30, 0.07f, 10.0f, 36);
+				Begin_down, UpDownStage_Speed_low, down_pitch, 20, down_pitch-30, 0.07f, 10.0f, 0.0f);
 			Chassis_DriveDistance_Blocking(is_Line, 48, 20, 0, 0);
 			RampCtrl_Blocking(RAMP_DESCEND, 20, origin_angle,
 				Begin_down, 20, down_pitch, 20, After_down, 0.07f, 10.0f, 0.0f);
@@ -996,7 +998,7 @@ void Barrier_HighMountain(void)
 			break;
 
 		case HM_DESCEND_FLAT:
-			Chassis_MotorControl(is_Gyro, UpDownStage_Speed_low, UpDownStage_Speed_low, origin_angle);
+			Chassis_MotorControl(is_Gyro, UpDownStage_Speed_low-2, UpDownStage_Speed_low-2, origin_angle);
 			if (imu.pitch <= Begin_down)
 			{
 				state = HM_DESCEND_2;
@@ -1005,7 +1007,7 @@ void Barrier_HighMountain(void)
 
 		case HM_DESCEND_2:
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
-				Begin_down, UpDownStage_Speed_low, down_pitch, 20, down_pitch-30, 0.07f, 10.0f, 36);
+				Begin_down, UpDownStage_Speed_low, down_pitch, 20, down_pitch-30, 0.07f, 10.0f, 0.0f);
 			Chassis_DriveDistance_Blocking(is_Line, 48, 20, 0, 0);
 			RampCtrl_Blocking(RAMP_DESCEND, 20, origin_angle,
 				Begin_down, 20, down_pitch, 20, After_down, 0.07f, 10.0f, 0.0f);
@@ -1034,7 +1036,7 @@ void Barrier_WavedPlate(float lenght)
 	} state = WP_APPROACH;
 	Chassis_EnableAntiSnake();
 	Chassis_MotorControl(is_Line, 15, 15, 0);
-	Chassis_OverrideLinePid(30, 0, 150, 30);
+	Chassis_OverrideLinePid(24, 0, 140, 30);
 	Chassis_ClearMileage();
 
 	while (state != WP_DONE)
@@ -1137,7 +1139,8 @@ void South_Pole(void)
 	}
 
 	Chassis_RestoreGyroPid();
-	nodes.nowNode.function = 0;
+	/* 保留 nodes.nowNode.function=BSoutPole：map.c Nav_TurnAndAdvance 靠它跳过
+	   "下南极后的补偿距离+原地转弯"（南极内部已180°转身+下坡回到坡底，朝向已对准 return 边） */
 	cross_event |= CROSS_EVENT_ARRIVED;
 }
 
@@ -1466,7 +1469,7 @@ void QQB_1(void)
 
 			if(is_emergency==0)Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);
 
-			if(imu.pitch>55){
+			if(imu.pitch>60+basic_p){
 				Chassis_DriveDistance_Blocking(is_Gyro, 12, -SPEED0, getAngleZ(), 0);
 				CarBrake();
 				vTaskDelay(500);
@@ -1523,7 +1526,7 @@ void QQB_1(void)
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
 	Chassis_OverrideLinePid(17,0.02f,50,30);
 	Chassis_ClearMileage();
-	uint8_t dis = getAngleZ()>0?(uint8_t)(72):(uint8_t)(42);
+	uint8_t dis = getAngleZ()>0?(uint8_t)(60):(uint8_t)(42);
 	while(Chassis_GetMileage() < dis)vTaskDelay(2);
 
 	float angle = getAngleZ();
@@ -2288,18 +2291,13 @@ void zhunbei(void)
 	send_play_specified_command(7);
 	/*机器人动作*/
 	Robot_Work(LARM, UP);		// 左手举起
-	vTaskDelay(100);
 	Robot_Work(RARM, UP);		//右手举起
 	vTaskDelay(500);
 	Robot_Work(LARM, DOWN);		//左手放下
-	vTaskDelay(100);
 	Robot_Work(RARM, DOWN);		//右手放下
-	vTaskDelay(100);
+	vTaskDelay(500);
 	Robot_Work(BODY, DOWN);		//人躺下
-	vTaskDelay(100);
-	Robot_Work(CAMERA,HEAD_MID);
-	vTaskDelay(100);
-	Robot_Work(CAMERA,UP);
+
 	
 
 	RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, getAngleZ(),

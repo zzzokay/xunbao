@@ -24,21 +24,13 @@
 #include "Rudder_control.h"
 
 /*===== 独立调试开关 =====*/
-#define MAIN_DEBUG 1
+#define MAIN_DEBUG 0
 
 
-uint8_t test_flag = 1; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
+uint8_t test_flag = 3; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
 float temp_speed=25;
 #if MAIN_DEBUG
-/*地图初始化*/
-void mapInit13()
-{   
-	map = (struct Map_State){0,0};
-    nodes = (Nodes){0};	
-	cross_event = 0;       //起始点
-    nodes.nowNode = Node[getNextConnectNode(N13, P5)];  //起始目标点
-	nodes.nextNode.nodenum = 0xff;
-}
+
 #endif
 
 /*===== 周期耗时测量(调试用): DWT 周期计数器 @216MHz =====*/
@@ -55,11 +47,11 @@ void main_task(void *pvParameters)
 {
 	portTickType xLastWakeTime;
 	xLastWakeTime = xTaskGetTickCount();
-	timing_dwt_init();   // 周期耗时测量: 开启 DWT 周期计数器
+	//timing_dwt_init();   // 周期耗时测量: 开启 DWT 周期计数器
 
 #if MAIN_DEBUG
 	/*调试模式：跳过传感器初始化，只做基本的地图加载*/
-	mapInit13();
+
 	IMU_CalibrateZero(&basic_y, &basic_p, &basic_r);
 	vTaskDelay(100);
 	mpuZreset(get_latest_yaw(), nodes.nowNode.angle); // 用稳定后的实际角度计算补偿
@@ -88,7 +80,7 @@ void main_task(void *pvParameters)
 	door_pass[2] = NO_PASS;  /* D4 */
 	door_pass[3] = NO_PASS;  /* D5 */
 	door_pass[4] = NO_PASS;  /* D1 */
-	treasure = 5; /* 预设宝物平台编号 = 5 */
+	treasure = 3; /* 预设宝物平台编号 = 5 */
 	map.routetime = 1;
 	#elif !MAP_DEBUG
 	zhunbei(); // 启动流程（红外等待）
@@ -114,7 +106,7 @@ void main_task(void *pvParameters)
 			//ScanerMode_Switch(RF);
 			Chassis_SetTrackMode(TRACK_NEAR_CENTER);
 			//Chassis_OverrideLinePid(30, 0, 200, 30);
-			Chassis_DriveDistance_Blocking(is_No,200,15,0,0);
+			Chassis_DriveDistance_Blocking(is_No,100,10,0,0);
 			//Chassis_DriveDistance_Blocking(is_Line, 360, 15, 0, 0);
 			//Chassis_DriveDistance_Blocking(is_Line, 120, 45, 0, 0);
 			//Chassis_DriveDistance_Blocking(is_Line, 120, 70, 0, 0);
@@ -149,8 +141,8 @@ void main_task(void *pvParameters)
 			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-160, getAngleZ(), 20.0f);
 			//Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
 			//QQB_1();
-			//Barrier_HighMountain();
-			Stage();
+			Barrier_HighMountain();
+			//Stage();
 			CarBrake();
 			test_flag = 0;
 		}
@@ -276,10 +268,7 @@ void main_task(void *pvParameters)
 					vTaskDelay(2000);
 	
 		}
-		if(test_flag == 13)
-		{
-			Navigation();
-		}
+
 		/*调试模式下不执行 Navigation()，避免无传感器跑飞*/
 #else
 		/*========== 正常运行模式 ==========*/
@@ -311,6 +300,6 @@ void main_task(void *pvParameters)
 		// 	}
 		// }
 
-		vTaskDelayUntil(&xLastWakeTime, (5/portTICK_RATE_MS));
+		vTaskDelayUntil(&xLastWakeTime, (3/portTICK_RATE_MS));
 	}
 }

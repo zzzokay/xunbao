@@ -37,7 +37,8 @@ volatile uint8_t cross_event = 0;	//运行时阶段/事件标志，全局变量�
 //u8 route[100] = { B5,N19,C6, B7, N22, B6,N20,P8,0XFF};
 //u8 route[100] = {C9,0XFF};
 //u8 route[100] = {N20, 0XFF};
-u8 route[100] = {B5, 0XFF};
+//u8 route[100] = {B5, 0XFF};
+u8 route[100] = {N11, 0XFF};
 #else 
 u8 route[100] = {B1, N1,P1, N1, B2, N4, N5,0XFF};  //初始路径
 #endif
@@ -154,6 +155,7 @@ static float GetForwardDistanceBeforeGyroTurn(u8 last, u8 now, u8 next)
 	if (last == P3 && now == N3 && next == N8) return 6;
     if (last == C4 && now == N20 && next == B6) return 24;
 	if (last == N3 && now == N4 && next == B3) return 12;
+    if (last == N5 && now == N12 && next == N11) return 5;
     if (last == N8 && now == N12 && next == N13) return 0;
     if (last == N4 && now == N5 && next == N12) return 6;
 	if (last == N8 && now == N3 && next == P3) return 24;
@@ -269,7 +271,7 @@ static void Nav_PrepareArrival(void)
     {
         Chassis_SetTargetSpeed(SPEED1);
     }
-    if(nodes.nowNode.function !=NONE && nodes.nowNode.speed > SPEED0)
+    if(nodes.nowNode.function !=NONE && nodes.nowNode.speed >= SPEED0)
     {
         Chassis_SetTargetSpeed(SPEED0);
     }
@@ -296,11 +298,17 @@ static void Nav_TurnAndAdvance(void)
     if (route[map.point - 1] != 0xFF)
     {
         /* 无需转弯，直接直行通过 */
-        if ((fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) < 10.0f) 
+        /* 平台类障碍(UpStage/UpStageHome/BSoutPole)内部已完成180°转身并下坡回到坡底，
+           实际朝向已对准 return 边(nextNode.angle)，此处不应再走补偿距离+原地转弯
+           —— 否则会在"下了平台还没到下一节点"时突然停车转弯。
+           ⚠️ 依赖 barrier.c 中 Stage/Stage_Home/South_Pole 结束时保留 nodes.nowNode.function
+              （不再清 0），该判断才能命中。 */
+        if ((fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) < 10.0f)
             ||(fabsf(need2turn(nodes.nowNode.angle, nodes.nextNode.angle)) < 10.0f)
             || (nodes.nowNode.flag & NOTURN) == NOTURN
-            ||  nodes.nowNode.function == UpStage 
-            ||  nodes.nowNode.function == UpStageHome)
+            ||  nodes.nowNode.function == UpStage
+            ||  nodes.nowNode.function == UpStageHome
+            ||  nodes.nowNode.function == BSoutPole)
         {
              /* 无需转弯，直接直行通过 */
         }
@@ -318,7 +326,6 @@ static void Nav_TurnAndAdvance(void)
             //原地转弯
             if ((nodes.nowNode.flag & STOPTURN && fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 30.0f)
             || (fabsf(need2turn(nodes.nowNode.angle, nodes.nextNode.angle)) > 90.0f)
-            || nodes.nextNode.function == SM  && fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 30.0f
             )
                 
             {
@@ -386,7 +393,7 @@ void Navigation(void)
             nav_step = NAV_STEP_PREP_ARRIVE;
         }
 
-        if (fabsf(Chassis_GetMileage()) >= 0.7f * nodes.nowNode.step && nav_step == NAV_STEP_PREP_ARRIVE)
+        if (fabsf(Chassis_GetMileage()) >= 0.6f * nodes.nowNode.step && nav_step == NAV_STEP_PREP_ARRIVE)
         {
             Nav_PrepareArrival();
             near_end = 1;
