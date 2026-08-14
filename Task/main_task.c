@@ -24,15 +24,15 @@
 #include "Rudder_control.h"
 
 /*===== 独立调试开关 =====*/
-#define MAIN_DEBUG 0
+#define MAIN_DEBUG 1
 
 
-uint8_t test_flag = 8; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
+uint8_t test_flag = 1; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
 float temp_speed=25;
 #if MAIN_DEBUG
 /*地图初始化*/
 void mapInit13()
-{
+{   
 	map = (struct Map_State){0,0};
     nodes = (Nodes){0};	
 	cross_event = 0;       //起始点
@@ -45,6 +45,7 @@ void mapInit13()
 static void timing_dwt_init(void)
 {
 	CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk; // 使能 TRACE 才能访问 DWT
+	DWT->LAR = 0xC5ACCE55;                          // 解锁 DWT（Cortex-M7 软件写被锁，缺此行则 CYCCNT 恒为 0）
 	DWT->CYCCNT = 0;
 	DWT->CTRL  |= DWT_CTRL_CYCCNTENA_Msk;           // 使能周期计数器
 }
@@ -64,7 +65,7 @@ void main_task(void *pvParameters)
 	mpuZreset(get_latest_yaw(), nodes.nowNode.angle); // 用稳定后的实际角度计算补偿
 
 	/*等待挡板*/
-	if (test_flag != 10 && test_flag != 11 && test_flag != 12 && test_flag != 7)
+	if (test_flag != 10 && test_flag != 11 && test_flag != 12 && test_flag != 8 )
 	{
 		while (Infrared_ahead == 0)
 			vTaskDelay(5);
@@ -79,7 +80,17 @@ void main_task(void *pvParameters)
 	IMU_CalibrateZero(&basic_y, &basic_p, &basic_r);
 	vTaskDelay(100);
 	mpuZreset(get_latest_yaw(), nodes.nowNode.angle); // 用稳定后的实际角度计算补偿
-	#if !MAP_DEBUG
+	#if SKIP_ROUND1
+	/* 跳过第一轮直接进第二轮：预设门状态（决定 get_newroute() 选哪条二轮路线）+
+	   置 routetime=1，让首个主循环周期走"二轮处理"分支（get_newroute()+zhunbei()） */
+	door_pass[0] = CAN_PASS; /* D2 */
+	door_pass[1] = NO_PASS;  /* D3 */
+	door_pass[2] = NO_PASS;  /* D4 */
+	door_pass[3] = NO_PASS;  /* D5 */
+	door_pass[4] = NO_PASS;  /* D1 */
+	treasure = 5; /* 预设宝物平台编号 = 5 */
+	map.routetime = 1;
+	#elif !MAP_DEBUG
 	zhunbei(); // 启动流程（红外等待）
 	#else
 		while (Infrared_ahead == 0)
@@ -103,16 +114,17 @@ void main_task(void *pvParameters)
 			//ScanerMode_Switch(RF);
 			Chassis_SetTrackMode(TRACK_NEAR_CENTER);
 			//Chassis_OverrideLinePid(30, 0, 200, 30);
-			Chassis_DriveDistance_Blocking(is_Line,200,15,0,0);
-			//Chassis_DriveDistance_Blocking(is_Line, 300, 15, 0, 0);
-			//Chassis_DriveDistance_Blocking(is_Line, 100, 45, 0, 0);
-			//Chassis_DriveDistance_Blocking(is_Line, 100, 70, 0, 0);
-			//Chassis_DriveDistance_Blocking(is_Line, 100, 45, 0, 0);
-			//Chassis_DriveDistance_Blocking(is_Line, 100, 15, 0, 0);  
-			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ(),20.0f);
+			Chassis_DriveDistance_Blocking(is_No,200,15,0,0);
+			//Chassis_DriveDistance_Blocking(is_Line, 360, 15, 0, 0);
+			//Chassis_DriveDistance_Blocking(is_Line, 120, 45, 0, 0);
+			//Chassis_DriveDistance_Blocking(is_Line, 120, 70, 0, 0);
+			//Chassis_DriveDistance_Blocking(is_Line, 120, 45, 0, 0);
+			//Chassis_DriveDistance_Blocking(is_Line, 120, 15, 0, 0);  
+			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ(),20.0f);
 			//Chassis_MotorControl(is_Line, 20, 20, 0);
-			//vTaskDelay(2000);
-			CarBrake();
+			//CarBrake();
+			vTaskDelay(2000);
+			test_flag=0;
 			
 		}
 		if (test_flag == 2)
@@ -123,7 +135,7 @@ void main_task(void *pvParameters)
 			//vTaskDelay(3000);
 			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ());
 			//Chassis_RestoreTurnPid();
-			Chassis_DriveDistance_Blocking(is_Gyro, 65, -SPEED2, getAngleZ(), 0);
+			Chassis_DriveDistance_Blocking(is_Gyro, 60, -SPEED2, getAngleZ(), 0);
 			Chassis_Brake();
             //Chassis_Turn_By_Gyro_Blocking(getAngleZ()+90, getAngleZ());
 			//CarBrake();
@@ -132,12 +144,13 @@ void main_task(void *pvParameters)
 		}
 		if (test_flag == 3)
 		{
-			Barrier_Hill();
+			//Barrier_Hill();
 			//Sword_Mountain();
 			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-160, getAngleZ(), 20.0f);
 			//Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
 			//QQB_1();
 			//Barrier_HighMountain();
+			Stage();
 			CarBrake();
 			test_flag = 0;
 		}
@@ -273,9 +286,11 @@ void main_task(void *pvParameters)
 
 		/*二轮处理*/
 		if(map.routetime == 1)
-		{
-			map.routetime ++;
-			get_newroute();
+		{			
+			get_newroute();   /* 内部会 mapInit() 把 routetime 清回 0 */
+			map.routetime = 2;/* 必须在 get_newroute 之后置：二轮全程 routetime=2，
+			                     不触发一轮的 P7/P8 treasure 改路（保留完整巡游），
+			                     且二轮跑完 routetime→3 即停，不再重启二轮 */
 			zhunbei();
 		}
 

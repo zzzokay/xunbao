@@ -146,3 +146,25 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
 **2026-08-12** — 修复 barrier.c 两处"参数未还原/未清零"遗留：
 - Barrier_Hill 楼梯 `Chassis_OverrideGyroPid(7,0,60,50)` 的唯一 `Chassis_RestoreGyroPid()` 在不可达的 `default:` 分支（HILL_DESCEND 直接置 HILL_DONE 退出循环，default 从不执行）→ 移到 while 循环结束后、与 `nodes.nowNode.function=0` 同处：楼梯完成后陀螺仪 PID 一定还原，不再污染后续陀螺仪模式行驶/转弯
 - Barrier_Bridge 长桥 `is_emergency` 计数上限 `<=10` 把计数卡死在 ~11（`==300` 死代码、`==10` 每个连续检测只触发一次）→ 改 `< 300`：连续偏出时第 10 次(≈50ms)与第 300 次(≈1.5s)各做一次 5° 硬修正
+
+**2026-08-13** — 第二轮路线改为「走所有平台后回家」：`get_newroute()`（barrier.c）不再按 treasure 只去目标平台，改为一次巡游所有平台——公共段 P1→P3→P4 后进东区 P5→P7→P8→P6，再按门状态回家 P2。原 18 条路线（9 门分支×2 宝藏）→ 9 条（每分支 1 条），删除 `switch(treasure)`；新增 `build_round2_route()` 拼接 公共段+东区巡游段+分支进出段。9 条已按 map_message.c 连接表逐边校验，覆盖 P1~P8，51~55 节点。
+
+**2026-08-13** — 新增 `SKIP_ROUND1` 调试开关（map.h，默认 0）：跳过第一轮直接进第二轮。main_task.c 正常模式初始化处 `#if SKIP_ROUND1`：预设 `door_pass[5]`（默认 D2=CAN_PASS 双向，索引 0:D2/1:D3/2:D4/3:D5/4:D1，改门状态只需改这里）、`treasure`（预设宝物平台编号=5，二轮依赖一轮采集的宝物，treasure 非 0 才能跳过 P1 残留 QR 扫描 → `update_route_at_P1()` 改路）、并置 `map.routetime=1`，首个主循环周期走真实"二轮处理"分支；同时 `#elif` 跳过初始化处 zhunbei 避免双启动。**二轮分支修正**（关键）：`mapInit() → get_newroute() → map.routetime=2 → zhunbei()`，`routetime=2` 必须在 `get_newroute()` 之后置（get_newroute 内部 mapInit 把 routetime 清回 0）——二轮全程 `routetime==2` 使 barrier.c 的 P7/P8 treasure 改路（`update_route_at_P7/8_for_treasure`，`map.routetime==0` 门槛）不再触发，完整巡游不走样；且二轮跑完 `Nav_TurnAndAdvance` 使 routetime→3 即停，不再无限重启二轮。`SKIP_ROUND1=0` 时该块 `#if 0` 跳过，正常一轮→二轮路径与原代码逐字节一致，无影响。二轮门控路径安全：`get_newroute()` 内 `door_set_pass_node()` 把 8 条通行边（N5↔N12/N5↔N8/N3↔N8/N3↔N10）置 `function=NONE`，二轮过门不再重触发 `door()`，预设 door_pass 保持。
+
+**2026-08-13** — 二轮东区巡游顺序按宝藏位优化（barrier.c `get_newroute()`）：新增 `tour_p6_first[]` 与 `use_tour = (treasure==6) ? tour_p6_first : tour`——宝藏=P6 时进东区后**先深入去 P6**，再 `P8→P7→P5` 绕回（终点仍 N10，9 个门分支 tail 不变）。`tour_p6_first` 逐边校验：`N12→N16→N18→B5→N19→C6→B7→N22→C9→N22→B6→N20→C4→C8→C7→N14→C3→N9→B9→N7→P6→N7→B8→N9→C3→N14→C7→C8→C4→N20→P8→N20→B6→N22→C9→P7→C9→N22→B7→C6→N19→N13→P5→N13→N12→N11→N10`，回程经 `N19→N13`（N18 连接表无 N13，不能走 N18→N13）。非 P6 宝藏仍用原 tour。
+
+**2026-08-13** — 修复 DWT 周期耗时测量 `cpu=0us`：Cortex-M7（STM32F750）的 DWT 寄存器对**软件写**默认锁定，`timing_dwt_init()` 里 `DWT->CYCCNT=0` / `DWT->CTRL|=CYCCNTENA` 在缺解锁时被静默忽略，计数器恒为 0（调试器 DAP 始终可写，所以接仿真器时正常、脱机上电就恒 0）。motor_task.c / main_task.c 两处 `timing_dwt_init()` 在 TRCENA 之后统一补 `DWT->LAR = 0xC5ACCE55` 解锁。验证：烧录后 `MOTOR cpu=` 应输出非零 µs 值。
+
+**2026-08-13** — 长度标定 `LEN_SCALE = 1.2f`：此前所有长度值（里程/地图 step/距离阈值）都是未标定的"代码单位"。用户实测 100 代码单位 ≈ 120cm，故 1 代码单位 = 1.2cm。**全部 250 处距离阈值已按 cm=round(代码单位×1.2) 直接折算为整数厘米内联**（精确到 1cm），不再保留 ×LEN_SCALE 表达式：
+- [chassis_api.h](Application/chassis_api.h) 定义 `#define LEN_SCALE 1.2f`（附标定说明注释），宏现在**仅**用于里程公式比例补偿
+- motor_task.c:182 里程公式 `Distance += (encoder_avg*10.4*PI/5720)/0.362 * LEN_SCALE`（运行时连续累加，只能在此乘 LEN_SCALE）
+- 折算内联分布：map_message.c Node[126] 表 step 121 处（如 `280→336`、`180→216`）；barrier.c 90 处（`Chassis_DriveDistance_Blocking` 距离、`Chassis_GetMileage`/`mileage_br` 比较、`Stage_DetectedRamp` 距离、`nodes.nowNode.step=`、`door_set_pass_node`/`door_retreat` 距离、`RampCtrl_Blocking` max_distance、QQB `dis`）；map.c 32 处（`Barrier_WavedPlate(50/100→60/120)`、两个 `GetForwardDistance*` return）；main_task.c 7 处（`Chassis_DriveDistance_Blocking` 距离）
+- 已脚本全工程校验零遗漏零误伤：非长度参数（`RampCtrl` 的 thresh/speed/angle 如 `15`/`20.0f`/`0.08`、`Stage_DetectedRamp` 俯仰阈值 10°、`return 0;`）不折
+- 重新标定：改 chassis_api.h 的 LEN_SCALE + 重算内联值（cm = round(代码单位 × 新倍率)），代码单位原值见 git 历史
+
+**2026-08-13** — 红绿灯门区段长度宏定义化（map_message.h 新增 `DOOR_LEN_*` / `DOOR_RETREAT_*`，一处修改全局同步；barrier.c 经 map.h→map_message.h 可见，map_message.c 无需额外 include）：
+- 6 条门区段全长宏 `DOOR_LEN_N5N12/N5N8/N8N10/N3N10/N3N8/N8N12`（值：168/168/168/168/168/132）：barrier.c `door_set_pass_node` 全部 23 处改用全长宏；map_message.c 中 DOOR 条目改用 `宏/2`（半长=停车读灯位置），匹配的非 DOOR 条目用全长宏
+- `door_retreat` 5 处回退距离改独立宏 `DOOR_RETREAT_N5N8(60)/N5N4(60)/N10N8(84)/N8N5(36)`（回退距离与路段全长无关）
+- 取值以 map 半长×2 为准：N5N8/N3N8 全长统一为 168（barrier 原 144 共 11 处改 168）；map 中不匹配值强制为 `宏/2`：N8→N3 `72→84`、N8→N5 `180→84`；`get_newroute()` 预置 N5N12 `156→168`（如需保留 156 需拆独立宏）
+
+**2026-08-13** — 修复 `Stage_correct()` 位运算优先级 bug（"平台段车不停下来"根因）：C 中 `==`/`!=` 优先级高于 `&`，故 `detail & 0xFFFF == 0xFFFF` 实为 `detail & (0xFFFF==0xFFFF)` = `detail & 1`，`detail & 0xFFFF != 0xFFFF` 实为 `detail & (0xFFFF!=0xFFFF)` = `detail & 0`（**恒假**）→ state 1 永不退出、`CarBrake()` 永不执行，车一直直线开。三处条件（state0/1 全16位判定 + case2 中心 0x0180/0x0100/0x0080 判定）全部补括号修复。另给 case2 加"停车 500ms 后无线形"重试兜底（新增 `state2_retry`，重扫 5 次仍无线则退出 state3），避免探头停偏后 `Stage_correct` 卡死循环

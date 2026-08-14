@@ -36,7 +36,8 @@ volatile uint8_t cross_event = 0;	//运行时阶段/事件标志，全局变量�
 //u8 route[100] = {N4, B2,N1,P1, N1, B1, N2,P2,0XFF};
 //u8 route[100] = { B5,N19,C6, B7, N22, B6,N20,P8,0XFF};
 //u8 route[100] = {C9,0XFF};
-u8 route[100] = {N20, 0XFF};
+//u8 route[100] = {N20, 0XFF};
+u8 route[100] = {B5, 0XFF};
 #else 
 u8 route[100] = {B1, N1,P1, N1, B2, N4, N5,0XFF};  //初始路径
 #endif
@@ -124,40 +125,41 @@ u8 getNextConnectNode(u8 nownode,u8 nextnode)
 /* 获取对应节点的原地转弯前的前进距离判断 */
 static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 {
-	if (last == S1 && now == N3 && next == P3) return 15.0f;
-	if (last == B3 && now == N2 && next == P2) return 20.0f;
-	if (last == B9 && now == N7 && next == P6) return 15.0f;
-	if (last == P6 && now == N7 && next == B8) return 15.0f;
-	if (last == C4 && now == N20 && next == P8) return 20.0f;
-    if (last == N3 && now == N4 && next == B2) return 20.0f;
-    if (last == P8 && now == N20 && next == C4) return 25.0f;
-	if (last == N8 && now == N5 && next == N4) return 30.0f;
-	if (last == N8 && now == N3 && next == P3) return 15.0f;
-	if (last == N8 && now == N3 && next == N4) return 20.0f;
-	if (last == B8 && now == N9 && next == C3) return 0.0f;
-	if (last == N10 && now == N9 && next == B9) return 40.0f;
-	if (last == B8 && now == N9 && next == N10) return 25.0f;
-	if (last == N5 && now == N8 && next == N12) return 5.0f;
-    if (last == N5 && now == N12 && next == N11) return 20.0f;
-    if (last == B2 && now == N1 && next == P1) return 20.0f;
-	return 15.0f;
+	if (last == S1 && now == N3 && next == P3) return 18;
+	if (last == B3 && now == N2 && next == P2) return 24;
+	if (last == B9 && now == N7 && next == P6) return 18;
+	if (last == P6 && now == N7 && next == B8) return 18;
+	if (last == C4 && now == N20 && next == P8) return 24;
+    if (last == N3 && now == N4 && next == B2) return 24;
+    if (last == P8 && now == N20 && next == C4) return 30;
+	if (last == N8 && now == N5 && next == N4) return 36;
+   // if (last == N13 && now == N18 && next == B5) return 60;
+	if (last == N8 && now == N3 && next == P3) return 18;
+	if (last == N8 && now == N3 && next == N4) return 24;
+	if (last == B8 && now == N9 && next == C3) return 0;
+	if (last == N10 && now == N9 && next == B9) return 48;
+	if (last == B8 && now == N9 && next == N10) return 30;
+	if (last == N5 && now == N8 && next == N12) return 6;
+    if (last == N5 && now == N12 && next == N11) return 24;
+    if (last == B2 && now == N1 && next == P1) return 24;
+	return 19;
 }
 
 /* 获取对应节点的陀螺仪不停车转弯前的前进距离判断 */
 static float GetForwardDistanceBeforeGyroTurn(u8 last, u8 now, u8 next)
 {
-	if (last == B2 && now == N4 && next == N5)return 7.0f; 
-	if (last == B3 && now == N2 && next == P2) return 15.0f;
-    if (last == B2 && now == N1 && next == P1) return 15.0f;
-	if (last == P3 && now == N3 && next == N8) return 5.0f;
-    if (last == C4 && now == N20 && next == B6) return 20.0f;
-	if (last == N3 && now == N4 && next == B3) return 10.0f;
-    if (last == N8 && now == N12 && next == N13) return 0.0f;
-    if (last == N4 && now == N5 && next == N12) return 5.0f;
-	if (last == N8 && now == N3 && next == P3) return 20.0f;
-	if (last == N8 && now == N3 && next == S1) return 0.0f;
-	if (last == P1 && now == N1 && next == B2)return 0.0f; 
-	return 0.0f; // 默认不前进，走原逻辑未修改
+	if (last == B2 && now == N4 && next == N5)return 8; 
+	if (last == B3 && now == N2 && next == P2) return 18;
+    if (last == B2 && now == N1 && next == P1) return 18;
+	if (last == P3 && now == N3 && next == N8) return 6;
+    if (last == C4 && now == N20 && next == B6) return 24;
+	if (last == N3 && now == N4 && next == B3) return 12;
+    if (last == N8 && now == N12 && next == N13) return 0;
+    if (last == N4 && now == N5 && next == N12) return 6;
+	if (last == N8 && now == N3 && next == P3) return 24;
+	if (last == N8 && now == N3 && next == S1) return 0;
+	if (last == P1 && now == N1 && next == B2)return 0; 
+	return 0; // 默认不前进，走原逻辑未修改
 }
 
 /* 获取对应节点的特定直线路径加速判断 */
@@ -266,6 +268,10 @@ static void Nav_PrepareArrival(void)
     if(nodes.nowNode.nodenum == N14 && nodes.nextNode.nodenum == C3)
     {
         Chassis_SetTargetSpeed(SPEED1);
+    }
+    if(nodes.nowNode.function !=NONE && nodes.nowNode.speed > SPEED0)
+    {
+        Chassis_SetTargetSpeed(SPEED0);
     }
 
 }
@@ -415,8 +421,8 @@ void map_function(u8 fun)
 		case SM         : Sword_Mountain();						break;			//假山
 		case BSoutPole	: South_Pole();	          				break;			//南极
 		case QQB	    : QQB_1();	          					break;			//跷跷板
-		case BLBS       : Barrier_WavedPlate(50);	    		break;			//短波动板 速度：调试 80//85
-		case BLBL	    : Barrier_WavedPlate(100);	  			break;			//长波动板 速度：调试	//180
+		case BLBS       : Barrier_WavedPlate(60);	    		break;			//短波动板 速度：调试 80//85
+		case BLBL	    : Barrier_WavedPlate(120);	  			break;			//长波动板 速度：调试	//180
 		case DOOR	    : door();		                 	  	break;			//门
 		case BHM        : Barrier_HighMountain();				break;    		//高山
 		case UpStageHome	: Stage_Home();	                		break;

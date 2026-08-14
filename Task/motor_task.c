@@ -64,6 +64,7 @@ extern uint8_t test_flag;
 static void timing_dwt_init(void)
 {
 	CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk; // 使能 TRACE 才能访问 DWT
+	DWT->LAR = 0xC5ACCE55;                          // 解锁 DWT（Cortex-M7 软件写被锁，缺此行则 CYCCNT 恒为 0）
 	DWT->CYCCNT = 0;
 	DWT->CTRL  |= DWT_CTRL_CYCCNTENA_Msk;           // 使能周期计数器
 }
@@ -80,13 +81,13 @@ void motor_task(void *pvParameters)
 
 	// 初始化底盘API
 	Chassis_Init();
-	//timing_dwt_init();   // 周期耗时测量: 开启 DWT 周期计数器
+//	timing_dwt_init();   // 周期耗时测量: 开启 DWT 周期计数器
 
 	while (1)
 	{
 		uint32_t cyc_t0 = DWT->CYCCNT;   // 本周期起点
 		//pid参数接口
-		get_PIDdata();
+		//get_PIDdata();
 
 		/*2. 获取电机速度，内核实数值及路程累计*/
 		handle_motor_speed();
@@ -124,9 +125,10 @@ void motor_task(void *pvParameters)
 		// 			(unsigned long)period_ms);
 		// 	}
 		// }
-		{
+		// {
 			static uint16_t print_cnt = 0;
-			if(++print_cnt >= 20) // 每100ms打印一次（20*5ms=100ms）{
+			if(++print_cnt >= 20) // 每100ms打印一次（20*5ms=100ms）
+			{
 				print_cnt = 0;
 		// 调试信息（被注释掉的部分）
 		 //printf("%.2f,%.2f,%.2f\r\n", imu.yaw, imu.pitch, imu.roll);
@@ -164,6 +166,9 @@ void motor_task(void *pvParameters)
  * 3. 累计行驶路程
  * 路程累计公式：
  * Distance = (编码器平均值 * 轮子直径 * π) / (编码器每圈脉冲数 * 减速比)
+ * 注：结果 ×LEN_SCALE 换算为真实厘米（100代码单位≈120cm 实测标定，见 chassis_api.h）。
+ *     里程为运行时连续累加只能在此乘 LEN_SCALE；各处距离阈值已按
+ *     cm=round(代码单位×LEN_SCALE) 内联为整数厘米，不再写 ×LEN_SCALE。
  * 参数中：
  * - 轮子直径：10.4cm
  * - 编码器每圈脉冲数：5720
@@ -177,7 +182,7 @@ static void handle_motor_speed(void)
 	motor_all.encoder_avg = (motor_L0.measure + motor_L1.measure + motor_R0.measure + motor_R1.measure) / 4;
 
 	// 计算并累计行驶路程
-	motor_all.Distance += ((motor_all.encoder_avg * 10.4f * PI)/5720.0f)/0.362f;
+	motor_all.Distance += ((((motor_all.encoder_avg * 10.4f * PI)/5720.0f)/0.362f) * LEN_SCALE);
 }
 
 static void handle_now_mode(uint8_t mode)

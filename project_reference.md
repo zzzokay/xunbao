@@ -173,7 +173,23 @@ motor_set_pwm(4) → R1 (右后) TIM4 PD12/PD13
 TIM1 → L0 (正) | TIM2 → L1 (正) | TIM3 → R0 (取反) | TIM5 → R1 (取反)
 ```
 编码器每圈 5720 脉冲，减速比 0.362，轮径 104mm。
-里程: `Distance += (avg_encoder * 10.4 * PI / 5720) / 0.362`
+里程: `Distance += (avg_encoder * 10.4 * PI / 5720) / 0.362 * LEN_SCALE`
+
+### 7.4 长度标定 LEN_SCALE（2026-08-13 起）
+
+**背景**：此前所有长度值（里程、地图 step、距离阈值）都是未标定的"代码单位"。
+**标定**：实测车走 100 代码单位 ≈ 120cm → `#define LEN_SCALE 1.2f`（[chassis_api.h](Application/chassis_api.h)）。
+**用法**：各处距离阈值已按 **cm = round(代码单位 × LEN_SCALE)** 直接折算为**整数厘米内联**在代码中（精确到 1cm），不再写 `×LEN_SCALE` 表达式。**LEN_SCALE 宏仅用于 motor_task 里程公式的比例补偿**（里程是运行时连续累加，无法内联）。
+**覆盖范围**（共 250 处，已验证零遗漏零误伤）：
+- 里程公式 `motor_task.c:182`：`Distance += ((encoder_avg*10.4*PI/5720)/0.362) * LEN_SCALE`（比例补偿）
+- `map_message.c` Node[126] 表全部 step 字段（121 处，如 `280→336`、`180→216`）
+- `barrier.c`（90 处）：`Chassis_DriveDistance_Blocking` 距离、`Chassis_GetMileage`/`mileage_br` 比较、`Stage_DetectedRamp` 距离、`nodes.nowNode.step=`、`door_set_pass_node`/`door_retreat` 距离、`RampCtrl_Blocking` max_distance、QQB `dis`
+- `map.c`（32 处）：`Barrier_WavedPlate`、两个 GetForwardDistance* 的 return 距离
+- `main_task.c`（7 处）：`Chassis_DriveDistance_Blocking` 距离
+
+> 注：`RampCtrl_Blocking` 只有最后一个参数 max_distance 是长度（thresh/speed/angle/max_correction 非长度，如 `15`/`20.0f`/`0.08` 保留）；`Stage_DetectedRamp` 的距离参数折算（其俯仰阈值 10° 非长度不折）；`return 0;` 等非长度返回值不折。
+> **重新标定**：改 chassis_api.h 的 LEN_SCALE + 重算各处内联值（cm = round(代码单位 × 新倍率)）；原代码单位值在 git 历史中可查。
+> **门区段距离**：`door_set_pass_node`/`door_retreat` 的门区段长度已集中为 [map_message.h](Application/map_message.h) 的 `DOOR_LEN_*`（6 条全长，map DOOR 条目用 `宏/2`）/ `DOOR_RETREAT_*`（4 个回退距离）宏（2026-08-13），改长度只改宏即可。
 
 ### 7.3 巡线传感器
 
@@ -195,7 +211,7 @@ enum barriers {
 ```
 - UpStage→Stage() | UpStageHome→Stage_Home() | Bridge→Barrier_Bridge() | Hill→Barrier_Hill()
 - BSoutPole→South_Pole() | QQB→QQB_1()
-- BLBS→Barrier_WavedPlate(87) | BLBL→Barrier_WavedPlate(160)
+- BLBS→Barrier_WavedPlate(50*LEN_SCALE) | BLBL→Barrier_WavedPlate(100*LEN_SCALE)
 - BHM→Barrier_HighMountain() | DOOR→door()
 
 ---
@@ -274,6 +290,13 @@ Cross()
 | FPU 浮点修复（消除软件 double，全走单精度硬件 FPU；Cortex-M7 仅单精度 FPU）：imu.c `USART3_IRQHandler` `180.0/32768.0`→`180.0f/32768.0f`（中断每帧 3 次软件 double 乘除）；turn/barrier/scaner 11 处 `fabs()`→`fabsf()`（参数全 float）；turn.c:263 活的 `printf("%.2f...")` 注释（拖进 printfa/_fp_digits 浮点格式化库）；pid.c speed_pid_kp/kd/ki `10.0/100.0`→`10.0f/100.0f`；Rec_usart `atof()`→`strtof()`（atof 拖 `__strtod_int`/`_scanf_real`）；sin_generate `sin()`→`sinf()`（未使用、链接器已 GC，保险性修改）。验证：修复前最终 image 含 `__aeabi_dmul/ddiv/dadd/dsub/f2d/d2f/i2d`，修复后应全部消失 | 2026-08-12 |
 | 修复 barrier.c 参数未还原/清零遗留：Barrier_Hill 楼梯 `Chassis_OverrideGyroPid(7,0,60,50)` 的唯一 `Chassis_RestoreGyroPid()` 在不可达的 `default:` 分支（HILL_DESCEND 直接置 HILL_DONE 退出，还原从未执行）→ 移到 while 循环结束后，楼梯完成必还原陀螺仪 PID，不再污染后续陀螺仪模式行驶/转弯；Barrier_Bridge 长桥 `is_emergency` 计数上限 `<=10`（卡死 11，`==300` 死代码、`==10` 只触发一次）→ 改 `< 300`，连续偏出时第 10 次(≈50ms)与第 300 次(≈1.5s)各硬修一次 | 2026-08-12 |
 | Barrier_HighMountain `HM_APPROACH` 提前切陀螺仪：坡底 `imu.pitch >= Begin_up`（basic_p+5，与 RampCtrl "刚上坡"一致）且里程≥15 即切 `HM_ASCEND_1`，不再等 `Stage_DetectedRamp` 的 10° 俯仰/循迹干扰条件。**根因**：`Stage_DetectedRamp` 俯仰阈值 `imu.pitch >= 10.0f`（绝对值）≈ RampCtrl `Begin_up`(basic_p+5) 的两倍，车在 0°→10° 爬坡期间仍处于巡线模式，而坡面无循迹线+干扰灯（幻影线 1-3 灯）既不被 `ledNum>=4` 捕获也到不了 10°，巡线追幻影线跑偏；`mile>=15` 门限排除起步加速翘头(≤7°)误触发。切过去后 RampCtrl 首个 RAMP_INIT 立即满足 `pitch>=Begin_up`，行为不变。仅作用于 HighMountain；其余平台沿用原 10° 阈值（如需统一改共享 `Stage_DetectedRamp` 的阈值，注意同步回归 Stage/Stage_Home/Bridge/Hill/WavedPlate） | 2026-08-12 |
+| 第二轮路线改为「走所有平台后回家」：`get_newroute()`（barrier.c）不再按 treasure 只去 P5/P6，改为一次巡游所有平台——公共段 P1→P3→P4 后进东区 P5→P7→P8→P6，再按门状态回家(P2)。18 条 temp 路线（9 门分支×2 宝藏）→ 9 条（每分支 1 条），删除 `switch(treasure)`；新增 `build_round2_route()` 拼接 公共段+东区巡游段+分支进出段。东区巡游 `N12→N13(P5)→N18→B5→N19→C6→B7→N22→C9(P7)→N22→B6→N20(P8)→C4→C8→C7→N14→C3→N9→B9→N7(P6)→B8→N9→N10`；各分支仅差「进东区走廊」（D2=N5→N12、D3=N5→N8、D4=N3→N8）与「回家走廊」（D2=N12→N5、D5=N10→N3、D4=N8→N3、D3=N8→N5）。9 条已按 map_message.c 连接表逐边校验全连通，覆盖 P1~P8，长 51~55 节点（route[100] 足够） | 2026-08-13 |
+| 新增 `SKIP_ROUND1` 调试开关（map.h，默认 0）：跳过第一轮直接进第二轮。main_task.c 正常模式初始化处 `#if SKIP_ROUND1` 预设 `door_pass[5]`（默认 D2=CAN_PASS 双向，索引 0:D2/1:D3/2:D4/3:D5/4:D1，改门状态只需改这里）+ `treasure`（预设宝物平台=5）+ `map.routetime=1`，首个主循环周期即走真实"二轮处理"分支（`get_newroute()+zhunbei()`），同时 `#elif` 跳过初始化处 zhunbei 避免双启动。**实测发现的两个改路坑（均已修）**：① P1 残留一轮 QR 扫描：`Stage_Action` 在 `treasure==0` 时于 P1 触发 `update_route_at_P1()` 用截断的一轮路线覆盖二轮完整巡游 → 车提前"回家"；`treasure!=0`（预设=5）跳过该分支。② `map.routetime=2` 必须放在 `get_newroute()` 之后置（get_newroute 内部 mapInit 把 routetime 清回 0，放前面被清掉）——二轮全程 `routetime==2` 使 `update_route_at_P7/8_for_treasure`（`map.routetime==0` 门槛）不触发，新二轮完整巡游路线在 P7/P8 不被截断；且二轮跑完 `Nav_TurnAndAdvance` 使 routetime→3 即停，不再无限重启二轮。门控路径安全：`get_newroute()` 内 `door_set_pass_node()` 把 8 条通行边（N5↔N12/N5↔N8/N3↔N8/N3↔N10）置 `function=NONE`，二轮过门不重触发 `door()`，预设 door_pass 保持。`SKIP_ROUND1=0` 时 `#if 0` 跳过整块，正常一轮→二轮路径与原代码逐字节一致 | 2026-08-13 |
+| 二轮东区巡游按宝藏位优化（barrier.c `get_newroute()`）：新增 `tour_p6_first[]` + `use_tour = (treasure==6) ? tour_p6_first : tour`——宝藏=P6 时进东区后**先深入去 P6** 再 `P8→P7→P5` 绕回，终点仍 N10（9 门分支 tail 不变，非 P6 仍用原 tour）。`tour_p6_first` 逐边校验：`N12→N16→N18→B5→N19→C6→B7→N22→C9→N22→B6→N20→C4→C8→C7→N14→C3→N9→B9→N7→P6→N7→B8→N9→C3→N14→C7→C8→C4→N20→P8→N20→B6→N22→C9→P7→C9→N22→B7→C6→N19→N13→P5→N13→N12→N11→N10`；注意回程经 `N19→N13`（N18 连接表 {C5,B5,N16} 无 N13，`N18→N13` 不合法） | 2026-08-13 |
+| 修复 DWT 周期计数测量 `cpu=0us`：Cortex-M7（STM32F750）DWT 寄存器对**软件写**默认锁定，缺 `DWT->LAR = 0xC5ACCE55` 解锁时 `DWT->CYCCNT=0`/`DWT->CTRL|=CYCCNTENA` 被静默忽略，计数器恒为 0（调试器 DAP 始终可写，所以接仿真器正常、脱机上电就恒 0）。motor_task.c / main_task.c 两处 `timing_dwt_init()` 统一在 TRCENA 后补 `DWT->LAR` 解锁。验证：烧录后 `MOTOR cpu=` 应输出非零 µs 值 | 2026-08-13 |
+| 长度标定 `LEN_SCALE=1.2f`（chassis_api.h）：实测 100 代码单位≈120cm。里程公式 ×LEN_SCALE 比例补偿（motor_task.c:182，运行时累加无法内联）；其余全部 250 处距离阈值按 cm=round(代码单位×1.2) 直接折算为整数厘米**内联**（map_message Node 表 step 121 处、barrier.c 90 处、map.c 32 处、main_task.c 7 处），不再写 ×LEN_SCALE 表达式。零遗漏零误伤（脚本校验）；非长度参数（RampCtrl thresh/speed/angle、俯仰阈值、`return 0;`）不折。详见 §7.4 | 2026-08-13 |
+| 红绿灯门区段长度宏定义化（map_message.h `DOOR_LEN_*`/`DOOR_RETREAT_*`，barrier.c 经 map.h→map_message.h 可见）：barrier.c `door_set_pass_node` 23 处改用全长宏；map_message DOOR 条目用 `宏/2`（半长）、匹配的非 DOOR 条目用全长宏；`door_retreat` 5 处改独立回退宏。取值以 map 半长×2 为准：N5N8/N3N8 全长 144→168（barrier 统一 11 处）、map N8→N3 72→84、N8→N5 180→84、get_newroute N5N12 156→168 | 2026-08-13 |
+| 修复 `Stage_correct()` 位运算优先级 bug（"平台段车不停"根因）：`==`/`!=` 优先级高于 `&`，`detail & 0xFFFF == 0xFFFF` 实为 `detail & 1`、`detail & 0xFFFF != 0xFFFF` 实为 `detail & 0` 恒假 → state1 永不退出、`CarBrake()` 永不执行、车一直走。三处条件全部补括号；case2 加无线形重试兜底（`state2_retry` 重扫5次仍无线则退出）防卡死 | 2026-08-13 |
 
 ---
 
@@ -385,6 +408,7 @@ Turn_Angle / Stage_turn_Angle 合并: 90%相同，提取 `Turn_Angle_Base` 基�
 |----|----------|------|
 | `DEBUG` | [barrier.h](Application/barrier.h):45 | Door_ReadPass 用 `debug_door_pass[5]` 预设数组模拟 |
 | `MAIN_DEBUG` | [main_task.c](Task/main_task.c):29 | 跳过 Cross()，执行 `test_flag`/`debug_test_item` |
+| `SKIP_ROUND1` | [map.h](Application/map.h):8 | 跳过第一轮直接进第二轮（调试用）；main_task.c 初始化预设 `door_pass[5]`+`treasure`+`map.routetime=1`，首周期走真实二轮分支。**关键**：二轮分支 `get_newroute()` 后须再置 `routetime=2`（get_newroute 内部 mapInit 清 0），二轮全程 `routetime==2` 屏蔽 P7/P8 treasure 改路并保证跑完即停；`treasure!=0` 屏蔽 P1 残留 QR 改路 |
 
 测试项: 1=直线, 2=转180°, 3=过坡。`debug_test_item` 优先级高于 UART 设置的 `test_flag`。
 

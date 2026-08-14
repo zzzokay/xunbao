@@ -54,7 +54,7 @@
 
 volatile uint8_t LEFT_RIGHT_LINE = 0;
 float Fspeed;				//经过PID运算后的结果
-const float line_weight_default[16] = {-2.5, -2.3, -1.8, -1.3, -1.0, -0.8, -0.6, -0.2, 0.2, 0.6, 0.8, 1.0, 1.3, 1.8, 2.3, 2.5};
+const float line_weight_default[16] = {-2.5, -2.3, -1.8, -1.3, -1.0, -0.9, -0.8, -0.3, 0.3, 0.8, 0.9, 1.0, 1.3, 1.8, 2.3, 2.5};
 const float lineG_weight_default[8] = {-0.9, -0.6, -0.6, -0.3, 0.3, 0.6, 0.6, 0.9};
 //const float lineG_weight_default[8] = {0.9, 0.6, 0.4, 0.2, -0.2, -0.4, -0.6, -0.9};
 
