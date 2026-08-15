@@ -69,8 +69,8 @@ static const LinePidStep_t line_pid_steps[] = {
     { 55, 5.0f, 0, 150 },   /* SPEED25 */
     { 45, 6.5f, 0, 110 },   /* SPEED2 */
     { 36, 7.5f, 0, 100 },    /* SPEED1 */
-    { 25, 9.0f, 0, 80 },    /* SPEED0 */
-    { 20, 12.0f, 0, 70 },
+    { 25, 9.0f, 0, 100 },    /* SPEED0 */
+    { 20, 11.0f, 0, 100 },
     { 15, 20.0f, 0, 140 },
     { 12, 25.0f, 0, 140 },
 };
@@ -111,7 +111,7 @@ void Chassis_Init(void)
 	motor_all.GyroT_speedMax = 25;  	// 自转最大速度34//--->5760 //35
 	motor_all.Line_speedMax = 50;		// 巡线差速最大值
 	motor_all.Cincrement = 0.6;	   	// 循迹加速度 0.5
-	motor_all.CDOWNincrement = 0.6;	//循迹减速0.5
+	motor_all.CDOWNincrement = 0.7;	//循迹减速0.5
     motor_all.Gincrement = 0.6;	   	// 陀螺仪加速度0.5
     motor_all.GDOWNincrement=0.6;	// 陀螺仪减速度0.5
 
@@ -714,7 +714,7 @@ void Chassis_Periodic_Update_5ms(void)
             motor_all.Cspeed = chassis.target_speed / 3; // 直接减半速度，增强稳定
             else motor_all.Cspeed = 15; // 最低速度限制，避免过慢导致失控
             
-            if(TC_speed<=20)Chassis_OverrideLinePid(30, 0, 150, 30); // 直接覆盖当前速度限制，确保稳定性
+            if(TC_speed<=20)Chassis_OverrideLinePid(30, 0, 180, 30); // 直接覆盖当前速度限制，确保稳定性
         }
 
         /* ========= 丢线保护 ========= */
@@ -930,7 +930,7 @@ void Chassis_SelfCheck(void)
                 break;
             }
         }
-       printf("%d,%d,%d,%d\r\n", AD_Value_Gray[0], AD_Value_Gray[1], AD_Value_Gray[2], AD_Value_Gray[3]);
+      // printf("%d,%d,%d,%d\r\n", AD_Value_Gray[0], AD_Value_Gray[1], AD_Value_Gray[2], AD_Value_Gray[3]);
     }
 
     /* ---------- 3. 循迹板检查 ---------- */

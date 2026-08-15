@@ -351,7 +351,7 @@ void IMU_CalibrateZero(float *yaw_out, float *pitch_out, float *roll_out)
 	float sum_pitch = 0;
 	float sum_roll = 0;
 	struct Imu imu_copy;
-
+	vTaskDelay(1000);
 	for (uint8_t i = 0; i < 10; i++)
 	{
 		vTaskDelay(pdMS_TO_TICKS(20));

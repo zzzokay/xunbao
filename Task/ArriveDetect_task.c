@@ -20,7 +20,7 @@ void arrive_detect_task(void *pvParameters)
         Cross_getline(&Cross_Scaner);
         while (!deal_arrive(&Cross_Scaner, nodes.nowNode.flag))
         {
-            vTaskDelay(2);
+            vTaskDelay(1);
             Cross_getline(&Cross_Scaner);
 			if(((nodes.nowNode.flag&RESTMPUZ) == RESTMPUZ))		//陀螺仪校正
 				{
@@ -85,6 +85,20 @@ void send_play_specified_command(uint8_t index)
 	uint8_t sum = data[1] ^ data[2] ^ data[3] ^ data[4];
 	data[5] = sum;
 	for (uint8_t i = 0; i < 7; i++)
+	{
+		HAL_UART_Transmit(&huart8, &data[i], 1, 0xFFFF);
+	}
+}
+
+void send_set_volume_command(uint8_t volume)   // 0~30
+{
+	// 7E 04 31 XX(音量0~30) XX(校验和) EF
+	uint8_t data[6] = {0x7e, 0x04, 0x31, 0x00, 0x00, 0xef};
+	if (volume > 30) volume = 30;
+	data[3] = volume;
+	uint8_t sum = data[1] ^ data[2] ^ data[3];
+	data[4] = sum;
+	for (uint8_t i = 0; i < 6; i++)
 	{
 		HAL_UART_Transmit(&huart8, &data[i], 1, 0xFFFF);
 	}

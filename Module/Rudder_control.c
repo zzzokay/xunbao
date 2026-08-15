@@ -48,7 +48,7 @@ void Robot_Work(uint8_t id,uint8_t aim)//70-500
 			{moveServo(13, 2500, 200); 
 			vTaskDelay(2);}
 		else
-			{moveServo(13, 1005, 200); 
+			{moveServo(13, 500, 200); 
 			vTaskDelay(2);}
 	}
 	else if(id == LARM)   //左臂
@@ -57,7 +57,7 @@ void Robot_Work(uint8_t id,uint8_t aim)//70-500
 			{moveServo(14, 500, 200); 
 			vTaskDelay(2);}
 		else
-			{moveServo(14, 1885, 200); 
+			{moveServo(14, 2500, 200); 
 			vTaskDelay(2);}
 	}
 	else if(id == CAMERA)   
@@ -74,10 +74,10 @@ void Robot_Work(uint8_t id,uint8_t aim)//70-500
 			{moveServo(0, 1500, 200);
 			vTaskDelay(200);}
 		else if (aim == HEAD_LEFT)
-			{moveServo(0, 2200, 200);
+			{moveServo(0, 2250, 200);
 			vTaskDelay(200);}
 		else if (aim == HEAD_RIGHT)
-			{moveServo(0, 800, 200);
+			{moveServo(0, 770, 200);
 			vTaskDelay(200);}
 	}
 	else if(id == MIKU)//机器人头

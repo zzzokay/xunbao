@@ -73,7 +73,9 @@ void user_init(void)
 	Maxicam_Enable();
 	imu_receive_init();
 	motor_init();
-	
+
+	send_set_volume_command(30); // BY8001 音量调到最大(0~30)
+
 	vTaskDelay(2000);
 
 }

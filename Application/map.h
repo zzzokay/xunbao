@@ -5,7 +5,7 @@
 #include "map_message.h"
 
 #define MAP_DEBUG 0
-#define SKIP_ROUND1 0   /* 1=跳过第一轮直接进第二轮（调试用；门状态在 main_task.c 初始化处预设） */
+#define SKIP_ROUND1 0  /* 1=跳过第一轮直接进第二轮（调试用；门状态在 main_task.c 初始化处预设） */
 #define FIRST_POINT N9
 #define SECOND_POINT N10
 

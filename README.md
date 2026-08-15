@@ -172,3 +172,16 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
 **2026-08-14** — 修复"下了平台还没到下一节点突然停下来转弯"（barrier.c ×3 + map.c）：
   - 根因：`Stage()`/`Stage_Home()`/`South_Pole()` 结束前把 `nodes.nowNode.function` 清 0，恰好跑在同一次 `Navigation()` 调用的 `Nav_TurnAndAdvance()` 之前，使"无需转弯跳过"条件（`function == UpStage/UpStageHome`）永远判假；而下坡段灰度修正（GrayCorrectAngle=0.1）允许实际朝向漂移 ±15°，超过跳过阈值 10°，且平台 return 边角度=上平台边+180° 恒>90°，于是强制走"补偿距离+刹车+原地转弯"分支
   - 修复：三处平台函数**不再清 `nodes.nowNode.function`**（保留 UpStage/UpStageHome/BSoutPole），`Nav_TurnAndAdvance` 跳过条件补上 `BSoutPole`（南极与平台同为"180°转身+下坡回坡底"结构）；节点推进后 nowNode 变 return 边（function=NONE），`motor_task.c`/`turn.c` 的模式判定不受影响。BHM（高山）刻意不动（翻越型，坡顶需正常转弯）
+
+**2026-08-15** — 修复 door() 回家过 D4 被误判为 D5_BACK（回退 80cm 而非预期 15cm）：
+- 症状：回家过灯 N8→N3（应走 DOOR_D4_BACK 回退 15cm 停住并转向 N8N5），实际回退远超 15cm（=DOOR_RETREAT_N10N8 的 80cm）
+- 根因（barrier.c door() 1653-1657）：状态判定第 4 条 `(lastNode==N10 || nowNode==N3)` 在 N8→N3 时因 `nowNode==N3` 先命中 → 误入 DOOR_D5_BACK → `door_retreat(N10,N8,80)`；正确的 DOOR_D4_BACK（第 5 条）被遮蔽不可达
+- 修复：两个 BACK 状态改为按来向边精确匹配——`N8 && N3 → DOOR_D4_BACK`、`N10 && N3 → DOOR_D5_BACK`、`N8 && N5 → DOOR_D4_BACK`（兜底，保持原 N8→N5 行为不变）
+- ~~确认 `door_retreat` 的 `nodes.lastNode=nodes.nowNode` 必须保留：D2→D3 链式复判靠 lastNode=N12 区分门序，删掉会重判为 D2 死循环~~（同日推翻：`&&` 精确判定下改为删除该行，见下一条）
+
+**2026-08-15** — 修复 door() D2→D3 链在 `&&` 精确判定下断裂（现场"D3蓝灯读到了却直冲 N10"）：
+- 根因：`||`→`&&` 改精确匹配后，`door_retreat` 里旧 `||` 时代的补丁 `nodes.lastNode=nodes.nowNode`（作用：D2黑→D3 门调用时把 lastNode 改成 N12，跳过 `||` 下 `lastNode==N5→DOOR_D2` 的死循环误判）在 D2 黑退到 D3 门时得到 lastNode=N12、nowNode=N8，`&&` 任何一条都命中不了 → `state` 未初始化（栈残留值，UB）→ 行为随机 → 直冲 N10
+- 修复：删除补丁行，lastNode 保持真实来向（D2退完=N5），D2→D3 门自然命中 `N5&&N8→DOOR_D3`；被补丁掩盖的回程组合显式补出 `N10&&N8→DOOR_D4`（回程 D5黑→door_retreat(N10,N8) 后回 D4 门，行为与旧补丁等价）；door() 状态加兜底初值 `state=DOOR_D2` 防未初始化
+- 验证：AB=58 + D3蓝 → N8 正常 stop-turn 去 N12（原直冲 N10）
+
+**2026-08-15** — BY8001 语音模块音量控制：新增 `send_set_volume_command(uint8_t volume)`（ArriveDetect_task.c，0~30 级，帧 `7E 04 31 XX(音量) XX(校验和) EF`，校验和 = `0x04 ^ 0x31 ^ 音量`；声明加在 ArriveDetect_task.h）；`user_init()`（temporary_task.c）末尾开机调用 `send_set_volume_command(30)` 把音量调到最大（模块有掉电记忆，开机设一次即可）。

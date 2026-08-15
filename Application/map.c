@@ -130,7 +130,7 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 	if (last == B3 && now == N2 && next == P2) return 24;
 	if (last == B9 && now == N7 && next == P6) return 18;
 	if (last == P6 && now == N7 && next == B8) return 18;
-	if (last == C4 && now == N20 && next == P8) return 24;
+	if (last == C4 && now == N20 && next == P8) return 30;
     if (last == N3 && now == N4 && next == B2) return 24;
     if (last == P8 && now == N20 && next == C4) return 30;
 	if (last == N8 && now == N5 && next == N4) return 36;
@@ -143,7 +143,7 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 	if (last == N5 && now == N8 && next == N12) return 6;
     if (last == N5 && now == N12 && next == N11) return 24;
     if (last == B2 && now == N1 && next == P1) return 24;
-	return 19;
+	return 20;
 }
 
 /* 获取对应节点的陀螺仪不停车转弯前的前进距离判断 */
@@ -155,7 +155,7 @@ static float GetForwardDistanceBeforeGyroTurn(u8 last, u8 now, u8 next)
 	if (last == P3 && now == N3 && next == N8) return 6;
     if (last == C4 && now == N20 && next == B6) return 24;
 	if (last == N3 && now == N4 && next == B3) return 12;
-    if (last == N5 && now == N12 && next == N11) return 5;
+    if (last == N5 && now == N12 && next == N11) return 6;
     if (last == N8 && now == N12 && next == N13) return 0;
     if (last == N4 && now == N5 && next == N12) return 6;
 	if (last == N8 && now == N3 && next == P3) return 24;
@@ -362,13 +362,11 @@ static void Nav_TurnAndAdvance(void)
 
 static void Nav_PostProcess(void)
 {
-    if (cross_event & CROSS_EVENT_DOOR)
-    {
-        if (route[map.point] != 0xFF)
-            nodes.nextNode = Node[getNextConnectNode(nodes.nowNode.nodenum, route[map.point])];
-        map.point++;
-        cross_event &= ~CROSS_EVENT_DOOR;
-    }
+    cross_event &= ~CROSS_EVENT_DOOR;
+    if (route[map.point] != 0xFF)
+        nodes.nextNode = Node[getNextConnectNode(nodes.nowNode.nodenum, route[map.point])];
+    map.point++;
+       
 }
 /* ============================ Navigation()本体 =================================== */
 void Navigation(void)
@@ -412,7 +410,8 @@ void Navigation(void)
         Nav_TurnAndAdvance();
 
     /* ---- 后处理：门结果（红灯/绿灯）---- */
-    Nav_PostProcess();
+    if (cross_event & CROSS_EVENT_DOOR)
+        Nav_PostProcess();
 }
 
 /*功能选择*///执行阻塞函数
@@ -428,8 +427,8 @@ void map_function(u8 fun)
 		case SM         : Sword_Mountain();						break;			//假山
 		case BSoutPole	: South_Pole();	          				break;			//南极
 		case QQB	    : QQB_1();	          					break;			//跷跷板
-		case BLBS       : Barrier_WavedPlate(60);	    		break;			//短波动板 速度：调试 80//85
-		case BLBL	    : Barrier_WavedPlate(120);	  			break;			//长波动板 速度：调试	//180
+		case BLBS       : Barrier_WavedPlate(70);	    		break;			//短波动板 速度：调试 80//85
+		case BLBL	    : Barrier_WavedPlate(140);	  			break;			//长波动板 速度：调试	//180
 		case DOOR	    : door();		                 	  	break;			//门
 		case BHM        : Barrier_HighMountain();				break;    		//高山
 		case UpStageHome	: Stage_Home();	                		break;

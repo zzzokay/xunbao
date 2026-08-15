@@ -30,14 +30,15 @@
 #include "gray.h"
 #include "chassis_api.h"
 
-#define DEBUG 1
+#define DEBUG 0
 
 /*==============================================================================
- *  目录 / Table of Contents   按 Ctrl+F 搜索函数名Ctrl+D快速跳转
+ *  目录 / Table of Contents   按 Ctrl+F 搜索函数名、Ctrl+D快速跳转
  *
  *  工具函数          Stage_HasTreasure / Stage_CollectTreasure
  *                    GyroStableReset / Stage_DetectedRamp
  *                    RampCtrl_Blocking / Stage_Action
+ * 					  Stage_Correct/Arrived_Stage
  *  平台              Stage( / Stage_Home
  *  长桥              Barrier_Bridge
  *  楼梯              Barrier_Hill
@@ -66,12 +67,12 @@
 //int8_t door_pass[5] = {ONE_WAY_PASS, ONE_WAY_PASS, CAN_PASS, CAN_PASS, NO_PASS};
 uint8_t door_pass[5] = {0, 0, 0, 0, 0};
 #if DEBUG
-uint8_t debug_door_pass[5] = {ONE_WAY_PASS, NO_PASS, CAN_PASS, NO_PASS, NO_PASS}; // 0:D2、1:D3、2:D4、3:D5、4:D1
+uint8_t debug_door_pass[5] = {ONE_WAY_PASS, ONE_WAY_PASS, NO_PASS, NO_PASS, NO_PASS}; // 0:D2、1:D3、2:D4、3:D5、4:D1
 volatile uint8_t flag_line_clue    = 0;
-volatile uint8_t flag_clue_stage_A = 6;
-volatile uint8_t flag_clue_stage_B = 7;
+volatile uint8_t flag_clue_stage_A = 5;
+volatile uint8_t flag_clue_stage_B = 8;
 // OCR 线索：P5/P6读clue_A，P7/P8读clue_B，treasure=clue_A+clue_B → 宝物平台编号
-uint8_t flag_clue_A       = 3;
+uint8_t flag_clue_A       = 4;
 uint8_t flag_clue_B       = 0;
 #else
 volatile uint8_t flag_line_clue    = 0;
@@ -88,7 +89,7 @@ uint8_t flag_clue_B       = 0;
 
 uint8_t treasure = 0;			// 宝物平台编号 = flag_clue_A + flag_clue_B，自动计算
 								// 调用：update_route_at_P7_for_treasure/8() → door() 确定宝物平台后回家路线
-								//       Stage_HasTreasure() → Stage() 判断当前平台是否是宝物平台
+								//       Stage_HasTreasure() → Stage () 判断当前平台是否是宝物平台
 
 volatile uint8_t get_cude = 0;
 uint8_t head_right_left = 0;
@@ -163,11 +164,12 @@ static uint8_t Stage_DetectedRamp(float distance)
 	while(1){
 	Cross_getline(&Cross_Scaner);
 	if(fabsf(Chassis_GetMileage()) >= distance||
-		imu.pitch >= 9.0f ||
-		Cross_Scaner.ledNum >= 6 ||
-		Cross_Scaner.lineNum >= 3 ||
-		Cross_Scaner.ledNum == 0 
-	 ){return 1;}
+		//imu.pitch >= Begin_up + 4 ||
+		Cross_Scaner.ledNum >= 7 ||
+		Cross_Scaner.lineNum >= 4 
+	 ){
+		send_play_specified_command(36);
+		return 1;}
 	vTaskDelay(1);
 	}
 	
@@ -223,18 +225,18 @@ static void Stage_correct(){
 			{
 				send_play_specified_command(33);
 				Chassis_DriveDistance_Blocking(is_Gyro, 8, -GoStage_Speed, getAngleZ(), 0);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+25, getAngleZ(), 20.0f);
-				Chassis_DriveDistance_Blocking(is_Gyro, 10, GoStage_Speed, getAngleZ(), 0);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-25, getAngleZ(), 20.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+30, getAngleZ(), 20.0f);
+				Chassis_DriveDistance_Blocking(is_Gyro, 12, GoStage_Speed, getAngleZ(), 0);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-30, getAngleZ(), 20.0f);
 				state = 3;
 			}
 			else if(Cross_Scaner.detail & 0x0007)
 			{
 				send_play_specified_command(33);
 				Chassis_DriveDistance_Blocking(is_Gyro, 8, -GoStage_Speed, getAngleZ(), 0);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-25, getAngleZ(), 20.0f);
-				Chassis_DriveDistance_Blocking(is_Gyro, 10, GoStage_Speed, getAngleZ(), 0);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+25, getAngleZ(), 20.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-30, getAngleZ(), 20.0f);
+				Chassis_DriveDistance_Blocking(is_Gyro, 12 , GoStage_Speed, getAngleZ(), 0);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+30, getAngleZ(), 20.0f);
 				state = 3;
 			}
 			else
@@ -458,7 +460,7 @@ void Stage(void)
 		switch (state)
 		{
 		case STAGE_ASCEND:
-			if (Stage_DetectedRamp(50))
+			if (Stage_DetectedRamp(40))
 			{
 				Chassis_RestoreLinePid();
 				oringinal_angle = getAngleZ();
@@ -747,9 +749,9 @@ void Barrier_Hill(void)
 	float origin_angle = 0.0f;
 	Chassis_EnableAntiSnake();
 	Chassis_MotorControl(is_Line, 15, 15, 0);
-	Chassis_OverrideLinePid(24, 0, 140, 30);
+	Chassis_OverrideLinePid(30, 0, 180, 30);
 	//vTaskDelay(10);//刚进入is_line,scanner可能还没数据，先等motortask
-	Chassis_OverrideGyroPid(7,0,60,50);//上坡陀螺参数，增加kp和kd提高陀螺响应，防止上坡时姿态失稳
+	Chassis_OverrideGyroPid(7,0,80,50);//上坡陀螺参数，增加kp和kd提高陀螺响应，防止上坡时姿态失稳
 	Chassis_ClearMileage();
 	while (state != HILL_DONE)
 	{
@@ -771,14 +773,14 @@ void Barrier_Hill(void)
 
 		case HILL_ASCEND:
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, origin_angle,
-				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.06f, 15.0f, 0.0f);
+				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.09f, 15.0f, 0.0f);
 	
 			state = HILL_DESCEND;
 			break;
 
 		case HILL_DESCEND:
-			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
-				basic_p, UpDownStage_Speed_high, basic_p-10, UpDownStage_Speed_high, basic_p-3, 0.07f, 15.0f, 42);
+			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, getAngleZ(),
+				basic_p, UpDownStage_Speed_high, basic_p-10, UpDownStage_Speed_high, basic_p-3, 0.1f, 15.0f, 42);
   
 			state = HILL_DONE;
 			break;
@@ -1496,6 +1498,7 @@ void QQB_1(void)
 			if (seen_negative==1)
 			{ 
 				vTaskDelay(300);	
+				//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()>0?90:-90, getAngleZ(), 15.0f);
 				Chassis_RestoreGyroPid();
 				Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ());	
 				Chassis_Turn_By_Gyro_Blocking(getAngleZ()>0?145:-45, getAngleZ(), 20.0f);	
@@ -1526,7 +1529,7 @@ void QQB_1(void)
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
 	Chassis_OverrideLinePid(17,0.02f,50,30);
 	Chassis_ClearMileage();
-	uint8_t dis = getAngleZ()>0?(uint8_t)(60):(uint8_t)(42);
+	uint8_t dis = getAngleZ()>0?(uint8_t)(50):(uint8_t)(42);
 	while(Chassis_GetMileage() < dis)vTaskDelay(2);
 
 	float angle = getAngleZ();
@@ -1641,7 +1644,7 @@ static void door_set_pass_node(uint8_t a, uint8_t b, uint16_t step, float speed)
 static void door_retreat(uint8_t a, uint8_t b, float dis)
 {
 	Chassis_DriveDistance_Blocking(is_Gyro, dis, -SPEED2, getAngleZ(), 0);
-	nodes.lastNode = nodes.nowNode;
+	/* lastNode 保持真实来向（不再被覆盖）：D2黑退→D3 时 lastNode 应为 N5，由 door() 状态判定精确匹配 */
 	nodes.nowNode = Node[getNextConnectNode(a, b)];
 	Chassis_Brake();
 	Chassis_Turn_By_StopGyro_Blocking(nodes.nowNode.angle, getAngleZ(), 30.0f);
@@ -1649,13 +1652,15 @@ static void door_retreat(uint8_t a, uint8_t b, float dis)
 /*看红绿灯 — 状态机*/
 void door()
 {
-	enum DoorState state ;
+	enum DoorState state = DOOR_D2;	/* 兜底，防未初始化 */
 
-	if(nodes.lastNode.nodenum == N5 || nodes.nowNode.nodenum == N12){state = DOOR_D2;}
-	else if(nodes.lastNode.nodenum == N5 || nodes.nowNode.nodenum == N8){state = DOOR_D3;}
-	else if(nodes.lastNode.nodenum == N3 || nodes.nowNode.nodenum == N8){state = DOOR_D4;}
-	else if(nodes.lastNode.nodenum == N10 || nodes.nowNode.nodenum == N3){state = DOOR_D5_BACK;}
-	else if(nodes.lastNode.nodenum == N8 || nodes.nowNode.nodenum == N3){state = DOOR_D4_BACK;}
+	if(nodes.lastNode.nodenum == N5 && nodes.nowNode.nodenum == N12){state = DOOR_D2;}
+	else if(nodes.lastNode.nodenum == N5 && nodes.nowNode.nodenum == N8){state = DOOR_D3;}
+	else if(nodes.lastNode.nodenum == N3 && nodes.nowNode.nodenum == N8){state = DOOR_D4;}
+	else if(nodes.lastNode.nodenum == N8 && nodes.nowNode.nodenum == N3){state = DOOR_D4_BACK;}	/* 回家过D4: N8→N3 */
+	else if(nodes.lastNode.nodenum == N10 && nodes.nowNode.nodenum == N3){state = DOOR_D5_BACK;}	/* 回家过D5: N10→N3 */
+	else if(nodes.lastNode.nodenum == N10 && nodes.nowNode.nodenum == N8){state = DOOR_D4;}	/* 回程D5黑→door_retreat(N10,N8)后回D4门(N10→N8)，等价旧补丁(N3→N8→D4) */
+
 
 
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
@@ -1704,7 +1709,7 @@ void door()
 			send_play_specified_command(11);
 			door_retreat(N5, N8, DOOR_RETREAT_N5N8);
 			cross_event |= CROSS_EVENT_DOOR;
-			state = DOOR_D3;
+			
 		}
 		else if (door_pass[0] == CAN_PASS)
 		{
@@ -1716,7 +1721,7 @@ void door()
 			nodes.nowNode.speed = SPEED4;
 			update_route_at_door_for_stageAB();
 			cross_event |= CROSS_EVENT_DOOR;
-			state = DOOR_D2;
+		
 		}
 		else // ONE_WAY_PASS
 		{
@@ -1728,7 +1733,7 @@ void door()
 			nodes.nowNode.speed = SPEED4;
 			update_route_at_door_for_stageAB();
 			cross_event |= CROSS_EVENT_DOOR;
-			state = DOOR_D5_BACK;
+			
 		}
 		break;
 
@@ -1740,13 +1745,13 @@ void door()
 			door_retreat(N5, N4, DOOR_RETREAT_N5N4);
 			load_route_at(0, door1route);
 			cross_event |= CROSS_EVENT_DOOR;
-			state = DOOR_D4;
+			
 		}
 		else // CAN_PASS 或 ONE_WAY_PASS
 		{
 			door_set_pass_node(N5, N8, DOOR_LEN_N5N8, SPEED3);
 			nodes.nowNode = Node[getNextConnectNode(N5, N8)];
-			nodes.nowNode.step = 72;
+			nodes.nowNode.step = 50;
 			nodes.nowNode.speed = SPEED4;
 			update_route_at_door_for_stageAB();
 
@@ -1754,12 +1759,12 @@ void door()
 			{
 				door_set_pass_node(N8, N5, DOOR_LEN_N5N8, SPEED3);
 				send_play_specified_command(8);
-				state = DOOR_D2;
+			
 			}
 			else // ONE_WAY_PASS
 			{
 				send_play_specified_command(10);
-				state = DOOR_D5_BACK;
+			
 			}
 			cross_event |= CROSS_EVENT_DOOR;
 		}
@@ -1788,7 +1793,7 @@ void door()
 		nodes.nowNode.speed = SPEED4;
 		update_route_at_door_for_stageAB();
 		cross_event |= CROSS_EVENT_DOOR;
-		state = DOOR_D2;
+		
 		break;
 
 	case DOOR_D5_BACK:
@@ -1803,7 +1808,7 @@ void door()
 			nodes.nowNode.speed = SPEED3;
 			cross_event |= CROSS_EVENT_DOOR;
 			update_route_by_door_1();
-			state = DOOR_D2;
+			
 		}
 		else // NO_PASS，蓝灯(单相)已经被消耗
 		{
@@ -1814,7 +1819,7 @@ void door()
 				route[map.point] = N3;
 				door_retreat(N10, N8, DOOR_RETREAT_N10N8);
 				cross_event |= CROSS_EVENT_DOOR;
-				state = DOOR_D4_BACK;
+		
 			}
 			else if (door_pass[0] == NO_PASS && door_pass[1] == ONE_WAY_PASS)
 			{
@@ -1823,7 +1828,7 @@ void door()
 				door_set_pass_node(N8, N3, DOOR_LEN_N3N8, SPEED3);
 				update_route_by_door_2();
 				cross_event |= CROSS_EVENT_DOOR;
-				state = DOOR_D2;
+		
 			}
 		}
 		break;
@@ -1852,7 +1857,6 @@ void door()
 			cross_event |= CROSS_EVENT_DOOR;
 			update_route_by_door_4();
 		}
-		state = DOOR_D2;
 		break;
 	}
 }
@@ -2270,6 +2274,8 @@ void zhunbei(void)
 	/*机器人动作*/
 	Robot_Work(CAMERA,HEAD_MID); //摄像头复位
 	Robot_Work(BODY, UP); 	//人站起来
+	Robot_Work(LARM, DOWN);		//左手放下
+	Robot_Work(RARM, DOWN);		//右手放下
 	vTaskDelay(1000);
 	Robot_Work(MIKU, HEAD_LEFT); //转头
 	vTaskDelay(500);

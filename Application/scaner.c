@@ -163,7 +163,7 @@ void Go_Line(float speed, volatile struct Motors *motor)
 	
 		
 	Fspeed *= fabsf(speed) / 40;
-	
+	// 这里其实只有speed有用，40仅仅是缩放，属于转向环输出与速度的解耦，不论车速多少，同样的航向误差产生的转弯曲率恒定，路径形状与速度无关（曲率 ≈ 差速/速度）
 	if (Fspeed >= motor_all.Line_speedMax)
 		Fspeed = motor_all.Line_speedMax;
 	else if (Fspeed <= -motor_all.Line_speedMax)

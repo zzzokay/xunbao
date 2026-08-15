@@ -24,7 +24,7 @@ void Gray_Close(void)
 
 #define THRESHOLD 1000  // 设置阈值
 #define SENSOR_NUM 8  // 4 路灰度传感器
-#define DIFF_THRESH 500 // 灰度最大值与其他传感器的最小差值
+#define DIFF_THRESH 550 // 灰度最大值与其他传感器的最小差值
 
 /*切换循迹模式*/
 void ScanerMode_Switch(uint8_t mode)
@@ -90,7 +90,8 @@ float Gray_GetCorrectAngle(float base_angle)
 		if (max_val - AD_Value_Gray[i] < DIFF_THRESH)
 			return 0.0f;  // 不够突出，不修正
 	}
-
+    //打印全部
+    printf("%d,%d,%d,%d\r\n", AD_Value_Gray[0], AD_Value_Gray[1], AD_Value_Gray[2], AD_Value_Gray[3]);
 	// 根据最大值位置输出角度
 	switch (max_idx) {
 		case 0: return base_angle*1.5;   // 最左 → 偏右，向左修正

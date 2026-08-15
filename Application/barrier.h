@@ -4,11 +4,11 @@
 #include "sys.h"
 
 #define Begin_up   basic_p+5   //while(imu.pitch<Begin_up)  出循环 刚上桥
-#define up_pitch   basic_p+20  //while(imu.pitch<up_pitch) 出循环 上完桥
+#define up_pitch   basic_p+15  //while(imu.pitch<up_pitch) 出循环 上完桥
 #define After_up   basic_p+5    //while(imu.pitch>After_up)出循环上完 在平地
 
 #define Begin_down basic_p-5    //while(imu.pitch>Begin_down)出循环 刚下桥 
-#define down_pitch basic_p-20   //while(imu.pitch>down_pitch)出循环 下完桥
+#define down_pitch basic_p-15   //while(imu.pitch>down_pitch)出循环 下完桥
 #define After_down basic_p-5    //while(imu.pitch<After_down)出循环下完 在平地
 
 /*坡道控制*/
