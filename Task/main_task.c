@@ -74,12 +74,12 @@ void main_task(void *pvParameters)
 	#if SKIP_ROUND1
 	/* 跳过第一轮直接进第二轮：预设门状态（决定 get_newroute() 选哪条二轮路线）+
 	   置 routetime=1，让首个主循环周期走"二轮处理"分支（get_newroute()+zhunbei()） */
-	door_pass[0] = CAN_PASS; /* D2 */
+	door_pass[0] = NO_PASS; /* D2 */
 	door_pass[1] = NO_PASS;  /* D3 */
-	door_pass[2] = NO_PASS;  /* D4 */
-	door_pass[3] = NO_PASS;  /* D5 */
-	door_pass[4] = NO_PASS;  /* D1 */
-	treasure = 3; /* 预设宝物平台编号 = 5 */
+	door_pass[2] = ONE_WAY_PASS;  /* D4 */
+	door_pass[3] = CAN_PASS;  /* D5 */
+	door_pass[4] = CAN_PASS;  /* D1 */
+	treasure = 6; /* 预设宝物平台编号 = 5 */
 	map.routetime = 1;
 	#elif !MAP_DEBUG
 	zhunbei(); // 启动流程（红外等待）

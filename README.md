@@ -185,3 +185,20 @@ scanner让ai修改过还没仔细检查，后续来看,实际效果好像还行�
 - 验证：AB=58 + D3蓝 → N8 正常 stop-turn 去 N12（原直冲 N10）
 
 **2026-08-15** — BY8001 语音模块音量控制：新增 `send_set_volume_command(uint8_t volume)`（ArriveDetect_task.c，0~30 级，帧 `7E 04 31 XX(音量) XX(校验和) EF`，校验和 = `0x04 ^ 0x31 ^ 音量`；声明加在 ArriveDetect_task.h）；`user_init()`（temporary_task.c）末尾开机调用 `send_set_volume_command(30)` 把音量调到最大（模块有掉电记忆，开机设一次即可）。
+
+**2026-08-16** — 红绿灯门区段角度宏定义化（map_message.h 新增 `ANGLE_N3N8(145)/ANGLE_N5N8(35)`，及 `ANGLE_N8N12=ANGLE_N3N8`、`ANGLE_N8N10=ANGLE_N5N8`）：门两侧平行，正向角度用宏直接引用；反向用 `ANGLE_REV(a)`（正角减180、负角加180，结果锁定 [-180,180]）派生 `ANGLE_N8N3(-35)/ANGLE_N8N5(-145)/ANGLE_N12N8(-35)/ANGLE_N10N8(-145)`。map_message.c Node 表 8 处门区段角度改用宏（N3→N8 145、N5→N8 35、N8→N3 原-45→-35、N8→N5 原-140→-145、N8→N12 原140→145、N8→N10 原33→35、N12→N8 原-43→-35、N10→N8 原-150→-145），原手工值作废，改角度只改宏。
+
+**2026-08-16** — 二轮进东区入口按宝藏位优化（barrier.c `get_newroute()`）：宝藏=P6 时不再一律先进 N12，去 P6 改经 N10 直达——
+- `tour_p6_first`（起 `N11,N10`，即进到 N12 后走 N12→N11→N10）改为 `tour_p6`（起 `N9`，即车已在 N10 后直接 N10→N9→B9→N7→P6）
+- 进东区终点按宝藏选：`entry_D2`(N12)/`entry_D2_p6`(N12,N11,N10)、`entry_D3`(N8,N12)/`entry_D3_p6`(N8,N10)、`entry_far`(N4,N3,N8,N12)/`entry_far_p6`(N4,N3,N8,N10)
+- 效果：D2 门进（branch1-4）N12→N11→N10 为必经最短，路线与原代码逐字节一致；D3 门进（branch5-7）/最外进（branch8-9）由 `N8→N12→N11→N10`（350cm）改 `N8→N10`（190cm）直达，**省 160cm 且免走 N12→N11 刀山段**；非 P6 宝藏仍进 N12（去 P5 近），路线不变
+- 18 条组合（9 门分支×2 宝藏）已按 map_message.c 连接表逐边校验全连通，最长 59 节点（route[100] 足够）
+
+**2026-08-16** — P6 巡游回程终点改 N12、绕开 N11 刀山（barrier.c `get_newroute()`，承接上一条）：
+- `tour_p6` 删末尾 `N11,N10`：`…N13→P5→N13→N12→N11→N10` → `…N13→P5→N13→N12`（终点 N12，不再穿 N12→N11 刀山）
+- 新增回程 tail：`tail_p6_D2={N5,N4,B3,N2,P2}`（D2 双向直回 `N12→N5`）、`tail_p6_D5={N8,N10,N3,N4,B3,N2,P2}`（回 D5 走 `N12→N8→N10→N3` 免刀山）；branch1/2/6/9 用 `(treasure==6)?tail_p6_x:tail` 选择
+- branch3/4/5/7/8 的 tail 本以 N8 开头，P6 时 tour 止于 N12 后自动走 `N12→N8`（190cm 普通路），无需改
+- 效果：回 D2/D3/D4 分支回程不再 `N12→N11→N10→N8`，省 160~320cm 且免 N11 往返穿两次刀山（原 B1 回程 `N12→N11→N10→N11→N12→N5` 是来回穿）；回 D5 分支免 `N12→N11` 刀山（代价 +210cm、点数相同）；非 P6 路线逐字节不变
+- 18 条组合逐边校验全连通，最长 58 节点（route[100] 足够）
+
+**2026-08-16** — 跷跷板 QQB_GYRO 退车优先级修正（barrier.c）：`pitch>55+basic_p` 的退车重试（退 15cm）提前到状态开头并加 `break`，与巡线板最外侧紧急避障（转 20°/退 12cm/转回/前进 23cm）**互斥**——原来两处是并列 if，若俯仰过高与红线同时满足会**同一轮连退两下**（紧急避障退 12 后紧接着又 pitch>55 退 15）。现在 pitch>55 一旦触发即跳 QQB_WAIT_PITCH 重试，本轮不再走紧急避障，一次只退一个。

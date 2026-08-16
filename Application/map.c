@@ -38,7 +38,8 @@ volatile uint8_t cross_event = 0;	//运行时阶段/事件标志，全局变量�
 //u8 route[100] = {C9,0XFF};
 //u8 route[100] = {N20, 0XFF};
 //u8 route[100] = {B5, 0XFF};
-u8 route[100] = {N11, 0XFF};
+//u8 route[100] = {N11, 0XFF};
+u8 route[100] = {B9,N7,P6,N7,B8,N9, 0XFF};
 #else 
 u8 route[100] = {B1, N1,P1, N1, B2, N4, N5,0XFF};  //初始路径
 #endif
@@ -126,11 +127,11 @@ u8 getNextConnectNode(u8 nownode,u8 nextnode)
 /* 获取对应节点的原地转弯前的前进距离判断 */
 static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 {
-	if (last == S1 && now == N3 && next == P3) return 18;
 	if (last == B3 && now == N2 && next == P2) return 24;
-	if (last == B9 && now == N7 && next == P6) return 18;
-	if (last == P6 && now == N7 && next == B8) return 18;
-	if (last == C4 && now == N20 && next == P8) return 30;
+	if (last == B9 && now == N7 && next == P6) return 20;
+	if (last == P6 && now == N7 && next == B8) return 20;
+	if (last == C4 && now == N20 && next == P8) return 35;
+    if (last == N20 && now == C4 && next == C8) return 25;
     if (last == N3 && now == N4 && next == B2) return 24;
     if (last == P8 && now == N20 && next == C4) return 30;
 	if (last == N8 && now == N5 && next == N4) return 36;
@@ -140,8 +141,6 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 	if (last == B8 && now == N9 && next == C3) return 0;
 	if (last == N10 && now == N9 && next == B9) return 48;
 	if (last == B8 && now == N9 && next == N10) return 30;
-	if (last == N5 && now == N8 && next == N12) return 6;
-    if (last == N5 && now == N12 && next == N11) return 24;
     if (last == B2 && now == N1 && next == P1) return 24;
 	return 20;
 }
