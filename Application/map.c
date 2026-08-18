@@ -39,7 +39,8 @@ volatile uint8_t cross_event = 0;	//运行时阶段/事件标志，全局变量�
 //u8 route[100] = {N20, 0XFF};
 //u8 route[100] = {B5, 0XFF};
 //u8 route[100] = {N11, 0XFF};
-u8 route[100] = {B9,N7,P6,N7,B8,N9, 0XFF};
+//u8 route[100] = {B9,N7,P6,N7,B8,N9, 0XFF};
+u8 route[100] = {B2,N1,P1, N1, B1, N2, P2, 0XFF};
 #else 
 u8 route[100] = {B1, N1,P1, N1, B2, N4, N5,0XFF};  //初始路径
 #endif
@@ -59,7 +60,7 @@ u8 door5route[100] = {N12, N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C
 /*D5开*/
 u8 door6route[100] = {N4, B3, N2, P2, 0XFF};
 /*D2开 D3开 D5开*/
-u8 door7route[100] = {N8, N3, N4, B3, N2, P2, 0xFF};
+u8 door7route[100] = {N3, N4, B3, N2, P2, 0xFF};
 /*D2开 D5开 D4开*/
 u8 door8route[100] = {N4, B3, N2, P2, 0XFF};
 /*D2开 D3开 D4开 D5开全*/
@@ -67,7 +68,7 @@ u8 door9route[100] = {N12, N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C
 /*D2开 D3关，暂时去掉D5*/
 u8 door10route[100] = {N12, N13, P5, N13, N12, N16, N18, B5, N19, C6, B7, N22, C9, P7, C9, N22, B6, N20, P8, N20, C4, C8, C7, N14, C3, N9, B9, N7, P6, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, 0XFF}; // N3前没写，没P3
 /*D2开 D5开 D4开*/
-u8 door11route[100] = {N5, N4,B3, N2, P2, 0XFF};
+u8 door11route[100] = {N4, B3, N2, P2, 0XFF};
 /*D2开*/
 u8 door12route[100] = {N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P7, C9, N22, B6, N20, P8, N20, C4, C8, C7, N14, C3, N9, B9, N7, P6, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, 0XFF};
 /*平台5到平台7*/
@@ -89,8 +90,10 @@ void mapInit()
     nodes = (Nodes){0};	
 	cross_event = 0;       //起始点   
 #if MAP_DEBUG
+    nodes.lastNode.nodenum = FIRST_POINT;  //起始点
     nodes.nowNode = Node[getNextConnectNode(FIRST_POINT, SECOND_POINT)];  //起始目标点
 #else
+
     nodes.nowNode = Node[getNextConnectNode(P2, N2)];  //起始目标点
 #endif
 	nodes.nextNode = Node[getNextConnectNode(nodes.nowNode.nodenum, route[map.point++])];
@@ -127,17 +130,18 @@ u8 getNextConnectNode(u8 nownode,u8 nextnode)
 /* 获取对应节点的原地转弯前的前进距离判断 */
 static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 {
-	if (last == B3 && now == N2 && next == P2) return 24;
+	if (last == B3 && now == N2 && next == P2) return 24;//
 	if (last == B9 && now == N7 && next == P6) return 20;
 	if (last == P6 && now == N7 && next == B8) return 20;
 	if (last == C4 && now == N20 && next == P8) return 35;
     if (last == N20 && now == C4 && next == C8) return 25;
-    if (last == N3 && now == N4 && next == B2) return 24;
+    if (last == N3 && now == N4 && next == B2) return 30;
     if (last == P8 && now == N20 && next == C4) return 30;
 	if (last == N8 && now == N5 && next == N4) return 36;
    // if (last == N13 && now == N18 && next == B5) return 60;
 	if (last == N8 && now == N3 && next == P3) return 18;
-	if (last == N8 && now == N3 && next == N4) return 24;
+	if (last == N8 && now == N3 && next == N4) return 30;
+    if (last == N3 && now == N4 && next == B2) return 24;
 	if (last == B8 && now == N9 && next == C3) return 0;
 	if (last == N10 && now == N9 && next == B9) return 48;
 	if (last == B8 && now == N9 && next == N10) return 30;
@@ -154,11 +158,10 @@ static float GetForwardDistanceBeforeGyroTurn(u8 last, u8 now, u8 next)
 	if (last == P3 && now == N3 && next == N8) return 6;
     if (last == C4 && now == N20 && next == B6) return 24;
 	if (last == N3 && now == N4 && next == B3) return 12;
-    if (last == N5 && now == N12 && next == N11) return 6;
-    if (last == N8 && now == N12 && next == N13) return 0;
+    if (last == N5 && now == N12 && next == N11) return 0;
+    if (last == N8 && now == N12 && next == N13) return 5;
     if (last == N4 && now == N5 && next == N12) return 6;
 	if (last == N8 && now == N3 && next == P3) return 24;
-	if (last == N8 && now == N3 && next == S1) return 0;
 	if (last == P1 && now == N1 && next == B2)return 0; 
 	return 0; // 默认不前进，走原逻辑未修改
 }

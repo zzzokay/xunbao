@@ -9,7 +9,7 @@
 ```
 Application/          # 应用层 — 地图导航、障碍处理、底盘API
   ├── chassis_api.c/h # 底盘API中间件（核心解耦层）
-  ├── map.c/h         # 地图导航 / Cross()路径规划
+  ├── map.c/h         # 地图导航 / Navigation()路径规划
   ├── map_message.c/h # 地图数据（Node[]连接表）
   ├── barrier.c/h     # 障碍处理（平台/桥/山/南极/跷跷板/波动板）
   ├── scaner.c/h      # 16路巡线传感器
@@ -38,9 +38,9 @@ test1.ioc             # CubeMX配置
 | 任务 | 函数 | 优先级 | 栈大小 | 周期 |
 |------|------|--------|--------|------|
 | Start_task | `Start_task()` | 6 | 256字 | 一次性(创建三任务后自删) |
-| main_task | `main_task()` | 5 | 2048字 | 5ms |
+| main_task | `main_task()` | 5 | 2048字 | 3ms |
 | motor_task | `motor_task()` | 6 | 512字 | 5ms |
-| ArriveDetect_task | `arrive_detect_task()` | 3 | 512字 | - |
+| ArriveDetect_task | `arrive_detect_task()` | 5 | 512字 | - |
 
 > 注：motor_task 优先级为 **6**（motor_task.h，configMAX_PRIORITIES=7，合法 0~6，已是最高的合法优先级）；main_task(5) **低于** motor_task(6)，当前配置下主任务无法抢占饿死电机任务（FreeRTOS 数值越大优先级越高）。Start_task 现含 IMU 上电自检（见已修复表 2026-08-10）。
 
@@ -51,7 +51,7 @@ test1.ioc             # CubeMX配置
 ## 三、核心数据流
 
 ```
-map.c:Cross() → Chassis_MotorControl(mode, Lspeed, Rspeed, aim)
+map.c:Navigation() → Chassis_MotorControl(mode, Lspeed, Rspeed, aim)
                 → motor_task:handle_xxx_mode()
                     → scaner.c:Go_Line() / turn.c:Go_Angle() / Stage_turn_Angle()
                         → 设置 motor_all.Lspeed / Rspeed
@@ -66,14 +66,14 @@ map.c:Cross() → Chassis_MotorControl(mode, Lspeed, Rspeed, aim)
 ### 4.1 电机控制 ([pid.h](Math/pid.h))
 
 ```c
-struct I_pid_obj { float output; int bias; int last_bias; int last2_bias; float measure; float target; };
+struct I_pid_obj { float output; float bias; float last_bias; float last2_bias; float measure; float target; };
 extern struct I_pid_obj motor_L0, motor_L1, motor_R0, motor_R1;
 extern struct PID_param motor_pid_paramL0, motor_pid_paramL1, motor_pid_paramR0, motor_pid_paramR1;
 extern struct P_pid_obj line_pid_obj, gyroT_pid, gyroG_pid;
 extern struct PID_param line_pid_param, lineG_pid_param, gyroT_pid_param, gyroG_pid_param;
 ```
 
-**Bias类型问题**: `bias` 是 `int`，`bias = target - measure` 会截断小数，低速时PID精度丢失。
+**Bias类型（已修复）**: `bias` 原为 `int`，`bias = target - measure` 会截断小数，低速时PID精度丢失；2026-05-01 已改为 `float`。
 
 ### 4.2 底盘状态 ([chassis_api.h](Application/chassis_api.h))
 
@@ -96,7 +96,7 @@ typedef struct _node {
     u8 nodenum; u32 flag; float angle; u16 step; float speed; u8 function;
 } NODE;
 extern NODE Node[126], route[100];
-extern NODESR nodesr;  // lastNode/nowNode/nextNode
+extern Nodes nodes;    // lastNode/nowNode/nextNode
 extern volatile uint8_t cross_event;
 #define CROSS_EVENT_ARRIVED (1<<0)   // 已到达节点
 #define CROSS_EVENT_DOOR    (1<<1)   // 门结果就绪
@@ -107,9 +107,11 @@ extern volatile uint8_t cross_event;
 ```c
 uint8_t door_pass[5];    // 门通行状态(D2~D5,D1)：CAN_PASS/ONE_WAY_PASS/NO_PASS
 uint8_t treasure;        // 宝物编号
-uint8_t DownLiuShui;     // 流水下坡标志
-float LiuShuiRate;       // 流水速度倍率(1.6)
-uint8_t QR_code, get_cude, get_a, get_b;
+volatile uint8_t flag_line_clue;     // QR 百位：0=跳过P3/P4，3=P3，4=P4
+volatile uint8_t flag_clue_stage_A;  // QR 十位：5=P5，6=P6
+volatile uint8_t flag_clue_stage_B;  // QR 个位：7=P7，8=P8
+uint8_t flag_clue_A, flag_clue_B;    // 平台上的线索数字
+volatile uint8_t get_cude;           // QR 读取完成标志
 ```
 
 ---
@@ -127,18 +129,19 @@ uint8_t QR_code, get_cude, get_a, get_b;
 
 | 用途 | Kp | Ki | Kd | outputMax |
 |------|----|----|----|-----------|
-| 巡线(line) | 10.5 | 0 | 500 | ±80 |
+| 巡线(line) 初始 | 7.0 | 0 | 0 | ±80（运行中由 `line_pid_steps[]` 按实际速度实时覆盖，见 5.3） |
 | 转弯(gyroT) | 4.0 | 0 | 70 | ±80 |
-| 陀螺仪直行(gyroG) | 2 | 0.004 | 0.5 | ±80 |
-| 灰度(lineG) | 15 | 0 | 5 | ±100 |
+| 陀螺仪直行(gyroG) | 2.0 | 0 | 5.0 | ±80 |
+| 灰度(lineG) | 15 | 0 | 5 | ±80 |
 
 ### 5.3 速度等级
 
 `SPEED0=25, SPEED1=36, SPEED2=45, SPEED25=55, SPEED3=60, SPEED4=70, SPEED5=75`
 
 速度→PID映射表 `line_pid_steps`（chassis_api.c 静态常量，2026-08-09 起改为**按当前实际速度阶梯选择**）：
-- SPEED5/4: kp=3.5, kd=200 | SPEED3: kp=4.0, kd=120 | SPEED25: kp=5.0, kd=150
-- SPEED2: kp=6.5, kd=110 | SPEED0/1/20: kp=6.0, kd=90 | 低速12/15: kp=15.0, kd=60
+- SPEED5/4(75/70): kp=3.5, kd=200 | SPEED3(60): kp=4.0, kd=120 | SPEED25(55): kp=5.0, kd=150
+- SPEED2(45): kp=6.5, kd=110 | SPEED1(36): kp=7.5, kd=100 | SPEED0(25): kp=9.0, kd=100
+- 特低速 20: kp=11.0, kd=100 | 15: kp=20.0, kd=140 | 12: kp=25.0, kd=140
 
 **阶梯选择机制**：`Chassis_SetTargetSpeed` 只设置 `motor_all.Cspeed`（目标速度），不再写 `line_pid_param`；
 motor_task 每 5ms 调用 `Chassis_UpdateLinePidBySpeed()` 读取当前实际速度 `motor_all.encoder_avg`，规则：**只有当前速度 ≤ 某档速度才采样该档 PID**（即取所有 `档速 ≥ 当前速度` 中最低的一档，尽量向上取高速档低 Kp；超过最高档用最高档）。
@@ -153,7 +156,7 @@ motor_task 每 5ms 调用 `Chassis_UpdateLinePidBySpeed()` 读取当前实际速
 typedef enum { is_No=0, is_Free, is_Line, is_Turn, is_Gyro };
 ```
 
-巡线子模式: `TRACK_ALL=0, TRACK_LEFT_EDGE, TRACK_RIGHT_EDGE, TRACK_LIUSHUI`
+巡线子模式: `TRACK_ALL=0, TRACK_LEFT_EDGE, TRACK_RIGHT_EDGE, TRACK_NEAR_CENTER`（默认）
 
 ---
 
@@ -189,12 +192,12 @@ TIM1 → L0 (正) | TIM2 → L1 (正) | TIM3 → R0 (取反) | TIM5 → R1 (取�
 
 > 注：`RampCtrl_Blocking` 只有最后一个参数 max_distance 是长度（thresh/speed/angle/max_correction 非长度，如 `15`/`20.0f`/`0.08` 保留）；`Stage_DetectedRamp` 的距离参数折算（其俯仰阈值 10° 非长度不折）；`return 0;` 等非长度返回值不折。
 > **重新标定**：改 chassis_api.h 的 LEN_SCALE + 重算各处内联值（cm = round(代码单位 × 新倍率)）；原代码单位值在 git 历史中可查。
-> **门区段距离**：`door_set_pass_node`/`door_retreat` 的门区段长度已集中为 [map_message.h](Application/map_message.h) 的 `DOOR_LEN_*`（6 条全长，map DOOR 条目用 `宏/2`）/ `DOOR_RETREAT_*`（4 个回退距离）宏（2026-08-13），改长度只改宏即可。
+> **门区段距离**：`door_set_pass_node`/`door_retreat` 的门区段长度已集中为 [map_message.h](Application/map_message.h) 的 `DOOR_LEN_*`（6 条全长，map DOOR 条目用 `宏/2`）/ `DOOR_RETREAT_*`（4 个回退距离）宏（2026-08-13），改长度只改宏即可。当前工作区（2026-08-17）：`DOOR_LEN_N5N12/N3N10=200`，`DOOR_LEN_N5N8/N8N10/N3N8/N8N12=190`；`DOOR_RETREAT_N5N8/N5N4=67`、`DOOR_RETREAT_N10N8=80`、`DOOR_RETREAT_N8N5=65`。
 > **门区段角度**：[map_message.h](Application/map_message.h) 的 `ANGLE_N3N8(145)/ANGLE_N5N8(35)`（正向基准），`ANGLE_N8N12=ANGLE_N3N8`、`ANGLE_N8N10=ANGLE_N5N8`（门两侧平行）；反向用 `ANGLE_REV(a)`（正角减180/负角加180，锁定 [-180,180]）派生 `ANGLE_N8N3(-35)/ANGLE_N8N5(-145)/ANGLE_N12N8(-35)/ANGLE_N10N8(-145)`（2026-08-16）。map_message.c Node 表 8 处门区段角度全部改用宏，原手工值（N8→N3 -45、N8→N5 -140、N8→N12 140、N8→N10 33、N12→N8 -43、N10→N8 -150）作废，改角度只改宏。
 
 ### 7.3 巡线传感器
 
-16路 GPIO 读取（0=黑线，1=白底），权重表 `line_weight[16] = {-3..3}`。
+16路 GPIO 读取（0=黑线，1=白底），权重表 `line_weight_default[16]`（约 -3..3，含小数，对称）。
 `line_data[5]` 滑动窗口（**static，仅 scaner.c 内部访问**），truth 枚举: VALID/ALL_ERR/POS_ERR。
 RF/Gray 分发收敛在 **`Scaner_Update()`** 单入口（合并自原 getline_error/getline_error_ex）；外部操作 line_data 只能通过 `Scaner_ClearLineData()`（清零）与 `Scaner_IsLineLost()`（丢线检测）。
 内部函数均为 static: `coarse_filter`/`pos_detect`/`Update_line_data`/`value_calculation`/`count_led_line`/`pick_best_cluster`。
@@ -212,25 +215,24 @@ enum barriers {
 ```
 - UpStage→Stage() | UpStageHome→Stage_Home() | Bridge→Barrier_Bridge() | Hill→Barrier_Hill()
 - BSoutPole→South_Pole() | QQB→QQB_1()
-- BLBS→Barrier_WavedPlate(50*LEN_SCALE) | BLBL→Barrier_WavedPlate(100*LEN_SCALE)
+- BLBS→Barrier_WavedPlate(70) | BLBL→Barrier_WavedPlate(140)
 - BHM→Barrier_HighMountain() | DOOR→door()
 
 ---
 
-## 九、Cross() 流程 ([map.c](Application/map.c))
+## 九、Navigation() 流程 ([map.c](Application/map.c))
 
 ```
-Cross()
+Navigation()
 ├── near_end==0 (巡线行驶)
-│   ├── SEG_INIT:       清里程, 设巡线模式
-│   ├── SEG_CRUISE:     设速度, 启用游龙
+│   ├── SEG_INIT:       清里程, 设巡线模式/速度, 启用游龙+翘头保护
 │   ├── SEG_MID_SWITCH: 里程≥50%, 切换巡线模式
-│   └── SEG_PREP_ARRIVE:里程≥70%, 降速
+│   └── SEG_PREP_ARRIVE:里程≥60%, 降速
 │
 └── near_end==1 (节点处理)
-    ├── Cross_NearEnd: map_function() → 等待到达
-    ├── Cross_TurnAndAdvance: 转弯（左follow/右follow/停车原地转/陀螺仪）
-    └── Cross_PostProcess: 检查 cross_event → 推进节点
+    ├── Nav_NearEnd: map_function() → 等待到达
+    ├── Nav_TurnAndAdvance: 转弯（左follow/右follow/停车原地转/陀螺仪）
+    └── Nav_PostProcess: 检查 cross_event → 推进节点
 ```
 
 ---
@@ -255,57 +257,17 @@ Cross()
 - `map.c:189-233` 转弯前距离 if 链应改用查表
 - `filter.c:56-93` 4点去极值滤波窗口过小
 
-### ✓ 已修复主要项
-| 修复内容 | 日期 |
-|----------|------|
-| PID bias int→float | 2026-05-01 |
-| barrier.c 赋值写为比较(getZ==0) | 2026-05-01 |
-| 除零保护 (sum_angle/add_time) | 2026-05-01 |
-| motor_task 10函数 static 化 | 2026-06-27 |
-| map.c include 从19精简到5 | 2026-06-27 |
-| Cross() 拆40行+6子函数 | 2026-06-27 |
-| normalize_angle 提取去重 | 2026-06-27 |
-| nodesr.flag 阶段位拆出 | 2026-06-27 |
-| Want2Go/Chassis_MoveDistance 去重 | 2026-06-27 |
-| 堵转保护 (PWM>7000 硬上限 + 比值检测) | 2026-07-04 |
-| 堵转保护调用点全部注释停用（运行时不再触发） | 2026-08-06 |
-| Turn_Angle_Base 死区/钳位/TOCTOU | 2026-07-04 |
-| Stage_P2/QQB/WavedPlate 状态机重写 | 2026-07-03~04 |
-| IMU 偶发初始化失败修复（USART3_IRQHandler HAL_UART_IRQHandler 冲突 + 死代码 gyro_init 删除） | 2026-07-18 |
-| scaner.c 循迹显式化：内部去重（count_led_line/pick_best_cluster/ReadLineSensorDetail）+ 合并 getline_error*/getline_error_ex 为 Scaner_Update() + line_data 转 static（新增 ClearLineData/IsLineLost） | 2026-08-06 |
-| 红绿灯改版（2026新规则 黑/绿/蓝=不能过/能过/单相通过）：颜色常量改通行语义命名 `CAN_PASS/ONE_WAY_PASS/NO_PASS`（与具体颜色解耦，改色只改 barrier.h 映射 + Door_ReadPass 传感器识别）；`color_flag→door_pass`、`debug_color_flag→debug_door_pass`、`Door_ReadColor→Door_ReadPass` | 2026-08-07 |
-| `PIG`→`MIKU` 舵机宏改名（Rudder_control.h/c + barrier.c zhunbei）；修复红绿灯改版遗留漏改 `debug_color_flag→debug_door_pass`（Door_ReadPass DEBUG 分支，编译报 #20 undefined） | 2026-08-07 |
-| 修复 K210.c OCR 帧处理遗留旧名 `nodesr→nodes`、`clue_A_stage→flag_clue_stage_A`、`clue_B_stage→flag_clue_stage_B`（P5/P6/P7/P8 门控条件不变，编译报 #20 undefined）；其余 nodesr 引用在注释中 | 2026-08-07 |
-| 修复链接 L6200E `UART5_IRQHandler multiply defined`：实际协议处理在 K210.c，CubeMX 生成的 stm32f7xx_it.c 同函数 `#if 0` 禁用。uart.c 不在 Keil 工程；USART3 由 imu.c 提供（it.c 已注释）；USART1 以 stm32f7xx_it.c 为准 | 2026-08-07 |
-| 修复路线平台编号写错：按 map_message.c 连接表（P5↔N13、P6↔N7、P8↔N20、P7↔C9）核对，barrier.c `get_newroute()` 45 条 temp 路线 + `update_route_at_P7_for_treasure()` 2 条中 `N13,P6`/`N7,P5`/`C9,P8`/`N20,P7` 统一改 `N13,P5`/`N7,P6`/`C9,P7`/`N20,P8`；map.c 未引用门路线 door2/3_1/4/5/9/10/12route 同步修正（door1/6/7/8/11route 与 rout_57/58/67/68 原本正确）；barrier.c WaitFor_OCR 2350 行 `P5||P5`→`P5||P6` | 2026-08-07 |
-| 重写第二轮路线 `get_newroute()`（barrier.c，9 门分支×2=18 条 temp 路线）：宝藏=6 只去 P1→P3→P4→P6 后直接回家；宝藏=2/3/4/5 只去 P1→P3→P4→P5 后直接回家。`switch(treasure)` 由原 5 case（2/3/4/5/6）合并为 2 case（`case 6` + `case 2/3/4/5`），删除各分支 P7/P8 绕行段，保留各分支门控有效路径段（D2/D3/D4/D5 不通时的绕行路径不变） | 2026-08-07 |
-| IMU 零位校准 + 角度补偿三行（`IMU_CalibrateZero` + `vTaskDelay(100)` + `mpuZreset`）包装为公共函数 `IMU_Calibrate_Yaw(float referangle)`，放 turn.c/turn.h（`mpuZreset` 同族，turn.c 已含 imu.h 零新增依赖；避免 Module 层 imu.c 倒挂 Application 层）。参考角度由调用方传（main_task.c 传 `nodes.nowNode.angle`），与 map 全局解耦 | 2026-08-07 |
-| 修复 barrier.c 编译错误 `#20 DOOR_D5_BACK/DOOR_D4_BACK undefined`：`enum DoorState` 定义在 `Door_ReadPass()`（1542 行）之后，C 枚举常量仅声明后可见；枚举前移到 `Door_ReadPass` 前置声明之前 | 2026-08-09 |
-| 巡线PID按当前实际速度阶梯选择（防高速→低速减速期摇摆/不跟线）：`Chassis_SetTargetSpeed` 不再写 `line_pid_param`；新增 `line_pid_steps` 阶梯表，motor_task 每5ms 调 `Chassis_UpdateLinePidBySpeed()` 读 `motor_all.encoder_avg`，规则为只有当前速度≤档速才采样该档PID（尽量向上取）；减速时 PID 逐级下调；游龙 override 生效时不覆盖 | 2026-08-09 |
-| IMU 上电自检 + 串口恢复 + ISR 兜底（应对偶发上电角度恒为0，根因=HAL 对 ORE 采取"中止DMA+交用户恢复"策略，与自定义 ISR"先重挂DMA再调 HAL_UART_IRQHandler"叠加成死锁）：imu.c 新增 `IMU_IsDataActive`/`IMU_WaitData`/`IMU_Reinit`（停DMA→清错误标志→重挂→开中断前再清一次ORE）；`USART3_IRQHandler` 开头清 ORE（HAL abort 分支由 errorflags≠0 门控，先清则错误中断不再杀死重挂的 DMA）；Start_task 在 user_init() 后自检，1s 全0则重启串口等2s重试，仍无数据仅警告不阻塞 | 2026-08-10 |
-| 寻中线(TRACK_NEAR_CENTER/calc_near_center)：中心两灯(第7、8灯)任一亮即进入中心判定，且**只取最中心两灯**（与 calc_left/right_edge 一致最多取2灯，不再向左右扩出整个连续亮灯段），其余线一律忽略；误差按这两灯实际亮灯位置**成比例计算**（不强制0，避免5/6/7偏心线不修正）。中心灯全灭保持"离中心最近段"兜底。曾尝试强制 error=0+TRUTH_VALID（偏心线不修正）及扩出整段（被旁线拖偏）均撤回 | 2026-08-11 |
-| 回退寻中线核心改动（仅 scaner.c + chassis_api.h 改回提交版）：calc_near_center 恢复"中心两灯同时亮才判中心 + 误差强制0 + 离中心最近段兜底"，line_weight_default 权重还原，TRACK_NEAR_CENTER 注释还原；调试配套（main_task 循迹测试 / map 调试路线 / chassis_api.c PID 调参 / barrier.c 坡道时序）保留未提交 | 2026-08-11 |
-| 寻中线(calc_near_center)：保留"连续亮灯段"约束（不跨空隙取灯），段内只取最靠中心 2 灯算位置/误差——线最粗 2 格，亮区超过 2 格视为多线/路口，取其中中心处 2 灯追最中线（取消整段平均，粗线不拖偏；原 `MAX_LED>4` 段长否决失效）；中心两灯(7,8)同亮仍走 center 快路径 | 2026-08-12 |
-| 寻中线(calc_near_center)：**亮灯总数 ≥ 4 时保守认为线在中心**（error=0 直行），应对旁线/路口干扰不被旁边线拖偏；原有中心两灯快路径、连续亮灯段内取最靠中心 2 灯逻辑不变 | 2026-08-12 |
-| 任务周期耗时测量（调试用，测完可删）：motor_task.c/main_task.c 各加 `timing_dwt_init()`（DWT 周期计数器 @216MHz，TRCENA+CYCCNTENA）+ 循环内测量块。motor_task 每100ms 打印 `MOTOR cpu=xxus period=xxms`；main_task 每500ms 打印 `MAIN loop=xxus max=xxus`。用于排查任务饿死。注意 main_task 的 loop 值含阻塞等待（阻塞时 CPU 让出，期间 DWT 计数的是其它任务/ISR 的周期，非主任务自身 CPU 时间） | 2026-08-12 |
-| FPU 浮点修复（消除软件 double，全走单精度硬件 FPU；Cortex-M7 仅单精度 FPU）：imu.c `USART3_IRQHandler` `180.0/32768.0`→`180.0f/32768.0f`（中断每帧 3 次软件 double 乘除）；turn/barrier/scaner 11 处 `fabs()`→`fabsf()`（参数全 float）；turn.c:263 活的 `printf("%.2f...")` 注释（拖进 printfa/_fp_digits 浮点格式化库）；pid.c speed_pid_kp/kd/ki `10.0/100.0`→`10.0f/100.0f`；Rec_usart `atof()`→`strtof()`（atof 拖 `__strtod_int`/`_scanf_real`）；sin_generate `sin()`→`sinf()`（未使用、链接器已 GC，保险性修改）。验证：修复前最终 image 含 `__aeabi_dmul/ddiv/dadd/dsub/f2d/d2f/i2d`，修复后应全部消失 | 2026-08-12 |
-| 修复 barrier.c 参数未还原/清零遗留：Barrier_Hill 楼梯 `Chassis_OverrideGyroPid(7,0,60,50)` 的唯一 `Chassis_RestoreGyroPid()` 在不可达的 `default:` 分支（HILL_DESCEND 直接置 HILL_DONE 退出，还原从未执行）→ 移到 while 循环结束后，楼梯完成必还原陀螺仪 PID，不再污染后续陀螺仪模式行驶/转弯；Barrier_Bridge 长桥 `is_emergency` 计数上限 `<=10`（卡死 11，`==300` 死代码、`==10` 只触发一次）→ 改 `< 300`，连续偏出时第 10 次(≈50ms)与第 300 次(≈1.5s)各硬修一次 | 2026-08-12 |
-| Barrier_HighMountain `HM_APPROACH` 提前切陀螺仪：坡底 `imu.pitch >= Begin_up`（basic_p+5，与 RampCtrl "刚上坡"一致）且里程≥15 即切 `HM_ASCEND_1`，不再等 `Stage_DetectedRamp` 的 10° 俯仰/循迹干扰条件。**根因**：`Stage_DetectedRamp` 俯仰阈值 `imu.pitch >= 10.0f`（绝对值）≈ RampCtrl `Begin_up`(basic_p+5) 的两倍，车在 0°→10° 爬坡期间仍处于巡线模式，而坡面无循迹线+干扰灯（幻影线 1-3 灯）既不被 `ledNum>=4` 捕获也到不了 10°，巡线追幻影线跑偏；`mile>=15` 门限排除起步加速翘头(≤7°)误触发。切过去后 RampCtrl 首个 RAMP_INIT 立即满足 `pitch>=Begin_up`，行为不变。仅作用于 HighMountain；其余平台沿用原 10° 阈值（如需统一改共享 `Stage_DetectedRamp` 的阈值，注意同步回归 Stage/Stage_Home/Bridge/Hill/WavedPlate） | 2026-08-12 |
-| 第二轮路线改为「走所有平台后回家」：`get_newroute()`（barrier.c）不再按 treasure 只去 P5/P6，改为一次巡游所有平台——公共段 P1→P3→P4 后进东区 P5→P7→P8→P6，再按门状态回家(P2)。18 条 temp 路线（9 门分支×2 宝藏）→ 9 条（每分支 1 条），删除 `switch(treasure)`；新增 `build_round2_route()` 拼接 公共段+东区巡游段+分支进出段。东区巡游 `N12→N13(P5)→N18→B5→N19→C6→B7→N22→C9(P7)→N22→B6→N20(P8)→C4→C8→C7→N14→C3→N9→B9→N7(P6)→B8→N9→N10`；各分支仅差「进东区走廊」（D2=N5→N12、D3=N5→N8、D4=N3→N8）与「回家走廊」（D2=N12→N5、D5=N10→N3、D4=N8→N3、D3=N8→N5）。9 条已按 map_message.c 连接表逐边校验全连通，覆盖 P1~P8，长 51~55 节点（route[100] 足够） | 2026-08-13 |
-| 新增 `SKIP_ROUND1` 调试开关（map.h，默认 0）：跳过第一轮直接进第二轮。main_task.c 正常模式初始化处 `#if SKIP_ROUND1` 预设 `door_pass[5]`（默认 D2=CAN_PASS 双向，索引 0:D2/1:D3/2:D4/3:D5/4:D1，改门状态只需改这里）+ `treasure`（预设宝物平台=5）+ `map.routetime=1`，首个主循环周期即走真实"二轮处理"分支（`get_newroute()+zhunbei()`），同时 `#elif` 跳过初始化处 zhunbei 避免双启动。**实测发现的两个改路坑（均已修）**：① P1 残留一轮 QR 扫描：`Stage_Action` 在 `treasure==0` 时于 P1 触发 `update_route_at_P1()` 用截断的一轮路线覆盖二轮完整巡游 → 车提前"回家"；`treasure!=0`（预设=5）跳过该分支。② `map.routetime=2` 必须放在 `get_newroute()` 之后置（get_newroute 内部 mapInit 把 routetime 清回 0，放前面被清掉）——二轮全程 `routetime==2` 使 `update_route_at_P7/8_for_treasure`（`map.routetime==0` 门槛）不触发，新二轮完整巡游路线在 P7/P8 不被截断；且二轮跑完 `Nav_TurnAndAdvance` 使 routetime→3 即停，不再无限重启二轮。门控路径安全：`get_newroute()` 内 `door_set_pass_node()` 把 8 条通行边（N5↔N12/N5↔N8/N3↔N8/N3↔N10）置 `function=NONE`，二轮过门不重触发 `door()`，预设 door_pass 保持。`SKIP_ROUND1=0` 时 `#if 0` 跳过整块，正常一轮→二轮路径与原代码逐字节一致 | 2026-08-13 |
-| 二轮东区巡游按宝藏位优化（barrier.c `get_newroute()`）：新增 `tour_p6[]`（车已在 N10 时起，去前导 `N11,N10`）+ `use_tour = (treasure==6) ? tour_p6 : tour`——宝藏=P6 时进东区后**先深入去 P6** 再 `P8→P7→P5` 绕回，终点仍 N10（9 门分支 tail 不变，非 P6 仍用原 tour）。`tour_p6` 逐边校验：`N9→B9→N7→P6→N7→B8→N9→C3→N14→C7→C8→C4→N20→P8→N20→B6→N22→C9→P7→C9→N22→B7→C6→N19→N13→P5→N13→N12→N11→N10`；注意回程经 `N19→N13`（N18 连接表 {C5,B5,N16} 无 N13，`N18→N13` 不合法） | 2026-08-13 |
-| 修复 DWT 周期计数测量 `cpu=0us`：Cortex-M7（STM32F750）DWT 寄存器对**软件写**默认锁定，缺 `DWT->LAR = 0xC5ACCE55` 解锁时 `DWT->CYCCNT=0`/`DWT->CTRL|=CYCCNTENA` 被静默忽略，计数器恒为 0（调试器 DAP 始终可写，所以接仿真器正常、脱机上电就恒 0）。motor_task.c / main_task.c 两处 `timing_dwt_init()` 统一在 TRCENA 后补 `DWT->LAR` 解锁。验证：烧录后 `MOTOR cpu=` 应输出非零 µs 值 | 2026-08-13 |
-| 长度标定 `LEN_SCALE=1.2f`（chassis_api.h）：实测 100 代码单位≈120cm。里程公式 ×LEN_SCALE 比例补偿（motor_task.c:182，运行时累加无法内联）；其余全部 250 处距离阈值按 cm=round(代码单位×1.2) 直接折算为整数厘米**内联**（map_message Node 表 step 121 处、barrier.c 90 处、map.c 32 处、main_task.c 7 处），不再写 ×LEN_SCALE 表达式。零遗漏零误伤（脚本校验）；非长度参数（RampCtrl thresh/speed/angle、俯仰阈值、`return 0;`）不折。详见 §7.4 | 2026-08-13 |
-| 红绿灯门区段长度宏定义化（map_message.h `DOOR_LEN_*`/`DOOR_RETREAT_*`，barrier.c 经 map.h→map_message.h 可见）：barrier.c `door_set_pass_node` 23 处改用全长宏；map_message DOOR 条目用 `宏/2`（半长）、匹配的非 DOOR 条目用全长宏；`door_retreat` 5 处改独立回退宏。取值以 map 半长×2 为准：N5N8/N3N8 全长 144→168（barrier 统一 11 处）、map N8→N3 72→84、N8→N5 180→84、get_newroute N5N12 156→168 | 2026-08-13 |
-| 修复 `Stage_correct()` 位运算优先级 bug（"平台段车不停"根因）：`==`/`!=` 优先级高于 `&`，`detail & 0xFFFF == 0xFFFF` 实为 `detail & 1`、`detail & 0xFFFF != 0xFFFF` 实为 `detail & 0` 恒假 → state1 永不退出、`CarBrake()` 永不执行、车一直走。三处条件全部补括号；case2 加无线形重试兜底（`state2_retry` 重扫5次仍无线则退出）防卡死 | 2026-08-13 |
-| 修复"下了平台还没到下一节点突然停下来转弯"：`Stage()`/`Stage_Home()`/`South_Pole()` 结束时**不再清 `nodes.nowNode.function`**（保留 UpStage/UpStageHome/BSoutPole），使 `map.c Nav_TurnAndAdvance` 的"无需转弯跳过"条件真正命中（该条件原本判断 `nodes.nowNode.function == UpStage/UpStageHome`，但三个平台函数在设置 `CROSS_EVENT_ARRIVED` 前先把 function 清了 0，判断永远为假）。同时把 `BSoutPole` 补进跳过条件（南极与平台同为"180°转身+下坡回坡底"结构，此前漏加）。**根因**：下坡段 `RAMP_DESCEND` 用 `Gray_GetCorrectAngle`（GrayCorrectAngle=0.1, max_correction=15°）修正，实际朝向可漂移 ±15°，超过跳过条件 10° 阈值；而平台 return 边角度 = 上平台边角度+180°（`need2turn(nowNode.angle, nextNode.angle)` 恒>90°），强制走"补偿距离(~19cm)+CarBrake+原地转弯"分支 → 恰好就是"刚下平台、还没到下一节点就停车转弯"。**前提**：依赖 barrier.c 三处不再清 function，且 `Nav_TurnAndAdvance` 完成后 nowNode 推进到 return 边（function=NONE），`motor_task.c`/`turn.c` 对 `function==UpStage/BSoutPole` 的模式判定不受影响。BHM（高山）刻意不动（翻越型障碍，坡顶确实需要正常转弯） | 2026-08-14 |
-| 修复 door() 回家过 D4 被误判为 D5_BACK（回退 80cm 而非 15cm）：状态判定第 4 条 `(lastNode==N10 \|\| nowNode==N3)` 在 N8→N3 时因 nowNode==N3 先命中 → DOOR_D5_BACK → door_retreat(N10,N8,DOOR_RETREAT_N10N8=80)，DOOR_D4_BACK(第5条)永不可达。修复：两个 BACK 状态按来向边精确匹配 `N8&&N3→D4_BACK`、`N10&&N3→D5_BACK`、`N8&&N5→D4_BACK 兜底`（barrier.c door() 1653-1658）。（同日后续推翻：删除 door_retreat 的 `nodes.lastNode=nodes.nowNode`，见下条） | 2026-08-15 |
-| 修复 door() D2→D3 链在 `&&` 精确判定下断裂（现场"D3蓝灯读到了却直冲 N10"根因）：`||`→`&&` 后，D2黑→door_retreat(N5,N8) 时 lastNode 被补丁行 `nodes.lastNode=nodes.nowNode` 覆盖为 N12（旧 `||` 时代靠它跳过 `lastNode==N5→DOOR_D2` 的死循环误判），而 `&&` 下 lastNode=N12、nowNode=N8 任何条件都命中不了 → `enum DoorState state` 未初始化（UB）→ 行为随机。修复：**删除补丁行**，lastNode 保持真实来向（D2退完=N5），D2→D3 门自然命中 `N5&&N8→DOOR_D3`；被补丁掩盖的回程组合显式补出 `N10&&N8→DOOR_D4`（回程 D5黑→door_retreat(N10,N8) 后回 D4 门，与旧补丁行为等价）；door() 状态加兜底初值 `state=DOOR_D2`。验证：AB=58 + D3蓝 → N8 正常 stop-turn 去 N12（原直冲 N10） | 2026-08-15 |
-| BY8001 语音模块音量控制：新增 `send_set_volume_command(uint8_t volume)`（ArriveDetect_task.c/h，0~30 级，帧 `7E 04 31 XX(音量) XX(校验和) EF`，校验和=`0x04^0x31^音量`，与既有 0x41 指定播放同帧格式）；`user_init()`（temporary_task.c）末尾开机调 `send_set_volume_command(30)` 音量最大（模块掉电记忆，设一次即全程生效） | 2026-08-15 |
-| 门区段角度宏定义化（map_message.h `ANGLE_N3N8/N5N8` + `ANGLE_N8N12=N3N8`/`ANGLE_N8N10=N5N8`，反向 `ANGLE_REV` 正减180/负加180 锁 [-180,180]）：map_message.c Node 表 8 处门区段角度改用宏（N8→N3 -45→-35、N8→N5 -140→-145、N8→N12 140→145、N8→N10 33→35、N12→N8 -43→-35、N10→N8 -150→-145），原手工值作废 | 2026-08-16 |
-| 二轮进东区终点按宝藏位优化（barrier.c `get_newroute()`，承接 08-13 的 `tour_p6`）：宝藏=P6 时不再一律先进 N12——D2 门进（branch1-4）`entry_D2_p6={N12,N11,N10}`（D2 门必经，最短，路线与原 `{N12}+tour_p6_first` 逐字节一致）；D3 门进（branch5-7）`entry_D3_p6={N8,N10}`、最外进（branch8-9）`entry_far_p6={N4,N3,N8,N10}`，由 `N8→N12→N11→N10` 改 `N8→N10` 直达 **省 160cm 且免走 N12→N11 刀山段**；非 P6 宝藏仍进 N12（去 P5 近，`entry_D2/{N8,N12}/{N4,N3,N8,N12}` 不变）。18 条组合（9 分支×2 宝藏）已按 map_message.c 连接表逐边校验全连通，最长 59 节点（route[100] 足够） | 2026-08-16 |
-| 二轮 P6 巡游回程终点改 N12、绕开 N11 刀山（barrier.c `get_newroute()`，承接上一条）：`tour_p6` 删末尾 `N11,N10`（原 `…N13→P5→N13→N12→N11→N10` → `…N13→P5→N13→N12`，终点 N12）；新增 `tail_p6_D2={N5,N4,B3,N2,P2}`（D2 双向直回 N12→N5）、`tail_p6_D5={N8,N10,N3,N4,B3,N2,P2}`（回 D5 走 N12→N8→N10→N3 免刀山），branch1/2/6/9 用 `(treasure==6)?tail_p6_x:tail` 选择；branch3/4/5/7/8 的 tail 本以 N8 开头，P6 时 tour 止于 N12 自动走 `N12→N8`，无需改。效果：回 D2/D3/D4 分支回程不再走 N12→N11→N10→N8（省 160~320cm，免 N11 往返穿两次刀山），回 D5 分支免 N12→N11 刀山（代价 +210cm、点数相同）；非 P6 路线逐字节不变。18 条组合逐边校验全连通，最长 58 节点（route[100] 足够） | 2026-08-16 |
-| 跷跷板 QQB_GYRO 退车优先级修正（barrier.c）：`pitch>55+basic_p` 退车重试（退 15cm）提前到状态开头并加 `break`，与巡线板最外侧紧急避障（退 12cm 躲红线）**互斥**——原两处并列 if，俯仰过高与红线同满足时**同一轮连退两下**（避障退 12 后紧接 pitch>55 退 15）。现 pitch>55 一旦触发即跳 QQB_WAIT_PITCH 重试，本轮不再走紧急避障，一次只退一个。注意：若现场连退为「pitch>55 退 15 → WAIT_PITCH 无前进立即重进 GYRO(is_emergency=1) → 再退」，需另加 WAIT_PITCH 前进里程门槛 | 2026-08-16 |
+### ✓ 关键状态（2026-08-17）
+- door() 回程 D5/D4 黑灯分支修复：DOOR_D5_BACK 原 `map.point-=1; route[map.point]=N3` 在公共初始化 `map.point=0` 后下溢成 255 越界写，改为 `route[0]=N3`；door7route/door11route 开头多余节点（N8/N5）删除，避免 `getNextConnectNode` 返回 0 → Node[0]=S1 跑飞
+- DOOR_D4_BACK 黑灯分支顺序修复：`door_retreat(N8,N5)` 拷贝 nowNode 前须先 `door_set_pass_node` 放行 D3 门（N8→N5 原定义 SPEED0+DOOR，先拷贝会拿到旧值→慢走+到 N5 二次触发 door() 乱转）；另显式 `nodes.nowNode.function=NONE`
+- PID bias 已 int→float；内环增量式带抗积分饱和，外环位置式带微分低通
+- 巡线 PID 按实际速度阶梯选择（line_pid_steps[]，见 §5.3）
+- 红绿灯按通行语义 CAN_PASS/ONE_WAY_PASS/NO_PASS，门区段长度/角度全部宏定义化
+- door() 状态按 lastNode/nowNode 精确匹配，D2→D3 链已修复；二轮巡游所有平台后回家
+- IMU 上电自检 + ORE 清理；DWT 解锁；FPU 单精度化
+- 平台/南极结束后保留 nodes.nowNode.function，避免下平台后误停车转弯
+- 工作区未提交：门角度 145/35、门长 200/190、SKIP_ROUND1=1、treasure=6、N5→N6 等 map_message 微调
+- 逐日修复历史已从本文件移除，需要追溯时看 git log
 
 ---
 
@@ -333,7 +295,7 @@ Cross()
 
 ## 十三、常量参数
 
-- PWM 20kHz (10800-1, prescaler=0), 一般9800, 转弯限5000
+- PWM 20kHz (10800-1, prescaler=0), 一般 `MOTOR_PWM_MAX=8500`（`Chassis_Init()` 设置），转弯限5000
 - 系统 216MHz (HSE 8MHz × PLL 54), APB1=54MHz, APB2=108MHz
 - FreeRTOS tick=1000Hz, 编码器 ARR=65535
 
@@ -381,12 +343,12 @@ map.c / barrier.c → Chassis_SetMode() → PIDMode = mode → motor_task 5ms循
 | `getAngleZ()` | yaw + compensateZ |
 | `Turn_Angle_Base(Angle, ratio, force_thr)` | 原地转基函数(static) |
 | `Turn_Angle(Angle)` | 原地转(ratio=1.0, force=0) |
-| `Stage_turn_Angle(Angle)` | 平台转(ratio=1.15, force=150°) |
+| `Stage_turn_Angle(Angle)` | 平台转(ratio=1.0, force=150°；注释保留 1.15 历史) |
 | `Turn360Step()` | 360°梯形速度曲线 |
 | `Go_Angle(angle, speed, motor)` | 陀螺仪直行 |
 
 Turn_Angle / Stage_turn_Angle 合并: 90%相同，提取 `Turn_Angle_Base` 基函数。
-360°转圈: 从 PID+MustBeZero 脉冲改为梯形速度曲线(加速30°→全速30-300°→减速358°→停)。
+360°转圈: 从 PID+MustBeZero 脉冲改为梯形速度曲线(加速40°→全速40-300°→减速358°→停)。
 
 ---
 
@@ -401,12 +363,12 @@ Turn_Angle / Stage_turn_Angle 合并: 90%相同，提取 `Turn_Angle_Base` 基�
 `Chassis_EnableRollProtection()/DisableRollProtection()`。
 
 ### 17.3 堵转保护
-- PWM > 7000 硬上限 → 死停
-- `output > target × 150` 连续 5 周期 → 死停（比值自适应各转速）
+- PWM > 8000 硬上限（`STALL_PWM_ABSOLUTE_MAX`）→ 死停
+- `output > target × 180`（`STALL_SPEED_RATIO`）连续 5 周期 → 死停（比值自适应各转速）
 > ⚠️ **2026-08-06 起已停用**：`Chassis_EnableStallProtection()`（chassis_api.c:102 原本就注释）与全部 `Chassis_DisableStallProtection()` 调用点已注释（map.c Nav_TurnAndAdvance、barrier.c 南极 SP_IMPACT 两处）。`stall_protect_enabled` 恒为 0，上述两段检测不再执行。检测逻辑代码保留，恢复时取消调用点注释即可。
 
 ### 17.4 翘头保护
-`is_Line` 下 `imu.pitch > basic_p + 8°` 时将 `Cincrement` 降至 0.05 抑制加速度，pitch 回落后恢复。需在 `Cross()` 中调用 `Chassis_EnableWheelieProtection()` 激活，使用模式与游龙一致。
+`is_Line` 下 `imu.pitch > basic_p + 8°` 时将 `Cincrement` 降至 0.05 抑制加速度，pitch 回落后恢复。需在 `Navigation()` 中调用 `Chassis_EnableWheelieProtection()` 激活，使用模式与游龙一致。
 阈值 8.0f (`WHEELIE_PITCH_THRESHOLD`) 定义在 `chassis_api.c`。
 
 ---
@@ -415,11 +377,11 @@ Turn_Angle / Stage_turn_Angle 合并: 90%相同，提取 `Turn_Angle_Base` 基�
 
 | 宏 | 定义位置 | 功能 |
 |----|----------|------|
-| `DEBUG` | [barrier.h](Application/barrier.h):45 | Door_ReadPass 用 `debug_door_pass[5]` 预设数组模拟 |
-| `MAIN_DEBUG` | [main_task.c](Task/main_task.c):29 | 跳过 Cross()，执行 `test_flag`/`debug_test_item` |
-| `SKIP_ROUND1` | [map.h](Application/map.h):8 | 跳过第一轮直接进第二轮（调试用）；main_task.c 初始化预设 `door_pass[5]`+`treasure`+`map.routetime=1`，首周期走真实二轮分支。**关键**：二轮分支 `get_newroute()` 后须再置 `routetime=2`（get_newroute 内部 mapInit 清 0），二轮全程 `routetime==2` 屏蔽 P7/P8 treasure 改路并保证跑完即停；`treasure!=0` 屏蔽 P1 残留 QR 改路 |
+| `DEBUG` | [barrier.c](Application/barrier.c):33（当前默认 0） | Door_ReadPass 用 `debug_door_pass[5]` 预设数组模拟 |
+| `MAIN_DEBUG` | [main_task.c](Task/main_task.c):27 | 跳过 Navigation()，执行 `test_flag`/`debug_test_item` |
+| `SKIP_ROUND1` | [map.h](Application/map.h):8（当前工作区 1） | 跳过第一轮直接进第二轮（调试用）；main_task.c 初始化预设 `door_pass[5]`+`treasure`+`map.routetime=1`，首周期走真实二轮分支。**关键**：二轮分支 `get_newroute()` 后须再置 `routetime=2`（get_newroute 内部 mapInit 清 0），二轮全程 `routetime==2` 屏蔽 P7/P8 treasure 改路并保证跑完即停；`treasure!=0` 屏蔽 P1 残留 QR 改路 |
 
-测试项: 1=直线, 2=转180°, 3=过坡。`debug_test_item` 优先级高于 UART 设置的 `test_flag`。
+测试项: 1=循迹, 2=转180°, 3=障碍物, 4=坡道, 5=红外, 6=灰度, 7=十字路口, 8=一键自检, 9=机器人动作, 10=门颜色, 11=OCR, 12=二维码。`debug_test_item` 优先级高于 UART 设置的 `test_flag`。
 
 ---
 
@@ -436,5 +398,5 @@ Turn_Angle / Stage_turn_Angle 合并: 90%相同，提取 `Turn_Angle_Base` 基�
 
 ## 二十、git 分支
 
-- 当前: `feature_backup` | 主分支: `main`
+- 当前工作区: `codex/restore-barrier-main-task`（2026-08-17 快照） | 历史主分支: `feature_backup` / `main`
 - 项目路径: `C:\Users\14166\Desktop\MC_32\robotcup\xunbao`
