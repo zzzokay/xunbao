@@ -2216,20 +2216,17 @@ uint8_t WaitFor_OCR(void)
 	{
 		flag_clue_A = clue_value;
 		clue_A_collected = 1;
-		if (flag_clue_A == 0)
-			send_play_specified_command(29);
-		else
-			{
-			send_play_specified_command(16 + flag_clue_A);
-			vTaskDelay(1000);
-			}
+		
+		send_play_specified_command(16 + flag_clue_A);
+		vTaskDelay(1500);
+		
 	}
 	else
 	{
 		flag_clue_B = clue_value;
 		clue_B_collected = 1;
 		send_play_specified_command(23 + flag_clue_B);
-		vTaskDelay(1000);
+		vTaskDelay(1500);
 	}
 	return OCR_SCAN_SUCCESS;
 #endif

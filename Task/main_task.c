@@ -24,9 +24,9 @@
 #include "Rudder_control.h"
 
 /*===== 独立调试开关 =====*/
-#define MAIN_DEBUG 0
+#define MAIN_DEBUG 1
 
-uint8_t test_flag = 1; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
+uint8_t test_flag = 11; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
 float temp_speed=25;
 #if MAIN_DEBUG
 
@@ -56,7 +56,7 @@ void main_task(void *pvParameters)
 	mpuZreset(get_latest_yaw(), nodes.nowNode.angle); // 用稳定后的实际角度计算补偿
 
 	/*等待挡板*/
-	if (test_flag != 10 && test_flag != 11 && test_flag != 12 && test_flag != 8 )
+	if (test_flag != 10 && test_flag != 11 && test_flag != 12 && test_flag != 8 && test_flag != 13)
 	{
 		while (Infrared_ahead == 0)
 			vTaskDelay(5);
@@ -268,6 +268,18 @@ void main_task(void *pvParameters)
 	
 		}
 
+		if(test_flag == 13)//播放所有语言
+		{
+			for(uint8_t i=0;i<40;i++)
+			{
+				send_play_specified_command(i);
+				vTaskDelay(1000);
+			}
+			test_flag = 0;
+		}
+		{
+			
+		}
 		/*调试模式下不执行 Navigation()，避免无传感器跑飞*/
 #else
 		/*========== 正常运行模式 ==========*/

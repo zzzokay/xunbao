@@ -141,6 +141,7 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
    // if (last == N13 && now == N18 && next == B5) return 60;
 	if (last == N8 && now == N3 && next == P3) return 18;
 	if (last == N8 && now == N3 && next == N4) return 30;
+    if (last == N4 && now == N3 && next == N8) return 30;
     if (last == N3 && now == N4 && next == B2) return 24;
 	if (last == B8 && now == N9 && next == C3) return 0;
 	if (last == N10 && now == N9 && next == B9) return 48;
@@ -162,7 +163,7 @@ static float GetForwardDistanceBeforeGyroTurn(u8 last, u8 now, u8 next)
     if (last == N8 && now == N12 && next == N13) return 5;
     if (last == N4 && now == N5 && next == N12) return 6;
 	if (last == N8 && now == N3 && next == P3) return 24;
-	if (last == P1 && now == N1 && next == B2)return 0; 
+	if (last == P1 && now == N1 && next == B2)return 3; 
 	return 0; // 默认不前进，走原逻辑未修改
 }
 

@@ -938,7 +938,8 @@ void Chassis_SelfCheck(void)
         Cross_getline(&Cross_Scaner);
         if (Cross_Scaner.detail != 0)
             error_now |= 0x04;
-        //printf_byte("%04X\r\n", Cross_Scaner.detail);
+
+       // printf_byte("%04X\r\n",(uint16_t)Cross_Scaner.detail);
     }
 
     /* ---------- 报告：状态变化时才打印 ---------- */
