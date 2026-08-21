@@ -4,10 +4,10 @@
 
 #include "map_message.h"
 
-#define MAP_DEBUG 1
+#define MAP_DEBUG 0
 #define SKIP_ROUND1 0  /* 1=跳过第一轮直接进第二轮（调试用；门状态在 main_task.c 初始化处预设） */
-#define FIRST_POINT N4
-#define SECOND_POINT N5
+#define FIRST_POINT P1
+#define SECOND_POINT N1
 
 #define NO      	 (1<<0) 
 #define DLEFT 		 (1<<1)				//左边横线
@@ -181,7 +181,10 @@ extern struct Map_State map;
 extern uint8_t Turn_Flag;
 extern uint8_t mul2sing, sing2mul;
 
+#define ROUTE_NOT_FOUND   0xFF   /* getNextConnectNode 查找失败哨兵值（Node 数组最大下标 131，0xFF 必越界） */
+
 u8 getNextConnectNode(u8 nownode,u8 nextnode);
+void Route_Error_Stop(u8 from, u8 to);   /* 兜底：查找路线失败直接停车（死循环，不返回） */
 void mapInit(void);
 void Navigation(void);
 void map_function(u8 fun);

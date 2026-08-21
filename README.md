@@ -6,6 +6,7 @@
 
 ## 当前状态（2026-08-21，工作区未提交）
 
+- **路线查找兜底（防跑飞）**：`getNextConnectNode` 查不到连接（节点写错/连接表漏配）时不再返回 0（原会指向 Node[0]=S1 带车跑飞），改为打印出错节点对并 `CarBrake_Stop()` 死停车；`nownode>=54` 越界同样兜底。路线结束哨兵 0xFF 的所有调用点已跳过查询
 - 波动板拆节点（正反向共用 B10/B11）：正向 `N14→B10→C7`、`C8→B11→C4`；反向 `C7→B10→N14`、`C4→B11→C8`；进板边 `BLBL`、出板边 `NONE`，C7/C4/N14/C8 恢复视觉检测+路口播报（不再越过路口提前转弯）
   - 受影响边：正向 `N14→B10`（原 N14→C7）、`B10→C7`、`C8→B11`（原 C8→C4）、`B11→C4`；反向 `C7→B10`（原 C7→N14）、`B10→N14`、`C4→B11`（原 C4→C8）、`B11→C8`
   - 涉及文件：`map.h`（Node[132]）、`map_message.c/h`（连接表扩容+B10/B11 双向出边）、`map.c`（door4/5/9/10/12route、GetForwardDistanceBeforeTurn）、`barrier.c`（门/宝物分支路线、get_newroute tour）

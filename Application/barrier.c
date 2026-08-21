@@ -1635,6 +1635,7 @@ static uint8_t Door_ReadPass(uint8_t door_state)
 static void door_set_pass_node(uint8_t a, uint8_t b, uint16_t step, float speed)
 {
 	uint8_t idx = getNextConnectNode(a, b);
+	if (idx == ROUTE_NOT_FOUND) return;   /* 兜底：连接关系找不到，Route_Error_Stop 已死停车 */
 	Node[idx].function = NONE;
 	Node[idx].speed = speed;
 	Node[idx].step = step;
@@ -1643,9 +1644,12 @@ static void door_set_pass_node(uint8_t a, uint8_t b, uint16_t step, float speed)
 /*红绿灯辅助：NO_PASS(不能过)后退+转头+重定向到目标节点*/
 static void door_retreat(uint8_t a, uint8_t b, float dis)
 {
+	uint8_t idx;
 	Chassis_DriveDistance_Blocking(is_Gyro, dis, -SPEED2, getAngleZ(), 0);
 	/* lastNode 保持真实来向（不再被覆盖）：D2黑退→D3 时 lastNode 应为 N5，由 door() 状态判定精确匹配 */
-	nodes.nowNode = Node[getNextConnectNode(a, b)];
+	idx = getNextConnectNode(a, b);
+	if (idx == ROUTE_NOT_FOUND) return;   /* 兜底：连接关系找不到，Route_Error_Stop 已死停车 */
+	nodes.nowNode = Node[idx];
 	Chassis_Brake();
 	Chassis_Turn_By_StopGyro_Blocking(nodes.nowNode.angle, getAngleZ(), 30.0f);
 }
@@ -2051,14 +2055,7 @@ void get_newroute(void)
 	load_route_at(0, r);
 	mapInit();
 	//全部运行通行
-	door_set_pass_node(N5, N12, DOOR_LEN_N5N12, SPEED4);
-	door_set_pass_node(N12, N5, DOOR_LEN_N5N12, SPEED4);
-	door_set_pass_node(N5, N8, DOOR_LEN_N5N8, SPEED4);
-	door_set_pass_node(N8, N5, DOOR_LEN_N5N8, SPEED4);
-	door_set_pass_node(N3, N8, DOOR_LEN_N3N8, SPEED4);
-	door_set_pass_node(N8, N3, DOOR_LEN_N3N8, SPEED4);
-	door_set_pass_node(N3, N10, DOOR_LEN_N3N10, SPEED4);
-	door_set_pass_node(N10, N3, DOOR_LEN_N3N10, SPEED4);
+	Clear_door();
 
 	//公共段：P1→P3→P4（到N5岔口）；东区巡游：P5→P7→P8→P6
 	const u8 pre[]  = {B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,0XFF};

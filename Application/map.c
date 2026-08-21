@@ -39,9 +39,10 @@ volatile uint8_t cross_event = 0;	//运行时阶段/事件标志，全局变量�
 //u8 route[100] = {N20,P8,N20, 0XFF};
 //u8 route[100] = {B2,N1,P1, 0XFF};
 //u8 route[100] = {N11,N12,N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,0XFF};
-u8 route[100] = {N12,N11,N10,0XFF};
+//u8 route[100] = {N12,N11,N10,0XFF};
+//u8 route[100] = {N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,B11,C8,C7,B10,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,0XFF};
 //u8 route[100] = {N11, 0XFF};
-//u8 route[100] = {N3, 0XFF};
+u8 route[100] = {B1,N2,P2, 0XFF};
 //u8 route[100] = {B9,N7,P6,N7,B8,N9, 0XFF};
 //u8 route[100] = {B2,N1,P1, N1, B1, N2, P2, 0XFF};
 //u8 route[100] = {C7,C8,B11,C4,N20,P8,0XFF};
@@ -99,12 +100,22 @@ void mapInit()
 	cross_event = 0;       //起始点   
 #if MAP_DEBUG
     nodes.lastNode.nodenum = FIRST_POINT;  //起始点
-    nodes.nowNode = Node[getNextConnectNode(FIRST_POINT, SECOND_POINT)];  //起始目标点
+    {
+        u8 idx = getNextConnectNode(FIRST_POINT, SECOND_POINT);  //起始目标点
+        if (idx == ROUTE_NOT_FOUND) return;   /* 兜底：起始连接错误，Route_Error_Stop 已死停车 */
+        nodes.nowNode = Node[idx];
+    }
 #else
-
-    nodes.nowNode = Node[getNextConnectNode(P2, N2)];  //起始目标点
+    {
+        u8 idx = getNextConnectNode(P2, N2);  //起始目标点
+        if (idx == ROUTE_NOT_FOUND) return;   /* 兜底：起始连接错误，Route_Error_Stop 已死停车 */
+        nodes.nowNode = Node[idx];
+    }
 #endif
-	nodes.nextNode = Node[getNextConnectNode(nodes.nowNode.nodenum, route[map.point++])];
+	/* 兜底：0xFF=路线结束哨兵，不查连接（否则 getNextConnectNode 会误判失败而停车） */
+	if (route[map.point] != 0xFF)
+		nodes.nextNode = Node[getNextConnectNode(nodes.nowNode.nodenum, route[map.point])];
+	map.point++;
 }
 
 
@@ -118,9 +129,19 @@ void mapInit()
  * 1. 从Address数组获取当前节点的连接关系起始地址
  * 2. 从ConnectionNum数组获取当前节点的连接节点数量
  * 3. 循环查找目标连接节点
+ * 
+ * 兜底（2026 防跑飞）：查不到连接（节点写错/连接表漏配）时不再返回 0（Node[0]=S1 会带车跑飞），
+ * 而是打印错误并直接死停车（Route_Error_Stop 内部 while(1)，不会返回）。
+ * 注意：调用方在 route 指向 0xFF（路线结束哨兵）时必须自行跳过本函数，勿把 0xFF 传入。
  */
 u8 getNextConnectNode(u8 nownode,u8 nextnode) 
 {
+	/* 兜底：节点编号越界（连接表只覆盖 0~53）*/
+	if (nownode >= 54)
+	{
+		Route_Error_Stop(nownode, nextnode);
+		return ROUTE_NOT_FOUND;
+	}
 	unsigned char rest = ConnectionNum[nownode];	//获取当前节点的连接数
 	unsigned char addr = Address[nownode];		//得到首地址
 	int i = 0;
@@ -130,7 +151,16 @@ u8 getNextConnectNode(u8 nownode,u8 nextnode)
 			return addr;
 		addr++;
 	}
-	return 0;
+	/* 兜底：找不到连接（节点写错/连接表漏配）→ 直接停车，防止小车跑飞 */
+	Route_Error_Stop(nownode, nextnode);
+	return ROUTE_NOT_FOUND;
+}
+
+/* 兜底停车：查找路线失败直接死停车（打印出错节点对，方便定位写错的节点） */
+void Route_Error_Stop(u8 from, u8 to)
+{
+	printf("ROUTE ERROR: no connection %d -> %d, STOP!\r\n", from, to);
+	CarBrake_Stop();   /* 卡死停车：内部 while(1) 持续刹车，不返回 */
 }
 
 
@@ -147,7 +177,9 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
     if (last == P8 && now == N20 && next == C4) return 30;
 	if (last == N8 && now == N5 && next == N4) return 36;
    // if (last == N13 && now == N18 && next == B5) return 60;
-	if (last == N8 && now == N3 && next == P3) return 18;
+	if (last == N5 && now == N8 && next == N12) return 15;
+    if (last == N2 && now == N8 && next == N10) return 15;
+    if (last == N8 && now == N3 && next == P3) return 18;
 	if (last == N8 && now == N3 && next == N4) return 30;
     if (last == N4 && now == N3 && next == N8) return 20;
     if (last == N3 && now == N4 && next == B2) return 24;
@@ -361,7 +393,10 @@ static void Nav_TurnAndAdvance(void)
         /* 节点切换 */
         nodes.lastNode = nodes.nowNode;
         nodes.nowNode = nodes.nextNode;
-        nodes.nextNode = Node[getNextConnectNode(nodes.nowNode.nodenum, route[map.point++])];
+        /* 兜底：0xFF=路线结束哨兵，不查连接（否则 getNextConnectNode 会误判失败而停车） */
+        if (route[map.point] != 0xFF)
+            nodes.nextNode = Node[getNextConnectNode(nodes.nowNode.nodenum, route[map.point])];
+        map.point++;
         cross_event &= ~CROSS_EVENT_ARRIVED;
     }
     else if (route[map.point - 1] == 0xFF)

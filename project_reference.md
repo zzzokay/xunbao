@@ -260,6 +260,7 @@ Navigation()
 - `filter.c:56-93` 4点去极值滤波窗口过小
 
 ### ✓ 关键状态（2026-08-17）
+- **getNextConnectNode 兜底（防跑飞）**：查不到连接（节点写错/连接表漏配）时不再返回 0（Node[0]=S1 会带车跑飞），改为打印 `ROUTE ERROR: no connection X -> Y` 并 `CarBrake_Stop()` 死停车；`nownode>=54` 越界同样兜底。所有调用点已同步：mapInit/Nav_TurnAndAdvance/Nav_PostProcess 在 `route[map.point]==0xFF`（路线结束哨兵）时跳过查询；door_set_pass_node/door_retreat 对 `ROUTE_NOT_FOUND` 提前 return
 - door() 回程 D5/D4 黑灯分支修复：DOOR_D5_BACK 原 `map.point-=1; route[map.point]=N3` 在公共初始化 `map.point=0` 后下溢成 255 越界写，改为 `route[0]=N3`；door7route/door11route 开头多余节点（N8/N5）删除，避免 `getNextConnectNode` 返回 0 → Node[0]=S1 跑飞
 - DOOR_D4_BACK 黑灯分支顺序修复：`door_retreat(N8,N5)` 拷贝 nowNode 前须先 `door_set_pass_node` 放行 D3 门（N8→N5 原定义 SPEED0+DOOR，先拷贝会拿到旧值→慢走+到 N5 二次触发 door() 乱转）；另显式 `nodes.nowNode.function=NONE`
 - PID bias 已 int→float；内环增量式带抗积分饱和，外环位置式带微分低通

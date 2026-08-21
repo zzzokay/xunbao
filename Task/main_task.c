@@ -67,6 +67,7 @@ void main_task(void *pvParameters)
 	//ScanerMode_Switch(Gray);
 #else
 	/*正常模式：完整初始化流程*/
+	//Clear_door();treasure = 5;
 	mapInit();
 	IMU_CalibrateZero(&basic_y, &basic_p, &basic_r);
 	vTaskDelay(100);
@@ -90,7 +91,6 @@ void main_task(void *pvParameters)
 
 		while (Infrared_ahead == 1)
 			vTaskDelay(5);
-		Clear_door();
 	#endif
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
 #endif
