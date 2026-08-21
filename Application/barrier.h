@@ -84,7 +84,7 @@ void select_speed_stage(void);
 //void Protect(float angle1);
 
 //void DragonProtection(void); //游龙保护
-
+void Clear_door();
 void CGChange(float Speed);
 void Motor_Control(uint8_t target_mode, float LSPEED, float RSPEED, float aim);
 void update_route_for_stage34(void);

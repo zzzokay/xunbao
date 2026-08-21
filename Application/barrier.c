@@ -30,7 +30,7 @@
 #include "gray.h"
 #include "chassis_api.h"
 
-#define DEBUG 1
+#define DEBUG 0
 
 /*==============================================================================
  *  目录 / Table of Contents   按 Ctrl+F 搜索函数名、Ctrl+D快速跳转
@@ -1500,8 +1500,8 @@ void QQB_1(void)
 				//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()>0?90:-90, getAngleZ(), 15.0f);
 				Chassis_RestoreGyroPid();
 				Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ());	
-				while(imu.pitch <= basic_p-10){vTaskDelay(2);}
-				Chassis_Turn_By_Gyro_Blocking(getAngleZ()>0?150:-50, getAngleZ(), 25.0f);	
+				while(imu.pitch <= basic_p-20){vTaskDelay(2);}
+				Chassis_Turn_By_Gyro_Blocking(getAngleZ()>0?145:-45, getAngleZ(), 20.0f);	
 				seen_negative=2;				
 			}
 			if(seen_negative==2)
@@ -1524,10 +1524,10 @@ void QQB_1(void)
 		vTaskDelay(2);
 	}  
 	Chassis_SetEdgeIgnore(0);
-	Chassis_SetCatchSensorNum(line_weight_default[13]);
+	Chassis_SetCatchSensorNum(line_weight_default[8]);
 	Chassis_SetTrackMode(TRACK_LEFT_EDGE);
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
-	Chassis_OverrideLinePid(17,0.02f,50,30);
+	Chassis_OverrideLinePid(17,0.01f,50,30);
 	Chassis_ClearMileage();
 	uint8_t dis = getAngleZ()>0?(uint8_t)(60):(uint8_t)(48);
 	while(Chassis_GetMileage() < dis)vTaskDelay(2);
@@ -2032,6 +2032,17 @@ static void build_round2_route(const u8 *pre, const u8 *entry, const u8 *tour, c
 	for (i = 0; tour[i] != 0XFF; i++)	route[n++] = tour[i];
 	for (i = 0; tail[i] != 0XFF; i++)	route[n++] = tail[i];
 	route[n] = 0XFF;
+}
+void Clear_door(){
+	door_set_pass_node(N5, N12, DOOR_LEN_N5N12, SPEED4);
+	door_set_pass_node(N12, N5, DOOR_LEN_N5N12, SPEED4);
+	door_set_pass_node(N5, N8, DOOR_LEN_N5N8, SPEED4);
+	door_set_pass_node(N8, N5, DOOR_LEN_N5N8, SPEED4);
+	door_set_pass_node(N3, N8, DOOR_LEN_N3N8, SPEED4);
+	door_set_pass_node(N8, N3, DOOR_LEN_N3N8, SPEED4);
+	door_set_pass_node(N3, N10, DOOR_LEN_N3N10, SPEED4);
+	door_set_pass_node(N10, N3, DOOR_LEN_N3N10, SPEED4);
+
 }
 
 void get_newroute(void)

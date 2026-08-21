@@ -84,11 +84,13 @@ void main_task(void *pvParameters)
 	#elif !MAP_DEBUG
 	zhunbei(); // 启动流程（红外等待）
 	#else
+		
 		while (Infrared_ahead == 0)
 			vTaskDelay(5);
 
 		while (Infrared_ahead == 1)
 			vTaskDelay(5);
+		Clear_door();
 	#endif
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
 #endif

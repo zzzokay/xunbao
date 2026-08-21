@@ -6,8 +6,8 @@
 
 #define MAP_DEBUG 1
 #define SKIP_ROUND1 0  /* 1=跳过第一轮直接进第二轮（调试用；门状态在 main_task.c 初始化处预设） */
-#define FIRST_POINT N10
-#define SECOND_POINT N9
+#define FIRST_POINT N4
+#define SECOND_POINT N5
 
 #define NO      	 (1<<0) 
 #define DLEFT 		 (1<<1)				//左边横线
