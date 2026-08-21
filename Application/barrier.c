@@ -64,10 +64,10 @@
 
 
 /*===== 调试：预设5个门颜色，door() 自动读取 =====*/
-//int8_t door_pass[5] = {ONE_WAY_PASS, ONE_WAY_PASS, CAN_PASS, CAN_PASS, NO_PASS};
+//uint8_t door_pass[5] = {ONE_WAY_PASS, CAN_PASS, NO_PASS, NO_PASS, NO_PASS};
 uint8_t door_pass[5] = {0, 0, 0, 0, 0};
 #if DEBUG
-uint8_t debug_door_pass[5] = {ONE_WAY_PASS, ONE_WAY_PASS, CAN_PASS, NO_PASS, NO_PASS}; // 0:D2、1:D3、2:D4、3:D5、4:D1
+uint8_t debug_door_pass[5] = {ONE_WAY_PASS, CAN_PASS, NO_PASS, NO_PASS, NO_PASS}; // 0:D2、1:D3、2:D4、3:D5、4:D1
 volatile uint8_t flag_line_clue    = 0;
 volatile uint8_t flag_clue_stage_A = 5;
 volatile uint8_t flag_clue_stage_B = 7;
@@ -471,8 +471,8 @@ void Stage(void)
 
 			if(Stage_HasTreasure())
 				Stage_CollectTreasure();
-				
-			Stage_Correct();
+			if(nodes.nowNode.nodenum != P3 && nodes.nowNode.nodenum != P4 && nodes.nowNode.nodenum != P5)
+				Stage_Correct();
 
 			Robot_Work(BODY, DOWN); 	//人躺下
 			state = STAGE_DESCEND;
@@ -1166,7 +1166,7 @@ void update_route_at_P7_for_treasure(void)
 			case 5:
 				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {N22,B6,N20,C4,B11,C8,C7,B10,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
 				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
@@ -1185,7 +1185,7 @@ void update_route_at_P7_for_treasure(void)
 			case 5:
 				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N8,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {N22,B6,N20,P8,N20,C4,B11,C8,C7,B10,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
 				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
@@ -1204,7 +1204,7 @@ void update_route_at_P7_for_treasure(void)
 			case 5:
 				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N8,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {N22,B6,N20,P8,N20,C4,B11,C8,C7,B10,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
 				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N8,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
@@ -1217,15 +1217,15 @@ void update_route_at_P7_for_treasure(void)
 		switch (treasure)
 		{
 			case 3:
-				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {N22,B6,N20,C4,B11,C8,C7,B10,N14,C3,N9,N10,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 4:
-				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {N22,B6,N20,C4,B11,C8,C7,B10,N14,C3,N9,N10,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 5:
 				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N11,N10,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {N22,B6,N20,C4,B11,C8,C7,B10,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
-				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,N10,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {N22,B6,N20,C4,B11,C8,C7,B10,N14,C3,N9,N10,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
 
                 break;	
@@ -1242,7 +1242,7 @@ void update_route_at_P7_for_treasure(void)
 			case 5:
 				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N11,N10,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {N22,B6,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {N22,B6,N20,C4,B11,C8,C7,B10,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
 				{ const u8 r[] = {N22,B7,C6,N19,B5,N18,C5,N15,N10,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
@@ -1259,15 +1259,15 @@ void update_route_at_P8_for_treasure(void)
 		switch (treasure)
 		{
 			case 3:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N11,N12,N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,N10,N11,N12,N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 4:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N11,N12,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,N10,N11,N12,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 5:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N11,N12,N13,P5,N13,N12,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,N10,N11,N12,N13,P5,N13,N12,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N11,N12,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N11,N12,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,N10,N11,N12,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
 
                 break;	
@@ -1278,15 +1278,15 @@ void update_route_at_P8_for_treasure(void)
 		switch (treasure)
 		{
 			case 3:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,N10,N8,N5,N4,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 4:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,N10,N8,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 5:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N11,N12,N13,P5,N13,N12,N8,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,N10,N11,N12,N13,P5,N13,N12,N8,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N8,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,N10,N8,N5,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
 
                 break;	
@@ -1297,15 +1297,15 @@ void update_route_at_P8_for_treasure(void)
 		switch (treasure)
 		{
 			case 3:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,N10,N8,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 4:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,N10,N8,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 5:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N11,N12,N13,P5,N13,N12,N8,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,N10,N11,N12,N13,P5,N13,N12,N8,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N8,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N8,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,N10,N8,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
 
                 break;	
@@ -1316,15 +1316,15 @@ void update_route_at_P8_for_treasure(void)
 		switch (treasure)
 		{
 			case 3:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,N10,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 4:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,N10,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 5:
 				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N11,N10,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,N10,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
 
                 break;	
@@ -1335,15 +1335,15 @@ void update_route_at_P8_for_treasure(void)
 		switch (treasure)
 		{
 			case 3:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,N10,N3,P3,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 4:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,N10,N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 5:
 				{ const u8 r[] = {B6,N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,N11,N10,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 6:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,N3,N4,B3,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			case 2:
-				{ const u8 r[] = {C4,C8,C7,N14,C3,N9,N10,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
+				{ const u8 r[] = {C4,B11,C8,C7,B10,N14,C3,N9,N10,N3,N4,B2,N1,P1,N1,B1,N2,P2,0XFF}; load_route_at(map.point, r); break; }
 			default:
 
                 break;	
@@ -1351,7 +1351,7 @@ void update_route_at_P8_for_treasure(void)
 	}
 }
 /*跷跷板*/
-#define CENTER 8
+#define CENTER 7
 void QQB_1(void)
 {
 	enum {
@@ -1474,7 +1474,7 @@ void QQB_1(void)
 
 			if(is_emergency==0)Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);
 
-			if(Chassis_GetMileage() > 50 && is_emergency == 0)
+			if(Chassis_GetMileage() > 48 && is_emergency == 0)
 			{
 				CarBrake();
 				state = QQB_WAIT;		
@@ -1500,8 +1500,8 @@ void QQB_1(void)
 				//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()>0?90:-90, getAngleZ(), 15.0f);
 				Chassis_RestoreGyroPid();
 				Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ());	
-				while(imu.pitch <= basic_p-15){vTaskDelay(2);}
-				Chassis_Turn_By_Gyro_Blocking(getAngleZ()>0?150:-50, getAngleZ(), 20.0f);	
+				while(imu.pitch <= basic_p-10){vTaskDelay(2);}
+				Chassis_Turn_By_Gyro_Blocking(getAngleZ()>0?150:-50, getAngleZ(), 25.0f);	
 				seen_negative=2;				
 			}
 			if(seen_negative==2)
@@ -2051,7 +2051,7 @@ void get_newroute(void)
 
 	//公共段：P1→P3→P4（到N5岔口）；东区巡游：P5→P7→P8→P6
 	const u8 pre[]  = {B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,0XFF};
-	const u8 tour[] = {N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,0XFF};
+	const u8 tour[] = {N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,B11,C8,C7,B10,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,0XFF};
 	// 宝藏=P6：车已在N10时先深入去P6，再P8→P7→P5绕回（终点改为N12，回程走N12→N8直连出东区，避开N11刀山）
 	const u8 tour_p6[] = {N9,B9,N7,P6,N7,B8,N9,C3,N14,B10,C7,C8,B11,C4,N20,P8,N20,B6,N22,C9,P7,C9,N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,0XFF};
 	const u8 *use_tour = (treasure == 6) ? tour_p6 : tour;

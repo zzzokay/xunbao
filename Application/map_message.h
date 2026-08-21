@@ -4,16 +4,23 @@
 #include "sys.h"
 #include "map.h"
 
+/* 楼梯/山区段长度宏（单位 cm，按"起点→目标"方向命名）
+ * 约束：B5N19 与 B7C6 长度相同；N18B5 比 N22B7 短 20 */
+#define LEN_N22B7   200
+#define LEN_N18B5   (LEN_N22B7 - 20)      /* N18B5 = 180 */
+#define LEN_B5N19   72
+#define LEN_B7C6    LEN_B5N19             /* B7C6 = B5N19 = 72 */
+
 /* 红绿灯门区段：全长（door_set_pass_node 用全长；map_message 中 DOOR 条目用 全长/2） */
-#define DOOR_LEN_N5N12  200
-#define DOOR_LEN_N5N8   190
-#define DOOR_LEN_N8N10  190
-#define DOOR_LEN_N3N10  200
-#define DOOR_LEN_N3N8   190
-#define DOOR_LEN_N8N12  190
+#define DOOR_LEN_N5N12  220
+#define DOOR_LEN_N5N8   200
+#define DOOR_LEN_N8N10  200
+#define DOOR_LEN_N3N10  220
+#define DOOR_LEN_N3N8   200
+#define DOOR_LEN_N8N12  200
 
 /* door_retreat 后退距离（与路段全长无关，按”起点→目标”方向命名） */
-#define DOOR_RETREAT_N5N8   75
+#define DOOR_RETREAT_N5N8   85
 #define DOOR_RETREAT_N5N4   85
 #define DOOR_RETREAT_N10N8  100
 #define DOOR_RETREAT_N8N5   75

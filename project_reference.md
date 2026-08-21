@@ -95,7 +95,7 @@ extern volatile uint8_t PIDMode;  // is_No/is_Free/is_Line/is_Turn/is_Gyro
 typedef struct _node {
     u8 nodenum; u32 flag; float angle; u16 step; float speed; u8 function;
 } NODE;
-extern NODE Node[128], route[100];
+extern NODE Node[132], route[100];
 extern Nodes nodes;    // lastNode/nowNode/nextNode
 extern volatile uint8_t cross_event;
 #define CROSS_EVENT_ARRIVED (1<<0)   // 已到达节点
@@ -185,7 +185,7 @@ TIM1 → L0 (正) | TIM2 → L1 (正) | TIM3 → R0 (取反) | TIM5 → R1 (取�
 **用法**：各处距离阈值已按 **cm = round(代码单位 × LEN_SCALE)** 直接折算为**整数厘米内联**在代码中（精确到 1cm），不再写 `×LEN_SCALE` 表达式。**LEN_SCALE 宏仅用于 motor_task 里程公式的比例补偿**（里程是运行时连续累加，无法内联）。
 **覆盖范围**（共 250 处，已验证零遗漏零误伤）：
 - 里程公式 `motor_task.c:182`：`Distance += ((encoder_avg*10.4*PI/5720)/0.362) * LEN_SCALE`（比例补偿）
-- `map_message.c` Node[128] 表全部 step 字段（121 处，如 `280→336`、`180→216`）
+- `map_message.c` Node[132] 表全部 step 字段（130 条边，如 `280→336`、`180→216`）
 - `barrier.c`（90 处）：`Chassis_DriveDistance_Blocking` 距离、`Chassis_GetMileage`/`mileage_br` 比较、`Stage_DetectedRamp` 距离、`nodes.nowNode.step=`、`door_set_pass_node`/`door_retreat` 距离、`RampCtrl_Blocking` max_distance、QQB `dis`
 - `map.c`（32 处）：`Barrier_WavedPlate`、两个 GetForwardDistance* 的 return 距离
 - `main_task.c`（7 处）：`Chassis_DriveDistance_Blocking` 距离
@@ -218,7 +218,7 @@ enum barriers {
 - BLBS→Barrier_WavedPlate(70) | BLBL→Barrier_WavedPlate(100)
 - BHM→Barrier_HighMountain() | DOOR→door()
 
-> ⚠️ 波动板节点约定（2026-08-21 拆 B10/B11）：把 BLBL/BLBS 直接加在节点间会令 `Barrier_WavedPlate` 内部自置 `CROSS_EVENT_ARRIVED`，跳过 `ArriveDetect`/`deal_arrive` → 无路口检测、无"路口"播报，且出板落点漂移导致未到真实路口就提前转弯。正解：拆一个板节点（如 B10=N14–C7 段板尾、B11=C8–C4 段板尾），进板边 `BLBL`(flag NO)、出板边 `NONE`(flag=路口视觉标志如 DLEFT/CRIGHT) → 真实路口恢复视觉检测+播报；板节点为直通点（入/出 angle 相同不转弯）。
+> ⚠️ 波动板节点约定（2026-08-21 拆 B10/B11，正反向共用）：把 BLBL/BLBS 直接加在节点间会令 `Barrier_WavedPlate` 内部自置 `CROSS_EVENT_ARRIVED`，跳过 `ArriveDetect`/`deal_arrive` → 无路口检测、无"路口"播报，且出板落点漂移导致未到真实路口就提前转弯。正解：拆一个板节点（B10=N14–C7 段板尾、B11=C8–C4 段板尾），进板边 `BLBL`(flag NO)、出板边 `NONE`(flag=路口视觉标志如 DLEFT/CRIGHT) → 真实路口恢复视觉检测+播报；板节点为直通点（入/出 angle 相同不转弯）。正反向共用同一板节点：正向 `N14→B10→C7`、`C8→B11→C4`，反向 `C7→B10→N14`、`C4→B11→C8`（B10/B11 各 2 条出边，角度按方向区分，见 map_message.c；step 均待现场实测）。
 
 ---
 
