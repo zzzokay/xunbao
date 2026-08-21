@@ -170,11 +170,11 @@ static uint8_t Stage_DetectedRamp(float distance)
 	
 }
 
-static void Stage_Correct(){
+static void Stage_Correct(float back_distance){
 	uint8_t state =0;
 	uint8_t state2_retry = 0;  // case2 无线形重试计数，防卡死
 	uint16_t break_time = 0;	// case2 无线形重试计数，防卡死
-	Chassis_DriveDistance_Blocking(is_Gyro, 5, -GoStage_Speed, getAngleZ(), 0);
+	Chassis_DriveDistance_Blocking(is_Gyro, back_distance, -GoStage_Speed, getAngleZ(), 0);
 	Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, getAngleZ());
 	while(state!=3)
 	{
@@ -182,7 +182,7 @@ static void Stage_Correct(){
 		switch (state)
 		{
 		case 0:
-			if(++break_time>700)state = 3;	// 超时退出
+			if(++break_time>900)state = 3;	// 超时退出
 			if((Cross_Scaner.ledNum>=15))
 			{
 				state = 1;
@@ -197,7 +197,7 @@ static void Stage_Correct(){
 			}
 			break;
 		case 2:
-			//vTaskDelay(1000);
+			vTaskDelay(100);
 			Cross_getline(&Cross_Scaner);
 			if(Cross_Scaner.detail & 0xE000)
 			{
@@ -217,7 +217,7 @@ static void Stage_Correct(){
 				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+30, getAngleZ(), 20.0f);
 				state = 3;
 			}
-			else if(Cross_Scaner.detail & 0x1800)
+			else if(Cross_Scaner.detail & 0x1C00)
 			{
 				send_play_specified_command(33);
 				Chassis_DriveDistance_Blocking(is_Gyro, 10, -GoStage_Speed, getAngleZ(), 0);
@@ -226,7 +226,7 @@ static void Stage_Correct(){
 				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-15, getAngleZ(), 20.0f);
 				state = 3;
 			}
-			else if(Cross_Scaner.detail & 0x0018)
+			else if(Cross_Scaner.detail & 0x0038)
 			{
 				send_play_specified_command(33);
 				Chassis_DriveDistance_Blocking(is_Gyro, 10, -GoStage_Speed, getAngleZ(), 0);
@@ -472,7 +472,7 @@ void Stage(void)
 			if(Stage_HasTreasure())
 				Stage_CollectTreasure();
 			if(nodes.nowNode.nodenum != P3 && nodes.nowNode.nodenum != P4 && nodes.nowNode.nodenum != P5)
-				Stage_Correct();
+				Stage_Correct(5);
 
 			Robot_Work(BODY, DOWN); 	//人躺下
 			state = STAGE_DESCEND;
@@ -895,7 +895,129 @@ void Sword_Mountain(void)
 	nodes.nowNode.function = 0;
 	cross_event |= CROSS_EVENT_ARRIVED;
 }
+// /*珠峰 */
+// void Barrier_HighMountain(void)
+// {
+// 	enum {
+// 		HM_APPROACH,      // 巡线接近，检测坡底
+// 		HM_ASCEND_1,      // 第一段上坡：RampCtrl_Blocking
+// 		HM_FLAT,          // 中间平地：陀螺仪直走
+// 		HM_ASCEND_2,      // 第二段上坡：RampCtrl_Blocking
+// 		HM_IMPACT,        // 撞挡板 + 后退 + 转身 + 宝物
+// 		HM_DESCEND_1,     // 第一段下坡：RampCtrl_Blocking
+// 		HM_DESCEND_FLAT,  // 下坡中间平地：陀螺仪直走
+// 		HM_DESCEND_2,     // 第二段下坡：RampCtrl_Blocking
+// 		HM_DONE
+// 	} state = HM_APPROACH;
 
+// 	float origin_angle = 0.0f;
+// 	uint8_t sub_stage = 0;
+
+// 	Chassis_OverrideGyroPid(4, 0, 70, 10);
+// 	Chassis_EnableAntiSnake();
+// 	Chassis_MotorControl(is_Line, 15, 15, 0);
+// 	Chassis_OverrideLinePid(30, 0, 180, 30);
+// 	Chassis_SetTrackMode(TRACK_NEAR_CENTER);
+// 	Chassis_ClearMileage();
+// 	while (state != HM_DONE)
+// 	{
+// 		switch (state)
+// 		{
+// 		case HM_APPROACH:
+
+// 			if (Stage_DetectedRamp(36))
+// 			{
+// 				Chassis_RestoreLinePid();
+// 				state = HM_ASCEND_1;
+// 			}
+// 			break;
+
+// 		case HM_ASCEND_1:
+// 			//让车抬起后马上退出
+// 			RampCtrl_Blocking(RAMP_ASCEND, 15, getAngleZ(),
+// 				Begin_up, 15, up_pitch, 20, up_pitch+30, 0.07f, 10.0f, 24);
+// 			//用循迹走
+// 			Chassis_DriveDistance_Blocking(is_Line, 42, 20, 0, 0);
+// 			//检测上坡结束
+// 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
+// 				Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.07f, 10.0f, 0.0f);
+// 			state = HM_FLAT;
+// 			break;
+
+// 		case HM_FLAT:
+// 			Chassis_MotorControl(is_Gyro,UpDownStage_Speed_high , UpDownStage_Speed_high, getAngleZ());
+// 			if (imu.pitch >= Begin_up)
+// 			{
+// 				state = HM_ASCEND_2;
+// 			}
+// 			break;
+
+// 		case HM_ASCEND_2:
+// 			RampCtrl_Blocking(RAMP_ASCEND, 20, getAngleZ(),
+// 				Begin_up, 20, up_pitch, 20, up_pitch+30, 0.07f, 10.0f, 24);
+// 			Chassis_DriveDistance_Blocking(is_Line, 42, 20, 0, 0);
+// 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
+// 				Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.07f, 10.0f, 0.0f);
+// 			state = HM_IMPACT;
+// 			break;
+
+// 		case HM_IMPACT:
+// 			Robot_Work(BODY, UP); 	//人站起来
+// 			//平台动作
+// 			Stage_Action(getAngleZ());
+
+// 			if (treasure == 0)
+// 			{
+// 				treasure = flag_clue_A + flag_clue_B;
+// 			}
+// 			if (map.routetime == 0 && flag_clue_stage_B == 8)
+// 				update_route_at_P8_for_treasure();
+// 			Stage_Correct(5);
+
+// 			Robot_Work(BODY, DOWN); 	//人坐下
+// 			origin_angle = getAngleZ();
+// 			sub_stage = 0;
+// 			state = HM_DESCEND_1;
+// 			break;
+
+// 		case HM_DESCEND_1:
+// 			//Chassis_DriveDistance_Blocking(is_Free, 10, 500, 0, 0);
+// 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
+// 				Begin_down, UpDownStage_Speed_low, down_pitch, 20, down_pitch-30, 0.07f, 10.0f, 0.0f);
+// 			Chassis_DriveDistance_Blocking(is_Line, 48, 20, 0, 0);
+// 			RampCtrl_Blocking(RAMP_DESCEND, 20, origin_angle,
+// 				Begin_down, 20, down_pitch, 20, After_down, 0.07f, 10.0f, 0.0f);
+// 			state = HM_DESCEND_FLAT;
+// 			break;
+
+// 		case HM_DESCEND_FLAT:
+// 			Chassis_MotorControl(is_Gyro, UpDownStage_Speed_low-2, UpDownStage_Speed_low-2, origin_angle);
+// 			if (imu.pitch <= Begin_down)
+// 			{
+// 				state = HM_DESCEND_2;
+// 			}
+// 			break;
+
+// 		case HM_DESCEND_2:
+// 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
+// 				Begin_down, UpDownStage_Speed_low, down_pitch, 20, down_pitch-30, 0.07f, 10.0f, 0.0f);
+// 			Chassis_DriveDistance_Blocking(is_Line, 48, 20, 0, 0);
+// 			RampCtrl_Blocking(RAMP_DESCEND, 20, origin_angle,
+// 				Begin_down, 20, down_pitch, 20, After_down, 0.07f, 10.0f, 0.0f);
+// 			state = HM_DONE;
+// 			break;
+
+// 		default:
+// 			state = HM_DONE;
+// 			break;
+// 		}
+// 		vTaskDelay(2);
+// 	}
+
+// 	Chassis_RestoreGyroPid();
+// 	nodes.nowNode.function = 0;
+// 	cross_event |= CROSS_EVENT_ARRIVED;
+// }
 /*珠峰 */
 void Barrier_HighMountain(void)
 {
@@ -926,7 +1048,7 @@ void Barrier_HighMountain(void)
 		{
 		case HM_APPROACH:
 
-			if (Stage_DetectedRamp(36))
+			if (Stage_DetectedRamp(40))
 			{
 				Chassis_RestoreLinePid();
 				state = HM_ASCEND_1;
@@ -935,10 +1057,11 @@ void Barrier_HighMountain(void)
 
 		case HM_ASCEND_1:
 			//让车抬起后马上退出
+			Chassis_OverrideLinePid(15, 0, 150, 30);
 			RampCtrl_Blocking(RAMP_ASCEND, 15, getAngleZ(),
 				Begin_up, 15, up_pitch, 20, up_pitch+30, 0.07f, 10.0f, 24);
 			//用循迹走
-			Chassis_DriveDistance_Blocking(is_Line, 42, 20, 0, 0);
+			Chassis_DriveDistance_Blocking(is_Line, 50, 20, 0, 3);
 			//检测上坡结束
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
 				Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.07f, 10.0f, 0.0f);
@@ -956,9 +1079,9 @@ void Barrier_HighMountain(void)
 		case HM_ASCEND_2:
 			RampCtrl_Blocking(RAMP_ASCEND, 20, getAngleZ(),
 				Begin_up, 20, up_pitch, 20, up_pitch+30, 0.07f, 10.0f, 24);
-			Chassis_DriveDistance_Blocking(is_Line, 42, 20, 0, 0);
+			Chassis_DriveDistance_Blocking(is_Line, 50, 20, 0, 3);
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
-				Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.07f, 10.0f, 0.0f);
+				Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.03f, 10.0f, 0.0f);
 			state = HM_IMPACT;
 			break;
 
@@ -966,43 +1089,44 @@ void Barrier_HighMountain(void)
 			Robot_Work(BODY, UP); 	//人站起来
 			//平台动作
 			Stage_Action(getAngleZ());
-
+			origin_angle = getAngleZ();
 			if (treasure == 0)
 			{
 				treasure = flag_clue_A + flag_clue_B;
 			}
 			if (map.routetime == 0 && flag_clue_stage_B == 8)
 				update_route_at_P8_for_treasure();
-			Stage_Correct();
-
 			Robot_Work(BODY, DOWN); 	//人坐下
-			origin_angle = getAngleZ();
+			vTaskDelay(100);
+			Stage_Correct(5);		
+			
 			sub_stage = 0;
 			state = HM_DESCEND_1;
 			break;
 
 		case HM_DESCEND_1:
-			//Chassis_DriveDistance_Blocking(is_Free, 10, 500, 0, 0);
-			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
-				Begin_down, UpDownStage_Speed_low, down_pitch, 20, down_pitch-30, 0.07f, 10.0f, 0.0f);
-			Chassis_DriveDistance_Blocking(is_Line, 48, 20, 0, 0);
+			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low-5, origin_angle,
+				Begin_down, UpDownStage_Speed_low-5, down_pitch-7, 20, down_pitch-30, 0.07f, 10.0f, 0.0f);
+			Chassis_DriveDistance_Blocking(is_Line, 55, 20, 0, 3);
 			RampCtrl_Blocking(RAMP_DESCEND, 20, origin_angle,
 				Begin_down, 20, down_pitch, 20, After_down, 0.07f, 10.0f, 0.0f);
 			state = HM_DESCEND_FLAT;
 			break;
 
 		case HM_DESCEND_FLAT:
+			Chassis_DriveDistance_Blocking(is_Gyro, 20, UpDownStage_Speed_low-2, origin_angle, 0);
+			CarBrake();
+			Chassis_Turn_By_StopGyro_Blocking(origin_angle, getAngleZ(), 8.0f);
+			Stage_Correct(0);
 			Chassis_MotorControl(is_Gyro, UpDownStage_Speed_low-2, UpDownStage_Speed_low-2, origin_angle);
-			if (imu.pitch <= Begin_down)
-			{
-				state = HM_DESCEND_2;
-			}
+			while(imu.pitch <= Begin_down)vTaskDelay(2);
+			state = HM_DESCEND_2;
 			break;
 
 		case HM_DESCEND_2:
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
-				Begin_down, UpDownStage_Speed_low, down_pitch, 20, down_pitch-30, 0.07f, 10.0f, 0.0f);
-			Chassis_DriveDistance_Blocking(is_Line, 48, 20, 0, 0);
+				Begin_down, UpDownStage_Speed_low, down_pitch-5, 20, down_pitch-30, 0.07f, 10.0f, 0.0f);
+			Chassis_DriveDistance_Blocking(is_Line, 55, 20, 0, 3);
 			RampCtrl_Blocking(RAMP_DESCEND, 20, origin_angle,
 				Begin_down, 20, down_pitch, 20, After_down, 0.07f, 10.0f, 0.0f);
 			state = HM_DONE;
@@ -1014,7 +1138,7 @@ void Barrier_HighMountain(void)
 		}
 		vTaskDelay(2);
 	}
-
+	Chassis_RestoreLinePid();
 	Chassis_RestoreGyroPid();
 	nodes.nowNode.function = 0;
 	cross_event |= CROSS_EVENT_ARRIVED;
@@ -1114,7 +1238,7 @@ void South_Pole(void)
 			if (map.routetime == 0 && flag_clue_stage_B == 7)
 				update_route_at_P7_for_treasure();
 				
-			Stage_Correct();
+			Stage_Correct(5);
 			Robot_Work(BODY, DOWN);
 
 			state = SP_DESCEND;
@@ -2320,7 +2444,7 @@ void zhunbei(void)
 	vTaskDelay(500);
 	Robot_Work(BODY, DOWN);		//人躺下
 
-	//if(map.routetime==2)Stage_Correct();
+	//if(map.routetime==2)Stage_Correct(5);
 
 	RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, getAngleZ(),
 				Begin_down, UpDownStage_Speed_low, down_pitch, UpDownStage_Speed_high, After_down-10, 0.04, 10.0f, 0.0f);

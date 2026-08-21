@@ -26,7 +26,7 @@
 /*===== 独立调试开关 =====*/
 #define MAIN_DEBUG 0
 
-uint8_t test_flag = 12; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
+uint8_t test_flag = 1; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
 float temp_speed=25;
 #if MAIN_DEBUG
 
@@ -139,10 +139,10 @@ void main_task(void *pvParameters)
 		{
 			//Barrier_Hill();
 			//Sword_Mountain();
-			Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-160, getAngleZ(), 20.0f);
-			Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
-			QQB_1();
-			//Barrier_HighMountain();
+			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-160, getAngleZ(), 20.0f);
+			//Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
+			//QQB_1();
+			Barrier_HighMountain();
 			//Stage();
 			CarBrake();
 			test_flag = 0;
@@ -272,11 +272,13 @@ void main_task(void *pvParameters)
 
 		if(test_flag == 13)//播放所有语言
 		{
-			for(uint8_t i=0;i<40;i++)
-			{
-				send_play_specified_command(i);
-				vTaskDelay(1000);
-			}
+			send_play_specified_command(19);
+			send_play_specified_command(30);
+			// for(uint8_t i=0;i<40;i+=10)
+			// {
+			// 	send_play_specified_command(i);
+			// 	vTaskDelay(2000);
+			// }
 			test_flag = 0;
 		}
 		{

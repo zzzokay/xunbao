@@ -70,7 +70,7 @@ static const LinePidStep_t line_pid_steps[] = {
     { 45, 6.5f, 0, 110 },   /* SPEED2 */
     { 36, 7.5f, 0, 100 },    /* SPEED1 */
     { 25, 9.0f, 0, 100 },    /* SPEED0 */
-    { 20, 11.0f, 0, 100 },
+    { 20, 12.0f, 0, 100 },
     { 15, 20.0f, 0, 140 },
     { 12, 25.0f, 0, 140 },
 };
@@ -930,7 +930,7 @@ void Chassis_SelfCheck(void)
                 break;
             }
         }
-      // printf("%d,%d,%d,%d\r\n", AD_Value_Gray[0], AD_Value_Gray[1], AD_Value_Gray[2], AD_Value_Gray[3]);
+       printf("%d,%d,%d,%d\r\n", AD_Value_Gray[0], AD_Value_Gray[1], AD_Value_Gray[2], AD_Value_Gray[3]);
     }
 
     /* ---------- 3. 循迹板检查 ---------- */
