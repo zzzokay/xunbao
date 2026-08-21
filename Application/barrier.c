@@ -1402,7 +1402,7 @@ void QQB_1(void)
 				Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);	
 			}
 			//等待小车爬上跷跷板，俯仰角大于 up_pitch 进入下一状态
-			if(imu.pitch>up_pitch-2)
+			if(imu.pitch> basic_p+25)
 			{
 				Chassis_ClearMileage();	
 				CarBrake();	
@@ -1487,7 +1487,7 @@ void QQB_1(void)
 			Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);
 			float p = imu.pitch;
 			if(p> up_pitch)break_cnt++;
-			if(break_cnt > 500){Chassis_DriveDistance_Blocking(is_Gyro, 6, 10,getAngleZ()>0?90:-90, 0);break_cnt=0;}
+			if(break_cnt > 500){Chassis_DriveDistance_Blocking(is_Gyro, 5, 8,getAngleZ()>0?90:-90, 0);break_cnt=0;}
 
 			if(p < up_pitch&&seen_negative==0){CarBrake(); break_cnt = 0;} 
 			if (p < After_down)seen_negative = 1;	

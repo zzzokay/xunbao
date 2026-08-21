@@ -139,7 +139,7 @@ u8 getNextConnectNode(u8 nownode,u8 nextnode)
 static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 {
 	if (last == B3 && now == N2 && next == P2) return 24;//
-	if (last == B9 && now == N7 && next == P6) return 20;
+	if (last == B9 && now == N7 && next == P6) return 25;
 	if (last == P6 && now == N7 && next == B8) return 20;
 	if (last == C4 && now == N20 && next == P8) return 35;
     if (last == N20 && now == C4 && next == B11) return 25;
