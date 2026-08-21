@@ -30,7 +30,7 @@
 #include "gray.h"
 #include "chassis_api.h"
 
-#define DEBUG 0
+#define DEBUG 1
 
 /*==============================================================================
  *  目录 / Table of Contents   按 Ctrl+F 搜索函数名、Ctrl+D快速跳转
@@ -751,7 +751,7 @@ void Barrier_Hill(void)
 		case HILL_APPROACH:
 			GyroStableReset(50, &origin_angle);
 				
-			if (Stage_DetectedRamp(48))
+			if (Stage_DetectedRamp(60.0f))
 			{
 				Chassis_RestoreLinePid();
 				if (origin_angle == 0) origin_angle = getAngleZ();
@@ -1039,7 +1039,7 @@ void Barrier_WavedPlate(float lenght)
 		switch (state)
 		{
 		case WP_APPROACH:
-			if (Stage_DetectedRamp(36))
+			if (Stage_DetectedRamp(60))
 			{
 				Chassis_RestoreLinePid();
 				//buzzer_on();
@@ -1050,7 +1050,7 @@ void Barrier_WavedPlate(float lenght)
 		case WP_DRIVE:
 			// 俯仰角阈值设 100（不可能达到），只靠 max_distance=lenght 退出
 			RampCtrl_Blocking(RAMP_ASCEND, BL_Speed, getAngleZ(),
-				100, BL_Speed, 100, BL_Speed, 100, 0, 0, lenght);
+				100, BL_Speed, 100, BL_Speed, 100, 0.05f, 0, lenght);
 			//buzzer_off();
 			state = WP_DONE;
 			break;
@@ -1351,7 +1351,7 @@ void update_route_at_P8_for_treasure(void)
 	}
 }
 /*跷跷板*/
-#define CENTER 7
+#define CENTER 8
 void QQB_1(void)
 {
 	enum {
@@ -1398,7 +1398,7 @@ void QQB_1(void)
 			)
 			{		
 				Chassis_OverrideGyroPid(4, 0, 70, 5);  
-				Chassis_MotorControl(is_Gyro, 20, 20, getAngleZ()>0?90:-90);
+				Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ()>0?90:-90);
 				Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);	
 			}
 			//等待小车爬上跷跷板，俯仰角大于 up_pitch 进入下一状态
@@ -1474,7 +1474,7 @@ void QQB_1(void)
 
 			if(is_emergency==0)Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);
 
-			if(Chassis_GetMileage() > 45 && is_emergency == 0)
+			if(Chassis_GetMileage() > 50 && is_emergency == 0)
 			{
 				CarBrake();
 				state = QQB_WAIT;		
@@ -1501,7 +1501,7 @@ void QQB_1(void)
 				Chassis_RestoreGyroPid();
 				Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ());	
 				while(imu.pitch <= basic_p-15){vTaskDelay(2);}
-				Chassis_Turn_By_Gyro_Blocking(getAngleZ()>0?145:-45, getAngleZ(), 20.0f);	
+				Chassis_Turn_By_Gyro_Blocking(getAngleZ()>0?150:-50, getAngleZ(), 20.0f);	
 				seen_negative=2;				
 			}
 			if(seen_negative==2)
@@ -1535,7 +1535,7 @@ void QQB_1(void)
 	float angle = getAngleZ();
 	if(angle<0&&angle>-20){
 	Chassis_MotorControl(is_Gyro, 15, 15,0);
-	while(getAngleZ() < -10){Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);vTaskDelay(2);	}
+	while(getAngleZ() < -5){Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);vTaskDelay(2);	}
 	}
 
 	Chassis_RestoreLinePid();

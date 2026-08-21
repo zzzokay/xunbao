@@ -36,11 +36,13 @@ volatile uint8_t cross_event = 0;	//运行时阶段/事件标志，全局变量�
 //u8 route[100] = {N4, B2,N1,P1, N1, B1, N2,P2,0XFF};
 //u8 route[100] = { B5,N19,C6, B7, N22, B6,N20,P8,0XFF};
 //u8 route[100] = {C9,0XFF};
-//u8 route[100] = {N20, 0XFF};
+u8 route[100] = {N20,P8,N20, 0XFF};
 //u8 route[100] = {B5, 0XFF};
 //u8 route[100] = {N11, 0XFF};
 //u8 route[100] = {B9,N7,P6,N7,B8,N9, 0XFF};
-u8 route[100] = {B2,N1,P1, N1, B1, N2, P2, 0XFF};
+//u8 route[100] = {B2,N1,P1, N1, B1, N2, P2, 0XFF};
+//u8 route[100] = {C7,C8,C4,N20,P8,0XFF};
+//u8 route[100] = {N19,C6,B7,N22,C9,P7,0XFF};
 #else 
 u8 route[100] = {B1, N1,P1, N1, B2, N4, N5,0XFF};  //初始路径
 #endif
@@ -431,7 +433,7 @@ void map_function(u8 fun)
 		case BSoutPole	: South_Pole();	          				break;			//南极
 		case QQB	    : QQB_1();	          					break;			//跷跷板
 		case BLBS       : Barrier_WavedPlate(70);	    		break;			//短波动板 速度：调试 80//85
-		case BLBL	    : Barrier_WavedPlate(140);	  			break;			//长波动板 速度：调试	//180
+		case BLBL	    : Barrier_WavedPlate(100);	  			break;			//长波动板 速度：调试	//180
 		case DOOR	    : door();		                 	  	break;			//门
 		case BHM        : Barrier_HighMountain();				break;    		//高山
 		case UpStageHome	: Stage_Home();	                		break;
