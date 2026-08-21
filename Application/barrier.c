@@ -2053,7 +2053,7 @@ void get_newroute(void)
 	const u8 pre[]  = {B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,0XFF};
 	const u8 tour[] = {N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,C8,C7,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,0XFF};
 	// 宝藏=P6：车已在N10时先深入去P6，再P8→P7→P5绕回（终点改为N12，回程走N12→N8直连出东区，避开N11刀山）
-	const u8 tour_p6[] = {N9,B9,N7,P6,N7,B8,N9,C3,N14,C7,C8,C4,N20,P8,N20,B6,N22,C9,P7,C9,N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,0XFF};
+	const u8 tour_p6[] = {N9,B9,N7,P6,N7,B8,N9,C3,N14,B10,C7,C8,B11,C4,N20,P8,N20,B6,N22,C9,P7,C9,N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,0XFF};
 	const u8 *use_tour = (treasure == 6) ? tour_p6 : tour;
 
 	//进东区终点按宝藏选：P6经N10（更近，且免走N12→N11刀山），其余经N12（去P5近）

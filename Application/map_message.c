@@ -10,7 +10,7 @@
 //地图信息{结点名字，标志位，角度，长度（厘米），速度，功能函数}
 //最后的参数，1为普通路线，其他均头文件有注释
 //如/*S1	 1*/	{N3,FLEFT|M2L,160,336,100,1},	代表从，“寻右线，线数目由多变小认为到达路口”  “S1点指向N3点的角度为160度”，“长度为280cm，推荐速度为100”，“普通路口”
-NODE Node[126]={
+NODE Node[128]={
 /*S1	 1*/	{N3,CLEFT|DLEFT|MUL2MUL,160,216,SPEED4,NONE},
 
 /*P1 	 2*/	{N1,CRIGHT|LEFT_LINE,180,36/*25*/,SPEED1,NONE},
@@ -67,7 +67,7 @@ NODE Node[126]={
 	
 /*P5 	28*/	{N13,MUL2SING|CLEFT|CRIGHT|NEAR_CENTER,0,60,SPEED2,NONE},
 
-/*N14	29*/	{C3,DRIGHT|STOPTURN,-90,18/*5*/,SPEED0,NONE}, {C7,DLEFT,90,140/*190*/,SPEED2,BLBL}, {S3,NO,-180,2,SPEED1,View1},				
+/*N14	29*/	{C3,DRIGHT|STOPTURN,-90,18/*5*/,SPEED0,NONE}, {B10,NO,90,100/*140*/,SPEED2,BLBL}, {S3,NO,-180,2,SPEED1,View1},
 
 /*S3 	30*/	{N14,INGNORE,180,2,-SPEED0,BACK},		
 
@@ -105,7 +105,7 @@ NODE Node[126]={
 
 /*C7	47*/	{N14,DRIGHT|STOPTURN,-90,55/*190*/,SPEED1,BLBL}, {C8,DLEFT|STOPTURN,180,108,SPEED25,NONE},				
 
-/*C8 	48*/	{C7,DRIGHT|CRIGHT|STOPTURN,0,96/*120*/,SPEED2,NONE}, {C4,CRIGHT,-90,50/*10*/,SPEED3,BLBL},				
+/*C8 	48*/	{C7,DRIGHT|CRIGHT|STOPTURN,0,96/*120*/,SPEED2,NONE}, {B11,NO,-90,30/*50*/,SPEED3,BLBL},
 
 /*C9	49*/	{N22,DLEFT|DRIGHT|STOPTURN,-90,18/*10*/,SPEED0,NONE}, {P7,NONE,180,260/*230*/,SPEED2,BSoutPole},{G1,NO,180,144,SPEED3,NONE},
 
@@ -113,25 +113,29 @@ NODE Node[126]={
 
 /*N11   51*/    {N10,LEFT_LINE|DLEFT,0,60,SPEED25,NONE},{N12,RIGHT_LINE|AWHITE|DRIGHT,180,60,SPEED3,NONE},
 
-/*G1     52*/   {C9,DRIGHT|CRIGHT,0,144,SPEED25,NONE},{P7,RESTMPUZ,180,144,SPEED3,BSoutPole}
+/*G1     52*/   {C9,DRIGHT|CRIGHT,0,144,SPEED25,NONE},{P7,RESTMPUZ,180,144,SPEED3,BSoutPole},
+
+/*B10    53*/   {C7,DLEFT,90,40/*板尾到C7，实测*/,SPEED1,NONE},
+
+/*B11    54*/   {C4,CRIGHT,-90,20/*板尾到C4，实测*/,SPEED1,NONE}
 };
 
 //每个节点相邻结点的数目
-uint8_t ConnectionNum[52] = {
+uint8_t ConnectionNum[54] = {
 	/*S1*/1, /*P1*/1, /*N1*/3, /*B1*/2, /*B2*/2, /*B3*/2, /*N2*/3, /*P2*/1, /*S2*/1, /*P3*/1,
 	/*N3*/5, /*N4*/4, /*N5*/4, /*N6*/4, /*P4*/1, /*N7*/3, /*P6*/1, /*B8*/2, /*B9*/2, /*N8*/4,
 	/*C1*/2, /*C2*/2, /*C3*/2, /*N9*/4, /*N10*/6,/*N12*/6,/*N13*/4, /*P5*/1, /*N14*/3,/*S3*/1,
 	/*S4*/1, /*N15*/3,/*S5*/1, /*C4*/2, /*C5*/2, /*B4*/2, /*B5*/2, /*B6*/2, /*B7*/2, /*N16*/3,
 	/*N18*/3,/*N19*/3,/*P7*/2, /*N20*/3,/*N22*/3,/*C6*/2, /*C7*/2, /*C8*/2, /*C9*/3, /*P8*/1,
-	/*N11*/2,/*G1*/2
+	/*N11*/2,/*G1*/2,/*B10*/1,/*B11*/1
 };
 
 //每个节点的相邻结点的首地址
-uint8_t Address[53] = {
+uint8_t Address[55] = {
 	/*S1*/0,  /*P1*/1,  /*N1*/2,  /*B1*/5,  /*B2*/7,  /*B3*/9,  /*N2*/11, /*P2*/14, /*S2*/15, /*P3*/16,
 	/*N3*/17, /*N4*/22, /*N5*/26, /*N6*/30, /*P4*/34, /*N7*/35, /*P6*/38, /*B8*/39, /*B9*/41, /*N8*/43,
 	/*C1*/47, /*C2*/49, /*C3*/51, /*N9*/53, /*N10*/57,/*N12*/63,/*N13*/69, /*P5*/73, /*N14*/74, /*S3*/77,
 	/*S4*/78, /*N15*/79,/*S5*/82, /*C4*/83, /*C5*/85, /*B4*/87, /*B5*/89, /*B6*/91, /*B7*/93, /*N16*/95,
 	/*N18*/98,/*N19*/101,/*P7*/104,/*N20*/106,/*N22*/109,/*C6*/112,/*C7*/114,/*C8*/116,/*C9*/118,/*P8*/121,
-	/*N11*/122,/*G1*/124,/*end*/126
+	/*N11*/122,/*G1*/124,/*B10*/126,/*B11*/127,/*end*/128
 };

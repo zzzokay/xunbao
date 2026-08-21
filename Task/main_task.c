@@ -24,7 +24,7 @@
 #include "Rudder_control.h"
 
 /*===== 独立调试开关 =====*/
-#define MAIN_DEBUG 1
+#define MAIN_DEBUG 0
 
 uint8_t test_flag = 2; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
 float temp_speed=25;
@@ -126,7 +126,7 @@ void main_task(void *pvParameters)
 			//vTaskDelay(3000);
 			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ());
 			//Chassis_RestoreTurnPid();
-			Chassis_DriveDistance_Blocking(is_Gyro, 100.0f, -SPEED2, getAngleZ(), 0);
+			Chassis_DriveDistance_Blocking(is_Gyro, 75.0f, -SPEED2, getAngleZ(), 0);
 			Chassis_Brake();
             //Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ(),20.0f);
 			//CarBrake();

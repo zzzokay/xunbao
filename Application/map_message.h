@@ -13,10 +13,10 @@
 #define DOOR_LEN_N8N12  190
 
 /* door_retreat 后退距离（与路段全长无关，按”起点→目标”方向命名） */
-#define DOOR_RETREAT_N5N8   67
-#define DOOR_RETREAT_N5N4   67
-#define DOOR_RETREAT_N10N8  90
-#define DOOR_RETREAT_N8N5   65
+#define DOOR_RETREAT_N5N8   75
+#define DOOR_RETREAT_N5N4   85
+#define DOOR_RETREAT_N10N8  100
+#define DOOR_RETREAT_N8N5   75
 
 /* 门区段角度宏（与 DOOR_LEN_* 同名段，按”起点→目标”命名，范围 -180~+180）
  * 正向基准：N3→N8 / N5→N8；门两侧平行，N8→N12=N3N8、N8→N10=N5N8
@@ -33,8 +33,8 @@
 #define ANGLE_N10N8  ANGLE_REV(ANGLE_N8N10)  /* = -145 */
 
 
-extern unsigned char ConnectionNum[52];
-extern unsigned char Address[53];
+extern unsigned char ConnectionNum[54];
+extern unsigned char Address[55];
 
 
 #endif
