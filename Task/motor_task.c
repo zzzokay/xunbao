@@ -38,6 +38,7 @@
 #include "gray.h"
 #include "Rec_usart.h"
 #include "chassis_api.h"
+#include "keys.h"
 
 /* ========== 内部函数前向声明 ========== */
 static void get_motor_speed(void);
@@ -83,11 +84,20 @@ void motor_task(void *pvParameters)
 	Chassis_Init();
 //	timing_dwt_init();   // 周期耗时测量: 开启 DWT 周期计数器
 
+	uint8_t key_count = 0;
 	while (1)
 	{
 		uint32_t cyc_t0 = DWT->CYCCNT;   // 本周期起点
 		//pid参数接口
 		//get_PIDdata();
+		
+		//按键扫描20ms一次
+		key_count++;
+		if(key_count>3)
+		{
+			key_scan();
+			key_count=0;
+		}
 
 		/*2. 获取电机速度，内核实数值及路程累计*/
 		handle_motor_speed();
