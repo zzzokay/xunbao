@@ -42,8 +42,8 @@ volatile uint8_t cross_event = 0;	//运行时阶段/事件标志，全局变量�
 //u8 route[100] = {N12,N11,N10,0XFF};
 //u8 route[100] = {N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,B11,C8,C7,B10,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,0XFF};
 //u8 route[100] = {N11, 0XFF};
-u8 route[100] = {B1,N2,P2, 0XFF};
-//u8 route[100] = {B9,N7,P6,N7,B8,N9, 0XFF};
+//u8 route[100] = {B1,N2,P2, 0XFF};
+u8 route[100] = {B9,N7,P6,N7,B8,N9, 0XFF};
 //u8 route[100] = {B2,N1,P1, N1, B1, N2, P2, 0XFF};
 //u8 route[100] = {C7,C8,B11,C4,N20,P8,0XFF};
 //u8 route[100] = {B11,C8,C7,B10,N14,0XFF};
@@ -199,7 +199,7 @@ static float GetForwardDistanceBeforeGyroTurn(u8 last, u8 now, u8 next)
 	if (last == P3 && now == N3 && next == N8) return 6;
     if (last == C4 && now == N20 && next == B6) return 24;
 	if (last == N3 && now == N4 && next == B3) return 12;
-    if (last == N5 && now == N12 && next == N11) return 0;
+    if (last == N5 && now == N12 && next == N11) return 5;
     if (last == N8 && now == N12 && next == N13) return 5;
     if (last == N4 && now == N5 && next == N12) return 6;
 	if (last == N8 && now == N3 && next == P3) return 24;
@@ -256,7 +256,8 @@ static void Check_And_Apply_SpeedUp(void)
 enum {                     // nav_step 取值，NAV 是 Navigation（导航）的缩写。
     NAV_STEP_INIT,         // 0  段初始化（清里程、设模式）
     NAV_STEP_MID_SWITCH,   // 1  过半切换巡线模式
-    NAV_STEP_PREP_ARRIVE   // 2  70% 降速准备到达
+    NAV_STEP_PREP_ARRIVE,  // 2  70% 降速准备到达
+    NAV_STEP_NEAR_END      // 3  后半段：障碍 + 到达检测
 };
 
 /* ============================ Navigation() 子函数 =================================== */
@@ -418,37 +419,41 @@ static void Nav_PostProcess(void)
 void Navigation(void)
 {
     static uint8_t nav_step = 0;
-    static uint8_t near_end = 0;
 
-    /* ---- 前半段：巡线行驶 ---- */
-    if (near_end == 0)
+    switch (nav_step)
     {
-        if (nav_step == NAV_STEP_INIT)
-        {
-			//打印当前节点
-			printf("Current Node: %d\n", nodes.nowNode.nodenum);
-            Nav_SegmentInit();
-            nav_step = NAV_STEP_MID_SWITCH;
-        }
+    case NAV_STEP_INIT:
+        printf("Current Node: %d\n", nodes.nowNode.nodenum);
+        Nav_SegmentInit();
+        nav_step = NAV_STEP_MID_SWITCH;
+        break;
 
-        if (fabsf(Chassis_GetMileage()) >= 0.5f * nodes.nowNode.step && nav_step == NAV_STEP_MID_SWITCH)
+    case NAV_STEP_MID_SWITCH:
+        if (fabsf(Chassis_GetMileage()) >= 0.5f * nodes.nowNode.step)
         {
             Nav_MidSwitch();
             nav_step = NAV_STEP_PREP_ARRIVE;
         }
+        break;
 
-        if (fabsf(Chassis_GetMileage()) >= 0.6f * nodes.nowNode.step && nav_step == NAV_STEP_PREP_ARRIVE)
+    case NAV_STEP_PREP_ARRIVE:
+        if (fabsf(Chassis_GetMileage()) >= 0.6f * nodes.nowNode.step)
         {
-            Nav_PrepareArrival();
-            near_end = 1;
+            Nav_PrepareArrival();//减速
         }
-    }
-    /* ---- 后半段：障碍 + 到达检测 ---- */
-    else if (near_end == 1)
-    {
+        if (fabsf(Chassis_GetMileage()) >= 0.7f * nodes.nowNode.step)
+        {
+            nav_step = NAV_STEP_NEAR_END;
+        }
+        break;
+
+    case NAV_STEP_NEAR_END:
         Nav_NearEnd();
-        near_end = 0;
         nav_step = NAV_STEP_INIT;
+        break;
+
+    default:
+        break;
     }
 
     /* ---- 到达节点：转弯 + 节点推进 ---- */

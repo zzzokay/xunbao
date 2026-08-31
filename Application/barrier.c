@@ -1058,7 +1058,7 @@ void Barrier_HighMountain(void)
 		case HM_ASCEND_1:
 			//让车抬起后马上退出
 			Chassis_OverrideLinePid(15, 0, 150, 30);
-			RampCtrl_Blocking(RAMP_ASCEND, 15, getAngleZ(),
+			RampCtrl_Blocking(RAMP_ASCEND, 10, getAngleZ(),
 				Begin_up, 15, up_pitch, 20, up_pitch+30, 0.07f, 10.0f, 24);
 			//用循迹走
 			Chassis_DriveDistance_Blocking(is_Line, 50, 20, 0, 3);
@@ -1114,7 +1114,7 @@ void Barrier_HighMountain(void)
 			break;
 
 		case HM_DESCEND_FLAT:
-			Chassis_DriveDistance_Blocking(is_Gyro, 20, UpDownStage_Speed_low-2, origin_angle, 0);
+			Chassis_DriveDistance_Blocking(is_Gyro, 15, UpDownStage_Speed_low-2, origin_angle, 0);
 			CarBrake();
 			Chassis_Turn_By_StopGyro_Blocking(origin_angle, getAngleZ(), 8.0f);
 			Stage_Correct(0);
@@ -1625,7 +1625,7 @@ void QQB_1(void)
 				Chassis_RestoreGyroPid();
 				Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ());	
 				while(imu.pitch <= basic_p-20){vTaskDelay(2);}
-				Chassis_Turn_By_Gyro_Blocking(getAngleZ()>0?145:-45, getAngleZ(), 20.0f);	
+				Chassis_Turn_By_Gyro_Blocking(getAngleZ()>0?100:-80, getAngleZ(), 20.0f);	
 				seen_negative=2;				
 			}
 			if(seen_negative==2)

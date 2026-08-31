@@ -114,7 +114,7 @@ uint8_t deal_arrive(volatile SCANER *scaner, uint32_t node_flag)
 	if ((node_flag & DLEFT) == DLEFT)  //左半边
 	{
 		//左边6个灯任意5个亮即可
-		if (scaner->ledNum>=4)
+		if (scaner->ledNum>=5)
 		{
 			seed = 0X8000;
 			for (i = 0; i<6; i++)
@@ -133,7 +133,7 @@ uint8_t deal_arrive(volatile SCANER *scaner, uint32_t node_flag)
 	if ((node_flag & DRIGHT) == DRIGHT)//右半边
 	{
 		//右边6个灯任意5个亮即可
-		if (scaner->ledNum >= 4)
+		if (scaner->ledNum >= 5)
 		{
 			seed = 0X0001;
 			for (i = 0; i<6; i++)
