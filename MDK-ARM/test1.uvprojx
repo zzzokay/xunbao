@@ -1308,6 +1308,11 @@
               <FilePath>..\Application\map.h</FilePath>
             </File>
             <File>
+              <FileName>config.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Application\config.h</FilePath>
+            </File>
+            <File>
               <FileName>map_message.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Application\map_message.c</FilePath>
@@ -1316,6 +1321,16 @@
               <FileName>map_message.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\Application\map_message.h</FilePath>
+            </File>
+            <File>
+              <FileName>nav_planner.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Application\nav_planner.c</FilePath>
+            </File>
+            <File>
+              <FileName>nav_planner.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Application\nav_planner.h</FilePath>
             </File>
             <File>
               <FileName>motion.c</FileName>

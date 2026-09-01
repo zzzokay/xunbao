@@ -2,12 +2,8 @@
 #define __MAP_H
 #include "sys.h"
 
+#include "config.h"     /* 所有开关/场地参数集中在这里 */
 #include "map_message.h"
-
-#define MAP_DEBUG 0
-#define SKIP_ROUND1 0  /* 1=跳过第一轮直接进第二轮（调试用；门状态在 main_task.c 初始化处预设） */
-#define FIRST_POINT N10
-#define SECOND_POINT N9
 
 #define NO      	 (1<<0) 
 #define DLEFT 		 (1<<1)				//左边横线
@@ -172,6 +168,9 @@ extern Nodes nodes;
 extern volatile uint8_t cross_event;
 #define CROSS_EVENT_ARRIVED     (1<<0)  // 已到达节点
 #define CROSS_EVENT_DOOR        (1<<1)  // 门结果就绪（红/绿灯统一）
+
+/* 按一下跑一个节点调试：信号量/票计数（每按短一次累积，Navigation 每跑一条边-1，到0停下等票） */
+extern volatile uint8_t nav_token;
 
 struct Map_State {
 	u8 point;

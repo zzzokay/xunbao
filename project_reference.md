@@ -10,7 +10,7 @@
 Application/          # 应用层 — 地图导航、障碍处理、底盘API
   ├── chassis_api.c/h # 底盘API中间件（核心解耦层）
   ├── map.c/h         # 地图导航 / Navigation()路径规划
-  ├── map_message.c/h # 地图数据（Node[]连接表）
+  ├── map_message.c/h # 地图数据（已迁至 map_message.c 单数据源；map_message.c 仅剩空 Node/ConnectionNum/Address 全局，几何/开关宏在 config.h）
   ├── barrier.c/h     # 障碍处理（平台/桥/山/南极/跷跷板/波动板）
   ├── scaner.c/h      # 16路巡线传感器
   ├── turn.c/h        # 转弯控制（原地转、陀螺仪转、360°转、梯形速度曲线）
@@ -102,6 +102,8 @@ extern volatile uint8_t cross_event;
 #define CROSS_EVENT_DOOR    (1<<1)   // 门结果就绪
 ```
 
+> **⚠️ 数据源变更（2026-08-21 起）**：`Node[132]`、`ConnectionNum[54]`、`Address[55]` 不再是 `map_message.c` 里的手工字面量，而是**空全局**，由 `nav_graph_init()`（`map_message.c`）在启动时从**单张自描述边表 `NavEdgeTbl[]`** 自动构建（见 4.5）。`getNextConnectNode`/执行层逻辑不变，只换数据来源；从而彻底去掉"增删边要手工同步三数组"的坑。
+
 ### 4.4 障碍标志 ([barrier.c](Application/barrier.c))
 
 ```c
@@ -113,6 +115,37 @@ volatile uint8_t flag_clue_stage_B;  // QR 个位：7=P7，8=P8
 uint8_t flag_clue_A, flag_clue_B;    // 平台上的线索数字
 volatile uint8_t get_cude;           // QR 读取完成标志
 ```
+
+### 4.5 导航规划器与单数据源图（最短路径）([nav_planner](Application/nav_planner.h) / [map_message](Application/map_message.h))
+
+**目标**：用「必经点 + 最短路 + 拼接」替代手写路线数组，并把图收敛为**单张自描述边表**（单一数据源）。换地图只需改边表，路线自动重算。
+
+**单数据源图**（`map_message.c/.h`）：
+```c
+typedef struct { u8 from; u8 to; u32 flag; float angle; u16 step; float speed; u8 func; } NavEdge;
+#define NAV_EDGE_COUNT 125
+extern const NavEdge NavEdgeTbl[NAV_EDGE_COUNT];   // 唯一人工编辑源(用原 map_message 宏/名)
+void nav_graph_init(void);   // 启动时由本表自动构建 Node[]/ConnectionNum/Address
+```
+- 表中 `flag/speed/func/from/to` 均用**原 `map_message.c` 的宏/名**（如 `LEFT_LINE|CRIGHT`、`SPEED1`、`UpStage`），编译期即等于原 `Node[]` 字面量 → 与执行层语义完全一致。
+- 启动顺序：`mapInit()` → `nav_planner_setup()` → `nav_graph_init()`（建执行层 CSR）→ `nav_init()`（建规划器邻接）。`s_nav_ready` 保证只构建一次。
+
+**规划器 API**（`nav_planner.c/h`）：
+- `nav_init(edges, n, nodes)`：建邻接（CSR，节点→出边列表）。
+- `nav_shortest_path(from, to, out, max_len)`：**线路图(line-graph)上的点式 Dijkstra**——把每条路当做一个"点"，两条首尾相接的路连边，转弯权重在 `nav_init` 里**提前并入连接权**，主循环即标准点式 Dijkstra；返回节点序列。
+- `nav_plan_waypoints(route, max, wps, n)`：依次求相邻必经点最短路并**拼接**（去重连接点）。
+- `nav_build_route(route, max, wps, n)`：生成 `route[]`（去掉起点、`0xFF` 收尾），wps[0] 为起点。
+- `nav_stitch(...)`、`nav_find_edge(from,to)`：拼接多条段、查边。
+
+**代价模型**（`nav_planner.c/h`）：`cost(边) = 1.0×step + 0.6×|Δangle| + 1.0×obs_penalty(func)`
+- `obs_penalty`（`NavObsPenalty[]`）：Hill30 / Bridge40 / 短波板60 / 平台60 / 长波板70 / 跷跷板80 / 南极高山90 / 景点支路100 / 刀山SM120 / 后退桩1000 / 门0(用必经点处理)。
+- 已用 PC 基准 `_weight_calib.py` 标定：**复现现有 14 条路线；rout_58 按最短路径（北线）**。
+
+**开关**：[config.h](Application/config.h) 的 `#define USE_PLANNER_ROUTE 0`。`0`=沿用现有路线数组（行为不变）；`1`=第一轮初始与第二轮 pre/tour 由规划器生成。改地图/调权重后应先在 MDK 编译确认，置 1 再上真车。
+
+**PC 校验工具**（仓库根，不进固件）：
+- `_weight_calib.py`：读 `map_message.c` 建图 → 校验 15 条参考路线连通性 → 必经点细分/完整 route 拼接核对 → 权重灵敏度。换图后重跑确认路线未偏离。
+- `_check_csr.py`：镜像 `nav_graph_init`+`getNextConnectNode`，校验自动 CSR 能解析全部参考边与 8 条门边。
 
 ---
 
@@ -181,7 +214,7 @@ TIM1 → L0 (正) | TIM2 → L1 (正) | TIM3 → R0 (取反) | TIM5 → R1 (取�
 ### 7.4 长度标定 LEN_SCALE（2026-08-13 起）
 
 **背景**：此前所有长度值（里程、地图 step、距离阈值）都是未标定的"代码单位"。
-**标定**：实测车走 100 代码单位 ≈ 120cm → `#define LEN_SCALE 1.2f`（[chassis_api.h](Application/chassis_api.h)）。
+**标定**：实测车走 100 代码单位 ≈ 120cm → `#define LEN_SCALE 1.2f`（[config.h](Application/config.h)，2026-08-27 起集中到 config.h）。
 **用法**：各处距离阈值已按 **cm = round(代码单位 × LEN_SCALE)** 直接折算为**整数厘米内联**在代码中（精确到 1cm），不再写 `×LEN_SCALE` 表达式。**LEN_SCALE 宏仅用于 motor_task 里程公式的比例补偿**（里程是运行时连续累加，无法内联）。
 **覆盖范围**（共 250 处，已验证零遗漏零误伤）：
 - 里程公式 `motor_task.c:182`：`Distance += ((encoder_avg*10.4*PI/5720)/0.362) * LEN_SCALE`（比例补偿）
@@ -191,9 +224,9 @@ TIM1 → L0 (正) | TIM2 → L1 (正) | TIM3 → R0 (取反) | TIM5 → R1 (取�
 - `main_task.c`（7 处）：`Chassis_DriveDistance_Blocking` 距离
 
 > 注：`RampCtrl_Blocking` 只有最后一个参数 max_distance 是长度（thresh/speed/angle/max_correction 非长度，如 `15`/`20.0f`/`0.08` 保留）；`Stage_DetectedRamp` 的距离参数折算（其俯仰阈值 10° 非长度不折）；`return 0;` 等非长度返回值不折。
-> **重新标定**：改 chassis_api.h 的 LEN_SCALE + 重算各处内联值（cm = round(代码单位 × 新倍率)）；原代码单位值在 git 历史中可查。
-> **门区段距离**：`door_set_pass_node`/`door_retreat` 的门区段长度已集中为 [map_message.h](Application/map_message.h) 的 `DOOR_LEN_*`（6 条全长，map DOOR 条目用 `宏/2`）/ `DOOR_RETREAT_*`（4 个回退距离）宏（2026-08-13），改长度只改宏即可。当前工作区（2026-08-17）：`DOOR_LEN_N5N12/N3N10=200`，`DOOR_LEN_N5N8/N8N10/N3N8/N8N12=190`；`DOOR_RETREAT_N5N8/N5N4=67`、`DOOR_RETREAT_N10N8=80`、`DOOR_RETREAT_N8N5=65`。
-> **门区段角度**：[map_message.h](Application/map_message.h) 的 `ANGLE_N3N8(145)/ANGLE_N5N8(35)`（正向基准），`ANGLE_N8N12=ANGLE_N3N8`、`ANGLE_N8N10=ANGLE_N5N8`（门两侧平行）；反向用 `ANGLE_REV(a)`（正角减180/负角加180，锁定 [-180,180]）派生 `ANGLE_N8N3(-35)/ANGLE_N8N5(-145)/ANGLE_N12N8(-35)/ANGLE_N10N8(-145)`（2026-08-16）。map_message.c Node 表 8 处门区段角度全部改用宏，原手工值（N8→N3 -45、N8→N5 -140、N8→N12 140、N8→N10 33、N12→N8 -43、N10→N8 -150）作废，改角度只改宏。
+> **重新标定**：改 config.h 的 LEN_SCALE + 重算各处内联值（cm = round(代码单位 × 新倍率)）；原代码单位值在 git 历史中可查。
+> **门区段距离**：`door_set_pass_node`/`door_retreat` 的门区段长度已集中为 [config.h](Application/config.h) 的 `DOOR_LEN_*`（6 条全长，map DOOR 条目用 `宏/2`）/ `DOOR_RETREAT_*`（4 个回退距离）宏（2026-08-13，2026-08-27 起集中到 config.h），改长度只改宏即可。当前工作区（2026-08-17）：`DOOR_LEN_N5N12/N3N10=200`，`DOOR_LEN_N5N8/N8N10/N3N8/N8N12=190`；`DOOR_RETREAT_N5N8/N5N4=67`、`DOOR_RETREAT_N10N8=80`、`DOOR_RETREAT_N8N5=65`。
+> **门区段角度**：[config.h](Application/config.h) 的 `ANGLE_N3N8(145)/ANGLE_N5N8(35)`（正向基准），`ANGLE_N8N12=ANGLE_N3N8`、`ANGLE_N8N10=ANGLE_N5N8`（门两侧平行）；反向用 `ANGLE_REV(a)`（正角减180/负角加180，锁定 [-180,180]）派生 `ANGLE_N8N3(-35)/ANGLE_N8N5(-145)/ANGLE_N12N8(-35)/ANGLE_N10N8(-145)`（2026-08-16）。map_message.c Node 表 8 处门区段角度全部改用宏，原手工值（N8→N3 -45、N8→N5 -140、N8→N12 140、N8→N10 33、N12→N8 -43、N10→N8 -150）作废，改角度只改宏。
 
 ### 7.3 巡线传感器
 
@@ -293,6 +326,9 @@ Navigation()
 | `Chassis_EnableRollProtection()` | 使能横滚角保护(>40°死停) | map.c/barrier.c |
 | `Chassis_EnableWheelieProtection()` | 使能翘头保护(pitch>8°降加速度) | map.c |
 | `Chassis_SelfCheck()` | 一键自检 | main_task.c |
+| `Chassis_EnableLineGyroComp(kd)` | 使能长直线陀螺仪阻尼（锁定当前角度为上一拍，防首帧跳变） | map.c（直穿段） |
+| `Chassis_DisableLineGyroComp()` | 关闭长直线陀螺仪阻尼 | map.c（离开直线段） |
+| `Chassis_GetLineGyroComp()` | 返回陀螺仪阻尼量（-kd×yaw_rate，独立小限幅），`Go_Line` 叠加 | scaner.c |
 
 ---
 
@@ -380,9 +416,9 @@ Turn_Angle / Stage_turn_Angle 合并: 90%相同，提取 `Turn_Angle_Base` 基�
 
 | 宏 | 定义位置 | 功能 |
 |----|----------|------|
-| `DEBUG` | [barrier.c](Application/barrier.c):33（当前默认 0） | Door_ReadPass 用 `debug_door_pass[5]` 预设数组模拟 |
-| `MAIN_DEBUG` | [main_task.c](Task/main_task.c):27 | 跳过 Navigation()，执行 `test_flag`/`debug_test_item` |
-| `SKIP_ROUND1` | [map.h](Application/map.h):8（当前工作区 1） | 跳过第一轮直接进第二轮（调试用）；main_task.c 初始化预设 `door_pass[5]`+`treasure`+`map.routetime=1`，首周期走真实二轮分支。**关键**：二轮分支 `get_newroute()` 后须再置 `routetime=2`（get_newroute 内部 mapInit 清 0），二轮全程 `routetime==2` 屏蔽 P7/P8 treasure 改路并保证跑完即停；`treasure!=0` 屏蔽 P1 残留 QR 改路 |
+| `DEBUG` | [config.h](Application/config.h)（当前默认 0） | Door_ReadPass 用 `debug_door_pass[5]` 预设数组模拟 |
+| `MAIN_DEBUG` | [config.h](Application/config.h)（当前默认 1） | 跳过 Navigation()，执行 `test_flag`/`debug_test_item` |
+| `SKIP_ROUND1` | [config.h](Application/config.h)（当前默认 0） | 跳过第一轮直接进第二轮（调试用）；main_task.c 初始化预设 `door_pass[5]`+`treasure`+`map.routetime=1`，首周期走真实二轮分支。**关键**：二轮分支 `get_newroute()` 后须再置 `routetime=2`（get_newroute 内部 mapInit 清 0），二轮全程 `routetime==2` 屏蔽 P7/P8 treasure 改路并保证跑完即停；`treasure!=0` 屏蔽 P1 残留 QR 改路 |
 
 测试项: 1=循迹, 2=转180°, 3=障碍物, 4=坡道, 5=红外, 6=灰度, 7=十字路口, 8=一键自检, 9=机器人动作, 10=门颜色, 11=OCR, 12=二维码。`debug_test_item` 优先级高于 UART 设置的 `test_flag`。
 
@@ -403,3 +439,104 @@ Turn_Angle / Stage_turn_Angle 合并: 90%相同，提取 `Turn_Angle_Base` 基�
 
 - 当前工作区: `codex/restore-barrier-main-task`（2026-08-17 快照） | 历史主分支: `feature_backup` / `main`
 - 项目路径: `C:\Users\14166\Desktop\MC_32\robotcup\xunbao`
+
+---
+
+## 二十一、地图修改指南（浓缩版）
+
+> 由原《MDK-ARM\地图快速修改指南.md》浓缩并入（2026-08-27），独立文件已删除。以后改地图只看这一节即可；机制细节见前面各节。其核心结论：**改地图 = 改 `map_message.c` 的 `NavEdgeTbl[]`（唯一人工编辑源）+ `config.h` 的几何/开关**，执行层三数组自动重建。
+
+### 21.1 一句话结论与四大改动点
+
+图已收敛为**单张自描述边表 `map_message.c:NavEdgeTbl[]`**；执行层 `Node[]/ConnectionNum/Address` 由 `nav_graph_init()` 自动构建；场地几何与开关集中 **`config.h`**。换图通常只需动 4 处：
+
+1. `Application/map_message.c` — `NavEdgeTbl[]` 的 `from/to/flag/angle/step/speed/func`，并同步 `map_message.h` 的 `#define NAV_EDGE_COUNT`
+2. `Application/config.h` — 门区 `DOOR_LEN_*`/`ANGLE_*`/`DOOR_RETREAT_*`、楼梯长、场地/调试开关、`LEN_SCALE`
+3. `Application/map.c` — 初始 `route[]`（或用 planner 生成）、转弯前补偿距离
+4. `Application/barrier.c` — 第一轮 QR/门/宝物改路、第二轮 `get_newroute()` 拼接
+
+### 21.2 各文件职责（地图变动时动哪些）
+
+| 文件 | 作用 | 地图变动时改什么 |
+|------|------|------------------|
+| `config.h` | 所有开关/场地参数（唯一配置入口） | 调场地/开关只改这里 |
+| `map.h` | `MapNode` 枚举、`NODE` 结构 | 增删节点时改枚举 |
+| `map_message.c/h` | `NavEdgeTbl[]`（唯一人工编辑源）+ `nav_graph_init()` 自动构建 CSR | 路段 `from/to/flag/angle/step/speed/func`、`NAV_EDGE_COUNT` |
+| `nav_planner.c/h` | 最短路/必经点/拼接（见 §4.5） | 想改算法才动；调 `NavObsPenalty[]`/`NAV_W_*` |
+| `map.c` | `route[]`、`Navigation()`、转弯前距离 | 初始路线、转弯补偿 |
+| `barrier.c` | `door()`、各改路函数、`get_newroute()` | 第一轮动态改路、第二轮路线拼接 |
+| `main_task.c` | 主循环、二轮启动 | 二轮入口、`door_pass[]` 预设（开关在 config.h） |
+
+### 21.3 常见修改场景（改哪里）
+
+| 场景 | 改哪里 |
+|------|--------|
+| 某段变长/变短 | `map_message.c` 对应边 `step`（单位 cm） |
+| 某段转弯角度变了 | `map_message.c` 对应边 `angle`；门区段改 `config.h` 的 `ANGLE_*` |
+| 某段速度不合适 | `map_message.c` 对应边 `speed`（`SPEED0~SPEED5`） |
+| 某段巡线方式不对 | `map_message.c` 对应边 `flag`（`LEFT_LINE/RIGHT_LINE/NEAR_CENTER/Temp_L/R`） |
+| 增删节点 | `map.h` 枚举 + `map_message.c` 增删行 + `map_message.h` `NAV_EDGE_COUNT`（`Node[]/ConnectionNum/Address` 自动生成） |
+| 门位置/数量变了 | `config.h` 宏、`door()` 状态机、`door_pass[]` 下标、各门分支路线 |
+| 第一轮路线变了 | `map.c` 初始 `route[]`、`barrier.c` QR/门/宝物改路 |
+| 第二轮路线变了 | `barrier.c` `get_newroute()` 里 `pre/entry/tour/tail` |
+| 只是换场地、节点没变 | 通常只改 `map_message.c` 的 `step/angle`、`config.h` 门区宏和路线数组 |
+
+### 21.4 修改流程
+
+1. 读新图/新说明，与当前 `NavEdgeTbl[]`、`route[]` 做差异对比。
+2. 改 `map_message.c` `NavEdgeTbl[]`（只改有变化的边，其余保留；`from/to/flag/angle/step/speed/function` 都用原宏/名）。
+3. 同步 `map_message.h` `#define NAV_EDGE_COUNT`；增删节点时改 `map.h` `MapNode` 枚举。
+4. 改 `config.h` 门区宏。
+5. 改 `map.c` 初始路线（或用 planner 生成）和门分支路线。
+6. 改 `barrier.c` 动态改路函数、`get_newroute()`（`USE_PLANNER_ROUTE=1` 时 pre/tour 用 planner）。
+7. 核对连通性：跑 `_weight_calib.py` / `_check_csr.py`。
+8. 核对方向：`NavEdgeTbl[]` 是有向边，反向需单独存在或由角度宏派生。
+9. 编译，预期 0 Error 0 Warning；输出"改动清单"、标出需现场实测的 step/angle/speed。
+
+### 21.5 改完必须核对
+
+- 每条路线 `0xFF` 结尾，长度 ≤ 100；相邻节点在 `NavEdgeTbl[]` 中必须存在有向连接。
+- 新增节点：`map.h` 枚举 + `NavEdgeTbl[]` 增行 + `NAV_EDGE_COUNT` 同步（三数组自动生成）。
+- 门区段长度/角度只改宏（`config.h`），不要改散落的手工值。
+- 门区段共 8 条双向边：N5-N12、N5-N8、N3-N8、N3-N10。
+- 反向路段角度与正向差约 180°，`ANGLE_REV()` 自动算。
+- 平台/南极结束保留 `nodes.nowNode.function`，不要误清。
+- 改完 `route[]` 后 `mapInit()` 的起始节点逻辑不能冲突。
+
+### 21.6 当前常量速查
+
+**节点编号**（枚举顺序即索引，不能调换）：
+```
+S1=0  P1=1  N1=2  B1=3  B2=4  B3=5  N2=6  P2=7  S2=8  P3=9
+N3=10 N4=11 N5=12 N6=13 P4=14 N7=15 P6=16 B8=17 B9=18 N8=19
+C1=20 C2=21 C3=22 N9=23 N10=24 N12=25 N13=26 P5=27 N14=28 S3=29
+S4=30 N15=31 S5=32 C4=33 C5=34 B4=35 B5=36 B6=37 B7=38 N16=39
+N18=40 N19=41 P7=42 N20=43 N22=44 C6=45 C7=46 C8=47 C9=48 P8=49
+N11=50 G1=51 B10=52 B11=53
+```
+**B10/B11**（波动板节点，正反向共用，见 §八）：B10=N14–C7 段板尾(C7 侧)，B11=C8–C4 段板尾(C4 侧)。正向 `N14→B10→C7`、`C8→B11→C4`；反向 `C7→B10→N14`、`C4→B11→C8`。进板边 `BLBL`(flag NO)、出板边 `NONE`(flag=路口视觉标志)；板节点为直通点。
+
+**第一轮初始**：`route[] = {B1, N1, P1, N1, B2, N4, N5, 0xFF}`（P1 读 QR：百位 3→先去 P3、4→先去 P4、0→直接到 N5 门区）
+**第一轮线索平台**：A=5,B=7→`rout_57`；5,8→`rout_58`；6,7→`rout_67`；6,8→`rout_68`
+**门分支**（实际被调用）：`door1route={N3,N8,0xFF}`、`door6route={N4,B3,N2,P2,0xFF}`、`door7route={N8,N3,N4,B3,N2,P2,0xFF}`、`door8route={N4,B3,N2,P2,0xFF}`、`door11route={N5,N4,B3,N2,P2,0xFF}`（其余 door2route/door3_1/door4/5/9/10/12 暂未调用，可保留备用）
+**第二轮拼接**（`get_newroute()`）：`pre={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5}`；`tour={N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,B11,C8,C7,B10,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10}`；宝藏=P6 时用 `tour_p6`。
+（`USE_PLANNER_ROUTE=1` 时 pre/tour/tour_p6 由 planner 从必经点生成，见 §4.5。）
+
+### 21.7 给我信息模板
+
+```
+新地图：<文件路径/图片位置>
+与旧图差异：
+- 平台编号/位置：P1..P8 是否变化
+- 新增/删除节点：哪些编号
+- 门/指示牌：数量、位置、颜色、方向
+- 路段长度：哪一段从多少改到多少（cm）
+- 转弯角度：哪一段改多少度
+- 障碍物：类型和位置
+- 两轮策略：第一轮/第二轮路线是否要改
+- 现场实测后要微调的值：step / angle / speed / DOOR_LEN / ANGLE
+```
+
+### 21.8 调试开关
+
+全部集中在 `config.h`（见 §十八）。正式比赛前 `MAIN_DEBUG`、`STEP_DEBUG` 必须改回 `0`；`USE_PLANNER_ROUTE` 先 MDK 编译确认 0 error 再置 1。

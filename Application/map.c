@@ -5,6 +5,9 @@
 #include "chassis_api.h"
 #include "stdio.h"
 
+/* 最短路径规划器（新增）：见 nav_planner.h；数据/图在 map_message.h（NavEdgeTbl 单数据源） */
+#include "nav_planner.h"
+
 
 
 /* 从 task_create.h 迁入，避免 map.c 越层包含 */
@@ -24,6 +27,7 @@ Nodes nodes;   	//当前边的三个点
 
 
 volatile uint8_t cross_event = 0;	//运行时阶段/事件标志，全局变量，供节点检查和导航之间交流
+volatile uint8_t nav_token = 0;		//按一下跑一个节点调试：信号量/票计数（按键累积，每跑一条边-1）
 			   
 				
 
@@ -93,17 +97,49 @@ u8 rout_67[50] = {N9,B9,N7,P6,N7,B8,N9,C3,N14,B10,C7,C8,B11,C4,N20,B6,N22,C9,P7,
 
  
 /*地图初始化*/
+static uint8_t s_nav_ready = 0;
+static void nav_planner_setup(void)
+{
+    if (!s_nav_ready) {
+        nav_graph_init();   /* 从自描述边表自动构建执行层 Node[]/ConnectionNum/Address（单数据源） */
+        nav_init(NavEdgeTbl, NAV_EDGE_COUNT, 54);   /* 规划器邻接 */
+        s_nav_ready = 1;
+    }
+}
+
 void mapInit()
 {
+    nav_planner_setup();
+#if USE_PLANNER_ROUTE
+    /* 用最短路径算法重算第一轮初始路线：起点N2 → 必经过P1(扫码) → 终点N5。
+     * 验证：nav_build_route({N2,P1,N5}) 输出 == 现有 route[] = {B1,N1,P1,N1,B2,N4,N5} */
+    {
+        static const u8 wp_base[] = {N2, P1, N5};   /* 起点N2 → 必经过P1(扫码) → 终点N5 */
+        nav_build_route(route, sizeof(route), wp_base, sizeof(wp_base)/sizeof(wp_base[0]));
+    }
+#endif
 	map = (struct Map_State){0,0};
     nodes = (Nodes){0};	
 	cross_event = 0;       //起始点   
 #if MAP_DEBUG
+    /* 最短路径调试：只写 config.h 的 FIRST_POINT + END_POINT，规划器自动生成路线，
+     * 不再需要手写 route[]/SECOND_POINT。
+     * path = [FIRST_POINT, n1, n2, ..., END_POINT]；车从 FIRST_POINT 出发：
+     *   firstNode(nowNode) = n1（第一跳，nav_shortest_path 已含 FIRST_POINT，故不重复）
+     *   route = [n2, ..., END_POINT, 0xFF]（n1 已在 nowNode，route 从 n2 起，避免与 nowNode 重复） */
     nodes.lastNode.nodenum = FIRST_POINT;  //起始点
     {
-        u8 idx = getNextConnectNode(FIRST_POINT, SECOND_POINT);  //起始目标点
+        u8 path[NAV_MAX_PATH];
+        uint8_t n = nav_shortest_path(FIRST_POINT, END_POINT, path, sizeof(path));
+        if (n < 2) return;   /* 起终点相同或不可达(配置错误)：直接返回，不规划 */
+        u8 idx = getNextConnectNode(FIRST_POINT, path[1]);   /* 第一跳(从 FIRST_POINT 出发) */
         if (idx == ROUTE_NOT_FOUND) return;   /* 兜底：起始连接错误，Route_Error_Stop 已死停车 */
         nodes.nowNode = Node[idx];
+        {
+            uint8_t j = 0;
+            for (uint8_t i = 2; i < n && j < (uint8_t)sizeof(route); i++) route[j++] = path[i];
+            if (j < (uint8_t)sizeof(route)) route[j++] = 0xFF;
+        }
     }
 #else
     {
@@ -262,6 +298,21 @@ enum {                     // nav_step 取值，NAV 是 Navigation（导航）�
 
 /* ============================ Navigation() 子函数 =================================== */
 
+#define STRAIGHT_ANGLE_THRESH  5.0f   /* 判定"直穿节点"的角差阈值(°) */
+
+/* 判断当前节点是否"直穿"：进入与离开本节点的期望方位角几乎相同（本节点不转弯）。
+ * 用于决定是否开启长直线陀螺仪阻尼补偿（只在确知是直线段时叠加，别处关闭）。 */
+static uint8_t Nav_IsStraightThrough(void)
+{
+    /* 首个边 lastNode 未初始化(0)，跳过：仅影响是否加小阻尼，宁可不加 */
+    if (nodes.lastNode.nodenum == 0)
+        return 0;
+    if (fabsf(need2turn(nodes.nowNode.angle, nodes.nextNode.angle)) < STRAIGHT_ANGLE_THRESH &&
+        fabsf(need2turn(nodes.lastNode.angle, nodes.nowNode.angle)) < STRAIGHT_ANGLE_THRESH)
+        return 1;
+    return 0;
+}
+
 static void Nav_SegmentInit(void)
 {
     //路程初始化
@@ -279,6 +330,11 @@ static void Nav_SegmentInit(void)
         Chassis_SetTrackMode(TRACK_RIGHT_EDGE);
     else
         Chassis_SetTrackMode(TRACK_NEAR_CENTER);
+    // 长直线陀螺仪阻尼补偿：直穿段开，其它关（先设标志再进 is_Line，避免首帧误加）
+    if (Nav_IsStraightThrough())
+        Chassis_EnableLineGyroComp(LINE_GYRO_COMP_KD);
+    else
+        Chassis_DisableLineGyroComp();
     // 设置当前边的模式和目标速度
     Chassis_SetMode(is_Line);
     Chassis_SetTargetSpeed(nodes.nowNode.speed);
@@ -420,6 +476,29 @@ void Navigation(void)
 {
     static uint8_t nav_step = 0;
 
+#if STEP_DEBUG
+    /* --- 按一下跑一个节点：等票门控（每跑一条边=一个节点，扣1票；无票则停） --- */
+    {
+        static uint8_t nav_idle_braked = 0;
+        /* 仅在“新边开始”处门控；路线结束哨兵(0xFF)不在这里拦，交给原逻辑收尾 */
+        if ((nav_step == NAV_STEP_INIT) && (route[map.point] != 0xFF))
+        {
+            if (nav_token == 0)
+            {
+                /* 无票：停车等票（自由轮，方便抱放）。只刹一次，避免每周期重刹 */
+                if (!nav_idle_braked)
+                {
+                    Chassis_MotorControl(is_Free, 0, 0, 0);
+                    nav_idle_braked = 1;
+                }
+                return;
+            }
+            nav_token--;           /* 有票：扣1张票，放行本条边 */
+            nav_idle_braked = 0;
+        }
+    }
+#endif
+
     switch (nav_step)
     {
     case NAV_STEP_INIT:
@@ -441,7 +520,7 @@ void Navigation(void)
         {
             Nav_PrepareArrival();//减速
         }
-        if (fabsf(Chassis_GetMileage()) >= 0.7f * nodes.nowNode.step)
+        if (fabsf(Chassis_GetMileage()) >= 0.75f * nodes.nowNode.step)
         {
             nav_step = NAV_STEP_NEAR_END;
         }

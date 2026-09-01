@@ -33,6 +33,8 @@ virtualFolder:
         - path: ../Application/command.h
         - path: ../Application/chassis_api.c
         - path: ../Application/chassis_api.h
+        - path: ../Application/nav_planner.c
+        - path: ../Application/nav_planner.h
       folders:
         - name: MDK-ARM
           files:
@@ -139,6 +141,8 @@ virtualFolder:
       files:
         - path: ../Module/imu.c
         - path: ../Module/imu.h
+        - path: ../Module/keys.c
+        - path: ../Module/keys.h
         - path: ../Module/bsp_linefollower.c
         - path: ../Module/bsp_linefollower.h
         - path: ../Module/bsp_buzzer.c
@@ -189,6 +193,7 @@ targets:
     excludeList:
       - <virtual_root>/Application/User/command.c
       - <virtual_root>/Motor/speed_ctrl.c
+      - <virtual_root>/Application/nav_cost.c
     settings: {}
     toolchain: AC5
     toolchainConfigMap:

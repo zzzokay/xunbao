@@ -7,17 +7,12 @@
 #include "turn.h"
 
 /* ==========================================================
- * 长度标定：LEN_SCALE = 每 1 个"代码长度单位"对应的厘米数
- * 实测：车走 100 代码单位 ≈ 120cm  →  LEN_SCALE = 120/100 = 1.2
- * 用法：全工程的距离阈值（map_message step / barrier / map /
- *       main_task 各处）已按 cm = round(代码单位 × LEN_SCALE)
- *       直接折算为整数厘米，内联在代码中，不再写 ×LEN_SCALE。
- *       本宏仅用于 motor_task 里程公式的比例补偿（里程是运行时
- *       连续累加，无法内联）。若重新标定：改本宏 + 重算各处内联
- *       值（cm = round(代码单位 × 新倍率)），代码单位原值见 git
- *       历史或 project_reference.md §7.4。
+ * 长度标定宏 LEN_SCALE 已集中到 config.h（本项目唯一配置入口）。
+ * 说明：实测车走 100 代码单位 ≈ 120cm → LEN_SCALE = 1.2f。
+ * 各处距离阈值已按 cm=round(代码单位×LEN_SCALE) 内联为整数厘米，
+ * 只有 motor_task.c 的里程公式(运行时连续累加)用本宏做比例补偿。
+ * 重新标定方法见 project_reference.md §7.4。
  * ========================================================== */
-#define LEN_SCALE  1.2f
 
 /* ==========================================================
  * 彻底解耦设计：底盘控制 API 中间件 (Chassis API Layer)
@@ -30,6 +25,17 @@
 #define SPEED3	60
 #define SPEED4	70
 #define SPEED5  75
+
+/* ===================== 长直线陀螺仪阻尼补偿（方案A） =====================
+ * 目的：在已知直线段用陀螺仪 yaw_rate 阻尼，抑制加减速/过路口时的摆动。
+ * 只做"阻尼"（不加绝对目标角），不改变循迹方式，与循迹横向纠偏分工。
+ * LINE_GYRO_COMP_KD    阻尼增益（°/s→差速量）——先取小值，上车调
+ * LINE_GYRO_COMP_MAX   陀螺仪项独立小限幅，保证只是小修正、不主导转向
+ * LINE_GYRO_YAW_FILTER yaw_rate 一阶低通系数（0~1，越小越平滑）
+ * ================================================================ */
+#define LINE_GYRO_COMP_KD    0.08f
+#define LINE_GYRO_COMP_MAX   8.0f
+#define LINE_GYRO_YAW_FILTER 0.5f
 /* 循迹边界模式 */
 typedef enum {
     TRACK_ALL = 0,        // 正常双边循迹
@@ -155,6 +161,14 @@ void Chassis_EnableWheelieProtection(void);
  * @brief 关闭翘头保护并恢复加速度
  */
 void Chassis_DisableWheelieProtection(void);
+
+/* ============ 长直线陀螺仪阻尼补偿（叠加在 Go_Line 里）============ */
+/* Enable：设定阻尼增益并锁定当前角度为"上一拍"，导航"直穿段"调用 */
+void Chassis_EnableLineGyroComp(float kd);
+/* Disable：关闭陀螺仪阻尼（离开直线段调用，每段成对执行） */
+void Chassis_DisableLineGyroComp(void);
+/* 计算并返回本次陀螺仪阻尼量（-kd*yaw_rate，独立限幅），Go_Line 调用 */
+float Chassis_GetLineGyroComp(void);
 
 /**
  * @brief 刹车制动

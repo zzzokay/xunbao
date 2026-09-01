@@ -48,6 +48,12 @@ typedef struct {
     uint8_t             wheelie_protect_enabled; // 1=翘头保护使能
     uint8_t             wheelie_protect_active; // 1=翘头保护激活中（正在降加速度）
     float               saved_Cincrement;       // 保存的循迹加速度
+
+    // 长直线陀螺仪阻尼补偿（方案A）
+    uint8_t             line_gyro_comp_enabled; // 1=陀螺仪阻尼使能（直线段）
+    float               line_gyro_kd;           // 阻尼增益
+    float               line_gyro_prev_yaw;     // 上一拍角度(°，±180 归一)
+    float               line_gyro_yaw_rate_f;   // yaw_rate 低通输出
 } ChassisState_t;
 
 static ChassisState_t chassis = {0};
@@ -100,6 +106,10 @@ void Chassis_Init(void)
     chassis.roll_protect_enabled = 0;
     chassis.wheelie_protect_enabled = 0;
     chassis.wheelie_protect_active = 0;
+    chassis.line_gyro_comp_enabled = 0;
+    chassis.line_gyro_kd = 0;
+    chassis.line_gyro_prev_yaw = 0;
+    chassis.line_gyro_yaw_rate_f = 0;
 
     motor_all.Lspeed = 0;
 	motor_all.Rspeed = 0;
@@ -622,6 +632,48 @@ void Chassis_SetCatchSensorNum(uint8_t num)
 void Chassis_SetEdgeIgnore(uint8_t num)
 {
     scaner_set.EdgeIgnore = num;
+}
+
+/* ============ 长直线陀螺仪阻尼补偿（方案A）============ */
+/* 使能时锁定当前角度为上一拍，保证首帧 yaw_rate 不跳变 */
+void Chassis_EnableLineGyroComp(float kd)
+{
+    chassis.line_gyro_kd = kd;
+    chassis.line_gyro_prev_yaw = getAngleZ();
+    chassis.line_gyro_yaw_rate_f = 0;
+    chassis.line_gyro_comp_enabled = 1;
+}
+
+void Chassis_DisableLineGyroComp(void)
+{
+    chassis.line_gyro_comp_enabled = 0;
+    chassis.line_gyro_prev_yaw = 0;
+    chassis.line_gyro_yaw_rate_f = 0;
+}
+
+/* 计算陀螺仪阻尼量：-kd*yaw_rate，独立小限幅；仅在使能时非零 */
+float Chassis_GetLineGyroComp(void)
+{
+    if (!chassis.line_gyro_comp_enabled)
+        return 0.0f;
+
+    float now_angle = getAngleZ();
+    float delta = need2turn(chassis.line_gyro_prev_yaw, now_angle);  // ±180 回绕
+    chassis.line_gyro_prev_yaw = now_angle;
+
+    /* yaw_rate 一阶低通，抑制 IMU 微分噪声 */
+    chassis.line_gyro_yaw_rate_f = LINE_GYRO_YAW_FILTER * delta +
+                                   (1.0f - LINE_GYRO_YAW_FILTER) * chassis.line_gyro_yaw_rate_f;
+
+    float yaw_rate = chassis.line_gyro_yaw_rate_f / 0.005f;   // °/s（5ms 周期）
+    float gcomp = -chassis.line_gyro_kd * yaw_rate;           // 左转给负→右转阻尼
+
+    if (gcomp > LINE_GYRO_COMP_MAX)
+        gcomp = LINE_GYRO_COMP_MAX;
+    else if (gcomp < -LINE_GYRO_COMP_MAX)
+        gcomp = -LINE_GYRO_COMP_MAX;
+
+    return gcomp;
 }
 /* ========================================================================= */
 /* -------------------------- 提供给 Motor_Task 刷新的 ---------------------- */

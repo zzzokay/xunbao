@@ -171,6 +171,8 @@ void Go_Line(float speed, volatile struct Motors *motor)
 
 	// 后退时舵向反转（传感器在车头，后退时是尾随端）
 	if (speed < 0) Fspeed = -Fspeed;
+	// 长直线陀螺仪阻尼补偿（仅在 Chassis_EnableLineGyroComp 使能的直穿段叠加）
+	Fspeed += Chassis_GetLineGyroComp();
 	motor->Lspeed = speed - Fspeed;
 	motor->Rspeed = speed + Fspeed;
 }

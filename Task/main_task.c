@@ -1,4 +1,5 @@
 #include "main_task.h"
+#include "config.h"     /* 调试开关 MAIN_DEBUG 等集中在这里 */
 #include "uart.h"
 #include "imu.h"
 #include "uart.h"
@@ -24,8 +25,7 @@
 #include "Rudder_control.h"
 #include "keys.h"
 
-/*===== 独立调试开关 =====*/
-#define MAIN_DEBUG 1
+/*===== 调试开关 MAIN_DEBUG 已集中到 config.h =====*/
 
 uint8_t test_flag = 14; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
 float temp_speed=25;

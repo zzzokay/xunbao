@@ -18,6 +18,7 @@
  */
 
 #include "motor_task.h"
+#include "config.h"     /* LEN_SCALE 等配置集中在这里 */
 #include "encoder.h"
 #include "motor.h"
 #include "uart.h"
@@ -61,6 +62,11 @@ uint8_t open_qiang_jiao = 0;      // 墙角模式标志
 extern volatile uint8_t LEFT_RIGHT_LINE;
 extern uint8_t test_flag;
 
+#if STEP_DEBUG
+static uint8_t  nav_burst = 0;            /* 按键2秒窗口内累计按次数 */
+static uint32_t nav_burst_deadline = 0;   /* 窗口关闭时刻（tick） */
+#endif
+
 /* ===== 周期耗时测量(调试用): DWT 周期计数器 @216MHz ===== */
 static void timing_dwt_init(void)
 {
@@ -98,6 +104,25 @@ void motor_task(void *pvParameters)
 			key_scan();
 			key_count=0;
 		}
+
+#if STEP_DEBUG
+		/* 按键 → 2秒滚动窗口合并成票：窗口内按几下=几张票
+		 * 放 motor_task(20ms、不会被障碍/到达阻塞卡住)，避免 main_task 在阻塞处漏计 */
+		if (key[0].mode)   /* 1=短按 2=长按 */
+		{
+			if (key[0].mode == 1)
+			{
+				if (nav_burst < 250) nav_burst++;          /* 一次短按计入当前窗口 */
+				nav_burst_deadline = xTaskGetTickCount() + pdMS_TO_TICKS(NAV_TOKEN_WINDOW_MS); /* 滚动窗口：每次按键重置2s */
+			}
+			key[0].mode = 0;                                /* 消费按键事件（含忽略长按） */
+		}
+		if ((nav_burst > 0) && ((int32_t)(xTaskGetTickCount() - nav_burst_deadline) >= 0))
+		{
+			nav_token += nav_burst;   /* 窗口关闭(超2s无新按) → 一次提交成票 */
+			nav_burst = 0;
+		}
+#endif
 
 		/*2. 获取电机速度，内核实数值及路程累计*/
 		handle_motor_speed();

@@ -28,9 +28,9 @@
 #include "string.h"
 #include "adc.h"
 #include "gray.h"
+#include "nav_planner.h"
 #include "chassis_api.h"
-
-#define DEBUG 0
+#include "config.h"     /* 调试开关 DEBUG 已集中到这里 */
 
 /*==============================================================================
  *  目录 / Table of Contents   按 Ctrl+F 搜索函数名、Ctrl+D快速跳转
@@ -2181,11 +2181,25 @@ void get_newroute(void)
 	//全部运行通行
 	Clear_door();
 
-	//公共段：P1→P3→P4（到N5岔口）；东区巡游：P5→P7→P8→P6
+#if USE_PLANNER_ROUTE
+	//公共段：P1→P3→P4（到N5岔口）；东区巡游：P5→P7→P8→P6 —— 均由最短路径算法生成（等价于下文字面数组，已用 PC 基准验证）
+	u8 pre[NAV_MAX_PATH], tour[NAV_MAX_PATH], tour_p6[NAV_MAX_PATH];
+	{
+		static const u8 wp_pre[]     = {N2, P1, P3, P4, N5};          /* 起点N2 → P1→P3→P4 → 终点N5 */
+		static const u8 wp_tour[]    = {N13, P5, P7, P8, P6, N10};  /* 东区巡游 P5→P7→P8→P6 */
+		static const u8 wp_tour_p6[] = {N9, P6, P8, P7, P5, N12};   /* 宝藏=P6：先深入P6再绕回 */
+		nav_build_route(pre, sizeof(pre), wp_pre, sizeof(wp_pre)/sizeof(wp_pre[0]));
+		nav_plan_waypoints(tour, sizeof(tour), wp_tour, sizeof(wp_tour)/sizeof(wp_tour[0]));
+		nav_plan_waypoints(tour_p6, sizeof(tour_p6), wp_tour_p6, sizeof(wp_tour_p6)/sizeof(wp_tour_p6[0]));
+	}
+#else
+	//公共段：P1→P3→P4（到N5岔口）；东区巡游：P5→P7→P8→P6（原字面数组，USE_PLANNER_ROUTE=0 时沿用）
 	const u8 pre[]  = {B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,0XFF};
 	const u8 tour[] = {N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,B11,C8,C7,B10,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10,0XFF};
 	// 宝藏=P6：车已在N10时先深入去P6，再P8→P7→P5绕回（终点改为N12，回程走N12→N8直连出东区，避开N11刀山）
 	const u8 tour_p6[] = {N9,B9,N7,P6,N7,B8,N9,C3,N14,B10,C7,C8,B11,C4,N20,P8,N20,B6,N22,C9,P7,C9,N22,B7,C6,N19,B5,N18,N16,N12,N13,P5,N13,N12,0XFF};
+#endif
+	// 宝藏=P6：车已在N10时先深入去P6，再P8→P7→P5绕回（终点改为N12，回程走N12→N8直连出东区，避开N11刀山）
 	const u8 *use_tour = (treasure == 6) ? tour_p6 : tour;
 
 	//进东区终点按宝藏选：P6经N10（更近，且免走N12→N11刀山），其余经N12（去P5近）
