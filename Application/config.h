@@ -45,16 +45,17 @@
     #define LEN_N22B7   200
     #define LEN_B5N19   72
 #endif
-#define LEN_N18B5   (LEN_N22B7 - 20)      /* N18B5 = 180 */
+//#define LEN_N18B5   (LEN_N22B7 - 20)      /* N18B5 = 180 */
+#define LEN_N18B5   100     /* N18B5 = 180 */
 #define LEN_B7C6    LEN_B5N19             /* B7C6 = B5N19 = 72 */
 
 /* ===== 红绿灯门区段：全长（door_set_pass_node 用全长；map_message 中 DOOR 条目用 全长/2）===== */
 #if USE_FIELD == FIELD_SCHOOL
     /* —— 学校场地实测值（TODO）—— */
-    #define DOOR_LEN_N5N12  200   /* TODO(学校) */
+    #define DOOR_LEN_N5N12  180   /* TODO(学校) */
     #define DOOR_LEN_N5N8   190   /* TODO(学校) */
     #define DOOR_LEN_N8N10  190   /* TODO(学校) */
-    #define DOOR_LEN_N3N10  200   /* TODO(学校) */
+    #define DOOR_LEN_N3N10  180   /* TODO(学校) */
     #define DOOR_LEN_N3N8   190   /* TODO(学校) */
     #define DOOR_LEN_N8N12  190   /* TODO(学校) */
 #else

@@ -6,11 +6,11 @@
 - 输出每条参考路径是否被复现，以及未复现时的实际最短路径（用于判断该处是否需要 waypoint 约束）
 本脚本只读代码，不参与固件编译。
 """
-import re, math, sys, heapq, collections
+import os, re, math, sys, heapq, collections
 
-BASE = r"C:\Users\14166\Desktop\MC_32\robotcup\xunbao"
+BASE = os.path.dirname(os.path.abspath(__file__))   # 脚本所在目录 = 仓库根（相对定位，换机器/换路径不用改）
 # 数据现为单一来源：map_message.c 的 NavEdgeTbl[]（自描述，含 from）。改读它。
-GRAPH_C = BASE + r"\Application\map_message.c"
+GRAPH_C = os.path.join(BASE, "Application", "map_message.c")
 
 NODE_IDX = {
  "S1":0,"P1":1,"N1":2,"B1":3,"B2":4,"B3":5,"N2":6,"P2":7,"S2":8,"P3":9,

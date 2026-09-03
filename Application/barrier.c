@@ -764,7 +764,7 @@ void Barrier_Hill(void)
 
 		case HILL_ASCEND:
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, origin_angle,
-				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.1f, 10.0f, 0.0f);
+				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.15f, 10.0f, 0.0f);
 	
 			state = HILL_DESCEND;
 			break;
@@ -1276,8 +1276,137 @@ static void load_route_at(uint8_t offset, const u8* src)
 	}
 }
 
+#if USE_PLANNER_ROUTE
+/* 运行时改路统一经规划器生成；门色只决定必须经过的门侧节点。 */
+static uint8_t plan_route_at(uint8_t offset, const u8 *waypoints, uint8_t waypoint_count)
+{
+	uint8_t written;
+
+	if (offset >= sizeof(route))
+	{
+		CarBrake_Stop();
+		return 0;
+	}
+
+	written = nav_build_route(&route[offset], (uint8_t)(sizeof(route) - offset),
+		waypoints, waypoint_count);
+	if (written == 0)
+	{
+		route[offset] = 0xFF;
+		CarBrake_Stop();
+		return 0;
+	}
+	return 1;
+}
+
+/* P7/P8 得到宝物编号后，按已确认的门状态规划到宝物平台再回 P2。 */
+static uint8_t plan_treasure_return(uint8_t start)
+{
+	u8 wp[10];
+	uint8_t n = 0;
+	uint8_t target;
+
+	switch (treasure)
+	{
+	case 2: target = P1; break;
+	case 3: target = P3; break;
+	case 4: target = P4; break;
+	case 5: target = P5; break;
+	case 6: target = P6; break;
+	default:
+		CarBrake_Stop();
+		return 0;
+	}
+
+	wp[n++] = start;
+	if (treasure == 5)
+	{
+		/* 保持 P5 从 N13 进、回到 N13 的平台动作方向。 */
+		wp[n++] = N13;
+		wp[n++] = P5;
+		wp[n++] = N13;
+	}
+	else if (treasure == 6)
+	{
+		/* P6 的进出分别固定在 N9，避免规划器选到不经过跷跷板的支路。 */
+		wp[n++] = N9;
+		wp[n++] = P6;
+		wp[n++] = N9;
+	}
+
+	if (door_pass[0] == CAN_PASS)
+	{
+		wp[n++] = N12;
+		wp[n++] = N5;
+	}
+	else if (door_pass[1] == CAN_PASS)
+	{
+		wp[n++] = N12;
+		wp[n++] = N8;
+		wp[n++] = N5;
+	}
+	else if (door_pass[2] == CAN_PASS)
+	{
+		wp[n++] = N12;
+		wp[n++] = N8;
+		wp[n++] = N3;
+	}
+	else if (door_pass[0] == ONE_WAY_PASS || door_pass[1] == ONE_WAY_PASS ||
+		door_pass[2] == ONE_WAY_PASS)
+	{
+		/* 回程需经 D5；该门仍由 door() 在 N10->N3 上读取和处理。 */
+		wp[n++] = N10;
+		wp[n++] = N3;
+	}
+	else
+	{
+		CarBrake_Stop();
+		return 0;
+	}
+
+	if (treasure != 5 && treasure != 6)
+		wp[n++] = target;
+	wp[n++] = P2;
+	return plan_route_at(map.point, wp, n);
+}
+
+/* D5/D4 回程门重新规划后，5/6 号宝物已取到，其余仍需先到目标平台。 */
+static uint8_t plan_after_return_door(uint8_t required_first_node)
+{
+	u8 wp[5];
+	uint8_t n = 0;
+	uint8_t offset = 0;
+
+	if (required_first_node != 0xFF)
+	{
+		/* 门区出口边必须由调用方字面指定，规划从出口节点之后开始。 */
+		route[0] = required_first_node;
+		offset = 1;
+		wp[n++] = required_first_node;
+	}
+	else
+	{
+		wp[n++] = nodes.nowNode.nodenum;
+	}
+	if (treasure == 2) wp[n++] = P1;
+	else if (treasure == 3) wp[n++] = P3;
+	else if (treasure == 4) wp[n++] = P4;
+	else if (treasure != 5 && treasure != 6)
+	{
+		CarBrake_Stop();
+		return 0;
+	}
+	wp[n++] = P2;
+	return plan_route_at(offset, wp, n);
+}
+#endif
+
 void update_route_at_P7_for_treasure(void)
 {
+#if USE_PLANNER_ROUTE
+	(void)plan_treasure_return(P7);
+	return;
+#endif
 	//map.point = 1;
 	if(treasure != 0&&door_pass[0] == CAN_PASS)//D2绿灯
 	{
@@ -1377,6 +1506,11 @@ void update_route_at_P7_for_treasure(void)
 }
 void update_route_at_P8_for_treasure(void)
 {
+#if USE_PLANNER_ROUTE
+	printf("treasure%d\r\n",treasure);
+	(void)plan_treasure_return(P8);
+	return;
+#endif
 	printf("treasure%d\r\n",treasure);
 	if(treasure != 0&&door_pass[0] == CAN_PASS)//D2绿灯
 	{
@@ -1621,11 +1755,11 @@ void QQB_1(void)
 				vTaskDelay(300);	
 				while(imu.pitch <= basic_p-40){vTaskDelay(2);}	
 				vTaskDelay(100);
-				//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()>0?90:-90, getAngleZ(), 15.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()>0?90:-90, getAngleZ(), 15.0f);
 				Chassis_RestoreGyroPid();
 				Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ());	
 				while(imu.pitch <= basic_p-20){vTaskDelay(2);}
-				Chassis_Turn_By_Gyro_Blocking(getAngleZ()>0?100:-80, getAngleZ(), 20.0f);	
+				Chassis_Turn_By_Gyro_Blocking(getAngleZ()>0?110:-80, getAngleZ(), 20.0f);	
 				seen_negative=2;				
 			}
 			if(seen_negative==2)
@@ -1704,7 +1838,7 @@ static uint8_t Door_ReadPass(uint8_t door_state)
 
 
 
-    for (retry = 0; retry < 3; retry++)
+    for (retry = 0; retry < 5; retry++)
     {
         uint32_t timeout = 0;
 
@@ -1939,9 +2073,9 @@ void door()
 			send_play_specified_command(11);
 			if (door_pass[0] == ONE_WAY_PASS)
 			{
-				/* 公共初始化已把 map.point=0、route[0]=0xFF，
-				   这里直接写 route[0]=N3：Nav_PostProcess 会用
-				   getNextConnectNode(N8, N3) 解析出 D4 门边(N8→N3)，再次触发 door() */
+				/* 先从 D5 退回 N8；公共初始化已把 map.point=0、route[0]=0xFF。
+				   再写 route[0]=N3，Nav_PostProcess 才会从 N8 解析出
+				   D4 门边(N8→N3)，再次触发 door()。 */
 				route[0] = N3;
 				door_retreat(N10, N8, DOOR_RETREAT_N10N8);
 				cross_event |= CROSS_EVENT_DOOR;
@@ -2017,6 +2151,10 @@ void update_route_at_P1(void)
 
 void update_route_by_door_1(void)
 {
+#if USE_PLANNER_ROUTE
+	(void)plan_after_return_door(0xFF);
+	return;
+#endif
 	if(treasure ==5||treasure == 6)
 		load_route_at(0, door6route);
 	if(treasure ==3)
@@ -2037,6 +2175,10 @@ void update_route_by_door_1(void)
 }
 void update_route_by_door_2(void)
 {
+	/* D5 黑灯回退到 N8 后，必须固定走 N8->N3，重新触发 D4 回程读灯。 */
+#if USE_PLANNER_ROUTE
+	(void)plan_after_return_door(N3);
+#else
 	if(treasure ==5||treasure == 6)
 		load_route_at(0, door7route);
 	if(treasure ==3)
@@ -2054,9 +2196,14 @@ void update_route_by_door_2(void)
 		const u8 r[] = {N3,N4,B2,N1,P1,N1,B1,N2,P2,0xFF};
 		load_route_at(0, r);
 	}
+#endif
 }
 void update_route_by_door_3(void)
 {
+#if USE_PLANNER_ROUTE
+	(void)plan_after_return_door(0xFF);
+	return;
+#endif
 	if(treasure ==5||treasure == 6)
 		load_route_at(0, door8route);
 	if(treasure ==3)
@@ -2077,6 +2224,10 @@ void update_route_by_door_3(void)
 }
 void update_route_by_door_4(void)
 {
+#if USE_PLANNER_ROUTE
+	(void)plan_after_return_door(0xFF);
+	return;
+#endif
 	if(treasure ==5||treasure == 6)
 		load_route_at(0, door11route);
 	if(treasure ==3)
@@ -2099,6 +2250,31 @@ static uint8_t Can_Pass(uint8_t c) { return c == CAN_PASS || c == ONE_WAY_PASS; 
 
 void update_route_at_door_for_stageAB(void)
 {
+#if USE_PLANNER_ROUTE
+	if (flag_clue_stage_A == 5 && flag_clue_stage_B == 7)
+	{
+		u8 wp[] = {nodes.nowNode.nodenum, N13, P5, N12, P7, C9};
+		(void)plan_route_at(0, wp, sizeof(wp));
+	}
+	else if (flag_clue_stage_A == 5 && flag_clue_stage_B == 8)
+	{
+		u8 wp[] = {nodes.nowNode.nodenum, N13, P5, N12, P8, N20};
+		(void)plan_route_at(0, wp, sizeof(wp));
+	}
+	else if (flag_clue_stage_A == 6 && flag_clue_stage_B == 7)
+	{
+		u8 wp[] = {nodes.nowNode.nodenum, N10, N9, P6, P7, C9};
+		(void)plan_route_at(0, wp, sizeof(wp));
+	}
+	else if (flag_clue_stage_A == 6 && flag_clue_stage_B == 8)
+	{
+		u8 wp[] = {nodes.nowNode.nodenum, N10, N9, P6, P8, N20};
+		(void)plan_route_at(0, wp, sizeof(wp));
+	}
+	else
+		CarBrake_Stop();
+	return;
+#endif
 	// 按线索平台组合选择路线
 	if (flag_clue_stage_A == 5 && flag_clue_stage_B == 7)
 	{
@@ -2180,6 +2356,124 @@ void get_newroute(void)
 	mapInit();
 	//全部运行通行
 	Clear_door();
+
+#if USE_PLANNER_ROUTE
+	{
+		u8 wp[24];
+		uint8_t n = 0;
+		uint8_t p6_first = (treasure == 6);
+
+		/* 第一轮已回到 P2；第二轮固定完成 P1/P3/P4，再按门状态进入东区。 */
+		wp[n++] = N2;
+		wp[n++] = P1;
+		wp[n++] = P3;
+		wp[n++] = P4;
+		wp[n++] = N5;
+
+		if (Can_Pass(door_pass[0]))
+		{
+			wp[n++] = N12;
+		}
+		else if (Can_Pass(door_pass[1]))
+		{
+			wp[n++] = N8;
+			if (!p6_first) wp[n++] = N12;
+		}
+		else if (Can_Pass(door_pass[2]))
+		{
+			wp[n++] = N4;
+			wp[n++] = N3;
+			wp[n++] = N8;
+			if (!p6_first) wp[n++] = N12;
+		}
+		else
+		{
+			CarBrake_Stop();
+			return;
+		}
+
+		if (p6_first)
+		{
+			/* 逆时针：P6 -> P8 -> P7 -> P5，P5 始终从 N13 进入。 */
+			wp[n++] = N9;
+			wp[n++] = P6;
+			wp[n++] = N9;
+			wp[n++] = P8;
+			wp[n++] = P7;
+			wp[n++] = N13;
+			wp[n++] = P5;
+			wp[n++] = N13;
+			wp[n++] = N12;
+		}
+		else
+		{
+			/* 顺时针：P5 -> P7 -> P8 -> P6。 */
+			wp[n++] = N13;
+			wp[n++] = P5;
+			wp[n++] = P7;
+			wp[n++] = P8;
+			wp[n++] = N9;
+			wp[n++] = P6;
+			wp[n++] = N9;
+			wp[n++] = N10;
+		}
+
+		/* 回程只给出可用门的两侧节点，具体道路仍由最短路计算。 */
+		if (door_pass[0] == CAN_PASS)
+		{
+			wp[n++] = N5;
+		}
+		else if (door_pass[0] == ONE_WAY_PASS && door_pass[3] == CAN_PASS)
+		{
+			wp[n++] = N10;
+			wp[n++] = N3;
+		}
+		else if (door_pass[0] == ONE_WAY_PASS && door_pass[3] == NO_PASS && door_pass[2] == CAN_PASS)
+		{
+			wp[n++] = N8;
+			wp[n++] = N3;
+		}
+		else if (door_pass[0] == ONE_WAY_PASS && door_pass[3] == NO_PASS && door_pass[2] == NO_PASS)
+		{
+			wp[n++] = N8;
+			wp[n++] = N5;
+		}
+		else if (door_pass[0] == NO_PASS && door_pass[1] == CAN_PASS)
+		{
+			wp[n++] = N8;
+			wp[n++] = N5;
+		}
+		else if (door_pass[0] == NO_PASS && door_pass[1] == ONE_WAY_PASS && door_pass[3] == CAN_PASS)
+		{
+			wp[n++] = N10;
+			wp[n++] = N3;
+		}
+		else if (door_pass[0] == NO_PASS && door_pass[1] == ONE_WAY_PASS && door_pass[3] == NO_PASS)
+		{
+			wp[n++] = N8;
+			wp[n++] = N3;
+		}
+		else if (door_pass[0] == NO_PASS && door_pass[1] == NO_PASS && door_pass[2] == CAN_PASS)
+		{
+			wp[n++] = N8;
+			wp[n++] = N3;
+		}
+		else if (door_pass[0] == NO_PASS && door_pass[1] == NO_PASS && door_pass[2] == ONE_WAY_PASS)
+		{
+			wp[n++] = N10;
+			wp[n++] = N3;
+		}
+		else
+		{
+			CarBrake_Stop();
+			return;
+		}
+
+		wp[n++] = P2;
+		(void)plan_route_at(0, wp, n);
+		return;
+	}
+#endif
 
 #if USE_PLANNER_ROUTE
 	//公共段：P1→P3→P4（到N5岔口）；东区巡游：P5→P7→P8→P6 —— 均由最短路径算法生成（等价于下文字面数组，已用 PC 基准验证）
@@ -2335,11 +2629,11 @@ uint8_t WaitFor_OCR(void)
 			CarBrake();
 		}
 		if ((retry & 1U) == 0)
-		{moveServo(0, 1330, 1000);
+		{moveServo(0, 1440, 1000);
 		head_right_left=1;}
 			
 		else
-			{moveServo(0, 1610, 1000);head_right_left=2;}
+			{moveServo(0, 1560, 1000);head_right_left=2;}
 		vTaskDelay(1200);
 		CarBrake();
 		Chassis_ClearMileage();

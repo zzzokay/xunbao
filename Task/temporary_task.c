@@ -37,7 +37,7 @@ void Start_task(void *pvParameters)
 		if (imu_try == 1)
 			printf("[IMU] 警告：重启后仍无数据，继续上电流程（请检查陀螺仪供电/接线）\r\n");
 	}
-
+	
 	taskENTER_CRITICAL(); // 进入临界区
    
 	Rec_usart_init();	

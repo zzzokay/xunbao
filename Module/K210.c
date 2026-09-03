@@ -39,7 +39,7 @@ void open_QR_mode(void)
     while(retry--) {
         // 发送指令
         HAL_UART_Transmit(&huart6, &cmd, 1, 100);
-			  HAL_Delay(20);
+			HAL_Delay(20);
         if(open_QR_mode_sign == 0) break;
         HAL_Delay(30); // 短间隔重试
     }
@@ -54,8 +54,8 @@ void open_OCR_mode(void)
 		open_OCR_mode_sign=1;
     
     while(retry--) {
-				HAL_UART_Transmit(&huart6, cmd, sizeof(cmd), 100);
-				HAL_Delay(20);
+		HAL_UART_Transmit(&huart6, cmd, sizeof(cmd), 100);
+			HAL_Delay(20);
         if(open_OCR_mode_sign==0) break;       
         HAL_Delay(30);
     }
@@ -69,7 +69,7 @@ void close_Maxicam(void)
     HAL_UART_Transmit(&huart6, &cmd, 1, 100);
     HAL_UART_Transmit(&huart6, &cmd, 1, 100);
     HAL_UART_Transmit(&huart6, &cmd, 1, 100);
-		HAL_UART_Transmit(&huart6, &cmd, 1, 100);
+	HAL_UART_Transmit(&huart6, &cmd, 1, 100);
 }
 
 // QR码数据统计函数

@@ -116,6 +116,13 @@ void mapInit()
     {
         static const u8 wp_base[] = {N2, P1, N5};   /* 起点N2 → 必经过P1(扫码) → 终点N5 */
         nav_build_route(route, sizeof(route), wp_base, sizeof(wp_base)/sizeof(wp_base[0]));
+        // {
+        //     uint8_t _i;
+        //     printf("ROUTE: ");
+        //     for (_i = 0; _i < sizeof(route) && route[_i] != 0xFF; _i++)
+        //         printf("%d ", route[_i]);
+        //     printf("\n");
+        // }
     }
 #endif
 	map = (struct Map_State){0,0};

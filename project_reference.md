@@ -141,7 +141,7 @@ void nav_graph_init(void);   // 启动时由本表自动构建 Node[]/Connection
 - `obs_penalty`（`NavObsPenalty[]`）：Hill30 / Bridge40 / 短波板60 / 平台60 / 长波板70 / 跷跷板80 / 南极高山90 / 景点支路100 / 刀山SM120 / 后退桩1000 / 门0(用必经点处理)。
 - 已用 PC 基准 `_weight_calib.py` 标定：**复现现有 14 条路线；rout_58 按最短路径（北线）**。
 
-**开关**：[config.h](Application/config.h) 的 `#define USE_PLANNER_ROUTE 0`。`0`=沿用现有路线数组（行为不变）；`1`=第一轮初始与第二轮 pre/tour 由规划器生成。改地图/调权重后应先在 MDK 编译确认，置 1 再上真车。
+**开关**：[config.h](Application/config.h) 的 `#define USE_PLANNER_ROUTE 1`。`0`=沿用现有路线数组（行为不变）；`1`=首轮初始、二维码分流、门后 A/B 平台、P7/P8 宝物回程、回程门分支和第二轮全程都由规划器生成。门色仍作为必经门侧节点约束，避免规划器跨越未确认或单向门。改地图/调权重后应先在 MDK 编译确认，再上真车。
 
 **PC 校验工具**（仓库根，不进固件）：
 - `_weight_calib.py`：读 `map_message.c` 建图 → 校验 15 条参考路线连通性 → 必经点细分/完整 route 拼接核对 → 权重灵敏度。换图后重跑确认路线未偏离。
@@ -488,7 +488,7 @@ Turn_Angle / Stage_turn_Angle 合并: 90%相同，提取 `Turn_Angle_Base` 基�
 3. 同步 `map_message.h` `#define NAV_EDGE_COUNT`；增删节点时改 `map.h` `MapNode` 枚举。
 4. 改 `config.h` 门区宏。
 5. 改 `map.c` 初始路线（或用 planner 生成）和门分支路线。
-6. 改 `barrier.c` 动态改路函数、`get_newroute()`（`USE_PLANNER_ROUTE=1` 时 pre/tour 用 planner）。
+6. 改 `barrier.c` 动态改路函数、`get_newroute()`（`USE_PLANNER_ROUTE=1` 时全程由 planner 生成；门色仅保留为必经点约束）。
 7. 核对连通性：跑 `_weight_calib.py` / `_check_csr.py`。
 8. 核对方向：`NavEdgeTbl[]` 是有向边，反向需单独存在或由角度宏派生。
 9. 编译，预期 0 Error 0 Warning；输出"改动清单"、标出需现场实测的 step/angle/speed。
@@ -520,7 +520,7 @@ N11=50 G1=51 B10=52 B11=53
 **第一轮线索平台**：A=5,B=7→`rout_57`；5,8→`rout_58`；6,7→`rout_67`；6,8→`rout_68`
 **门分支**（实际被调用）：`door1route={N3,N8,0xFF}`、`door6route={N4,B3,N2,P2,0xFF}`、`door7route={N8,N3,N4,B3,N2,P2,0xFF}`、`door8route={N4,B3,N2,P2,0xFF}`、`door11route={N5,N4,B3,N2,P2,0xFF}`（其余 door2route/door3_1/door4/5/9/10/12 暂未调用，可保留备用）
 **第二轮拼接**（`get_newroute()`）：`pre={B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5}`；`tour={N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9,N22,B6,N20,P8,N20,C4,B11,C8,C7,B10,N14,C3,N9,B9,N7,P6,N7,B8,N9,N10}`；宝藏=P6 时用 `tour_p6`。
-（`USE_PLANNER_ROUTE=1` 时 pre/tour/tour_p6 由 planner 从必经点生成，见 §4.5。）
+（`USE_PLANNER_ROUTE=1` 时首轮和第二轮全程均由 planner 从必经点生成；上述数组只作为关闭开关时的兼容回退，见 §4.5。）
 
 ### 21.7 给我信息模板
 
@@ -539,4 +539,4 @@ N11=50 G1=51 B10=52 B11=53
 
 ### 21.8 调试开关
 
-全部集中在 `config.h`（见 §十八）。正式比赛前 `MAIN_DEBUG`、`STEP_DEBUG` 必须改回 `0`；`USE_PLANNER_ROUTE` 先 MDK 编译确认 0 error 再置 1。
+全部集中在 `config.h`（见 §十八）。正式比赛前 `MAIN_DEBUG`、`STEP_DEBUG` 必须改回 `0`；当前 `USE_PLANNER_ROUTE=1`，改图或调权重后先 MDK 编译确认 0 error 再上真车。
