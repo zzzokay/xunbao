@@ -8,20 +8,31 @@ virtualFolder:
   name: <virtual_root>
   files: []
   folders:
+    - name: Mission
+      files:
+        - path: ../Mission/barrier.c
+        - path: ../Mission/barrier.h
+        - path: ../Mission/mission_planner.c
+        - path: ../Mission/mission_planner.h
+        - path: ../Mission/config.h
+      folders: []
+    - name: Navigation
+      files:
+        - path: ../Navigation/map.c
+        - path: ../Navigation/map.h
+        - path: ../Navigation/map_message.c
+        - path: ../Navigation/map_message.h
+        - path: ../Navigation/nav_planner.c
+        - path: ../Navigation/nav_planner.h
+      folders: []
     - name: Application
       files:
-        - path: ../Application/barrier.c
-        - path: ../Application/barrier.h
         - path: ../Application/delay.c
         - path: ../Application/delay.h
         - path: ../Application/gray.c
         - path: ../Application/gray.h
         - path: ../Application/IIC.c
         - path: ../Application/IIC.h
-        - path: ../Application/map.c
-        - path: ../Application/map.h
-        - path: ../Application/map_message.c
-        - path: ../Application/map_message.h
         - path: ../Application/motion.c
         - path: ../Application/motion.h
         - path: ../Application/scaner.c
@@ -33,8 +44,6 @@ virtualFolder:
         - path: ../Application/command.h
         - path: ../Application/chassis_api.c
         - path: ../Application/chassis_api.h
-        - path: ../Application/nav_planner.c
-        - path: ../Application/nav_planner.h
       folders:
         - name: MDK-ARM
           files:
@@ -172,6 +181,8 @@ targets:
       defineList:
         - USE_HAL_DRIVER
         - STM32F750xx
+        - USE_PLANNER_ROUTE=1
+        - USE_FIELD=1
       incList:
         - ../Core/Inc
         - ../Drivers/STM32F7xx_HAL_Driver/Inc
@@ -187,13 +198,14 @@ targets:
         - ../USMAT
         - ../Module
         - ../Application
+        - ../Mission
+        - ../Navigation
         - .cmsis/include
         - RTE/_test1
       libList: []
     excludeList:
       - <virtual_root>/Application/User/command.c
       - <virtual_root>/Motor/speed_ctrl.c
-      - <virtual_root>/Application/nav_cost.c
     settings: {}
     toolchain: AC5
     toolchainConfigMap:

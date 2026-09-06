@@ -120,7 +120,7 @@ void Chassis_Init(void)
 	motor_all.GyroG_speedMax = 100;	// 自平衡左右偏差最大值10000
 	motor_all.GyroT_speedMax = 25;  	// 自转最大速度34//--->5760 //35
 	motor_all.Line_speedMax = 50;		// 巡线差速最大值
-	motor_all.Cincrement = 0.6;	   	// 循迹加速度 0.5
+	motor_all.Cincrement = 0.7;	   	// 循迹加速度 0.5
 	motor_all.CDOWNincrement = 0.7;	//循迹减速0.5
     motor_all.Gincrement = 0.6;	   	// 陀螺仪加速度0.5
     motor_all.GDOWNincrement=0.6;	// 陀螺仪减速度0.5
@@ -618,7 +618,7 @@ void Chassis_Turn_By_Gyro_Blocking(float target_angle, float current_angle, floa
 
     Chassis_SetMode(is_Gyro); // 进入陀螺仪转弯模式
 
-    Chassis_TurnToAngle_Blocking(target_g, current_angle, 0.05f);
+    Chassis_TurnToAngle_Blocking(target_g, current_angle, 0.2f);
 
     Chassis_RestoreGyroPid();
 

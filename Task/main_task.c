@@ -1,11 +1,11 @@
 #include "main_task.h"
-#include "config.h"     /* 调试开关 MAIN_DEBUG 等集中在这里 */
+#include "../Mission/config.h"     /* 调试开关 MAIN_DEBUG 等集中在这里 */
 #include "uart.h"
 #include "imu.h"
 #include "uart.h"
 #include "turn.h"
-#include "map.h"
-#include "barrier.h"
+#include "../Navigation/map.h"
+#include "../Mission/barrier.h"
 #include "bsp_buzzer.h"
 #include "bsp_linefollower.h"
 #include "scaner.h"
@@ -27,7 +27,7 @@
 
 /*===== 调试开关 MAIN_DEBUG 已集中到 config.h =====*/
 
-uint8_t test_flag = 10; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
+uint8_t test_flag = 1; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
 float temp_speed=25;
 #if MAIN_DEBUG
 
@@ -81,7 +81,7 @@ void main_task(void *pvParameters)
 	door_pass[2] = CAN_PASS;  /* D4 */
 	door_pass[3] = NO_PASS;  /* D5 */
 	door_pass[4] = NO_PASS;  /* D1 */
-	treasure = 6; /* 预设宝物平台编号 = 5 */
+	treasure = 2; /* 预设宝物平台编号 = 5 */
 	map.routetime = 1;
 	#elif !MAP_DEBUG
 	zhunbei(); // 启动流程（红外等待）
@@ -108,13 +108,19 @@ void main_task(void *pvParameters)
 			//ScanerMode_Switch(RF);
 			//Chassis_SetTrackMode(TRACK_NEAR_CENTER);
 			//Chassis_OverrideLinePid(30, 0, 200, 30);
-			Chassis_DriveDistance_Blocking(is_No,100,10,0,0);
+			Chassis_MotorControl(is_Line, 25, 25, 0);
+			while((Scaner.detail & 0x003F) != 0x003F)
+			{
+				vTaskDelay(2);
+			}
+
+			//Chassis_DriveDistance_Blocking(is_No,100,10,0,0);
 			//Chassis_DriveDistance_Blocking(is_Line, 360, 15, 0, 0);
 			//Chassis_DriveDistance_Blocking(is_Line, 120, 45, 0, 0);
 			//Chassis_DriveDistance_Blocking(is_Line, 120, 70, 0, 0);
 			//Chassis_DriveDistance_Blocking(is_Line, 120, 45, 0, 0);
 			//Chassis_DriveDistance_Blocking(is_Line, 120, 15, 0, 0);  
-			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ(),20.0f);
+			Chassis_Turn_By_Gyro_Blocking(getAngleZ()-90, getAngleZ(),50.0f);
 			//Chassis_MotorControl(is_Line, 20, 20, 0);
 			//CarBrake();
 			vTaskDelay(2000);

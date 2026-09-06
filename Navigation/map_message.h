@@ -1,8 +1,8 @@
 #ifndef __MAP_MESSAGE_H
 #define __MAP_MESSAGE_H
 
-#include "config.h"     /* 所有开关/场地参数集中在这里 */
-#include "sys.h"
+#include "../Mission/config.h"     /* 所有开关/场地参数集中在这里 */
+#include "../Application/sys.h"
 #include "map.h"
 #include "nav_planner.h"   /* NavEdge 类型、NAV_MAX_PATH */
 

@@ -1,8 +1,8 @@
 #include "map.h"//跑特点路线开关在这里面
-#include "barrier.h"
-#include "sys.h"
+#include "../Mission/barrier.h"
+#include "../Application/sys.h"
 #include "math.h"
-#include "chassis_api.h"
+#include "../Application/chassis_api.h"
 #include "stdio.h"
 
 /* 最短路径规划器（新增）：见 nav_planner.h；数据/图在 map_message.h（NavEdgeTbl 单数据源） */
@@ -61,29 +61,35 @@ u8 route[100] = {B1, N1,P1, N1, B2, N4, N5,0XFF};  //初始路径
 /************************************************************    *地图路径*    **********************************************************************************************************************************************88 */
 /*D2关D3关，去D4*/
 u8 door1route[100] = {N3, N8, 0XFF};
-/*D2开 D3开*/
-u8 door2route[100] = {N12, N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P7,0xFF};
-/*D2开*/
-u8 door3_1route[50] = {N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P7,0xFF};
-	
-/*D2开 D3开 D4开*/
-u8 door4route[100] = {N12, N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P7, C9, N22, B6, N20, P8, N20, C4, B11, C8, C7, B10, N14, C3, N9, B9, N7, P6, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N8, N3, N4, B3, N2, P2, 0XFF};
-/*D2开 D3关，暂时去掉D5*/
-u8 door5route[100] = {N12, N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P7, C9, N22, B6, N20, P8, N20, C4, B11, C8, C7, B10, N14, C3, N9, B9, N7, P6, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, 0XFF};
+/*D2开 D3开（已用 mission_planner 自动路由替代，此定义已废弃）*/
+/* u8 door2route 已删除 - 未被引用 */
+
+/*D2开（已用 mission_planner 自动路由替代，此定义已废弃）*/
+/* u8 door3_1route 已删除 - 未被引用 */
+
+/*D2开 D3开 D4开（已用 mission_planner 自动路由替代，此定义已废弃）*/
+/* u8 door4route 已删除 - 未被引用 */
+
+/*D2开 D3关，暂时去掉D5（已用 mission_planner 自动路由替代，此定义已废弃）*/
+/* u8 door5route 已删除 - 未被引用 */
+
 /*D5开*/
 u8 door6route[100] = {N4, B3, N2, P2, 0XFF};
 /*D2开 D3开 D5开*/
 u8 door7route[100] = {N3, N4, B3, N2, P2, 0xFF};
 /*D2开 D5开 D4开*/
 u8 door8route[100] = {N4, B3, N2, P2, 0XFF};
-/*D2开 D3开 D4开 D5开全*/
-u8 door9route[100] = {N12, N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P7, C9, N22, B6, N20, P8, N20, C4, B11, C8, C7, B10, N14, C3, N9, B9, N7, P6, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, N4, B3, N2, P2, 0XFF}; // 没去P3
-/*D2开 D3关，暂时去掉D5*/
-u8 door10route[100] = {N12, N13, P5, N13, N12, N16, N18, B5, N19, C6, B7, N22, C9, P7, C9, N22, B6, N20, P8, N20, C4, B11, C8, C7, B10, N14, C3, N9, B9, N7, P6, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, 0XFF}; // N3前没写，没P3
+/*D2开 D3开 D4开 D5开全（已用 mission_planner 自动路由替代，此定义已废弃）*/
+/* u8 door9route 已删除 - 未被引用 */
+
+/*D2开 D3关，暂时去掉D5（已用 mission_planner 自动路由替代，此定义已废弃）*/
+/* u8 door10route 已删除 - 未被引用 */
+
 /*D2开 D5开 D4开*/
 u8 door11route[100] = {N4, B3, N2, P2, 0XFF};
-/*D2开*/
-u8 door12route[100] = {N13, P5, N13, N12, N16 /*, S5, N16*/, N18, B5, N19, C6, B7, N22, C9, P7, C9, N22, B6, N20, P8, N20, C4, B11, C8, C7, B10, N14, C3, N9, B9, N7, P6, N7, B8, N9, N10 /*, N15, S4, N15, N10*/, N3, 0XFF};
+/*D2开（已用 mission_planner 自动路由替代，此定义已废弃）*/
+/* u8 door12route 已删除 - 未被引用 */
+
 /*平台5到平台7*/
 u8 rout_57[50] = {N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9, 0XFF};
 /*平台5到平台8*/
@@ -204,6 +210,7 @@ void Route_Error_Stop(u8 from, u8 to)
 {
 	printf("ROUTE ERROR: no connection %d -> %d, STOP!\r\n", from, to);
 	CarBrake_Stop();   /* 卡死停车：内部 while(1) 持续刹车，不返回 */
+    send_play_specified_command(33);   /* 播报“路线错误” */
 }
 
 
@@ -229,7 +236,7 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 	if (last == B8 && now == N9 && next == C3) return 0;
 	if (last == N10 && now == N9 && next == B9) return 48;
 	if (last == B8 && now == N9 && next == N10) return 30;
-    if (last == B2 && now == N1 && next == P1) return 24;
+    if (last == B2 && now == N1 && next == P1) return 25;
 	return 20;
 }
 
@@ -314,8 +321,8 @@ static uint8_t Nav_IsStraightThrough(void)
     /* 首个边 lastNode 未初始化(0)，跳过：仅影响是否加小阻尼，宁可不加 */
     if (nodes.lastNode.nodenum == 0)
         return 0;
-    if (fabsf(need2turn(nodes.nowNode.angle, nodes.nextNode.angle)) < STRAIGHT_ANGLE_THRESH &&
-        fabsf(need2turn(nodes.lastNode.angle, nodes.nowNode.angle)) < STRAIGHT_ANGLE_THRESH)
+    if (fabsf(need2turn(nodes.nowNode.angle, nodes.nextNode.angle)) < STRAIGHT_ANGLE_THRESH 
+        ||nodes.nowNode.step >=90)
         return 1;
     return 0;
 }
@@ -371,7 +378,7 @@ static void Nav_PrepareArrival(void)
     }
     else//
     {
-        Chassis_SetTargetSpeed(Gyro_Speed);
+        Chassis_SetTargetSpeed(SPEED0);
     }
 
     if(nodes.nowNode.nodenum == N14 && nodes.nextNode.nodenum == C3)
@@ -418,6 +425,9 @@ static void Nav_TurnAndAdvance(void)
             ||  nodes.nowNode.function == BSoutPole)
         {
              /* 无需转弯，直接直行通过 */
+             if(Nav_IsStraightThrough())
+             Chassis_DriveDistance_Blocking(is_Line, 20, nodes.nowNode.speed, 0, 6);
+             
         }
         else/* 转弯 */
         {
@@ -432,7 +442,7 @@ static void Nav_TurnAndAdvance(void)
             // }
             //原地转弯
             if ((nodes.nowNode.flag & STOPTURN && fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 30.0f)
-            || (fabsf(need2turn(nodes.nowNode.angle, nodes.nextNode.angle)) > 90.0f)
+            || (fabsf(need2turn(nodes.nowNode.angle, nodes.nextNode.angle)) >= 90.0f)
             )
                 
             {
@@ -450,7 +460,7 @@ static void Nav_TurnAndAdvance(void)
                 float forwardDist = GetForwardDistanceBeforeGyroTurn(nodes.lastNode.nodenum, nodes.nowNode.nodenum, nodes.nextNode.nodenum);
                 Chassis_DriveDistance_Blocking(is_Gyro, forwardDist, Gyro_Speed, getAngleZ(), 0);
                 //转弯
-                Chassis_Turn_By_Gyro_Blocking(nodes.nextNode.angle, getAngleZ(), 50.0f);
+                Chassis_Turn_By_Gyro_Blocking(nodes.nextNode.angle, getAngleZ(), 45.0f);
             }
         }
 
@@ -527,8 +537,18 @@ void Navigation(void)
         {
             Nav_PrepareArrival();//减速
         }
-        if (fabsf(Chassis_GetMileage()) >= 0.75f * nodes.nowNode.step)
+        if(map.routetime == 2 && (nodes.nowNode.nodenum == N8 ||nodes.nowNode.nodenum == N5 ||
+                                    nodes.nowNode.nodenum == N3||  nodes.nowNode.nodenum == N12 ||
+                                    nodes.nowNode.nodenum == N10))
         {
+            if (fabsf(Chassis_GetMileage()) >= 0.8f * nodes.nowNode.step)
+            {
+                nav_step = NAV_STEP_NEAR_END;
+            }     
+        }
+        else 
+        {
+            if (fabsf(Chassis_GetMileage()) >= 0.7f * nodes.nowNode.step)
             nav_step = NAV_STEP_NEAR_END;
         }
         break;

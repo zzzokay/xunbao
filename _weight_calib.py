@@ -10,7 +10,7 @@ import os, re, math, sys, heapq, collections
 
 BASE = os.path.dirname(os.path.abspath(__file__))   # 脚本所在目录 = 仓库根（相对定位，换机器/换路径不用改）
 # 数据现为单一来源：map_message.c 的 NavEdgeTbl[]（自描述，含 from）。改读它。
-GRAPH_C = os.path.join(BASE, "Application", "map_message.c")
+GRAPH_C = os.path.join(BASE, "Navigation", "map_message.c")
 
 NODE_IDX = {
  "S1":0,"P1":1,"N1":2,"B1":3,"B2":4,"B3":5,"N2":6,"P2":7,"S2":8,"P3":9,
@@ -187,8 +187,8 @@ OBS_PENALTY = {
     0:0.0,            # 空
     1:0.0,            # NONE
     2:60.0,           # UpStage 平台>去完要回，考虑爬坡
-    3:40.0,           # Bridge 桥
-    4:30.0,           # Hill 山
+    3:300.0,          # Bridge 桥（过桥固定耗时>爬楼梯；与 Hill 一起提高才能 N12->P8 走南环且 round-2 不变）
+    4:300.0,          # Hill 山地/楼梯（安全窗240~340取中：离翻南环临界240有60余量、离round-2崩溃360有60余量；240~340间路线全同）
     5:50.0,           # LBHill
     6:120.0,          # SM 刀山（round2 刻意避开 N11）
     7:100.0,          # View 景点支路（不应被当作捷径绕进去）
@@ -197,7 +197,7 @@ OBS_PENALTY = {
     10:90.0,          # BSoutPole 南极
     11:80.0,          # QQB 跷跷板
     12:60.0,          # BLBS 短波动板
-    13:70.0,          # BLBL 长波动板
+    13:50.0,          # BLBL 长波动板（BLBL<BLBS，南环/长波动板更快；使最小 Hill 降到 240）
     14:0.0,           # DOOR 门：应由门状态硬过滤，不靠权重
     15:90.0,          # BHM 高山
     16:0.0,           # IGNORE
@@ -387,6 +387,8 @@ if __name__ == "__main__":
 
     print("\n++++++++++++++ 完整 route 拼接核对 ++++++++++++++")
     full_route_verify(edges, adj, W_len, W_turn, W_obs)
+
+    sys.exit(0 if allok else 1)  # 返回 exit code：全部通过=0，失败=1
 
     print("\n++++++++++++++ nav_build_route 输出（去掉起点 route[]）核对 ++++++++++++++")
     build_route_verify(edges, adj, W_len, W_turn, W_obs)

@@ -1,7 +1,8 @@
 #ifndef __BARRIER_H
 #define __BARRIER_H
 
-#include "sys.h"
+#include "../Application/sys.h"
+#include "../Navigation/map.h"  /* NODE 类型定义 */
 
 #define Begin_up   basic_p+5   //while(imu.pitch<Begin_up)  出循环 刚上桥
 #define up_pitch   basic_p+15  //while(imu.pitch<up_pitch) 出循环 上完桥
@@ -99,8 +100,13 @@ void update_route_at_P1(void);
 void update_route_at_door_for_stageAB(void);
 void update_route_at_P7_for_treasure(void);
 void update_route_at_P8_for_treasure(void);
+/* 配置节点直接通行（修改 Node[] 并返回新状态） */
+NODE door_set_pass_node(uint8_t a, uint8_t b, uint16_t step, float speed);
 int Six2Zero(void);
 
 uint8_t Door_ReadPass_Test(void);
+
+/* QQb专属：低速左转直到中间四个传感器点亮两个 */
+void QQb_TurnLeft_Until_Middle_Two(void);
 
 #endif

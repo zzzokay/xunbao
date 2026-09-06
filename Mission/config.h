@@ -34,30 +34,31 @@
 #define USE_FIELD      FIELD_SCHOOL   /* <=== 切换场地改这一行 */
 
 /* ===== 楼梯/山区段长度（单位 cm，按"起点→目标"方向命名）=====
- * 派生约束（两套共用，块外自动算）：
- *   B5N19 与 B7C6 长度相同；N18B5 比 N22B7 短 20 */
+ * 双向同长：B5—N19、B5—N18、B7—C6、B7—N22 这 4 段楼梯/山地，两个方向共用同一宏（取物理真实长度，即两向中较大的那个）。
+ * map_message.c 的正反向边都用下面的宏，避免同段两个方向长度不一致。
+ * 派生约束（两套共用，块外自动算）：B7C6 = B5N19 + 20；N18B5 = N22B7 - 20 */
 #if USE_FIELD == FIELD_SCHOOL
     /* —— 学校场地实测值（TODO: 填入实测数字）—— */
-    #define LEN_N22B7   200   /* TODO(学校) */
-    #define LEN_B5N19   72    /* TODO(学校) */
+    #define LEN_N22B7   100   /* TODO(学校) */
+    #define LEN_B5N19   150    /* TODO(学校) */
 #else
     /* —— 比赛场地（现状）—— */
     #define LEN_N22B7   200
     #define LEN_B5N19   72
 #endif
-//#define LEN_N18B5   (LEN_N22B7 - 20)      /* N18B5 = 180 */
-#define LEN_N18B5   100     /* N18B5 = 180 */
-#define LEN_B7C6    LEN_B5N19             /* B7C6 = B5N19 = 72 */
+#define LEN_N18B5   (LEN_N22B7 - 20)      /* N18B5：取 N18->B5 与 B5->N18 之较大者 = 80(学校)/180(比赛) */
+//#define LEN_N18B5   100     /* N18B5 = 180 */
+#define LEN_B7C6    LEN_B5N19 + 20        /* B7C6：取 B7->C6 与 C6->B7 之较大者 = 170(学校)/92(比赛) */
 
 /* ===== 红绿灯门区段：全长（door_set_pass_node 用全长；map_message 中 DOOR 条目用 全长/2）===== */
 #if USE_FIELD == FIELD_SCHOOL
     /* —— 学校场地实测值（TODO）—— */
-    #define DOOR_LEN_N5N12  180   /* TODO(学校) */
-    #define DOOR_LEN_N5N8   190   /* TODO(学校) */
-    #define DOOR_LEN_N8N10  190   /* TODO(学校) */
-    #define DOOR_LEN_N3N10  180   /* TODO(学校) */
-    #define DOOR_LEN_N3N8   190   /* TODO(学校) */
-    #define DOOR_LEN_N8N12  190   /* TODO(学校) */
+    #define DOOR_LEN_N5N12  170   /* TODO(学校) */
+    #define DOOR_LEN_N5N8   170   /* TODO(学校) */
+    #define DOOR_LEN_N8N10  170   /* TODO(学校) */
+    #define DOOR_LEN_N3N10  170   /* TODO(学校) */
+    #define DOOR_LEN_N3N8   170   /* TODO(学校) */
+    #define DOOR_LEN_N8N12  170   /* TODO(学校) */
 #else
     /* —— 比赛场地（现状）—— */
     #define DOOR_LEN_N5N12  220

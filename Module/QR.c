@@ -1,10 +1,10 @@
 #include "QR.h"
-#include "map.h"
+#include "../Navigation/map.h"
 #include "usart.h"
 #include "math.h"
 #include "stdio.h"
 #include "string.h"
-#include "barrier.h"
+#include "../Mission/barrier.h"
 
 
 uint8_t BW_add = 0;

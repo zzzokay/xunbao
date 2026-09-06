@@ -1,0 +1,38 @@
+{
+  "version": 4,
+  "configurations": [
+    {
+      "name": "test1",
+      "cStandard": "c11",
+      "cppStandard": "c++11",
+      "intelliSenseMode": "gcc-arm",
+      "includePath": [
+        "${workspaceFolder}/../Core/Inc",
+        "${workspaceFolder}/../Drivers/STM32F7xx_HAL_Driver/Inc",
+        "${workspaceFolder}/../Drivers/STM32F7xx_HAL_Driver/Inc/Legacy",
+        "${workspaceFolder}/../Middlewares/Third_Party/FreeRTOS/Source/include",
+        "${workspaceFolder}/../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS",
+        "${workspaceFolder}/../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/r0p1",
+        "${workspaceFolder}/../Drivers/CMSIS/Device/ST/STM32F7xx/Include",
+        "${workspaceFolder}/../Drivers/CMSIS/Include",
+        "${workspaceFolder}/../Motor",
+        "${workspaceFolder}/../Task",
+        "${workspaceFolder}/../Math",
+        "${workspaceFolder}/../USMAT",
+        "${workspaceFolder}/../Module",
+        "${workspaceFolder}/../Application",
+        "${workspaceFolder}/../Mission",
+        "${workspaceFolder}/../Navigation",
+        "${workspaceFolder}/..",
+        "${workspaceFolder}/.cmsis/include",
+        "${workspaceFolder}/RTE/_test1"
+      ],
+      "defines": [
+        "USE_HAL_DRIVER",
+        "STM32F750xx",
+        "USE_PLANNER_ROUTE=1",
+        "USE_FIELD=1"
+      ]
+    }
+  ]
+}

@@ -19,7 +19,27 @@
       "Bash(\"D:\\\\KEIL5\\\\Core\\\\ARM\\\\version5\\\\bin\\\\armcc.exe\" -c --apcs=interwork -I../Core/Inc -I../Drivers/STM32F7xx_HAL_Driver/Inc -I../Drivers/STM32F7xx_HAL_Driver/Inc/Legacy -I../Middlewares/Third_Party/FreeRTOS/Source/include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/r0p1 -I../Drivers/CMSIS/Device/ST/STM32F7xx/Include -I../Drivers/CMSIS/Include -I../Motor -I../Task -I../Math -I../USMAT -I../Module -I../Application -I.cmsis/include -IRTE/_test1 -D\"USE_HAL_DRIVER\" -D\"STM32F750xx\" --cpu Cortex-M7.fp.sp --li --c99 -D__MICROLIB -O3 --split_sections --diag_suppress=1 --diag_suppress=1295 -Ospace -g -o .\\\\build\\\\test1\\\\.obj\\\\__\\\\Application\\\\barrier.o --no_depend_system_headers --depend .\\\\build\\\\test1\\\\.obj\\\\__\\\\Application\\\\barrier.d .\\\\..\\\\Application\\\\barrier.c)",
       "Bash(python -)",
       "Bash(grep -n \"/\\\\*N18\\\\|/\\\\*N19\\\\|/\\\\*N13\\\\|/\\\\*N12\\\\|/\\\\*N11\" Application/map_message.c)",
-      "Bash(py --version)"
+      "Bash(py --version)",
+      "Bash(where armcc *)",
+      "Bash(cat \"C:\\\\Users\\\\14166\\\\.vscode\\\\extensions\" 2>/dev/null | head -20 || ls \"C:\\\\Users\\\\14166\\\\.vscode\\\\extensions\" | grep -i eide)",
+      "Read(//c/Users/14166/.vscode/extensions/**)",
+      "Bash(ls \"D:/KEIL5/ARM/ARMCC/bin/\" | grep -i armcc)",
+      "Read(//d/KEIL5/ARM/ARMCC/**)",
+      "Bash(ls -la \"D:/KEIL5/\" | head -20)",
+      "Read(//d/KEIL5/**)",
+      "Read(//d/KEIL5/Core/**)",
+      "Read(//c/Users/14166/.claude/projects/c--Users-14166-Desktop-MC-32-robotcup-xunbao/**)",
+      "Bash(ls -la \"D:/KEIL5/Core/ARM/version5/bin/armcc.exe\" && echo \"✓ AC5编译器存在\")",
+      "Read(//d/KEIL5/Core/ARM/version5/bin/**)",
+      "Read(//c/Users/14166/Desktop/MC_32/robotcup/xunbao/Mission/**)",
+      "Bash(armcc --version)",
+      "Read(//c/Users/14166/Desktop/MC_32/robotcup/xunbao/Navigation/**)",
+      "Read(//c/Users/14166/Desktop/MC_32/robotcup/xunbao/**)",
+      "Bash(chmod +x \"c:/Users/14166/Desktop/MC_32/robotcup/xunbao/.git/hooks/pre-commit\")",
+      "Read(//c/Users/14166/Desktop/MC_32/robotcup/xunbao/.git/hooks/**)",
+      "Read(//c/Users/14166/Desktop/MC_32/robotcup/xunbao/项目讲解文档/**)",
+      "Bash(cd \"c:/Users/14166/Desktop/MC_32/robotcup/xunbao/项目讲解文档\" && tail -5 README.md)",
+      "Read(//c/Users/14166/Desktop/MC_32/robotcup/xunbao/Application/**)"
     ],
     "additionalDirectories": [
       "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Application",
@@ -30,7 +50,10 @@
       "C:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao",
       "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\.claude\\plans",
       "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Task",
-      "C:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Math"
+      "C:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Math",
+      "C:\\Users\\14166\\.claude\\plans",
+      "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Mission",
+      "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Navigation"
     ]
   }
 }

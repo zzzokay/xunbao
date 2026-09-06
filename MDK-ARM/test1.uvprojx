@@ -10,7 +10,7 @@
       <TargetName>test1</TargetName>
       <ToolsetNumber>0x4</ToolsetNumber>
       <ToolsetName>ARM-ADS</ToolsetName>
-      <pCCUsed>5060750::V5.06 update 6 (build 750)::.\ARMCC</pCCUsed>
+      <pCCUsed>5060960::V5.06 update 7 (build 960)::.\version5</pCCUsed>
       <uAC6>0</uAC6>
       <TargetOption>
         <TargetCommonOption>
@@ -340,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F750xx</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../Drivers/STM32F7xx_HAL_Driver/Inc;../Drivers/STM32F7xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/r0p1;../Drivers/CMSIS/Device/ST/STM32F7xx/Include;../Drivers/CMSIS/Include;../Motor;../Task;../Math;../USMAT;../Application;../Module;../../xunbao</IncludePath>
+              <IncludePath>../Core/Inc;../Drivers/STM32F7xx_HAL_Driver/Inc;../Drivers/STM32F7xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/r0p1;../Drivers/CMSIS/Device/ST/STM32F7xx/Include;../Drivers/CMSIS/Include;../Motor;../Task;../Math;../USMAT;../Application;../Mission;../Navigation;../Module;../../xunbao</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -1257,81 +1257,13 @@
         <Group>
           <GroupName>Application</GroupName>
           <Files>
-            <File>
-              <FileName>barrier.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Application\barrier.c</FilePath>
-            </File>
-            <File>
-              <FileName>barrier.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\Application\barrier.h</FilePath>
-            </File>
-            <File>
-              <FileName>delay.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Application\delay.c</FilePath>
-            </File>
-            <File>
-              <FileName>delay.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\Application\delay.h</FilePath>
-            </File>
-            <File>
-              <FileName>gray.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Application\gray.c</FilePath>
-            </File>
-            <File>
-              <FileName>gray.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\Application\gray.h</FilePath>
-            </File>
-            <File>
-              <FileName>IIC.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Application\IIC.c</FilePath>
-            </File>
-            <File>
-              <FileName>IIC.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\Application\IIC.h</FilePath>
-            </File>
-            <File>
-              <FileName>map.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Application\map.c</FilePath>
-            </File>
-            <File>
-              <FileName>map.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\Application\map.h</FilePath>
-            </File>
-            <File>
-              <FileName>config.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\Application\config.h</FilePath>
-            </File>
-            <File>
-              <FileName>map_message.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Application\map_message.c</FilePath>
-            </File>
-            <File>
-              <FileName>map_message.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\Application\map_message.h</FilePath>
-            </File>
-            <File>
-              <FileName>nav_planner.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Application\nav_planner.c</FilePath>
-            </File>
-            <File>
-              <FileName>nav_planner.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\Application\nav_planner.h</FilePath>
-            </File>
+            
+            
+            
+            
+            
+            
+            
             <File>
               <FileName>motion.c</FileName>
               <FileType>1</FileType>
@@ -1388,7 +1320,71 @@
               <FilePath>..\Application\chassis_api.h</FilePath>
             </File>
           </Files>
+                </Group>
+        <Group>
+          <GroupName>Mission</GroupName>
+          <Files>
+            <File>
+              <FileName>barrier.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Mission\barrier.c</FilePath>
+            </File>
+            <File>
+              <FileName>barrier.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Mission\barrier.h</FilePath>
+            </File>
+            <File>
+              <FileName>config.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Mission\config.h</FilePath>
+            </File>
+            <File>
+              <FileName>mission_planner.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Mission\mission_planner.c</FilePath>
+            </File>
+            <File>
+              <FileName>mission_planner.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Mission\mission_planner.h</FilePath>
+            </File>
+          </Files>
         </Group>
+        <Group>
+          <GroupName>Navigation</GroupName>
+          <Files>
+            <File>
+              <FileName>map.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Navigation\map.c</FilePath>
+            </File>
+            <File>
+              <FileName>map.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Navigation\map.h</FilePath>
+            </File>
+            <File>
+              <FileName>map_message.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Navigation\map_message.c</FilePath>
+            </File>
+            <File>
+              <FileName>map_message.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Navigation\map_message.h</FilePath>
+            </File>
+            <File>
+              <FileName>nav_planner.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Navigation\nav_planner.c</FilePath>
+            </File>
+            <File>
+              <FileName>nav_planner.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Navigation\nav_planner.h</FilePath>
+            </File>
+          </Files></Group>
         <Group>
           <GroupName>::CMSIS</GroupName>
         </Group>

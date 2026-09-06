@@ -18,7 +18,7 @@
  */
 
 #include "motor_task.h"
-#include "config.h"     /* LEN_SCALE 等配置集中在这里 */
+#include "../Mission/config.h"     /* LEN_SCALE 等配置集中在这里 */
 #include "encoder.h"
 #include "motor.h"
 #include "uart.h"
@@ -29,12 +29,12 @@
 #include "sin_generate.h"
 #include "bsp_buzzer.h"
 #include "openmv.h"
-#include "map.h"
+#include "../Navigation/map.h"
 #include "QR.h"
 #include "delay.h"
 #include "bsp_led.h"
 #include "math.h"
-#include "barrier.h"
+#include "../Mission/barrier.h"
 #include "K210.h"
 #include "gray.h"
 #include "Rec_usart.h"

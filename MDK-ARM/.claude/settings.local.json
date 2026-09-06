@@ -27,7 +27,13 @@
       "Bash(cat)",
       "Bash(python3 /tmp/patch.py)",
       "Read(//c/Users/14166/Desktop/MC_32/robotcup/.claude/projects/c--Users-14166-Desktop-MC-32-robotcup-xunbao/memory/**)",
-      "Read(//c/Users/14166/.claude/projects/c--Users-14166-Desktop-MC-32-robotcup-xunbao-MDK-ARM/f009623c-81a4-4d01-9656-04a97322739d/tool-results/**)"
+      "Read(//c/Users/14166/.claude/projects/c--Users-14166-Desktop-MC-32-robotcup-xunbao-MDK-ARM/f009623c-81a4-4d01-9656-04a97322739d/tool-results/**)",
+      "Bash(ls \"C:\\\\Users\\\\14166\\\\.claude\\\\projects\\\\c--Users-14166-Desktop-MC-32-robotcup-xunbao\\\\memory\\\\\")",
+      "Read(//c/Users/14166/.claude/projects/c--Users-14166-Desktop-MC-32-robotcup-xunbao/**)",
+      "Bash(find \"C:/Keil_v5\" -name \"armcc.exe\" 2>/dev/null | head -5)",
+      "Read(//c//**)",
+      "Bash(ls -la \"C:/Program Files\" | grep -i keil || echo \"未在Program Files找到Keil\")",
+      "Read(//c/Program Files/**)"
     ],
     "additionalDirectories": [
       "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao",
