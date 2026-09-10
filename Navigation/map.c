@@ -426,7 +426,7 @@ static void Nav_TurnAndAdvance(void)
         {
              /* 无需转弯，直接直行通过 */
              if(Nav_IsStraightThrough())
-             Chassis_DriveDistance_Blocking(is_Line, 20, nodes.nowNode.speed, 0, 6);
+             Chassis_DriveDistance_Blocking(is_Line, 10, nodes.nowNode.speed, 0, 6);
              
         }
         else/* 转弯 */
@@ -442,7 +442,7 @@ static void Nav_TurnAndAdvance(void)
             // }
             //原地转弯
             if ((nodes.nowNode.flag & STOPTURN && fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 30.0f)
-            || (fabsf(need2turn(nodes.nowNode.angle, nodes.nextNode.angle)) >= 90.0f)
+            || (fabsf(need2turn(nodes.nowNode.angle, nodes.nextNode.angle)) >= 90.0f )
             )
                 
             {
@@ -451,7 +451,7 @@ static void Nav_TurnAndAdvance(void)
                 Chassis_DriveDistance_Blocking(is_Gyro, forwardDist, Stop_T_Speed, getAngleZ(), 0);
                 CarBrake();
                 //转弯
-                Chassis_Turn_By_StopGyro_Blocking(nodes.nextNode.angle, getAngleZ(), 30.0f);
+                Chassis_Turn_By_StopGyro_Blocking(nodes.nextNode.angle, getAngleZ(), 35.0f);
             }
             //陀螺仪不停车转弯
             else

@@ -67,12 +67,12 @@
 //uint8_t door_pass[5] = {ONE_WAY_PASS, CAN_PASS, NO_PASS, NO_PASS, NO_PASS};
 uint8_t door_pass[5] = {0, 0, 0, 0, 0};
 #if DEBUG
-uint8_t debug_door_pass[5] = {ONE_WAY_PASS, CAN_PASS, NO_PASS, NO_PASS, NO_PASS}; // 0:D2、1:D3、2:D4、3:D5、4:D1
+uint8_t debug_door_pass[5] = {ONE_WAY_PASS, CAN_PASS, CAN_PASS, NO_PASS, NO_PASS}; // 0:D2、1:D3、2:D4、3:D5、4:D1
 volatile uint8_t flag_line_clue    = 0;
 volatile uint8_t flag_clue_stage_A = 5;
 volatile uint8_t flag_clue_stage_B = 7;
 // OCR 线索：P5/P6读clue_A，P7/P8读clue_B，treasure=clue_A+clue_B → 宝物平台编号
-uint8_t flag_clue_A       = 2;
+uint8_t flag_clue_A       = 4;
 uint8_t flag_clue_B       = 0;
 #else
 volatile uint8_t flag_line_clue    = 0;
@@ -475,7 +475,7 @@ void Stage(void)
 				Chassis_RestoreLinePid();
 				oringinal_angle = getAngleZ();
 				RampCtrl_Blocking(RAMP_ASCEND, 15, oringinal_angle,
-					Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.08, 20.0f, 0.0f);
+					Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.03, 10.0f, 0.0f);
 
 				Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, oringinal_angle);
 				state = STAGE_TOP;
@@ -781,14 +781,14 @@ void Barrier_Hill(void)
 
 		case HILL_ASCEND:
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, origin_angle,
-				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.15f, 10.0f, 0.0f);
+				basic_p+5, UpDownStage_Speed_low, basic_p+15, UpDownStage_Speed_low, basic_p+5, 0.12f, 10.0f, 0.0f);
 	
 			state = HILL_DESCEND;
 			break;
 
 		case HILL_DESCEND:
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, getAngleZ(),
-				basic_p, UpDownStage_Speed_high, basic_p-10, UpDownStage_Speed_high, basic_p-3, 0.1f, 15.0f, 42);
+				basic_p, UpDownStage_Speed_high, basic_p-10, UpDownStage_Speed_high, basic_p-3, 0.12f, 10.0f, 42);
   
 			state = HILL_DONE;
 			break;
@@ -898,6 +898,7 @@ void Sword_Mountain(void)
 			// 平台走完 or pitch 变负（开始下坡）
 			if (fabsf(Chassis_GetMileage()) > 80 || imu.pitch < After_down|| Cross_Scaner.ledNum <= 3)
 			{
+				Chassis_DriveDistance_Blocking(is_Gyro, 10, SPEED1, recorded_angle, 0);
 				state = SM_DONE;
 			}
 			break;
@@ -1317,21 +1318,21 @@ void QQB_1(void)
 				Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ());	
 				while(imu.pitch <= basic_p-20){vTaskDelay(2);}		
 				Chassis_Turn_By_Gyro_Blocking(getAngleZ()>0?110:-80, getAngleZ(), 20.0f);
-				while(imu.pitch <= basic_p-5){vTaskDelay(2);}	
+				while(imu.pitch <= basic_p-3){vTaskDelay(2);}	
 				CarBrake();
 				state = QQB_RECOVERY;
 			}					
 			break;
 			
 		case QQB_RECOVERY:					
-			Chassis_MotorControl(is_Free, -10, 10, 0);
+			Chassis_MotorControl(is_No, -10, 10, 0);
 			while(1){
 				Cross_getline(&Cross_Scaner);
-				if(Cross_Scaner.ledNum & 0x0FFF)break;				
+				if(Cross_Scaner.ledNum & 0x01FF && Cross_Scaner.ledNum >= 2)break;				
 				vTaskDelay(2);
 			}
 			send_play_specified_command(32);
-			CarBrake();
+			//CarBrake();
 			state = QQB_GOLINE;
 			break;
 
@@ -1500,7 +1501,7 @@ void door()
 	else
 	{
 		Chassis_DriveDistance_Blocking(is_Line, 28, 15, 0, 0);
-		CarBrake();
+		Chassis_Brake();
 		Robot_Work(CAMERA, HEAD_LEFT);
    		vTaskDelay(500);
 	}

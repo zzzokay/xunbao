@@ -235,7 +235,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
 
     /* ========== B10 ========== */
     { B10, N14, DRIGHT|STOPTURN, -90, 100, SPEED1, NONE },  /* B10->N14 */
-    { B10, C7, DLEFT|CLEFT, 90, 10, SPEED1, NONE },  /* B10->C7 */
+    { B10, C7, DLEFT|CLEFT, 90, 20, SPEED1, NONE },  /* B10->C7 */
 
     /* ========== B11 ========== */
     { B11, C4, CRIGHT, -90, 50, SPEED2, NONE },  /* B11->C4 */

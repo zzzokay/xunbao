@@ -1,0 +1,218 @@
+================================================================================
+N8 -> N5 转180度问题分析
+================================================================================
+
+【问题描述】
+现象: 回家过门时，从 N8 到达 N5 后，车转了 180 度而不是正常转向 N4
+
+================================================================================
+【问题根源分析】
+================================================================================
+
+1. door() 函数处理 DOOR_D4_BACK (barrier.c:1652-1681)
+--------------------------------------------------------------------------------
+
+当 D4 门是黑灯时（door_pass[2] == NO_PASS）：
+
+代码执行流程 (barrier.c:1667-1680):
+  1. door_set_pass_node(N8, N5, DOOR_LEN_N5N8, SPEED3);  // 修改 N8->N5 边
+  2. door_set_pass_node(N5, N8, DOOR_LEN_N5N8, SPEED3);  // 修改 N5->N8 边
+  3. nodes.nowNode = door_retreat(N8, N5, DOOR_RETREAT_N8N5);  // 后退并转向
+  4. nodes.nowNode.function = NONE;
+  5. cross_event |= CROSS_EVENT_DOOR;
+  6. update_route_by_door_4();  // 设置新路线
+
+
+2. door_retreat() 函数的问题 (barrier.c:1465-1476)
+--------------------------------------------------------------------------------
+
+door_retreat(N8, N5, DOOR_RETREAT_N8N5) 执行:
+  1. 后退 DOOR_RETREAT_N8N5 = 75cm (config.h:84)
+  2. idx = getNextConnectNode(N8, N5);  // 查找 N8->N5 边
+  3. NODE newNode = Node[idx];          // 读取 N8->N5 的节点信息
+  4. Chassis_Turn_By_StopGyro_Blocking(newNode.angle, getAngleZ(), 30.0f);
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     [这里是问题！] 转向 newNode.angle
+  5. return newNode;
+
+
+3. N8->N5 边的角度配置 (map_message.c:91)
+--------------------------------------------------------------------------------
+
+{ N8, N5, STOPTURN|CLEFT, ANGLE_N8N5, DOOR_LEN_N5N8/2, SPEED0, DOOR }
+
+关键参数:
+  - angle: ANGLE_N8N5 = -145° (config.h:105)
+  - 这是从 N8 前往 N5 时的朝向角度
+
+
+4. 问题详细分析
+--------------------------------------------------------------------------------
+
+【错误流程】
+  当前位置: 在 N8 门口，刚看完 D4 门（黑灯）
+  期望行为: 后退，然后转向去 N5
+
+  实际执行:
+    1. door_retreat(N8, N5, 75) 被调用
+    2. 后退 75cm (OK)
+    3. 读取 N8->N5 边: newNode.angle = -145°
+    4. 转向 -145°  <-- [问题在这里！]
+       >> -145° 是从 N8 到 N5 的前进方向
+       >> 但此时车已经在 N8 门区后退了，还没开始走向 N5
+       >> 转向 -145° 就朝向了 N5 方向
+    5. nodes.nowNode = newNode (N8->N5 边信息)
+    6. 返回到 door() 函数，设置 cross_event |= CROSS_EVENT_DOOR
+    7. 执行 Nav_PostProcess() 或 Nav_TurnAndAdvance()
+
+  Navigation 继续执行:
+    - lastNode = N8 (来向)
+    - nowNode = N5 (当前目标)
+    - nextNode = N4 (从 route 读取，update_route_by_door_4 设置)
+    - 车从 N8 走向 N5
+    - 到达 N5 后，准备转向 N4
+
+  到达 N5 时的转向逻辑 (map.c:444-454):
+    - 当前角度: -145° (从 N8 走过来的角度)
+    - N4 相对角度: 0° (map_message.c:58, N4->N3 的反向)
+    - 需要转的角度: need2turn(-145°, 0°) = 145°
+    - 因为 N8->N5 边有 STOPTURN 标志
+    - 并且角度差 > 30°
+    - 触发原地转弯: Chassis_Turn_By_StopGyro_Blocking(nodes.nextNode.angle, ...)
+    - 但是前面还有 GetForwardDistanceBeforeTurn(N8, N5, N4) = 40cm
+    - 先前进 40cm，再转向 N4
+    - 如果角度计算或补偿有误，可能转了接近 180°！
+
+
+5. 根本原因总结
+--------------------------------------------------------------------------------
+
+【核心问题】
+  door_retreat() 函数在后退后，直接转向 newNode.angle
+
+  >> newNode.angle 是从 a 到 b 的【边的行驶角度】
+  >> 但 door_retreat 是在门口后退，还没开始走这条边
+  >> 过早转向边的角度，导致后续导航判断出现大角度偏差
+  >> Navigation 到达 N5 时再次转向，可能累积成 180° 旋转
+
+
+【为什么会转 180°】
+  可能的情况:
+  1. door_retreat 转向 -145° 后，车朝向 N5
+  2. 走到 N5，准备转向 N4 (角度 0°)
+  3. need2turn(-145°, 0°) = 145°
+  4. 如果转向逻辑有误判（比如转短路径变成转 -215° = 145°）
+  5. 或者 GetForwardDistanceBeforeTurn 返回值不对，导致位置偏移
+  6. 最终累积效果看起来像转了 180°
+
+
+================================================================================
+【解决方案】
+================================================================================
+
+方案1: 删除 door_retreat() 中的转向 [推荐]
+--------------------------------------------------------------------------------
+修改 barrier.c door_retreat() 函数 (行 1474):
+
+static NODE door_retreat(uint8_t a, uint8_t b, float dis)
+{
+    uint8_t idx;
+    Chassis_DriveDistance_Blocking(is_Gyro, dis, -SPEED2, getAngleZ(), 0);
+    idx = getNextConnectNode(a, b);
+    if (idx == ROUTE_NOT_FOUND) return (NODE){0};
+    NODE newNode = Node[idx];
+    Chassis_Brake();
+    // [删除这行] Chassis_Turn_By_StopGyro_Blocking(newNode.angle, getAngleZ(), 30.0f);
+    return newNode;
+}
+
+优点:
+  - 让导航系统统一处理转向逻辑
+  - 不会产生角度冲突
+  - 简化 door_retreat 的职责（只负责后退）
+
+缺点:
+  - 需要确保 Navigation 转向逻辑能正确处理门退场景
+
+
+方案2: 调整 GetForwardDistanceBeforeTurn 补偿距离
+--------------------------------------------------------------------------------
+减少 N8->N5->N4 的前进补偿距离
+
+map.c:228 修改:
+  if (last == N8 && now == N5 && next == N4) return 40;
+                                                   |
+                                                   v
+  if (last == N8 && now == N5 && next == N4) return 10;  // 减小补偿
+
+优点:
+  - 减少到达后的位置偏移
+
+缺点:
+  - 没解决根本的角度冲突问题
+
+
+方案3: 修改 N8->N5 边的 flag，去掉 STOPTURN
+--------------------------------------------------------------------------------
+map_message.c:91:
+  { N8, N5, STOPTURN|CLEFT, ANGLE_N8N5, DOOR_LEN_N5N8/2, SPEED0, DOOR }
+                |
+                v
+  { N8, N5, CLEFT, ANGLE_N8N5, DOOR_LEN_N5N8/2, SPEED0, DOOR }
+
+优点:
+  - 让车用陀螺仪边走边转，而不是原地转弯
+  - 避免大角度原地转弯
+
+缺点:
+  - 可能影响正常通过 N8->N5 的行为
+
+
+方案4: 修改 door_retreat 转向到 nextNode 角度
+--------------------------------------------------------------------------------
+不转向边的角度，而是转向下一个节点的角度
+
+barrier.c door_retreat() 修改:
+  // 不转向 newNode.angle，而是保持当前角度或转向下一段的角度
+  // 需要传入 nextNode 信息
+
+缺点:
+  - 需要修改 door_retreat 接口
+  - 复杂度增加
+
+
+================================================================================
+【推荐方案详解】
+================================================================================
+
+推荐使用【方案1】: 删除 door_retreat() 中的转向
+
+理由:
+  1. door_retreat() 只负责后退到安全位置
+  2. 转向交给 Navigation 的统一逻辑处理
+  3. 避免在两个地方都处理转向导致的角度冲突
+  4. 其他门的 retreat 逻辑也可以统一简化
+  5. Navigation 本身就有完善的转向逻辑
+
+修改位置: barrier.c:1474
+删除: Chassis_Turn_By_StopGyro_Blocking(newNode.angle, getAngleZ(), 30.0f);
+
+预期效果:
+  - door_retreat 后退 75cm，不转向
+  - 返回 N8->N5 的边信息
+  - Navigation 接管，从 N8 走向 N5
+  - 到达 N5 时，正常转向 N4
+  - 转向角度由 Navigation 统一计算，不会重复转向
+
+
+================================================================================
+【验证步骤】
+================================================================================
+
+1. 修改 barrier.c:1474，注释掉转向代码
+2. 重新编译
+3. 测试第二轮回家过门场景（D4 黑灯）
+4. 观察 N8->N5->N4 的转向是否正常
+5. 如果还有问题，检查 GetForwardDistanceBeforeTurn(N8,N5,N4) 的返回值
+
+================================================================================

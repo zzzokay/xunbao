@@ -11,7 +11,7 @@
 #define MAP_DEBUG      0   /* 1=打印地图调试信息 */
 #define STEP_DEBUG     0   /* 1=按一下跑一个节点调试；正式比赛必须改回0 */
 #define MAIN_DEBUG     0   /* 1=主任务跑调试分支(test_flag)，不会执行 Navigation()；正式比赛必须改回0 */
-#define DEBUG          0   /* 1=门颜色走 debug_door_pass 预设(barrier.c)；0=走真实颜色传感器 */
+#define DEBUG          1   /* 1=门颜色走 debug_door_pass 预设(barrier.c)；0=走真实颜色传感器 */
 
 /* ===================== 路线生成 ===================== */
 #define USE_PLANNER_ROUTE  1   /* 1=由最短路径算法生成路线；0=沿用现有路线数组 */
@@ -39,7 +39,7 @@
  * 派生约束（两套共用，块外自动算）：B7C6 = B5N19 + 20；N18B5 = N22B7 - 20 */
 #if USE_FIELD == FIELD_SCHOOL
     /* —— 学校场地实测值（TODO: 填入实测数字）—— */
-    #define LEN_N22B7   100   /* TODO(学校) */
+    #define LEN_N22B7   90   /* TODO(学校) */
     #define LEN_B5N19   150    /* TODO(学校) */
 #else
     /* —— 比赛场地（现状）—— */

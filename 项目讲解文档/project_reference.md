@@ -88,7 +88,7 @@ test1.ioc                   # CubeMX 配置
 
 **数据三处核心**：`route[]`（路线，map.c 起点）、`nodes`（lastNode/nowNode/nextNode，map.c）、`motor_all`（速度/里程，chassis_api.c）。
 
-**障碍/门/宝物时**：`map_function()` 分发到 `barrier.c` 的 `Stage()/Bridge()/Hill()/door()` 等物理动作；做完后由 `mission_planner.()` 用 `nav_planner` 重算并改写 `route[]`（`USE_PLANNER_ROUTE=1` 时走 `nav_build_route` 最短路）。
+**障碍/门/宝物时**：`map_function()` 分发到 `barrier.c` 的 `Stage()/Bridge()/Hill()/door()` 等物理动作；做完后由 `mission_planner.()` 改写 `route[]`。**门回程(`update_route_by_door_*`)走手写穷举路线**（从当前内侧节点直接写回家/目标，不穿门掉头）；**出门点→平台等其它段**（`USE_PLANNER_ROUTE=1` 时）才走 `nav_build_route` 最短路。
 
 ---
 
@@ -196,7 +196,7 @@ Navigation()
 | 宏 | 当前值 | 含义 |
 |----|--------|------|
 | `USE_FIELD` | `FIELD_SCHOOL` | 场地：`FIELD_COMP`=比赛 / `FIELD_SCHOOL`=学校。学校档 14 个 `TODO(学校)` 值已填数字，仍需按学校场地实测复核 |
-| `USE_PLANNER_ROUTE` | `1` | `1`=首轮/二轮**全部路线**由最短路算法生成；`0`=回退到手写 `route[]`/`door*route[]` |
+| `USE_PLANNER_ROUTE` | `1` | `1`=除一轮门回程外的路线（初始、出门点→平台、二轮）由最短路算法生成；`0`=回退到手写 `route[]`/`door*route[]`。**一轮门回程(`update_route_by_door_*`)恒用手写穷举路线**，不受此开关影响（避免规划器穿门掉头） |
 | `MAP_DEBUG` | `0` | `1`=用 `FIRST_POINT→END_POINT` 最短路径自动生成调试路线 |
 | `SKIP_ROUND1` | `0` | `1`=跳过第一轮直接进第二轮（调试用）；正式比赛必须 0 |
 | `MAIN_DEBUG` / `STEP_DEBUG` | `0` / `0` | 调试分支/按一下跑一个节点；正式比赛必须 0 |
@@ -235,10 +235,10 @@ N11=50 G1=51 B10=52 B11=53
 1. `Navigation/map_message.c` 改 `NavEdgeTbl[]` 的 `from/to/flag/angle/step/speed/func`，并同步 `map_message.h` 的 `#define NAV_EDGE_COUNT`。
 2. 增删节点 → 改 `Navigation/map.h` 的 `MapNode` 枚举（枚举顺序 = 索引，别插入中间）。
 3. 门区段长度/角度 → 只改 `Mission/config.h` 的 `DOOR_LEN_*`/`ANGLE_*` 宏（别改散落手工值）。
-4. 跑 PC 校验：`_weight_calib.py`（改边/权重后）、`_check_csr.py`（增删边后）；编译 0 error 再上真车。
+4. 跑 PC 校验：`scripts/validate/_weight_calib.py`（改边/权重后）、`scripts/validate/_check_csr.py`（增删边后）、`scripts/validate/_check_door_logic.py`（改门逻辑后）；编译 0 error 再上真车。
 
 ### 9.4 必经点原则（改 `mission_planner.c` 的 `wp` 时必守）
-`wp` **只写**「起点 + 门节点(`N5/N8/N12/N10/N3`) + `P` 平台 + 终点」；**别加平台入口锚点**（P5 前 `N13`、P6 前 `N9`、far 入口 `N4`）——P5/P6 是支路、P6 跷跷板单向由图强制，规划器必然经过它们，写进去冗余。**门节点必须**，否则会跨未确认/单向门。改 `wp` 后可用 `_check_wp.py` 验证"删了某个必经点路线不变"。
+`wp` **只写**「起点 + 门节点(`N5/N8/N12/N10/N3`) + `P` 平台 + 终点」；**别加平台入口锚点**（P5 前 `N13`、P6 前 `N9`、far 入口 `N4`）——P5/P6 是支路、P6 跷跷板单向由图强制，规划器必然经过它们，写进去冗余。**门节点必须**，否则会跨未确认/单向门。改 `wp` 后可用 `scripts/validate/_check_wp.py` 验证"删了某个必经点路线不变"。
 
 ---
 
@@ -251,6 +251,7 @@ N11=50 G1=51 B10=52 B11=53
 | 单源边表构建 CSR | `nav_graph_init()` | `Navigation/map_message.c` |
 | 最短路 | `nav_init` / `nav_shortest_path` / `nav_plan_waypoints` / `nav_build_route` / `nav_stitch` / `nav_find_edge` | `Navigation/nav_planner.c` |
 | QR 分流、门/宝物改路 | `update_route_at_P1()` / `update_route_by_door_*()` / `update_route_at_door_for_stageAB()` / `update_route_at_P7/P8_for_treasure()` | `Mission/mission_planner.c` |
+| 一轮门回程 | `update_route_by_door_1~4()`（**手写穷举路线**，不走规划器，防穿门掉头） | `Mission/mission_planner.c` |
 | 第二轮完整路线 | `get_newroute()` / `Clear_door()` / `load_route_at()` | `Mission/mission_planner.c` |
 | 门通行检测 + 障碍物理 | `door()` / `Door_ReadPass()` / `door_set_pass_node()` / `door_retreat()` | `Mission/barrier.c` |
 | 底盘/电机/传感器 | `Chassis_*` API（`Chassis_Init/SetMode/SetTargetSpeed/SetTrackMode/MotorControl/Brake/DriveDistance_Blocking/Periodic_Update_5ms/OverrideLinePid`） | `Application/chassis_api.c` |
@@ -278,7 +279,7 @@ N11=50 G1=51 B10=52 B11=53
 4. **include 规则**：所有源目录已在 Keil/EIDE 的 IncludePath 里，同目录/flat 用 `#include "xxx.h"`；跨目录用相对路径，如 `#include "../Navigation/map.h"`、`../Mission/barrier.h`、`../Application/sys.h`。
 5. **别做的操作**：`motor_task` 5ms 循环内别加阻塞/大量 `printf`（破坏周期）；别把负值写进 PWM CCR（反向换 TIM 通道极性并取反编码器）；CubeMX 重新生成后要注释 `main.c` 定时器中断回调 + `stm32f7xx_it.c` 的 `USART3_IRQHandler`。
 6. **改完同步文档**：改完代码更新本文件（相关函数/配置/结构）和 [README.md](README.md) 的修改日志（写日期 + 改了啥）。
-7. **验证方法**：`_weight_calib.py`（复现参考路线/权重灵敏度）、`_check_csr.py`（CSR 连通性）、`_check_wp.py`（必经点删除不改路线）；这三个脚本在仓库根，不进固件。
+7. **验证方法**：`scripts/validate/_weight_calib.py`（复现参考路线/权重灵敏度）、`scripts/validate/_check_csr.py`（CSR 连通性）、`scripts/validate/_check_wp.py`（必经点删除不改路线）、`scripts/validate/_check_door_logic.py`（门逻辑表驱动）；这些脚本只做校验/分析，不进固件。
 
 ---
 > 更细的底层资料直接看代码：`map.h`(节点枚举/结构)、`map_message.c`(边表)、`nav_planner.h`(权重 `NavObsPenalty[]`/`NAV_W_TURN`)、`chassis_api.c`(PID 阶梯 `line_pid_steps[]`)、`scaner.c`(权重表 `line_weight_default[16]`)、`pid.c`(内环/外环实现)。

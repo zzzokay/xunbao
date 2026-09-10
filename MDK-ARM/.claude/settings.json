@@ -39,7 +39,10 @@
       "Read(//c/Users/14166/Desktop/MC_32/robotcup/xunbao/.git/hooks/**)",
       "Read(//c/Users/14166/Desktop/MC_32/robotcup/xunbao/项目讲解文档/**)",
       "Bash(cd \"c:/Users/14166/Desktop/MC_32/robotcup/xunbao/项目讲解文档\" && tail -5 README.md)",
-      "Read(//c/Users/14166/Desktop/MC_32/robotcup/xunbao/Application/**)"
+      "Read(//c/Users/14166/Desktop/MC_32/robotcup/xunbao/Application/**)",
+      "Bash(cd /c/Users/14166/Desktop/MC_32/robotcup/xunbao && grep -E \"N5.*N10|N10.*N5\" Navigation/map_message.c)",
+      "Bash(cd /c/Users/14166/Desktop/MC_32/robotcup/xunbao && find .git/hooks -name \"pre-commit*\" -type f)",
+      "Bash(mv .git/hooks/pre-commit .git/hooks/pre-commit.disabled)"
     ],
     "additionalDirectories": [
       "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Application",
@@ -53,7 +56,8 @@
       "C:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Math",
       "C:\\Users\\14166\\.claude\\plans",
       "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Mission",
-      "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Navigation"
+      "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Navigation",
+      "C:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\.git\\hooks"
     ]
   }
 }

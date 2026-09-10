@@ -25,4 +25,7 @@
 - **2026-09-06**：三层架构重构——`Mission/Navigation/Application` 分层；`barrier.c` 的路线决策（QR/门/宝物改路、`get_newroute`、`Clear_door`）拆到 `Mission/mission_planner.c`；导航规划 + 单源边表收敛到 `Navigation/nav_planner.c` + `Navigation/map_message.c`。此前的 `REFACTORING_SUMMARY / ARCHITECTURE_OPTIMIZATION / REFACTORING_COMPLETE` 三份记录已删除，内容并入 project_reference.md 与本文档。
 
 - **2026-09-06 晚**：结构优化四改——(1) `door_retreat()`/`door_set_pass_node()` 改为返回 `NODE`，副作用显式化；(2) `map_message.c` 增加 `_Static_assert` 检查 `NAV_EDGE_COUNT` 与 `NavEdgeTbl[]` 长度一致；(3) 删除 135 个纯死代码声明（`Clue*route`/`Clue*P4route`/`TempRoute`）+ 7 个未引用 `door*route` 定义；(4) 三份校验脚本路径修正（`Application/` → `Navigation/`）+ 增加 exit code + 创建 `.git/hooks/pre-commit` 自动触发。
+
+- **2026-09-08**：**修复一轮门回程 180° 掉头**。根因：2026-09-06 重构把一轮门回程改成了**规划器**生成，`plan_after_return_door()` 在 D3 绿(D2 不绿)时给 `wp` 追加 `[N8,N5]`，而 `wp[0]=nodes.nowNode` 已是退回到的 `N5`，拼成 `N5→N8→N5`，`need2turn(-145°,35°)=180°` 就地反转；D4 绿同理会 `N3→N8→N5` 穿门掉头。**修复**：恢复重构前的"手写穷举"方案——`update_route_by_door_1/2/3/4` 一律用手写路线数组（去掉 `plan_after_return_door` 规划器分支并移除该函数），从当前(内侧)节点直接写回家/目标路线，不再穿门掉头。**二轮 `get_newroute` 未动**（门已被 `Clear_door` 清为 NONE，无门干扰；规划器只做"出门点→平台"，已实测不穿门）。已验证：手写路线与重构提交 `b45aa45` 逐字一致、无 `N8` 掉头；`_weight_calib/_check_csr/_check_wp/_check_door_logic` 全部通过。
+
 > 逐日修复历史已从本文件精简；需要更早/更细的改动可查 `git log`。

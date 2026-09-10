@@ -90,69 +90,6 @@ static uint8_t plan_route_at(uint8_t offset, const u8 *waypoints, uint8_t waypoi
 }
 
 /**
- * @brief 从当前位置返回门区后继续到目标门侧节点
- * @param after_door 回到门区后的目标节点（N3/N5/N8/N10/N12，或 0xFF=自动选择）
- * @return 1=成功, 0=失败
- */
-static uint8_t plan_after_return_door(uint8_t after_door)
-{
-	u8 wp[10];
-	uint8_t n = 0;
-	uint8_t target;
-
-	switch (treasure)
-	{
-	case 2: target = P1; break;
-	case 3: target = P3; break;
-	case 4: target = P4; break;
-	case 5: target = P5; break;
-	case 6: target = P6; break;
-	default:
-		CarBrake_Stop();
-		return 0;
-	}
-
-	wp[n++] = nodes.nowNode.nodenum;
-
-	/* 根据门状态选择回程路径 */
-	if (door_pass[0] == CAN_PASS)
-	{
-		wp[n++] = N5;
-	}
-	else if (door_pass[1] == CAN_PASS)
-	{
-		wp[n++] = N8;
-		wp[n++] = N5;
-	}
-	else if (door_pass[2] == CAN_PASS)
-	{
-		wp[n++] = N8;
-		wp[n++] = N3;
-	}
-	else if (door_pass[0] == ONE_WAY_PASS || door_pass[1] == ONE_WAY_PASS ||
-		door_pass[2] == ONE_WAY_PASS)
-	{
-		wp[n++] = N10;
-		if (after_door != 0xFF)
-			wp[n++] = after_door;
-		else
-			wp[n++] = N3;
-	}
-	else
-	{
-		CarBrake_Stop();
-		return 0;
-	}
-
-	/* 添加宝物平台和终点 */
-	if (treasure != 5 && treasure != 6)
-		wp[n++] = target;
-	wp[n++] = P2;
-
-	return plan_route_at(0, wp, n);
-}
-
-/**
  * @brief P7/P8 得到宝物编号后规划回程（含宝物平台）
  * @param start 起点（P7 或 P8）
  * @return 1=成功, 0=失败
@@ -272,10 +209,8 @@ void update_route_at_P1(void)
 
 void update_route_by_door_1(void)
 {
-#if USE_PLANNER_ROUTE
-	(void)plan_after_return_door(0xFF);
-	return;
-#endif
+	/* 门回程统一复用"穷举"手写方案：从当前(内侧)节点直接写回家/目标路线，
+	   不让规划器主动穿门(否则会 N3→N8→N5 这类穿门掉头) */
 	if(treasure ==5||treasure == 6)
 		load_route_at(0, door6route);
 	if(treasure ==3)
@@ -298,9 +233,6 @@ void update_route_by_door_1(void)
 void update_route_by_door_2(void)
 {
 	/* D5 黑灯回退到 N8 后，必须固定走 N8->N3，重新触发 D4 回程读灯 */
-#if USE_PLANNER_ROUTE
-	(void)plan_after_return_door(N3);
-#else
 	if(treasure ==5||treasure == 6)
 		load_route_at(0, door7route);
 	if(treasure ==3)
@@ -318,15 +250,11 @@ void update_route_by_door_2(void)
 		const u8 r[] = {N3,N4,B2,N1,P1,N1,B1,N2,P2,0xFF};
 		load_route_at(0, r);
 	}
-#endif
 }
 
 void update_route_by_door_3(void)
 {
-#if USE_PLANNER_ROUTE
-	(void)plan_after_return_door(0xFF);
-	return;
-#endif
+	/* 门回程统一复用"穷举"手写方案：从当前(内侧)节点直接写回家/目标路线 */
 	if(treasure ==5||treasure == 6)
 		load_route_at(0, door8route);
 	if(treasure ==3)
@@ -348,10 +276,7 @@ void update_route_by_door_3(void)
 
 void update_route_by_door_4(void)
 {
-#if USE_PLANNER_ROUTE
-	(void)plan_after_return_door(0xFF);
-	return;
-#endif
+	/* 门回程统一复用"穷举"手写方案：从当前(内侧)节点直接写回家/目标路线 */
 	if(treasure ==5||treasure == 6)
 		load_route_at(0, door11route);
 	if(treasure ==3)
