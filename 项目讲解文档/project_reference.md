@@ -88,7 +88,7 @@ test1.ioc                   # CubeMX 配置
 
 **数据三处核心**：`route[]`（路线，map.c 起点）、`nodes`（lastNode/nowNode/nextNode，map.c）、`motor_all`（速度/里程，chassis_api.c）。
 
-**障碍/门/宝物时**：`map_function()` 分发到 `barrier.c` 的 `Stage()/Bridge()/Hill()/door()` 等物理动作；做完后由 `mission_planner.()` 改写 `route[]`。**门回程(`update_route_by_door_*`)走手写穷举路线**（从当前内侧节点直接写回家/目标，不穿门掉头）；**出门点→平台等其它段**（`USE_PLANNER_ROUTE=1` 时）才走 `nav_build_route` 最短路。
+**障碍/门/宝物时**：`map_function()` 分发到 `barrier.c` 的 `Stage()/Bridge()/Hill()/door()` 等物理动作；做完后由 `mission_planner.()` 改写 `route[]`。**门回程(`update_route_by_door_*`)改为"规划层门区禁用 + 极简必经点"**：`route_return_home()` 先用 `nav_set_edge_blocked()` 把门区 8 条边全部禁用（回程不再进门区、结构上不可能穿门掉头），再用 `wp={当前节点,[宝物平台],P2}` 让最短路算回家路；唯一例外是 door_2（额外放行 `N8→N3`，必须退回去重读 D4）。等价性由 `scripts/validate/_check_door_perm.py` 用改造前的 12 条手写路线当 golden 守住（12/12）。
 
 ---
 
@@ -196,7 +196,7 @@ Navigation()
 | 宏 | 当前值 | 含义 |
 |----|--------|------|
 | `USE_FIELD` | `FIELD_SCHOOL` | 场地：`FIELD_COMP`=比赛 / `FIELD_SCHOOL`=学校。学校档 14 个 `TODO(学校)` 值已填数字，仍需按学校场地实测复核 |
-| `USE_PLANNER_ROUTE` | `1` | `1`=除一轮门回程外的路线（初始、出门点→平台、二轮）由最短路算法生成；`0`=回退到手写 `route[]`/`door*route[]`。**一轮门回程(`update_route_by_door_*`)恒用手写穷举路线**，不受此开关影响（避免规划器穿门掉头）。⚠️ **切回 `0` 前必看**：`update_route_at_door_for_stageAB` 的手工兜底依赖已删除的 `rout_57/58/67/68`，该段现为 `#if !USE_PLANNER_ROUTE` 条件编译，需先恢复这些数组才能编过 |
+| `USE_PLANNER_ROUTE` | `1` | `1`=路线（初始、出门点→平台、二轮）由最短路算法生成；`0`=回退到手写 `route[]`。**一轮门回程(`update_route_by_door_*`)不受此开关影响——它恒用规划器 + 门区边禁用**（见 §10）。⚠️ **切回 `0` 前必看**：`update_route_at_door_for_stageAB` 的手工兜底依赖已删除的 `rout_57/58/67/68`，该段现为 `#if !USE_PLANNER_ROUTE` 条件编译，需先恢复这些数组才能编过（即当前 `0` 档实际编不过） |
 | `MAP_DEBUG` | `0` | `1`=用 `FIRST_POINT→END_POINT` 最短路径自动生成调试路线 |
 | `SKIP_ROUND1` | `0` | `1`=跳过第一轮直接进第二轮（调试用）；正式比赛必须 0 |
 | `MAIN_DEBUG` / `STEP_DEBUG` | `0` / `0` | 调试分支/按一下跑一个节点；正式比赛必须 0 |
@@ -252,7 +252,7 @@ N11=50 G1=51 B10=52 B11=53
 | 最短路 | `nav_init` / `nav_shortest_path` / `nav_plan_waypoints` / `nav_build_route` / `nav_find_edge` | `Navigation/nav_planner.c` |
 | 运行时边禁用（门区回程用） | `nav_set_edge_blocked` / `nav_clear_blocked` | `Navigation/nav_planner.c` |
 | QR 分流、门/宝物改路 | `update_route_at_P1()` / `update_route_by_door_*()` / `update_route_at_door_for_stageAB()` / `update_route_at_P7/P8_for_treasure()` | `Mission/mission_planner.c` |
-| 一轮门回程 | `update_route_by_door_1~4()`（**手写穷举路线**，不走规划器，防穿门掉头）。其中 `_1` 与 `_3` 进入条件相同（nowNode 均为 N3），实现已合并为 `route_return_from_N3()` | `Mission/mission_planner.c` |
+| 一轮门回程 | `update_route_by_door_1~4()` → 统一走 `route_return_home()`（**规划层禁用门区 + `wp={当前节点,[宝物平台],P2}`**，不再手写路线）。door_2 额外放行 `N8→N3`（退回重读 D4）；`door_zone[8][2]` 是禁用的门区边表 | `Mission/mission_planner.c` |
 | 第二轮完整路线 | `get_newroute()` / `Clear_door()` / `load_route_at()` | `Mission/mission_planner.c` |
 | 门通行检测 + 障碍物理 | `door()` / `Door_ReadPass()` / `door_set_pass_node()` / `door_retreat()` | `Mission/barrier.c` |
 | 底盘/电机/传感器 | `Chassis_*` API（`Chassis_Init/SetMode/SetTargetSpeed/SetTrackMode/MotorControl/Brake/DriveDistance_Blocking/Periodic_Update_5ms/OverrideLinePid`） | `Application/chassis_api.c` |

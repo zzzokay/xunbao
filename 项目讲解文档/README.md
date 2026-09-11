@@ -56,3 +56,11 @@
   (2) 新增 `scripts/validate/_check_door_perm.py`：把改造前 `update_route_by_door_1~4` 的 **12 条手写穷举路线当 golden**，断言"门区 8 条边全禁 +（door_2 额外放行 `N8→N3`）+ `wp={当前节点,[宝物平台],P2}`"能逐字复现，另含 golden 连通性自检。**golden 已与改造前 git 快照 `d44f954:Mission/mission_planner.c` 机械比对（16 条数组逐字一致，含 door_1≡door_3）**。实测 12/12 通过。
   (3) `scripts/README.md` 收录新脚本（现共 5 个 validate 脚本）；`project_reference.md` 补 `nav_set_edge_blocked` 到函数表。
   验证：`_check_door_perm` 12/12 + golden 88 段全连通；原 4 个脚本全过；`nav_planner.c` 经 `arm-none-eabi-gcc -Wall -Wextra -fsyntax-only` 0 error 0 warning。
+
+- **2026-09-11 晚（阶段 B2）**：**门回程改用"规划层门区禁用 + 极简必经点"，删掉 12 条手写穷举路线**。
+  (1) `Mission/mission_planner.c`：新增 `door_zone[8][2]`（门区 4 对 × 2 方向，与 `Clear_door()` 同一组边）、`door_block_all()`、`route_return_home(allow_N8_N3)`。回程先用 `nav_set_edge_blocked()` 把门区 8 条边**全部禁用**（回程不再进门区 → 结构上不可能穿门掉头），再用 `wp={当前节点,[宝物平台],P2}` 交给最短路；唯一例外 `door_2` 额外放行 `N8→N3`（D5 黑 + D3 蓝已用尽，必须退回 N3 重读 D4）。`update_route_by_door_1~4` 变成 4 个一行包装（分别传 0/1/0/0）。
+  (2) **删除**：3 个全局数组 `door7route`/`door_return_via_N4`、`ret_via_P1`，以及 12 条内联路线字面量（原 88 行 → 现约 35 行）。**保留** `door1route = {N3,N8}`：它是 `DOOR_D3 NO_PASS` 分支"从 N4 去撞 D4 读灯"的**去程**（不是回程、只有 2 个节点），未纳入本次改造。
+  (3) `plan_route_at()` 从 `#if USE_PLANNER_ROUTE` 里挪出来改为恒编译（门回程恒用规划器，不受该开关影响）。
+  (4) `mapInit()`（每轮开始）与 `Clear_door()`（二轮全放行）各加 `nav_clear_blocked()`：门区禁用状态不能跨轮残留。
+  行为变化（有意，需实车确认）：① 路线本身按 `_check_door_perm` 证明与旧手写路线**逐字一致**；② 若规划失败（如边表漏配）现在会 `CarBrake_Stop()` 死停而不是照旧数组硬走；③ `treasure` 非法(0/1)时旧代码不写任何路线（行为未定义）、新代码直接回家。
+  验证：5 个校验脚本全过（`_check_door_perm` 12/12）；`mission_planner.c`/`map_message.c`/`nav_planner.c` 经 `arm-none-eabi-gcc -Wall -Wextra -fsyntax-only` 0 error 0 warning；另用探针 TU（`#include "map.h"`+`nav_planner.h` 调 `nav_clear_blocked()`）确认新符号在 `map.c` 的包含链下可见。`map.c` 本体因桩缺 `TaskHandle_t` 未能过 GCC 语法检查，改动仅一行调用 + 删一行语句，已人工核对。

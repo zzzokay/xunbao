@@ -32,13 +32,18 @@ extern struct Map_State map;              // 地图状态（map.c）
 /* 门操作函数（barrier.c）*/
 extern NODE door_set_pass_node(uint8_t a, uint8_t b, uint16_t step, float speed);
 
-/* ==================== 门回程预定义路线 ==================== */
-/* 这些路线不用规划器生成，避免"穿门掉头"问题（如 N3→N8→N5 这类路径）*/
+/* ==================== 门回程：仍保留的手写路线 ==================== */
+/* D2 关 + D3 关 时"从 N4 去撞 D4 读灯"（barrier.c 的 DOOR_D3 NO_PASS 分支加载）。
+   它是"去下一扇门"而非回程，且只有 2 个节点，故未纳入下面 route_return_home() 的规划器方案。 */
 u8 door1route[100] = {N3, N8, 0XFF};                     // D2关D3关，去D4
-u8 door7route[100] = {N3, N4, B3, N2, P2, 0XFF};         // D2开 D3开 D5开
-u8 door_return_via_N4[100] = {N4, B3, N2, P2, 0XFF};     // 通用：经N4回家（D5开/D2开D5开D4开）
-/* 同一段回程被多个分支复用：抽成命名数组，避免同一串节点在多处各写一遍、改漏一处 */
-static const u8 ret_via_P1[] = {N4, B2, N1, P1, N1, B1, N2, P2, 0xFF};  // 宝物=P1：先去P1取宝再回家
+
+/* ==================== 门区边表（规划层禁用用） ==================== */
+/* 门区 8 条通行边（4 对 × 2 方向），与 Clear_door() 操作的是同一组边。
+   回程时全部禁用，防止最短路又拐回门区、或在门口穿门掉头。 */
+static const u8 door_zone[8][2] = {
+	{N5, N12}, {N12, N5}, {N5, N8}, {N8, N5},
+	{N3, N8},  {N8, N3},  {N3, N10}, {N10, N3},
+};
 
 /* ==================== 内部辅助函数 ==================== */
 
@@ -57,13 +62,14 @@ void load_route_at(uint8_t offset, const u8* src)
 	}
 }
 
-#if USE_PLANNER_ROUTE
 /**
  * @brief 使用规划器生成路线并写入 route[]
  * @param offset route[] 起始偏移
  * @param waypoints 必经点数组
  * @param waypoint_count 必经点数量
- * @return 1=成功, 0=失败
+ * @return 1=成功, 0=失败(已 CarBrake_Stop)
+ * @note  不受 USE_PLANNER_ROUTE 开关影响：门回程（route_return_home）恒用规划器，
+ *        因为穷举数组正是"规划器不知道哪扇门能过"的产物，见 _check_door_perm.py。
  */
 static uint8_t plan_route_at(uint8_t offset, const u8 *waypoints, uint8_t waypoint_count)
 {
@@ -86,6 +92,7 @@ static uint8_t plan_route_at(uint8_t offset, const u8 *waypoints, uint8_t waypoi
 	return 1;
 }
 
+#if USE_PLANNER_ROUTE
 /**
  * @brief P7/P8 得到宝物编号后规划回程（含宝物平台）
  * @param start 起点（P7 或 P8）
@@ -207,78 +214,64 @@ void update_route_at_P1(void)
 	}
 }
 
-/* 门回程（从内侧节点 N3 出发）：door_1(D5 绿) 与 door_3(D4 回程绿) 的进入条件完全相同
-   —— 两者被调用前都已把 nodes.nowNode 置为边 N10→N3 / N8→N3（nodenum 均为 N3），
-   手写路线逐字一致，故合并为一个实现；对外保留 update_route_by_door_1/3 两个入口名，
-   barrier.c 调用点不变。*/
-static void route_return_from_N3(void)
+/* ==================== 门回程：规划层方案（替代原来的 12 条手写穷举） ====================
+ * 原理：回程之所以原先要写死路线，是因为"规划器不知道哪扇门此刻不能走"，会穿门/在门口掉头。
+ *       现在先把【整个门区 8 条边】在规划层禁用（门区是单向/禁行约束的集中地，回程不再进去），
+ *       再用一句 wp={当前节点,[宝物平台],P2} 让最短路自己算回家路。
+ * 例外：door_2 那一种情形（D5 黑、D3 蓝已用尽）必须从 N8 经 D4 退回 N3 重读 D4，
+ *       所以额外放行 N8→N3 —— 这是这条路上唯一允许穿的门。
+ * 等价性：12 种 (入口 × 宝物) 组合已由 scripts/validate/_check_door_perm.py 证明与
+ *         改造前的手写穷举路线逐字一致（golden 取自改造前的 git 快照）。
+ * ================================================================================ */
+
+/* 门区 8 条边全部设为"规划时不可通行" */
+static void door_block_all(void)
 {
-	if(treasure ==5||treasure == 6)
-		load_route_at(0, door_return_via_N4);
-	else if(treasure ==3)
-	{
-		const u8 r[] = {P3,N3,N4,B3,N2,P2,0xFF};
-		load_route_at(0, r);
-	}
-	else if(treasure ==4)
-	{
-		const u8 r[] = {N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0xFF};
-		load_route_at(0, r);
-	}
-	else if(treasure ==2)
-		load_route_at(0, ret_via_P1);
+	for (u8 i = 0; i < 8; i++)
+		nav_set_edge_blocked(door_zone[i][0], door_zone[i][1], 1);
+}
+
+/**
+ * @brief 门回程：封闭门区后，用最短路从当前(内侧)节点回家（必要时先绕去宝物平台）
+ * @param allow_N8_N3 1=额外放行 N8→N3（door_2：退回去重读 D4）
+ */
+static void route_return_home(uint8_t allow_N8_N3)
+{
+	u8 wp[3];
+	uint8_t n = 0;
+
+	door_block_all();
+	if (allow_N8_N3)
+		nav_set_edge_blocked(N8, N3, 0);
+
+	wp[n++] = nodes.nowNode.nodenum;      /* 调用前已由 door_retreat/door_set_pass_node 置为 N3 / N8 / N5 */
+	if (treasure == 2)       wp[n++] = P1;
+	else if (treasure == 3)  wp[n++] = P3;
+	else if (treasure == 4)  wp[n++] = P4;
+	/* 宝物在 P5/P6 时本轮已到过，回程直接回家 */
+	wp[n++] = P2;
+
+	(void)plan_route_at(0, wp, n);
 }
 
 void update_route_by_door_1(void)
 {
-	route_return_from_N3();
+	route_return_home(0);      /* D5 绿：nowNode 已到 N3 */
 }
 
 void update_route_by_door_2(void)
 {
-	/* D5 黑灯回退到 N8 后，必须固定走 N8->N3，重新触发 D4 回程读灯 */
-	if(treasure ==5||treasure == 6)
-		load_route_at(0, door7route);
-	if(treasure ==3)
-	{
-		const u8 r[] = {N3,P3,N3,N4,B3,N2,P2,0xFF};
-		load_route_at(0, r);
-	}
-	if(treasure ==4)
-	{
-		const u8 r[] = {N3,N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0xFF};
-		load_route_at(0, r);
-	}
-	if(treasure ==2)
-	{
-		const u8 r[] = {N3,N4,B2,N1,P1,N1,B1,N2,P2,0xFF};
-		load_route_at(0, r);
-	}
+	route_return_home(1);      /* D5 黑 + D3 蓝：nowNode 退到 N8，须经 D4 退回 N3 重读 D4 */
 }
 
 void update_route_by_door_3(void)
 {
-	/* 与 door_1 同源（进入前 nowNode 都退到 N3），实现见 route_return_from_N3() */
-	route_return_from_N3();
+	route_return_home(0);      /* D4 回程绿：nowNode 已到 N3 */
 }
 
 void update_route_by_door_4(void)
 {
-	/* 门回程统一复用"穷举"手写方案：从当前(内侧)节点直接写回家/目标路线 */
-	if(treasure ==5||treasure == 6)
-		load_route_at(0, door_return_via_N4);
-	if(treasure ==3)
-	{
-		const u8 r[] = {N4,N3,P3,N3,N4,B3,N2,P2,0xFF};
-		load_route_at(0, r);
-	}
-	if(treasure ==4)
-	{
-		const u8 r[] = {N6,P4,N6,N5,N4,B3,N2,P2,0xFF};
-		load_route_at(0, r);
-	}
-	if(treasure ==2)
-		load_route_at(0, ret_via_P1);
+	route_return_home(0);      /* D4 回程黑：nowNode 退到 N5 */
 }
 
 void update_route_at_door_for_stageAB(void)
@@ -382,6 +375,7 @@ void update_route_at_P8_for_treasure(void)
 
 void Clear_door(void)
 {
+	nav_clear_blocked();    /* 规划层同步放行：二轮起所有门区边恢复可通行 */
 	door_set_pass_node(N5, N12, DOOR_LEN_N5N12, SPEED4);
 	door_set_pass_node(N12, N5, DOOR_LEN_N5N12, SPEED4);
 	door_set_pass_node(N5, N8, DOOR_LEN_N5N8, SPEED4);

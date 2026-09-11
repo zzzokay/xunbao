@@ -80,6 +80,9 @@ static void nav_planner_setup(void)
 void mapInit()
 {
     nav_planner_setup();
+    /* 规划层边禁用复位：一场/一轮开始时所有边默认可通行。
+       门回程会用 nav_set_edge_blocked() 封闭门区，二轮必须从这里放开。 */
+    nav_clear_blocked();
 #if USE_PLANNER_ROUTE
     /* 用最短路径算法重算第一轮初始路线：起点N2 → 必经过P1(扫码) → 终点N5。
      * 验证：nav_build_route({N2,P1,N5}) 输出 == 现有 route[] = {B1,N1,P1,N1,B2,N4,N5} */
