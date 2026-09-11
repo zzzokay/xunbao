@@ -1,6 +1,6 @@
 # 方案：给规划器加"运行时门边权限"，把门回程穷举路线换成最短路
 
-> 状态：**待实施**（S1 的零风险去重已完成并提交，见 `项目讲解文档/README.md` 2026-09-11 晚）
+> 状态：**待实施**（阶段 A 已完成：`d44f954` 落库 → `e62d21f` 零风险去重 → `a7d1750` 删废值；见 `项目讲解文档/README.md` 2026-09-11 晚）
 > 证据：本文 §2 的 12/12 复现结论由 `scripts/validate/_weight_calib.py` 的 Python 图镜像实测得出（临时探针脚本已删，可照 §2.3 复跑）
 
 ## Context
@@ -98,14 +98,34 @@ void nav_clear_blocked(void);                                          /* 清空
 
 统一为 `set_route_from_here(const u8 *wp, uint8_t n)`：内部自己算 offset + 刷新 `nodes.nextNode`，让"从这里开始走这条路"成为一个动作。
 
-## 4. 实施顺序
+## 4. 实施顺序（按"阶段"读，不是按 S 编号）
 
-| 步 | 内容 | 验证 |
-|----|------|------|
-| S3 | 只加 `nav_set_edge_blocked/nav_clear_blocked`（**不接线**）+ 新增 `scripts/validate/_check_door_perm.py`：把 12 条手写数组当 golden，断言"权限表 + 极简 wp"逐字复现 | 新脚本 12/12 |
-| S4 | 用权限表替换 `update_route_by_door_1~4`，通过后删数组 | 新脚本 12/12 + 原 4 脚本 |
-| S5 | 再动 `plan_treasure_return` / `get_newroute` 门梯（9 种门状态组合回归） | 新脚本扩展 |
-| S6 | 决定 `#if !USE_PLANNER_ROUTE` 的 ~127 行兜底块：删，或保留并**先恢复 `rout_57/58/67/68`** | 编译 0 error |
+> 每步都必须能在 Keil V5.32 编过 + 4 个校验脚本全过之后再进下一步。
+
+### 阶段 A —— 已完成
+- A1 `d44f954`：把工作树既有改动落库（建图统一 / include 短写 / 死代码清理）。
+- A2 `e62d21f`：零风险去重（`door_1`≡`door_3` 合并、`ret_via_P1` 抽公共、删死分支、`sizeof` 修正、删 `nav_stitch` 等）。
+- A3 `a7d1750`：删两处废值（`select_speed_stage()` 残留声明、`N13→C2` 退化桩，`NAV_EDGE_COUNT` 125→124）。
+
+### 阶段 B —— 收益最大：把门回程穷举换成最短路（本文档主体）
+
+| 子步 | 做什么 | 固件行为变化 | 验证 |
+|------|--------|--------------|------|
+| **B1** | 只往 `nav_planner` 加 `nav_set_edge_blocked()/nav_clear_blocked()`，**不接线**；同时新建 `scripts/validate/_check_door_perm.py`，把 12 条手写数组当"标准答案"，断言"权限表 + 极简 wp"能逐字复现 | **零变化**（新函数没人调用） | 新脚本 12/12 |
+| **B2** | 接线：`door()` 读完颜色后调用 `door_apply_permissions()` 更新禁用集合；`update_route_by_door_1~4` 四合一为 `set_route_from_here({当前节点,[宝物平台],P2})`；删 `door1route/door7route/door_return_via_N4` + 12 条内联数组 | 门回程路线**逐字不变** | 新脚本 12/12 + 原 4 脚本 |
+| **B3** | 同一套表再吃掉 `plan_treasure_return()` 的 4 分支门梯、`get_newroute()` 的 8 分支回程梯 | 路线逐字不变 | 新脚本扩展到门状态组合 |
+
+### 阶段 C —— 数据驱动（把剩余 if 链/魔法数字搬进边表；与 B 独立，可单独做）
+
+- `Clear_door()` 的 8 条调用 → 4 对 × 2 方向表 + 循环；
+- `map.c:GetForwardDistanceBeforeTurn()/…GyroTurn()` 两条 `(last,now,next)→距离` if 链 → 边表字段；
+- `map.c:Check_And_Apply_SpeedUp()` 的 4 个三元组 → 边表 flag 位。
+
+> ⚠️ 顺序建议：C 里的"门回程查表化"（`door_2/door_4` 的 `if(treasure==…)` 链）**不要单独做**——那些函数在 B2 里就被删了，先做等于给待删代码做美容。
+
+### 阶段 D —— 决定兜底块去留
+
+`#if !USE_PLANNER_ROUTE` 的 ~127 行（`pre/tour/tour_p6/entry_*/tail_*`）：要么删掉、`USE_PLANNER_ROUTE` 只剩 1 档；要么保留，但**切回 0 之前必须先恢复 `rout_57/58/67/68`**（已在 09-11 删除）。
 
 ## 5. 风险 / 不要动的地方
 
