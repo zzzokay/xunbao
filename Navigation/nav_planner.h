@@ -55,10 +55,6 @@ int nav_init(const NavEdge *edges, uint16_t n_edges, uint8_t n_nodes);
 /* 最短路径：写入节点序列到 out，返回节点个数；无路返回 0。 */
 uint8_t nav_shortest_path(uint8_t from, uint8_t to, uint8_t *out, uint8_t max_len);
 
-/* 拼接：把 nsegs 段节点序列(以 0xFF 结尾)接进 route，去掉相邻段的重复连接点，0xFF 收尾。 */
-uint8_t nav_stitch(uint8_t *route, uint8_t max_len,
-                   const uint8_t *const *segs, const uint8_t *seg_lens, uint8_t nsegs);
-
 /* 必经点规划：依次求 wps 相邻点间最短路并拼接。返回 route 节点数(不含 0xFF)。 */
 uint8_t nav_plan_waypoints(uint8_t *route, uint8_t max_len,
                            const uint8_t *wps, uint8_t nwp);

@@ -233,23 +233,6 @@ uint8_t nav_shortest_path(uint8_t from, uint8_t to, uint8_t *out, uint8_t max_le
     return k;                                        /* 返回节点序列长度（= 路数 + 起点） */
 }
 
-/* 拼接 nsegs 段节点序列(每段以 0xFF 结尾)进 route[]，去掉相邻段之间重复的连接点，0xFF 收尾。 */
-uint8_t nav_stitch(uint8_t *route, uint8_t max_len,
-                   const uint8_t *const *segs, const uint8_t *seg_lens, uint8_t nsegs)
-{
-    uint8_t k = 0;       /* route[] 当前写入位置/长度 */
-    uint8_t s;           /* 段序号 */
-    for (s = 0; s < nsegs && k < max_len; s++) {     /* 逐段处理，缓冲满则停 */
-        uint8_t len = seg_lens[s];                   /* 本段节点数 */
-        uint8_t j = (k > 0 && len > 0 && segs[s][0] == route[k-1]) ? 1u : 0u;
-        /* 若本段首节点 == 已写 route 的末节点(上一段的连接点)，则跳过它，避免重复 */
-        for (; j < len && k < max_len; j++) route[k++] = segs[s][j];
-        /* 把本段剩余节点依次拷入 route */
-    }
-    if (k < max_len) route[k++] = 0xFF;              /* 结尾写入哨兵 0xFF，标记 route 结束 */
-    return k;                                        /* 返回实际写入的节点数(不含 0xFF) */
-}
-
 /* 必经点规划：依次求相邻两个 waypoint 之间的最短路，并拼接成整条 route（0xFF 收尾）。 */
 uint8_t nav_plan_waypoints(uint8_t *route, uint8_t max_len,
                            const uint8_t *wps, uint8_t nwp)

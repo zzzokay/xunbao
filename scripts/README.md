@@ -5,7 +5,9 @@
 
 ---
 
-## `validate/` — 上真车前必跑的校验（`pre-commit` 也会自动触发其中三个）
+## `validate/` — 上真车前必跑的校验
+
+> ⚠️ **`pre-commit` 钩子当前是关闭状态**：文件在 `.git/hooks/pre-commit.disabled`（2026-09-11 核查时发现已被改名停用），所以**不会自动触发**，需手动跑下面 4 个脚本。要恢复自动触发：`mv .git/hooks/pre-commit.disabled .git/hooks/pre-commit`。
 
 | 脚本 | 作用 | 什么时候跑 | exit |
 |------|------|-----------|------|

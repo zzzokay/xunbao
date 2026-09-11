@@ -189,7 +189,9 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
     if (last == N8 && now == N3 && next == P3) return 18;
 	if (last == N8 && now == N3 && next == N4) return 30;
     if (last == N4 && now == N3 && next == N8) return 20;
-    if (last == N3 && now == N4 && next == B2) return 24;
+	/* 原第 192 行还有一条 (last==N3 && now==N4 && next==B2) -> 24，与第 183 行
+	   (同条件 -> 30) 完全重复、且恒被前者 return 遮蔽（不可达死分支），已删除。
+	   ⚠️ 30 与 24 哪个才是期望值未定：保留生效值 30，改动前请实车确认。 */
 	if (last == B8 && now == N9 && next == C3) return 0;
 	if (last == N10 && now == N9 && next == B9) return 48;
 	if (last == B8 && now == N9 && next == N10) return 30;

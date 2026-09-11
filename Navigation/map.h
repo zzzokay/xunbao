@@ -151,7 +151,6 @@ typedef struct _nodes{
 	NODE nextNode;		//下一条边的终点
 }Nodes;
 
-extern uint8_t Change_Route;
 extern Nodes nodes;
 
 /* 运行时阶段/事件标志 */
@@ -167,8 +166,6 @@ struct Map_State {
 	u8 routetime;//第几次跑地图
 };
 extern struct Map_State map;
-extern uint8_t Turn_Flag;
-extern uint8_t mul2sing, sing2mul;
 
 #define ROUTE_NOT_FOUND   0xFF   /* getNextConnectNode 查找失败哨兵值（Node 数组最大下标 131，0xFF 必越界） */
 
@@ -177,7 +174,6 @@ void Route_Error_Stop(u8 from, u8 to);   /* 兜底：查找路线失败直接停
 void mapInit(void);
 void Navigation(void);
 void map_function(u8 fun);
-void select_speed(void);
 
 #endif
 

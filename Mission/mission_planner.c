@@ -37,6 +37,8 @@ extern NODE door_set_pass_node(uint8_t a, uint8_t b, uint16_t step, float speed)
 u8 door1route[100] = {N3, N8, 0XFF};                     // D2关D3关，去D4
 u8 door7route[100] = {N3, N4, B3, N2, P2, 0XFF};         // D2开 D3开 D5开
 u8 door_return_via_N4[100] = {N4, B3, N2, P2, 0XFF};     // 通用：经N4回家（D5开/D2开D5开D4开）
+/* 同一段回程被多个分支复用：抽成命名数组，避免同一串节点在多处各写一遍、改漏一处 */
+static const u8 ret_via_P1[] = {N4, B2, N1, P1, N1, B1, N2, P2, 0xFF};  // 宝物=P1：先去P1取宝再回家
 
 /* ==================== 内部辅助函数 ==================== */
 
@@ -205,27 +207,31 @@ void update_route_at_P1(void)
 	}
 }
 
-void update_route_by_door_1(void)
+/* 门回程（从内侧节点 N3 出发）：door_1(D5 绿) 与 door_3(D4 回程绿) 的进入条件完全相同
+   —— 两者被调用前都已把 nodes.nowNode 置为边 N10→N3 / N8→N3（nodenum 均为 N3），
+   手写路线逐字一致，故合并为一个实现；对外保留 update_route_by_door_1/3 两个入口名，
+   barrier.c 调用点不变。*/
+static void route_return_from_N3(void)
 {
-	/* 门回程统一复用"穷举"手写方案：从当前(内侧)节点直接写回家/目标路线，
-	   不让规划器主动穿门(否则会 N3→N8→N5 这类穿门掉头) */
 	if(treasure ==5||treasure == 6)
 		load_route_at(0, door_return_via_N4);
-	if(treasure ==3)
+	else if(treasure ==3)
 	{
 		const u8 r[] = {P3,N3,N4,B3,N2,P2,0xFF};
 		load_route_at(0, r);
 	}
-	if(treasure ==4)
+	else if(treasure ==4)
 	{
 		const u8 r[] = {N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0xFF};
 		load_route_at(0, r);
 	}
-	if(treasure ==2)
-	{
-		const u8 r[] = {N4,B2,N1,P1,N1,B1,N2,P2,0xFF};
-		load_route_at(0, r);
-	}
+	else if(treasure ==2)
+		load_route_at(0, ret_via_P1);
+}
+
+void update_route_by_door_1(void)
+{
+	route_return_from_N3();
 }
 
 void update_route_by_door_2(void)
@@ -252,24 +258,8 @@ void update_route_by_door_2(void)
 
 void update_route_by_door_3(void)
 {
-	/* 门回程统一复用"穷举"手写方案：从当前(内侧)节点直接写回家/目标路线 */
-	if(treasure ==5||treasure == 6)
-		load_route_at(0, door_return_via_N4);
-	if(treasure ==3)
-	{
-		const u8 r[] = {P3,N3,N4,B3,N2,P2,0xFF};
-		load_route_at(0, r);
-	}
-	if(treasure ==4)
-	{
-		const u8 r[] = {N4,N5,N6,P4,N6,N5,N4,B3,N2,P2,0xFF};
-		load_route_at(0, r);
-	}
-	if(treasure ==2)
-	{
-		const u8 r[] = {N4,B2,N1,P1,N1,B1,N2,P2,0xFF};
-		load_route_at(0, r);
-	}
+	/* 与 door_1 同源（进入前 nowNode 都退到 N3），实现见 route_return_from_N3() */
+	route_return_from_N3();
 }
 
 void update_route_by_door_4(void)
@@ -288,10 +278,7 @@ void update_route_by_door_4(void)
 		load_route_at(0, r);
 	}
 	if(treasure ==2)
-	{
-		const u8 r[] = {N4,B2,N1,P1,N1,B1,N2,P2,0xFF};
-		load_route_at(0, r);
-	}
+		load_route_at(0, ret_via_P1);
 }
 
 void update_route_at_door_for_stageAB(void)
@@ -300,22 +287,22 @@ void update_route_at_door_for_stageAB(void)
 	if (flag_clue_stage_A == 5 && flag_clue_stage_B == 7)
 	{
 		u8 wp[] = {nodes.nowNode.nodenum, P5, N12, P7, C9};
-		(void)plan_route_at(0, wp, sizeof(wp));
+		(void)plan_route_at(0, wp, sizeof(wp) / sizeof(wp[0]));
 	}
 	else if (flag_clue_stage_A == 5 && flag_clue_stage_B == 8)
 	{
 		u8 wp[] = {nodes.nowNode.nodenum, P5, N12, P8, N20};
-		(void)plan_route_at(0, wp, sizeof(wp));
+		(void)plan_route_at(0, wp, sizeof(wp) / sizeof(wp[0]));
 	}
 	else if (flag_clue_stage_A == 6 && flag_clue_stage_B == 7)
 	{
 		u8 wp[] = {nodes.nowNode.nodenum, N10, P6, P7, C9};
-		(void)plan_route_at(0, wp, sizeof(wp));
+		(void)plan_route_at(0, wp, sizeof(wp) / sizeof(wp[0]));
 	}
 	else if (flag_clue_stage_A == 6 && flag_clue_stage_B == 8)
 	{
 		u8 wp[] = {nodes.nowNode.nodenum, N10, P6, P8, N20};
-		(void)plan_route_at(0, wp, sizeof(wp));
+		(void)plan_route_at(0, wp, sizeof(wp) / sizeof(wp[0]));
 	}
 	else
 		CarBrake_Stop();

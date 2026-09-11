@@ -35,3 +35,13 @@
   (2) 门回程路线数组从 `map.c` 移到 `mission_planner.c` 并与业务同处；`door6/8/11route` 合并为 `door_return_via_N4`；`door1route` 由 `barrier.c` extern 引用；删除已无数据源的 `rout_57/58/67/68`（其 `USE_PLANNER_ROUTE=0` 兜底分支改为条件编译）。**注意：切回 `USE_PLANNER_ROUTE=0` 前需先恢复这些数组**。
   (3) **include 全工程统一为短写** `#include "xxx.h"`（原 25 处 `../Dir/xxx.h` 仅 `Navigation/map.c` 3 处会编不过：Keil 的 `-I` 只到目录本身）；为消除裸名歧义删除 `USMAT/sys.h`、`Module/adc.{c,h}`（后者不在构建列表、无任何引用）。
   (4) **死代码清理**（全部有 armcc 未引用警告佐证）：`nav_edge_base_cost`、`timing_dwt_init`×2、`handle_led_mouse`、`openmv.c` 的 `retry`×2、`barrier.c` 的 `state2_retry/now_angle/sub_stage`×3/`approach_timeout`、`chassis_api.c` 不可达 `return`、`map.h` 残留的 `TempRoute[50]` 与 `ErrorTimes[2]` 两条只有声明无定义零引用的 extern；`USE_PLANNER_ROUTE=0` 的两处兜底分支改为条件编译。armcc 全量编译 49 个 TU：**0 error，警告 45→31**（余下均为改动前既有）。
+
+- **2026-09-11 晚**：**零风险合并 / 去重 / 清死代码（不改任何路线与门逻辑行为）**。
+  (1) **`update_route_by_door_1` 与 `update_route_by_door_3` 合并**：两者被调用前 `nodes.nowNode` 都已退到 N3（分别来自 D5 绿、D4 回程绿），手写路线逐字相同 → 抽出 `static void route_return_from_N3()`；对外两个入口名保留，`barrier.c` 调用点不变。
+  (2) 门回程重复字面量去重：`{N4,B2,N1,P1,N1,B1,N2,P2}` 原在 `door_1`/`door_4` 各写一份 → 抽为 `static const u8 ret_via_P1[]`。
+  (3) 删 `map.c:GetForwardDistanceBeforeTurn()` 的不可达死分支：`(last=N3,now=N4,next=B2)` 在原 183/192 行各出现一次（`->30` 在前、`->24` 在后），后者恒被遮蔽。⚠️ 保留生效值 **30**，但 24/30 哪个是期望值未定，动这条等于改 N4→B2 的转弯前补偿，**改前须实车确认**。
+  (4) `update_route_at_door_for_stageAB()` 4 处 `sizeof(wp)` → `sizeof(wp)/sizeof(wp[0])`（原写法只在元素恰为 `u8` 时凑巧正确，换类型即错）。
+  (5) 删死代码：`nav_planner` 的 `nav_stitch()`（全工程零调用，拼接逻辑已内联在 `nav_plan_waypoints()`）、`map.h` 的悬空声明 `Change_Route`/`Turn_Flag`/`mul2sing`/`sing2mul`/`select_speed()`（均无定义、无引用；`mul2sing/sing2mul` 还与 `ArriveDetect_task.c` 的 static 定义同名冲突）、`Mission/barrier.c.backup`（59KB 陈旧副本，不在 Keil 工程内）。
+  (6) 文档同步：`project_reference.md` 去掉已删的 `nav_stitch`、门回程条目补注 `_1/_3` 同源；`scripts/README.md` 更正"`pre-commit` 自动触发"——**该钩子实际已被停用**（现存为 `.git/hooks/pre-commit.disabled`），恢复需手动改名。
+  验证：`_weight_calib`(15/15) / `_check_csr` / `_check_wp` / `_check_door_logic` 全过；`Mission/mission_planner.c`、`Navigation/nav_planner.c` 经 `arm-none-eabi-gcc -Wall -Wextra -fsyntax-only` **0 error 0 warning**（`map.c`/`map_message.c` 因 Keil RVDS 端口的 `__asm{}` 块无法用 GCC 做语法检查，改为人工逐行核对）。
+  > **另**：本轮还实测确认了"门回程 12 条手写穷举路线 = 规划器在'门边禁用'下的最短路"（12/12 逐字复现），改造方案与证据见 `.claude/plans/door-permission-planner.md`。
