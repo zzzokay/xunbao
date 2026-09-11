@@ -54,6 +54,11 @@ static uint16_t s_n = 0;                     /* 实际有效的边总数 */
 static uint8_t  s_nodes = 0;                 /* 节点总数（节点编号 0..s_nodes-1） */
 static uint8_t  s_ready = 0;                 /* 初始化完成标志：1=nav_init 已成功调用过，可查询 */
 
+/* 运行时"边禁用"标记（按边号索引，s_n 以内有效）：1=规划时不可通行。
+ * 只影响最短路（nav_shortest_path），不影响执行层 Node[] 与 Navigation()。
+ * 典型用法：door() 门口读灯后封闭整个门区，回程只打开必须穿的那一条。 */
+static uint8_t  s_blocked[NAV_MAX_EDGES];
+
 /* Dijkstra 运行时数组：注意下标是"线路图节点"（= 原图的一条有向边），不是地图节点 —— 这是线路图(line-graph) Dijkstra。
    之所以用"边当点"，是因为转弯代价取决于"上一条路→这一条路"这一对，用路当点才能在转移时算转弯费。 */
 static float    s_dist[NAV_MAX_EDGES];       /* dist[u]：到"线路图节点 u(=一条路)"的累计代价 */
@@ -116,6 +121,8 @@ int nav_init(const NavEdge *edges, uint16_t n_edges, uint8_t n_nodes)
     s_n = (uint16_t)Address[n_nodes];                /* 实际边总数 = 最后一行的偏移 */
     s_nodes = n_nodes;                               /* 记录节点数 */
 
+    nav_clear_blocked();                             /* 边禁用标记复位：默认全部可通行 */
+
     /* ---- 构建线路图：原图的每条边成为线路图的一个节点，相邻可连的边之间建立连接 ---- */
     /* 用途：通过"边当点"的转换，让 Dijkstra 算法能够计算转弯代价（从路A转到路B需要转多少度）*/
     {
@@ -169,6 +176,23 @@ int8_t nav_find_edge(uint8_t from, uint8_t to)
     return -1;                                       /* 遍历完没找到，返回 -1 */
 }
 
+/* 复位所有禁用标记：全部边重新可通行（启动 / mapInit() / Clear_door() 调用）。 */
+void nav_clear_blocked(void)
+{
+    memset(s_blocked, 0, sizeof(s_blocked));
+}
+
+/* 运行时禁用/放行一条有向边（按 from->to 定位边号）。
+ * blocked!=0 = 规划时不可通行；blocked=0 = 恢复可通行。
+ * 若该边不在图中（写错节点名/漏配），仅静默返回——不在这里停车，
+ * 因为本函数只影响"规划偏好"，真正的连通性兜底由 getNextConnectNode() 负责。 */
+void nav_set_edge_blocked(uint8_t from, uint8_t to, uint8_t blocked)
+{
+    int8_t e = nav_find_edge(from, to);
+    if (e < 0) return;
+    s_blocked[(uint8_t)e] = blocked ? 1u : 0u;
+}
+
 /* 核心算法：线路图(line-graph)上的标准点式 Dijkstra，求 from->to 最短路径。
    这里"点"= 原图的一条有向边(一条路)。由于把每条路当成一个点，才能在"路 u -> 路 v"的
    转移里算转弯代价；而转弯代价已被 nav_init 提前加进连接权 lg_w，所以主循环就是最朴素的点式 Dijkstra。 */
@@ -189,6 +213,7 @@ uint8_t nav_shortest_path(uint8_t from, uint8_t to, uint8_t *out, uint8_t max_le
 
     /* ---- 起点：从 from 节点出发的每条路，代价 = 它自身基础代价（第一段没有转弯费） ---- */
     for (uint16_t i = Address[from]; i < Address[from+1]; i++) {
+        if (s_blocked[i]) continue;                  /* 被禁用的边不作为起点 */
         s_dist[i] = nav_edge_base_cost_node(&Node[i]);
     }
 
@@ -205,6 +230,7 @@ uint8_t nav_shortest_path(uint8_t from, uint8_t to, uint8_t *out, uint8_t max_le
 
         for (uint16_t kk = lg_start[u]; kk < lg_start[u+1]; kk++) {          /* 遍历 u 的线路图邻居(可接的路) */
             v = lg_succ[kk];                                         /* 邻居点 = 下一条路 */
+            if (s_blocked[v]) continue;                              /* 被禁用的边不参与松弛 */
             float nd = s_dist[u] + lg_w[kk];                        /* 转弯费已算进 lg_w，直接相加 */
             if (nd < s_dist[v]) { s_dist[v] = nd; s_prev[v] = (int16_t)u; }
             /* 比现有更优则更新点 v 的距离，并记录前驱点 u（即"经由 u 到达 v"） */

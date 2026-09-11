@@ -66,6 +66,13 @@ uint8_t nav_build_route(uint8_t *route, uint8_t max_len,
 /* 直接查一条边是否在图中(供外部校验连通性) */
 int8_t nav_find_edge(uint8_t from, uint8_t to);
 
+/* ---- 运行时边禁用（只作用于规划层，不动执行层 Node[]）----
+ * 用途：门(红绿灯)这类"此刻不能走"的边，在规划时临时封闭，
+ *       避免最短路穿门/在门口掉头。默认全开，nav_clear_blocked() 复位。
+ *       复位点：nav_init() 启动、mapInit() 每轮开始、Clear_door()（二轮全放行）。*/
+void nav_clear_blocked(void);
+void nav_set_edge_blocked(uint8_t from, uint8_t to, uint8_t blocked);
+
 #ifdef __cplusplus
 }
 #endif

@@ -7,7 +7,7 @@
 
 ## `validate/` — 上真车前必跑的校验
 
-> ⚠️ **`pre-commit` 钩子当前是关闭状态**：文件在 `.git/hooks/pre-commit.disabled`（2026-09-11 核查时发现已被改名停用），所以**不会自动触发**，需手动跑下面 4 个脚本。要恢复自动触发：`mv .git/hooks/pre-commit.disabled .git/hooks/pre-commit`。
+> ⚠️ **`pre-commit` 钩子当前是关闭状态**：文件在 `.git/hooks/pre-commit.disabled`（2026-09-11 核查时发现已被改名停用），所以**不会自动触发**，需手动跑下面 5 个脚本。要恢复自动触发：`mv .git/hooks/pre-commit.disabled .git/hooks/pre-commit`。
 
 | 脚本 | 作用 | 什么时候跑 | exit |
 |------|------|-----------|------|
@@ -15,8 +15,9 @@
 | `_check_csr.py` | 镜像 `nav_planner.c` 的 `nav_init()` 自动构建 CSR（`ConnectionNum/Address/Node[]`），验证 `getNextConnectNode` 能解析全部参考边 + 8 条门边。 | 增删边后 | 0=连通 1=缺边 |
 | `_check_wp.py` | 镜像 `nav_plan_waypoints`，对若干必经点组合验证"删掉某个必经点不改路线"（`build_wp` 新旧两版路线一致）。 | 改 `wp` 必经点后 | 0=一致 1=不一致 |
 | `_check_door_logic.py` | **门逻辑表驱动校验**（新增，重点排查门区问题）：① 所有 `DOOR` 功能边要么命中 `door()` 状态匹配表、要么在驱动前被 `Clear_door()` 清成 `NONE`（二者皆无才报缺口，避免把"回程边必先清 NONE"误判成 bug）；② 对 D2/D3/D4 每种颜色组合镜像 `plan_after_return_door` 生成回程路线，检查是否 `CarBrake_Stop`/断链；③ D4 回程黑灯退到 N5 后下一跳必须 `N4` 且转角 `need2turn(-145°,0°)=145°`。 | 改门逻辑后 | 0=通过 1=发现问题 |
+| `_check_door_perm.py` | **门回程"边禁用 + 极简必经点"校验**：把改造前 `update_route_by_door_1~4` 的 12 条手写穷举路线当 golden，断言"门区 8 条边全禁 +（door_2 放行 `N8→N3`）+ `wp={当前节点,[宝物平台],P2}`"能逐字复现它们；另含 golden 连通性自检。 | 改门回程/门区边/权重后 | 0=12/12 复现 1=有差异 |
 
-> `_check_csr.py` / `_check_wp.py` 都 `import _weight_calib`，三者必须同目录（现都在 `scripts/validate/`）。`_weight_calib` 的 `BASE` 已上溯两级指向仓库根，才会去读 `Navigation/map_message.c`。
+> `_check_csr.py` / `_check_wp.py` / `_check_door_logic.py` / `_check_door_perm.py` 都 `import _weight_calib`，五个必须同目录（现都在 `scripts/validate/`）。`_weight_calib` 的 `BASE` 已上溯两级指向仓库根，才会去读 `Navigation/map_message.c`。
 
 ## `analyze/` — 诊断/排查用（只读，非回归校验）
 
@@ -41,6 +42,7 @@ python3 scripts/validate/_weight_calib.py
 python3 scripts/validate/_check_csr.py
 python3 scripts/validate/_check_wp.py
 python3 scripts/validate/_check_door_logic.py
+python3 scripts/validate/_check_door_perm.py
 
 # 排查门区
 python3 scripts/analyze/analyze_door_return_route.py

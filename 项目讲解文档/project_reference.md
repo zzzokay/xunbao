@@ -25,7 +25,7 @@ Mission/                    # 任务层 — 比赛业务逻辑（决定"去哪"�
   └── config.h              # 全局配置（所有开关/场地参数唯一入口）
 
 Navigation/                 # 导航层 — 路径规划与执行（决定"怎么去"）
-  ├── nav_planner.c/h       # 最短路算法（nav_init/nav_shortest_path/nav_plan_waypoints/nav_build_route/nav_find_edge）
+  ├── nav_planner.c/h       # 最短路算法（nav_init/nav_shortest_path/nav_plan_waypoints/nav_build_route/nav_find_edge/nav_set_edge_blocked）
   ├── map.c/h               # 导航执行（Navigation()/map_function()/getNextConnectNode/mapInit()/route[]/nav_planner_setup）
   └── map_message.c/h       # 地图数据（NavEdgeTbl[] 唯一人工编辑源；执行层 CSR 与规划层线路图都由 nav_init() 统一构建；NAV_EDGE_COUNT）
 
@@ -250,6 +250,7 @@ N11=50 G1=51 B10=52 B11=53
 | 地图状态初始化 | `mapInit()` / `nav_planner_setup()` | `Navigation/map.c` |
 | 单源边表构建 CSR + 线路图 | `nav_init()`（`nav_graph_init()` 已并入其中） | `Navigation/nav_planner.c` |
 | 最短路 | `nav_init` / `nav_shortest_path` / `nav_plan_waypoints` / `nav_build_route` / `nav_find_edge` | `Navigation/nav_planner.c` |
+| 运行时边禁用（门区回程用） | `nav_set_edge_blocked` / `nav_clear_blocked` | `Navigation/nav_planner.c` |
 | QR 分流、门/宝物改路 | `update_route_at_P1()` / `update_route_by_door_*()` / `update_route_at_door_for_stageAB()` / `update_route_at_P7/P8_for_treasure()` | `Mission/mission_planner.c` |
 | 一轮门回程 | `update_route_by_door_1~4()`（**手写穷举路线**，不走规划器，防穿门掉头）。其中 `_1` 与 `_3` 进入条件相同（nowNode 均为 N3），实现已合并为 `route_return_from_N3()` | `Mission/mission_planner.c` |
 | 第二轮完整路线 | `get_newroute()` / `Clear_door()` / `load_route_at()` | `Mission/mission_planner.c` |

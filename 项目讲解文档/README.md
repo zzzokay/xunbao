@@ -50,3 +50,9 @@
   (1) `Mission/barrier.h` 的 `void select_speed_stage(void);` —— 只有声明、全工程无定义无调用，属残留（同 `map.h` 已删的 `select_speed`）。
   (2) `Navigation/map_message.c` 的 `{ N13, C2, NONE, NONE, NONE, NONE, NONE }` —— 退化桩：`flag=NONE(1)`、`angle=1.0`、`step=1`、`speed=1.0`，即"N13→C2 只要 1cm、无转弯"的假边，是给规划器埋的雷（一旦被 Dijkstra 选中会算出荒谬路线）。已删除，`NAV_EDGE_COUNT` 125→**124**。C2 仍可经 `C1→C2` 进入、`C2→C1`/`C2→N13` 离开，无路线依赖该反向边。
   验证：4 个校验脚本全过（`_weight_calib` 15/15）；`Navigation/map_message.c` 经 `arm-none-eabi-gcc -Wall -Wextra -fsyntax-only` 0 error 0 warning，表内行数实测 124（与 `NAV_EDGE_COUNT` 的编译期 size check 一致）。
+
+- **2026-09-11 晚（阶段 B1）**：**给规划器加"运行时边禁用" + 门回程 golden 校验脚本（不接线，固件行为零变化）**。
+  (1) `Navigation/nav_planner.c/h` 新增 `nav_clear_blocked()` / `nav_set_edge_blocked(from,to,blocked)`：`static uint8_t s_blocked[NAV_MAX_EDGES]` 按边号标记，`nav_shortest_path()` 的"起点边初始化"与"松弛"两处 `continue` 跳过被禁边；只影响规划层，不动执行层 `Node[]` 与 `Navigation()`。`nav_init()` 里复位（默认全开）。原先零调用的 `nav_find_edge()` 正好用于按 `from->to` 定位边号。
+  (2) 新增 `scripts/validate/_check_door_perm.py`：把改造前 `update_route_by_door_1~4` 的 **12 条手写穷举路线当 golden**，断言"门区 8 条边全禁 +（door_2 额外放行 `N8→N3`）+ `wp={当前节点,[宝物平台],P2}`"能逐字复现，另含 golden 连通性自检。**golden 已与改造前 git 快照 `d44f954:Mission/mission_planner.c` 机械比对（16 条数组逐字一致，含 door_1≡door_3）**。实测 12/12 通过。
+  (3) `scripts/README.md` 收录新脚本（现共 5 个 validate 脚本）；`project_reference.md` 补 `nav_set_edge_blocked` 到函数表。
+  验证：`_check_door_perm` 12/12 + golden 88 段全连通；原 4 个脚本全过；`nav_planner.c` 经 `arm-none-eabi-gcc -Wall -Wextra -fsyntax-only` 0 error 0 warning。
