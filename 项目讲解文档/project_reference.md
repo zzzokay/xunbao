@@ -213,7 +213,7 @@ Navigation()
 ### 9.1 单源边表
 ```c
 typedef struct { u8 from; u8 to; u32 flag; float angle; u16 step; float speed; u8 func; } NavEdge;
-#define NAV_EDGE_COUNT 125
+#define NAV_EDGE_COUNT 124
 extern const NavEdge NavEdgeTbl[NAV_EDGE_COUNT];  // 唯一人工编辑源，用原 map_message 宏/名
 int nav_init(const NavEdge *edges, uint16_t n_edges, uint8_t n_nodes);  // 一次建成执行层 CSR + 规划层线路图（nav_planner.c）
 ```

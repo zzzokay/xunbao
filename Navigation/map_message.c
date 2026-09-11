@@ -126,7 +126,6 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { N12, N11, LEFT_LINE, 0, 100, SPEED1, SM },  /* N12->N11 */
 
     /* ========== N13 ========== */
-    { N13, C2, NONE, NONE, NONE, NONE, NONE },  /* N13->C2 (原表退化桩，保留) */
     { N13, N12, DLEFT|DRIGHT|NEAR_CENTER, 0, 100, SPEED25, NONE },  /* N13->N12 */
     { N13, P5, NEAR_CENTER, 180, 80, SPEED2, UpStage },  /* N13->P5 */
     { N13, N18, CRIGHT|CLEFT, 45, 144, SPEED3, NONE },  /* N13->N18 */

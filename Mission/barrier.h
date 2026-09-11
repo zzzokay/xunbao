@@ -81,7 +81,6 @@ void get_newroute(void);
 uint8_t WaitFor_OCR(void);
 uint8_t WaitFor_QR(void);
 void zhunbei(void);
-void select_speed_stage(void);
 //void Protect(float angle1);
 
 //void DragonProtection(void); //游龙保护

@@ -45,3 +45,8 @@
   (6) 文档同步：`project_reference.md` 去掉已删的 `nav_stitch`、门回程条目补注 `_1/_3` 同源；`scripts/README.md` 更正"`pre-commit` 自动触发"——**该钩子实际已被停用**（现存为 `.git/hooks/pre-commit.disabled`），恢复需手动改名。
   验证：`_weight_calib`(15/15) / `_check_csr` / `_check_wp` / `_check_door_logic` 全过；`Mission/mission_planner.c`、`Navigation/nav_planner.c` 经 `arm-none-eabi-gcc -Wall -Wextra -fsyntax-only` **0 error 0 warning**（`map.c`/`map_message.c` 因 Keil RVDS 端口的 `__asm{}` 块无法用 GCC 做语法检查，改为人工逐行核对）。
   > **另**：本轮还实测确认了"门回程 12 条手写穷举路线 = 规划器在'门边禁用'下的最短路"（12/12 逐字复现），改造方案与证据见 `.claude/plans/door-permission-planner.md`。
+
+- **2026-09-11 晚（续）**：**删两处废值**（用户确认）。
+  (1) `Mission/barrier.h` 的 `void select_speed_stage(void);` —— 只有声明、全工程无定义无调用，属残留（同 `map.h` 已删的 `select_speed`）。
+  (2) `Navigation/map_message.c` 的 `{ N13, C2, NONE, NONE, NONE, NONE, NONE }` —— 退化桩：`flag=NONE(1)`、`angle=1.0`、`step=1`、`speed=1.0`，即"N13→C2 只要 1cm、无转弯"的假边，是给规划器埋的雷（一旦被 Dijkstra 选中会算出荒谬路线）。已删除，`NAV_EDGE_COUNT` 125→**124**。C2 仍可经 `C1→C2` 进入、`C2→C1`/`C2→N13` 离开，无路线依赖该反向边。
+  验证：4 个校验脚本全过（`_weight_calib` 15/15）；`Navigation/map_message.c` 经 `arm-none-eabi-gcc -Wall -Wextra -fsyntax-only` 0 error 0 warning，表内行数实测 124（与 `NAV_EDGE_COUNT` 的编译期 size check 一致）。
