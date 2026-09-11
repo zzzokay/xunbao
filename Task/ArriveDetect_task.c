@@ -1,6 +1,6 @@
 #include "ArriveDetect_task.h"
 #include "scaner.h"
-#include "../Navigation/map.h"
+#include "map.h"
 #include "usart.h"
 #include "imu.h"
 #include "turn.h"

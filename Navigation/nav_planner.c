@@ -1,4 +1,5 @@
 #include "nav_planner.h"   /* 引入本模块头文件：NavEdge 结构、函数声明、权重宏 */
+#include "map.h"           /* NODE 结构体 + 执行层数组的 extern 声明（本头文件被 nav_planner.h 排除以避免循环包含） */
 #include <math.h>          /* fabsf 绝对值、1e30f 常量用 */
 #include <string.h>        /* memset 清零用 */
 
@@ -43,9 +44,12 @@ float nav_need2turn(float a, float b)
     return d;
 }
 
-/* ---------------- 内部图状态（启动时由 nav_init 填好，之后只读） ---------------- */
-static NavEdge s_edges[NAV_MAX_EDGES];       /* 副本：全部有向边，按 from 节点分组连续存放 */
-static uint16_t s_out_start[NAV_MAX_NODES+1];/* CSR：节点 v 的出边为 s_edges[s_out_start[v] .. s_out_start[v+1]) */
+/* ---------------- 执行层 + 规划层共享数据（启动时由 nav_init 填好，之后只读） ---------------- */
+/* 这三个数组导出给 map.c 使用，保留原有命名习惯 */
+NODE Node[NAV_MAX_EDGES];                    /* 边数组（按 from 分组），map.c 执行层直接使用 */
+uint8_t ConnectionNum[NAV_MAX_NODES];        /* 每个节点的出度 */
+uint8_t Address[NAV_MAX_NODES + 1];          /* CSR 起始索引：节点 v 的出边为 Node[Address[v] .. Address[v+1]) */
+
 static uint16_t s_n = 0;                     /* 实际有效的边总数 */
 static uint8_t  s_nodes = 0;                 /* 节点总数（节点编号 0..s_nodes-1） */
 static uint8_t  s_ready = 0;                 /* 初始化完成标志：1=nav_init 已成功调用过，可查询 */
@@ -64,13 +68,13 @@ static uint16_t lg_succ[NAV_MAX_TRANS];      /* 邻居线路图节点(即下一�
 static float    lg_w[NAV_MAX_TRANS];         /* 连接权 = base(邻居路) + 转弯费(u->邻居) */
 
 /* 计算一条边的基础通行代价 = 长度代价 + 障碍惩罚（不含转弯代价）。 */
-static float nav_edge_base_cost(const NavEdge *e)
+static float nav_edge_base_cost_node(const NODE *n)
 {
-    return NAV_W_STEP * (float)e->step + NAV_W_OBS * nav_obs_penalty(e->func);
-    /* 长度(cm)*1.0 + 障碍惩罚*1.0，单位统一为"等效 cm" */
+    return NAV_W_STEP * (float)n->step + NAV_W_OBS * nav_obs_penalty(n->function);
 }
 
-/* 用调用方给的边表初始化图：统计每个节点的出度 -> 算 CSR 行偏移 -> 按 from 分组填入 s_edges[]。 */
+/* 统一初始化：从边表构建执行层（Node[]/ConnectionNum[]/Address[]）+ 规划层（线路图）数据。
+ * 替代原 nav_graph_init() + nav_init() 两次构建，消除冗余。 */
 int nav_init(const NavEdge *edges, uint16_t n_edges, uint8_t n_nodes)
 {
     uint16_t cnt[NAV_MAX_NODES];     /* cnt[v]：节点 v 的出边条数（计数排序用） */
@@ -84,40 +88,67 @@ int nav_init(const NavEdge *edges, uint16_t n_edges, uint8_t n_nodes)
     for (i = 0; i < n_edges; i++) {
         if (edges[i].from < n_nodes) cnt[edges[i].from]++;   /* 只统计 from 合法的边，累加各节点出度 */
     }
-    s_out_start[0] = 0;                              /* CSR 第一行偏移从 0 开始 */
-    for (v = 0; v < n_nodes; v++) s_out_start[v+1] = s_out_start[v] + cnt[v];
-    /* 前缀和：节点 v 的出边在 s_edges[] 中的起始下标 = 前 v 个节点出边总数 */
-    for (v = 0; v < n_nodes; v++) cur[v] = s_out_start[v];
+
+    /* 构建 CSR 索引：Address[] 和 ConnectionNum[] */
+    Address[0] = 0;                                  /* CSR 第一行偏移从 0 开始 */
+    for (v = 0; v < n_nodes; v++) {
+        ConnectionNum[v] = (uint8_t)cnt[v];          /* 保存每个节点的出度 */
+        Address[v+1] = Address[v] + (uint8_t)cnt[v]; /* 前缀和：计算起始索引 */
+    }
+
+    for (v = 0; v < n_nodes; v++) cur[v] = Address[v];
     /* 每个节点的"写入游标"初始指向自己的行首 */
 
+    /* 构建 Node[] 数组：按 from 分组填入边信息（执行层 + 规划层共用）*/
     for (i = 0; i < n_edges; i++) {
         uint8_t f = edges[i].from;                   /* 取这条边的起点 */
         if (f < n_nodes) {                           /* 起点合法才拷贝 */
             uint16_t dst = cur[f]++;                 /* 写入位置=该节点当前游标，游标后移 */
-            s_edges[dst] = edges[i];                 /* 整条边拷入内部数组，完成分组 */
+            /* 填充 NODE 结构体（执行层使用）*/
+            Node[dst].nodenum  = edges[i].to;
+            Node[dst].flag     = edges[i].flag;
+            Node[dst].angle    = edges[i].angle;
+            Node[dst].step     = edges[i].step;
+            Node[dst].speed    = edges[i].speed;
+            Node[dst].function = edges[i].func;
         }
     }
-    s_n = (uint16_t)s_out_start[n_nodes];            /* 实际边总数 = 最后一行的偏移 */
+    s_n = (uint16_t)Address[n_nodes];                /* 实际边总数 = 最后一行的偏移 */
     s_nodes = n_nodes;                               /* 记录节点数 */
 
-    /* ---- 构建线路图：每条路当作一个点，相邻可连的路之间加一条边，权 = base(后路) + 转弯费 ---- */
+    /* ---- 构建线路图：原图的每条边成为线路图的一个节点，相邻可连的边之间建立连接 ---- */
+    /* 用途：通过"边当点"的转换，让 Dijkstra 算法能够计算转弯代价（从路A转到路B需要转多少度）*/
     {
-        uint16_t tcnt[NAV_MAX_EDGES];      /* tcnt[u]：线路图节点 u 的邻居数 = 边 u 的终点节点的出度 */
-        uint16_t tcur[NAV_MAX_EDGES];      /* tcur[u]：u 当前写入游标 */
-        uint16_t i2;
-        for (i2 = 0; i2 < s_n; i2++) tcnt[i2] = (uint16_t)(s_out_start[s_edges[i2].to + 1] - s_out_start[s_edges[i2].to]);
+        uint16_t edge_neighbor_count[NAV_MAX_EDGES];  /* 每条边的后继边数量 */
+        uint16_t write_pos[NAV_MAX_EDGES];            /* 写入游标 */
+        uint16_t i, j;
+
+        /* 统计每条边的后继边数量 = 该边终点的出度 */
+        for (i = 0; i < s_n; i++) {
+            uint8_t target = Node[i].nodenum;         /* 边的终点节点 */
+            edge_neighbor_count[i] = Address[target + 1] - Address[target];
+        }
+
+        /* 构建线路图的 CSR 索引 */
         lg_start[0] = 0;
-        for (i2 = 0; i2 < s_n; i2++) lg_start[i2+1] = lg_start[i2] + tcnt[i2];
-        if (lg_start[s_n] > NAV_MAX_TRANS) return -1;   /* 线路图过大，超出静态数组容量 */
-        for (i2 = 0; i2 < s_n; i2++) tcur[i2] = lg_start[i2];
-        for (i2 = 0; i2 < s_n; i2++) {
-            uint8_t b = s_edges[i2].to;                 /* 从边 u(i2) 的终点节点出发 */
-            uint16_t j;
-            for (j = s_out_start[b]; j < s_out_start[b+1]; j++) {
-                uint16_t dst = tcur[i2]++;
-                float turn = NAV_W_TURN * fabsf(nav_need2turn(s_edges[i2].angle, s_edges[j].angle));
-                lg_succ[dst] = j;                       /* 邻居 = 下一条路(边号) */
-                lg_w[dst]    = nav_edge_base_cost(&s_edges[j]) + turn;   /* 长度+障碍+转弯 一次性算好 */
+        for (i = 0; i < s_n; i++) {
+            lg_start[i + 1] = lg_start[i] + edge_neighbor_count[i];
+        }
+        if (lg_start[s_n] > NAV_MAX_TRANS) return -1;  /* 连接数超限 */
+
+        /* 初始化写入游标 */
+        for (i = 0; i < s_n; i++) write_pos[i] = lg_start[i];
+
+        /* 填充线路图邻接表：对每条边，连接到其终点的所有出边 */
+        for (i = 0; i < s_n; i++) {
+            uint8_t target = Node[i].nodenum;          /* 边i的终点 */
+            /* 遍历从该终点出发的所有边j */
+            for (j = Address[target]; j < Address[target + 1]; j++) {
+                uint16_t pos = write_pos[i]++;
+                /* 计算权重 = 后继边的基础代价 + 转弯代价 */
+                float turn_cost = NAV_W_TURN * fabsf(nav_need2turn(Node[i].angle, Node[j].angle));
+                lg_succ[pos] = j;                      /* 后继边的边号 */
+                lg_w[pos] = nav_edge_base_cost_node(&Node[j]) + turn_cost;
             }
         }
     }
@@ -131,9 +162,9 @@ int8_t nav_find_edge(uint8_t from, uint8_t to)
 {
     uint16_t i;
     if (!s_ready || from >= s_nodes) return -1;      /* 未初始化或起点越界视为找不到 */
-    for (i = s_out_start[from]; i < s_out_start[from+1]; i++) {
+    for (i = Address[from]; i < Address[from+1]; i++) {
         /* 遍历节点 from 的所有出边（CSR 行区间） */
-        if (s_edges[i].to == to) return (int8_t)i;  /* 找到目标节点，返回边号 */
+        if (Node[i].nodenum == to) return (int8_t)i;  /* 找到目标节点，返回边号 */
     }
     return -1;                                       /* 遍历完没找到，返回 -1 */
 }
@@ -157,8 +188,8 @@ uint8_t nav_shortest_path(uint8_t from, uint8_t to, uint8_t *out, uint8_t max_le
     for (uint16_t i = 0; i < s_n; i++) { s_dist[i] = 1e30f; s_prev[i] = -1; s_done[i] = 0; }
 
     /* ---- 起点：从 from 节点出发的每条路，代价 = 它自身基础代价（第一段没有转弯费） ---- */
-    for (uint16_t i = s_out_start[from]; i < s_out_start[from+1]; i++) {
-        s_dist[i] = nav_edge_base_cost(&s_edges[i]);
+    for (uint16_t i = Address[from]; i < Address[from+1]; i++) {
+        s_dist[i] = nav_edge_base_cost_node(&Node[i]);
     }
 
     target_edge = -1;                                /* 先假定找不到路 */
@@ -169,7 +200,7 @@ uint8_t nav_shortest_path(uint8_t from, uint8_t to, uint8_t *out, uint8_t max_le
         }
         if (best == 0xFFFFu) break;                  /* 没有未完成的点了 -> 搜完 */
         u = best; s_done[u] = 1;                     /* 弹出当前最小点 u，其最短代价已确定 */
-        if (s_edges[u].to == to) { target_edge = (int16_t)u; break; }
+        if (Node[u].nodenum == to) { target_edge = (int16_t)u; break; }
         /* 提前终止：点 u 直接落到目标节点。Dijkstra 按代价递增弹出，第一次弹出的必是最优解 */
 
         for (uint16_t kk = lg_start[u]; kk < lg_start[u+1]; kk++) {          /* 遍历 u 的线路图邻居(可接的路) */
@@ -196,7 +227,7 @@ uint8_t nav_shortest_path(uint8_t from, uint8_t to, uint8_t *out, uint8_t max_le
         int i2;
         for (i2 = top - 1; i2 >= 0; i2--) {
             if (k >= max_len) break;                 /* 缓冲区写满即停，防越界 */
-            out[k++] = s_edges[stack[i2]].to;        /* 每条路输出它的终点节点 */
+            out[k++] = Node[stack[i2]].nodenum;      /* 每条路输出它的终点节点 */
         }
     }
     return k;                                        /* 返回节点序列长度（= 路数 + 起点） */

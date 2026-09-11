@@ -7,8 +7,14 @@
  *
  * 图数据来源：一张带 from 的自描述边表（单数据源），由调用方在启动时传给 nav_init()。
  * 权重模型也在本模块（见 NAV_W_* 与 nav_obs_penalty）。
+ *
+ * 重构说明：nav_init() 统一构建执行层（Node[]/ConnectionNum[]/Address[]）+ 规划层（线路图）数据，
+ * 替代原 nav_graph_init() + nav_init() 两次构建，消除冗余。
  */
 #include <stdint.h>
+/* 注意：本头文件不包含 map.h —— map.h -> map_message.h -> nav_planner.h 已构成包含链，
+   若此处再包含 map.h 会形成循环，导致 map_message.h 里的 NavEdge 尚未定义就报错。
+   NODE 类型只在 nav_planner.c 内部使用（见其 #include "map.h"）。 */
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,6 +35,9 @@ typedef struct {
 #define NAV_MAX_EDGES   170
 #define NAV_MAX_PATH    200   /* route[] / 单段最大节点数 */
 #define NAV_MAX_TRANS   2040  /* 线路图最大连接数上限(供静态数组；越界则 nav_init 返回 -1) */
+
+/* ---- 执行层数据（Node[]/ConnectionNum[]/Address[]）由 nav_init() 构建 ----
+   定义在本模块的 nav_planner.c；extern 声明放在 map.h（NODE 的定义处），避免头文件循环包含 */
 
 /* ---- 权重模型：cost(边) = NAV_W_STEP*step + NAV_W_OBS*obs_penalty(func)；转弯另加 NAV_W_TURN*|Δangle| ---- */
 #define NAV_W_STEP  1.0f      /* 长度权重（cost 以 cm 计） */

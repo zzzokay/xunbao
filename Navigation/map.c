@@ -1,8 +1,8 @@
 #include "map.h"//跑特点路线开关在这里面
-#include "../Mission/barrier.h"
-#include "../Application/sys.h"
+#include "barrier.h"
+#include "sys.h"
 #include "math.h"
-#include "../Application/chassis_api.h"
+#include "chassis_api.h"
 #include "stdio.h"
 
 /* 最短路径规划器（新增）：见 nav_planner.h；数据/图在 map_message.h（NavEdgeTbl 单数据源） */
@@ -59,56 +59,20 @@ u8 route[100] = {B1, N1,P1, N1, B2, N4, N5,0XFF};  //初始路径
 #endif
 
 /************************************************************    *地图路径*    **********************************************************************************************************************************************88 */
-/*D2关D3关，去D4*/
-u8 door1route[100] = {N3, N8, 0XFF};
-/*D2开 D3开（已用 mission_planner 自动路由替代，此定义已废弃）*/
-/* u8 door2route 已删除 - 未被引用 */
+/* door*route 已移至 mission_planner.c（门回程业务逻辑相关）*/
 
-/*D2开（已用 mission_planner 自动路由替代，此定义已废弃）*/
-/* u8 door3_1route 已删除 - 未被引用 */
-
-/*D2开 D3开 D4开（已用 mission_planner 自动路由替代，此定义已废弃）*/
-/* u8 door4route 已删除 - 未被引用 */
-
-/*D2开 D3关，暂时去掉D5（已用 mission_planner 自动路由替代，此定义已废弃）*/
-/* u8 door5route 已删除 - 未被引用 */
-
-/*D5开*/
-u8 door6route[100] = {N4, B3, N2, P2, 0XFF};
-/*D2开 D3开 D5开*/
-u8 door7route[100] = {N3, N4, B3, N2, P2, 0xFF};
-/*D2开 D5开 D4开*/
-u8 door8route[100] = {N4, B3, N2, P2, 0XFF};
-/*D2开 D3开 D4开 D5开全（已用 mission_planner 自动路由替代，此定义已废弃）*/
-/* u8 door9route 已删除 - 未被引用 */
-
-/*D2开 D3关，暂时去掉D5（已用 mission_planner 自动路由替代，此定义已废弃）*/
-/* u8 door10route 已删除 - 未被引用 */
-
-/*D2开 D5开 D4开*/
-u8 door11route[100] = {N4, B3, N2, P2, 0XFF};
-/*D2开（已用 mission_planner 自动路由替代，此定义已废弃）*/
-/* u8 door12route 已删除 - 未被引用 */
-
-/*平台5到平台7*/
-u8 rout_57[50] = {N13,P5,N13,N12,N16,N18,B5,N19,C6,B7,N22,C9,P7,C9, 0XFF};
-/*平台5到平台8*/
-u8 rout_58[50] = {N13,P5,N13,N12,N11,N10,N9,C3,N14,B10,C7,C8,B11,C4,N20,P8,N20, 0XFF};
-/*平台6到平台8*/
-u8 rout_68[50] = {N9,B9,N7,P6,N7,B8,N9,C3,N14,B10,C7,C8,B11,C4,N20,P8,N20, 0XFF};
-/*平台6到平台7*/
-u8 rout_67[50] = {N9,B9,N7,P6,N7,B8,N9,C3,N14,B10,C7,C8,B11,C4,N20,B6,N22,C9,P7,C9, 0XFF};
+/* rout_57/58/67/68 已删除 - USE_PLANNER_ROUTE=1 时由规划器动态生成 */
 
 /*******************************************************************************************************************************************************************************************************************************************************/
 
  
 /*地图初始化*/
-static uint8_t s_nav_ready = 0;
+
 static void nav_planner_setup(void)
 {
+    static uint8_t s_nav_ready = 0;
     if (!s_nav_ready) {
-        nav_graph_init();   /* 从自描述边表自动构建执行层 Node[]/ConnectionNum/Address（单数据源） */
-        nav_init(NavEdgeTbl, NAV_EDGE_COUNT, 54);   /* 规划器邻接 */
+        nav_init(NavEdgeTbl, NAV_EDGE_COUNT, 54);   /* 统一构建执行层 + 规划层数据 */
         s_nav_ready = 1;
     }
 }
@@ -122,13 +86,6 @@ void mapInit()
     {
         static const u8 wp_base[] = {N2, P1, N5};   /* 起点N2 → 必经过P1(扫码) → 终点N5 */
         nav_build_route(route, sizeof(route), wp_base, sizeof(wp_base)/sizeof(wp_base[0]));
-        // {
-        //     uint8_t _i;
-        //     printf("ROUTE: ");
-        //     for (_i = 0; _i < sizeof(route) && route[_i] != 0xFF; _i++)
-        //         printf("%d ", route[_i]);
-        //     printf("\n");
-        // }
     }
 #endif
 	map = (struct Map_State){0,0};

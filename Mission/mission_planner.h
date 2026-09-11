@@ -1,7 +1,7 @@
 #ifndef __MISSION_PLANNER_H
 #define __MISSION_PLANNER_H
 
-#include "../Application/sys.h"
+#include "sys.h"
 
 /*
  * 任务规划器 - Mission Planner

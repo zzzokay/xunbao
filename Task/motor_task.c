@@ -18,7 +18,7 @@
  */
 
 #include "motor_task.h"
-#include "../Mission/config.h"     /* LEN_SCALE 等配置集中在这里 */
+#include "config.h"     /* LEN_SCALE 等配置集中在这里 */
 #include "encoder.h"
 #include "motor.h"
 #include "uart.h"
@@ -29,12 +29,12 @@
 #include "sin_generate.h"
 #include "bsp_buzzer.h"
 #include "openmv.h"
-#include "../Navigation/map.h"
+#include "map.h"
 #include "QR.h"
 #include "delay.h"
 #include "bsp_led.h"
 #include "math.h"
-#include "../Mission/barrier.h"
+#include "barrier.h"
 #include "K210.h"
 #include "gray.h"
 #include "Rec_usart.h"
@@ -49,7 +49,6 @@ static void handle_line_mode(void);
 static void handle_turn_mode(void);
 static void handle_gyro_mode(void);
 static void handle_mode_switch(uint8_t target_mode);
-static void handle_led_mouse(void);
 static void handle_target_speed(void);
 static void handle_pid_control(void);
 
@@ -67,15 +66,6 @@ static uint8_t  nav_burst = 0;            /* 按键2秒窗口内累计按次数 
 static uint32_t nav_burst_deadline = 0;   /* 窗口关闭时刻（tick） */
 #endif
 
-/* ===== 周期耗时测量(调试用): DWT 周期计数器 @216MHz ===== */
-static void timing_dwt_init(void)
-{
-	CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk; // 使能 TRACE 才能访问 DWT
-	DWT->LAR = 0xC5ACCE55;                          // 解锁 DWT（Cortex-M7 软件写被锁，缺此行则 CYCCNT 恒为 0）
-	DWT->CYCCNT = 0;
-	DWT->CTRL  |= DWT_CTRL_CYCCNTENA_Msk;           // 使能周期计数器
-}
-
 /*主控制任务主体*/
 /*
  * 功能：周期5ms的巡线闭环
@@ -88,7 +78,6 @@ void motor_task(void *pvParameters)
 
 	// 初始化底盘API
 	Chassis_Init();
-//	timing_dwt_init();   // 周期耗时测量: 开启 DWT 周期计数器
 
 	uint8_t key_count = 0;
 	while (1)
@@ -371,22 +360,6 @@ static void handle_mode_switch(uint8_t target_mode)
 		last_pid_mode = current_pid_mode;
 	}
 	
-}
-
-/*处理指示灯主体*/
-/*
- * 功能：处理LED灯的闪烁任务状态指示
- * 闪烁频率：约2Hz，每100次循环切换一次状态，约0.5秒）
- */
-static void handle_led_mouse(void)
-{
-	static uint8_t mouse = 0;  		  	// 小车状态计数
-	mouse++;
-	if (mouse > 100)  // 每100次循环，约0.5秒）切换一次
-	{
-		mouse = 0;
-		LED_C1_Toggle();  // 切换LED状态
-	}
 }
 
 /*处理目标速度主体*/

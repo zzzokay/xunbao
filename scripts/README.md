@@ -10,7 +10,7 @@
 | 脚本 | 作用 | 什么时候跑 | exit |
 |------|------|-----------|------|
 | `_weight_calib.py` | 从 `map_message.c` 的 `NavEdgeTbl[]` 解析图；校验所有参考路线相邻节点皆有合法边；edge 状态(line-graph) Dijkstra 复现 仅长度/长度+转角/长度+转角+障碍 三种成本模型的路线。**基准回归工具**。 | 改边或权重后 | 0=全过 1=有差异 |
-| `_check_csr.py` | 镜像 `map_message.c` 的 `nav_graph_init()` 自动构建 CSR（`ConnectionNum/Address/Node[]`），验证 `getNextConnectNode` 能解析全部参考边 + 8 条门边。 | 增删边后 | 0=连通 1=缺边 |
+| `_check_csr.py` | 镜像 `nav_planner.c` 的 `nav_init()` 自动构建 CSR（`ConnectionNum/Address/Node[]`），验证 `getNextConnectNode` 能解析全部参考边 + 8 条门边。 | 增删边后 | 0=连通 1=缺边 |
 | `_check_wp.py` | 镜像 `nav_plan_waypoints`，对若干必经点组合验证"删掉某个必经点不改路线"（`build_wp` 新旧两版路线一致）。 | 改 `wp` 必经点后 | 0=一致 1=不一致 |
 | `_check_door_logic.py` | **门逻辑表驱动校验**（新增，重点排查门区问题）：① 所有 `DOOR` 功能边要么命中 `door()` 状态匹配表、要么在驱动前被 `Clear_door()` 清成 `NONE`（二者皆无才报缺口，避免把"回程边必先清 NONE"误判成 bug）；② 对 D2/D3/D4 每种颜色组合镜像 `plan_after_return_door` 生成回程路线，检查是否 `CarBrake_Stop`/断链；③ D4 回程黑灯退到 N5 后下一跳必须 `N4` 且转角 `need2turn(-145°,0°)=145°`。 | 改门逻辑后 | 0=通过 1=发现问题 |
 

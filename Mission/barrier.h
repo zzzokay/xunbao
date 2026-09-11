@@ -1,8 +1,8 @@
 #ifndef __BARRIER_H
 #define __BARRIER_H
 
-#include "../Application/sys.h"
-#include "../Navigation/map.h"  /* NODE 类型定义 */
+#include "sys.h"
+#include "map.h"  /* NODE 类型定义 */
 
 #define Begin_up   basic_p+5   //while(imu.pitch<Begin_up)  出循环 刚上桥
 #define up_pitch   basic_p+15  //while(imu.pitch<up_pitch) 出循环 上完桥

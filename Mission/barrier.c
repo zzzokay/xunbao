@@ -32,6 +32,9 @@
 #include "chassis_api.h"
 #include "config.h"     /* 调试开关 DEBUG 已集中到这里 */
 
+/* 门回程路线（mission_planner.c 中定义）*/
+extern u8 door1route[100];
+
 /*==============================================================================
  *  目录 / Table of Contents   按 Ctrl+F 搜索函数名、Ctrl+D快速跳转
  *
@@ -172,7 +175,6 @@ static uint8_t Stage_DetectedRamp(float distance)
 
 static void Stage_Correct(float back_distance){
 	uint8_t state =0;
-	uint8_t state2_retry = 0;  // case2 无线形重试计数，防卡死
 	uint16_t break_time = 0;	// case2 无线形重试计数，防卡死
 	Chassis_DriveDistance_Blocking(is_Gyro, back_distance, -GoStage_Speed, nodes.nextNode.angle, 0);
 	Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, nodes.nextNode.angle);
@@ -379,7 +381,6 @@ static void Stage_Action(float oringinal_angle)
 {
 	uint8_t stage_state = 0;
 	uint8_t again_required = 0;
-	float now_angle = 0;
 
 	while(stage_state!=4){
 		//撞击
@@ -457,8 +458,6 @@ void Stage(void)
 		STAGE_DONE       // 清标志，结束
 	} state = STAGE_ASCEND;
 
-	uint8_t sub_stage = 0;
-	
 	float oringinal_angle = 0;
 	Chassis_EnableAntiSnake();
 	Chassis_MotorControl(is_Line, 15, 15, 0);//25
@@ -831,7 +830,6 @@ void Sword_Mountain(void)
 
 	float recorded_angle = 0;
 	uint8_t angle_recorded = 0,is_up = 0;
-	uint16_t approach_timeout = 0;
 	Chassis_EnableAntiSnake();
 	Chassis_MotorControl(is_Line, 15, 15, 0);
 	Chassis_OverrideLinePid(30, 0, 180, 30);
@@ -930,7 +928,6 @@ void Barrier_HighMountain(void)
 	} state = HM_APPROACH;
 
 	float origin_angle = 0.0f;
-	uint8_t sub_stage = 0;
 
 	Chassis_OverrideGyroPid(4, 0, 70, 10);
 	Chassis_EnableAntiSnake();
@@ -996,7 +993,6 @@ void Barrier_HighMountain(void)
 			vTaskDelay(100);
 			Stage_Correct(5);		
 			
-			sub_stage = 0;
 			state = HM_DESCEND_1;
 			break;
 
@@ -1096,7 +1092,6 @@ void South_Pole(void)
 	} state = SP_APPROACH;
 
 	float origin_angle = 0.0f;
-	uint8_t sub_stage = 0;
 
 	Chassis_OverrideGyroPid(4, 0, 50, 50);
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);

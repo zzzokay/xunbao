@@ -36,7 +36,7 @@
  * =============================================================================
  */
 #include "scaner.h"
-#include "../Navigation/map.h"
+#include "map.h"
 #include "math.h"
 #include "turn.h"
 #include "stdio.h"

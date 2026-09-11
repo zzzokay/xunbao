@@ -784,7 +784,6 @@ void Chassis_Periodic_Update_5ms(void)
                     send_play_specified_command(30);
                     //printf("Line lost! Emergency brake activated.\n");
                     while(1){};
-                    return;
                 }
             }
             else

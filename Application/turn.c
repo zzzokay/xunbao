@@ -3,7 +3,7 @@
 #include "pid.h"
 #include "chassis_api.h"
 #include "math.h"
-#include "../Navigation/map.h"
+#include "map.h"
 #include "motor_task.h"
 #include "uart.h"
 #include "motor.h"

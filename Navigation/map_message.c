@@ -1,9 +1,9 @@
 #include "map_message.h"
-#include "../Application/chassis_api.h"
+#include "chassis_api.h"
 
 /*
  * 单张自描述边表 = 唯一人工编辑源（含 from/to/flag/angle/step/speed/function，均用原 map_message 宏/名）。
- * 启动时 nav_graph_init() 由本表自动构建执行层 Node[]/ConnectionNum/Address，无需手工同步这三个数组。
+ * 启动时 nav_init() 由本表自动构建执行层 Node[]/ConnectionNum/Address + 规划层线路图，无需手工同步。
  * 增删边：编辑 NavEdgeTbl[] 并同步 map_message.h 的 NAV_EDGE_COUNT；增删节点：还需在 map.h MapNode 枚举加名。
  */
 
@@ -246,31 +246,4 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
    使用 C99 兼容技巧：负数组大小在编译期报错 */
 typedef char NavEdgeTbl_size_check[(sizeof(NavEdgeTbl)/sizeof(NavEdge) == NAV_EDGE_COUNT) ? 1 : -1];
 
-/* 启动时：从本表自动构建执行层 CSR（Node[]/ConnectionNum/Address）。 */
-void nav_graph_init(void)
-{
-    unsigned short cnt[64] = {0}, cur[64] = {0};
-    unsigned short i, v;
-    for (i = 0; i < NAV_EDGE_COUNT; i++) if (NavEdgeTbl[i].from < 54) cnt[NavEdgeTbl[i].from]++;
-    Address[0] = 0;
-    for (v = 0; v < 54; v++) ConnectionNum[v] = (unsigned char)cnt[v];
-    for (v = 0; v < 54; v++) Address[v+1] = Address[v] + (unsigned char)cnt[v];
-    for (v = 0; v < 54; v++) cur[v] = Address[v];
-    for (i = 0; i < NAV_EDGE_COUNT; i++) {
-        unsigned char f = NavEdgeTbl[i].from;
-        if (f < 54) {
-            unsigned short p = cur[f]++;
-            Node[p].nodenum = NavEdgeTbl[i].to;
-            Node[p].flag     = NavEdgeTbl[i].flag;
-            Node[p].angle    = NavEdgeTbl[i].angle;
-            Node[p].step     = NavEdgeTbl[i].step;
-            Node[p].speed    = NavEdgeTbl[i].speed;
-            Node[p].function = NavEdgeTbl[i].func;
-        }
-    }
-}
-
-/* 执行层图数据（空全局，由 nav_graph_init 填充） */
-NODE Node[132];
-uint8_t ConnectionNum[54];
-uint8_t Address[55];
+/* Node[]/ConnectionNum[]/Address[] 已移至 nav_planner.c 统一构建，nav_graph_init() 已废弃 */

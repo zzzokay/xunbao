@@ -6,7 +6,7 @@
  * 数据依赖：
  *   - 全局状态：door_pass[], treasure, flag_line_clue, flag_clue_stage_A/B
  *   - 地图数据：route[], nodes, map (from map.h)
- *   - 预定义路线：door*route[], rout_57/58/67/68 (from map.c)
+ *   - 预定义路线：door*route[] (from map.c)
  *
  * 调用关系：
  *   barrier.c (door/Stage等) → mission_planner (本模块) → nav_planner (最短路算法)
@@ -29,19 +29,14 @@ extern u8 route[100];                     // 全局路线数组（map.c）
 extern Nodes nodes;                       // 当前节点状态（map.c）
 extern struct Map_State map;              // 地图状态（map.c）
 
-/* 预定义路线（map.c）*/
-extern u8 door1route[100];
-extern u8 door6route[100];
-extern u8 door7route[100];
-extern u8 door8route[100];
-extern u8 door11route[100];
-extern u8 rout_57[50];
-extern u8 rout_58[50];
-extern u8 rout_67[50];
-extern u8 rout_68[50];
-
 /* 门操作函数（barrier.c）*/
 extern NODE door_set_pass_node(uint8_t a, uint8_t b, uint16_t step, float speed);
+
+/* ==================== 门回程预定义路线 ==================== */
+/* 这些路线不用规划器生成，避免"穿门掉头"问题（如 N3→N8→N5 这类路径）*/
+u8 door1route[100] = {N3, N8, 0XFF};                     // D2关D3关，去D4
+u8 door7route[100] = {N3, N4, B3, N2, P2, 0XFF};         // D2开 D3开 D5开
+u8 door_return_via_N4[100] = {N4, B3, N2, P2, 0XFF};     // 通用：经N4回家（D5开/D2开D5开D4开）
 
 /* ==================== 内部辅助函数 ==================== */
 
@@ -174,7 +169,9 @@ static uint8_t Can_Pass(uint8_t c)
 
 /**
  * @brief 拼接第二轮路线（pre + entry + tour + tail）
+ * @note  仅 USE_PLANNER_ROUTE=0 的手工兜底分支使用，=1 时不参与编译
  */
+#if !USE_PLANNER_ROUTE
 static void build_round2_route(const u8 *pre, const u8 *entry, const u8 *tour, const u8 *tail)
 {
 	uint8_t i, n = 0;
@@ -184,6 +181,7 @@ static void build_round2_route(const u8 *pre, const u8 *entry, const u8 *tour, c
 	for (i = 0; tail[i] != 0XFF; i++)	route[n++] = tail[i];
 	route[n] = 0XFF;
 }
+#endif /* !USE_PLANNER_ROUTE */
 
 /* ==================== 公共 API 实现 ==================== */
 
@@ -212,7 +210,7 @@ void update_route_by_door_1(void)
 	/* 门回程统一复用"穷举"手写方案：从当前(内侧)节点直接写回家/目标路线，
 	   不让规划器主动穿门(否则会 N3→N8→N5 这类穿门掉头) */
 	if(treasure ==5||treasure == 6)
-		load_route_at(0, door6route);
+		load_route_at(0, door_return_via_N4);
 	if(treasure ==3)
 	{
 		const u8 r[] = {P3,N3,N4,B3,N2,P2,0xFF};
@@ -256,7 +254,7 @@ void update_route_by_door_3(void)
 {
 	/* 门回程统一复用"穷举"手写方案：从当前(内侧)节点直接写回家/目标路线 */
 	if(treasure ==5||treasure == 6)
-		load_route_at(0, door8route);
+		load_route_at(0, door_return_via_N4);
 	if(treasure ==3)
 	{
 		const u8 r[] = {P3,N3,N4,B3,N2,P2,0xFF};
@@ -278,7 +276,7 @@ void update_route_by_door_4(void)
 {
 	/* 门回程统一复用"穷举"手写方案：从当前(内侧)节点直接写回家/目标路线 */
 	if(treasure ==5||treasure == 6)
-		load_route_at(0, door11route);
+		load_route_at(0, door_return_via_N4);
 	if(treasure ==3)
 	{
 		const u8 r[] = {N4,N3,P3,N3,N4,B3,N2,P2,0xFF};
@@ -323,6 +321,9 @@ void update_route_at_door_for_stageAB(void)
 		CarBrake_Stop();
 	return;
 #endif
+#if !USE_PLANNER_ROUTE
+	/* ⚠️ 以下 USE_PLANNER_ROUTE=0 的手工兜底分支暂时不参与编译：
+	   rout_57/58/67/68 已从 map.c 删除（改由规划器动态生成），切回 0 前需先恢复这些路线数组 */
 	// 按线索平台组合选择路线
 	if (flag_clue_stage_A == 5 && flag_clue_stage_B == 7)
 	{
@@ -372,6 +373,7 @@ void update_route_at_door_for_stageAB(void)
 			load_route_at(1, rout_68);
 		}
 	}
+#endif /* !USE_PLANNER_ROUTE */
 }
 
 void update_route_at_P7_for_treasure(void)
@@ -523,7 +525,8 @@ void get_newroute(void)
 	}
 #endif
 
-	/* USE_PLANNER_ROUTE=0 时的手工拼接路线（兜底） */
+#if !USE_PLANNER_ROUTE
+	/* USE_PLANNER_ROUTE=0 时的手工拼接路线（兜底）：数组都在本文件内，不依赖已删除的 rout_* */
 	// 公共段：P1→P3→P4（到N5岔口）
 	const u8 pre[]  = {B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,0XFF};
 	// 东区巡游：P5→P7→P8→P6
@@ -584,4 +587,5 @@ void get_newroute(void)
 	{
 		CarBrake_Stop();
 	}
+#endif /* !USE_PLANNER_ROUTE */
 }

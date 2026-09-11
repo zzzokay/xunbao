@@ -27,7 +27,7 @@ Mission/                    # 任务层 — 比赛业务逻辑（决定"去哪"�
 Navigation/                 # 导航层 — 路径规划与执行（决定"怎么去"）
   ├── nav_planner.c/h       # 最短路算法（nav_init/nav_shortest_path/nav_plan_waypoints/nav_build_route/nav_stitch/nav_find_edge）
   ├── map.c/h               # 导航执行（Navigation()/map_function()/getNextConnectNode/mapInit()/route[]/nav_planner_setup）
-  └── map_message.c/h       # 地图数据（NavEdgeTbl[] 唯一人工编辑源 + nav_graph_init() 自动建 CSR；NAV_EDGE_COUNT）
+  └── map_message.c/h       # 地图数据（NavEdgeTbl[] 唯一人工编辑源；执行层 CSR 与规划层线路图都由 nav_init() 统一构建；NAV_EDGE_COUNT）
 
 Application/                # 控制层 — 底盘控制与传感器（决定"怎么动"）
   ├── chassis_api.c/h       # 底盘API中间件（核心解耦层；Chassis_* 全部入口）
@@ -42,7 +42,7 @@ Application/                # 控制层 — 底盘控制与传感器（决定"�
 
 Core/                       # STM32 HAL 核心
 Math/                       # 算法库 — pid.c/h（增量内环+位置外环）、filter.c/h、sin_generate.c/h
-Module/                     # 外设驱动 — imu.c/h、K210.c/h、QR.c/h、openmv.c/h、Rec_usart.c/h、Rudder_control、adc、bsp_buzzer、bsp_led、bsp_linefollower、keys、interrupt_router、usart2_compat
+Module/                     # 外设驱动 — imu.c/h、K210.c/h、QR.c/h、openmv.c/h、Rec_usart.c/h、Rudder_control、bsp_buzzer、bsp_led、bsp_linefollower、keys、interrupt_router、usart2_compat（ADC 走 CubeMX 的 Core/Src/adc.c；原 Module/adc.{c,h} 已删，见 §12.4 同名头文件说明）
 Motor/                      # 电机驱动层 — motor.c/h、Encoder.c/h、speed_ctrl
 Task/                       # FreeRTOS 任务 — main_task、motor_task、ArriveDetect_task、temporary_task、task_create
 USMAT/                      # USMART 串口调试组件
@@ -196,7 +196,7 @@ Navigation()
 | 宏 | 当前值 | 含义 |
 |----|--------|------|
 | `USE_FIELD` | `FIELD_SCHOOL` | 场地：`FIELD_COMP`=比赛 / `FIELD_SCHOOL`=学校。学校档 14 个 `TODO(学校)` 值已填数字，仍需按学校场地实测复核 |
-| `USE_PLANNER_ROUTE` | `1` | `1`=除一轮门回程外的路线（初始、出门点→平台、二轮）由最短路算法生成；`0`=回退到手写 `route[]`/`door*route[]`。**一轮门回程(`update_route_by_door_*`)恒用手写穷举路线**，不受此开关影响（避免规划器穿门掉头） |
+| `USE_PLANNER_ROUTE` | `1` | `1`=除一轮门回程外的路线（初始、出门点→平台、二轮）由最短路算法生成；`0`=回退到手写 `route[]`/`door*route[]`。**一轮门回程(`update_route_by_door_*`)恒用手写穷举路线**，不受此开关影响（避免规划器穿门掉头）。⚠️ **切回 `0` 前必看**：`update_route_at_door_for_stageAB` 的手工兜底依赖已删除的 `rout_57/58/67/68`，该段现为 `#if !USE_PLANNER_ROUTE` 条件编译，需先恢复这些数组才能编过 |
 | `MAP_DEBUG` | `0` | `1`=用 `FIRST_POINT→END_POINT` 最短路径自动生成调试路线 |
 | `SKIP_ROUND1` | `0` | `1`=跳过第一轮直接进第二轮（调试用）；正式比赛必须 0 |
 | `MAIN_DEBUG` / `STEP_DEBUG` | `0` / `0` | 调试分支/按一下跑一个节点；正式比赛必须 0 |
@@ -215,9 +215,9 @@ Navigation()
 typedef struct { u8 from; u8 to; u32 flag; float angle; u16 step; float speed; u8 func; } NavEdge;
 #define NAV_EDGE_COUNT 125
 extern const NavEdge NavEdgeTbl[NAV_EDGE_COUNT];  // 唯一人工编辑源，用原 map_message 宏/名
-void nav_graph_init(void);  // 启动时自动构建 Node[]/ConnectionNum/Address（map_message.c）
+int nav_init(const NavEdge *edges, uint16_t n_edges, uint8_t n_nodes);  // 一次建成执行层 CSR + 规划层线路图（nav_planner.c）
 ```
-启动顺序：`mapInit()` → `nav_planner_setup()`(map.c) → `nav_graph_init()`(建执行层 CSR) → `nav_init()`(建规划器邻接)，`s_nav_ready` 保证只建一次。
+启动顺序：`mapInit()` → `nav_planner_setup()`(map.c) → `nav_init(NavEdgeTbl, NAV_EDGE_COUNT, 54)`，**一次调用同时建好**执行层 `Node[]/ConnectionNum[]/Address[]`（定义在 `nav_planner.c`，extern 声明在 `map.h`）与规划层线路图；`s_nav_ready` 保证只建一次。返回 -1 表示边/节点/连接数超静态容量。
 
 ### 9.2 节点编号（枚举顺序 = 索引，**不能调换**）
 ```
@@ -248,7 +248,7 @@ N11=50 G1=51 B10=52 B11=53
 |------|------|------|
 | 主循环路径执行 | `Navigation()` / `map_function()` / `getNextConnectNode()` | `Navigation/map.c` |
 | 地图状态初始化 | `mapInit()` / `nav_planner_setup()` | `Navigation/map.c` |
-| 单源边表构建 CSR | `nav_graph_init()` | `Navigation/map_message.c` |
+| 单源边表构建 CSR + 线路图 | `nav_init()`（`nav_graph_init()` 已并入其中） | `Navigation/nav_planner.c` |
 | 最短路 | `nav_init` / `nav_shortest_path` / `nav_plan_waypoints` / `nav_build_route` / `nav_stitch` / `nav_find_edge` | `Navigation/nav_planner.c` |
 | QR 分流、门/宝物改路 | `update_route_at_P1()` / `update_route_by_door_*()` / `update_route_at_door_for_stageAB()` / `update_route_at_P7/P8_for_treasure()` | `Mission/mission_planner.c` |
 | 一轮门回程 | `update_route_by_door_1~4()`（**手写穷举路线**，不走规划器，防穿门掉头） | `Mission/mission_planner.c` |
@@ -266,7 +266,7 @@ N11=50 G1=51 B10=52 B11=53
 
 - 🚧 **door() D5黑+D2蓝 回程卡死**：`DOOR_D5_BACK` 该分支只写 `route[0]=N3`、没重建 `route[1..]`，车到 N8 转 N3 后 `getNextConnectNode(N3, route[1])` 撞残留脏值 → `Route_Error_Stop` 死停。**修复：`route[0]=N3;` 后补 `route[1]=0xFF;`**（让护栏跳过，车走 N8→N3 重触发 D4 门）。排查门区路线时注意 `door_retreat` 会**隐式改 `nodes.nowNode`**、`door_set_pass_node` 会改 `Node[].function/speed/step`。
 - ⚠️ **`getNextConnectNode` 兜底防跑飞**：查不到连接时不再返回 0（会带车跑飞），改为打印并 `CarBrake_Stop()` 死停。改路线时确保每两个相邻节点在 `NavEdgeTbl[]` 里**有向连通**；`route[map.point]==0xFF` 是路线结束哨兵。
-- ⚠️ **偏差/警告提示**：`map.h` 有 ~120 个未使用的 `Clue*route` 声明；`pid.c` 有注释掉的 R1 死代码；`motor_task.c` 5ms 循环内若留有调试 printf 会拖慢周期。属遗留，别误删功能性代码。
+- ⚠️ **偏差/警告提示**：`pid.c` 有注释掉的 R1 死代码；`motor_task.c` 5ms 循环内若留有调试 printf 会拖慢周期；`main_task.c`/`motor_task.c` 循环里读 `DWT->CYCCNT`，但使能它的 `timing_dwt_init()` 已按"未引用"清理，若要恢复周期耗时测量需同时恢复该函数与调用。属遗留，别误删功能性代码。
 
 ---
 
@@ -276,7 +276,7 @@ N11=50 G1=51 B10=52 B11=53
     本工程**未提交的改动只在工作树**，一旦被 `git checkout`/`reset`/本地覆盖就很难找回。约定：**每次动手前先 `git stash push`（改完 `git stash pop` 回来并核对），或直接 `git commit -m "..."`**。尤其 `mission_planner.c`/`barrier.c`/`nav_planner.c`/`map_message.c`/`config.h` 的规划器改动，务必先暂存。
 2. **编译**：MDK 工程 `MDK-ARM/test1.uvprojx`，用 **Keil V5.32** 编译，预期 0 Error（可容忍未使用变量类 Warning）。改地图/权重后在 MDK 编译确认 0 error 再上真车。
 3. **文件编码**：全工程 **UTF-8**（无 BOM）。写源码保持 UTF-8。
-4. **include 规则**：所有源目录已在 Keil/EIDE 的 IncludePath 里，同目录/flat 用 `#include "xxx.h"`；跨目录用相对路径，如 `#include "../Navigation/map.h"`、`../Mission/barrier.h`、`../Application/sys.h`。
+4. **include 规则**：所有源目录已在 Keil/EIDE 的 IncludePath 里，**一律用短写** `#include "xxx.h"`（全工程统一，不再用 `../Xxx/xxx.h`）。前提是**裸名必须唯一**：工程里 `sys.h`（`Application/`）与 `adc.h`（`Core/Inc/`）原各有两份同名文件，已分别删掉 `USMAT/sys.h`、`Module/adc.{c,h}` 消除歧义；**新增同名头文件前先确认不会撞名**，否则 `-I` 顺序会静默改变命中对象。`#include` 的查找顺序是「当前文件所在目录 → `-I` 列表顺序」。
 5. **别做的操作**：`motor_task` 5ms 循环内别加阻塞/大量 `printf`（破坏周期）；别把负值写进 PWM CCR（反向换 TIM 通道极性并取反编码器）；CubeMX 重新生成后要注释 `main.c` 定时器中断回调 + `stm32f7xx_it.c` 的 `USART3_IRQHandler`。
 6. **改完同步文档**：改完代码更新本文件（相关函数/配置/结构）和 [README.md](README.md) 的修改日志（写日期 + 改了啥）。
 7. **验证方法**：`scripts/validate/_weight_calib.py`（复现参考路线/权重灵敏度）、`scripts/validate/_check_csr.py`（CSR 连通性）、`scripts/validate/_check_wp.py`（必经点删除不改路线）、`scripts/validate/_check_door_logic.py`（门逻辑表驱动）；这些脚本只做校验/分析，不进固件。

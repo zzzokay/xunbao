@@ -10,7 +10,7 @@
 #include "imu.h"
 #include "bsp_led.h"
 #include "turn.h"
-#include "../Navigation/map.h"
+#include "map.h"
 #include "openmv.h"
 #include "QR.h"
 #include "K210.h"

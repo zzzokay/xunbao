@@ -21,7 +21,6 @@ void Open_COLOR_R()
 	open_COLOR_R_mode_sign=1;
 	COLOR_flag = 2;
 	uint8_t cmd[] = {0x33};
-	uint8_t retry = 5;
 	
 //	while(retry--) {
 	while(1) {
@@ -39,7 +38,6 @@ void Open_COLOR_L()
 {
 	COLOR_flag = 1;
 	uint8_t cmd[] = {0x33};
-	uint8_t retry = 5;
 	open_COLOR_L_mode_sign=1;
 //	while(retry--) {
 	while(1) {

@@ -1,8 +1,8 @@
 #ifndef __MAP_H
 #define __MAP_H
-#include "../Application/sys.h"
+#include "sys.h"
 
-#include "../Mission/config.h"     /* 所有开关/场地参数集中在这里 */
+#include "config.h"     /* 所有开关/场地参数集中在这里 */
 #include "map_message.h"
 
 #define NO      	 (1<<0) 
@@ -59,23 +59,9 @@ enum barriers {
 };
 
 extern u8 route[100];
-extern u8 door1route[100];
-extern u8 door2route[100];
-extern u8 door3_1route[50];
-extern u8 door4route[100];
-extern u8 door5route[100];
-extern u8 door6route[100];
-extern u8 door7route[100];
-extern u8 door8route[100];
-extern u8 door9route[100];
-extern u8 door10route[100];
-extern u8 door11route[100];
-extern u8 door12route[100];
+/* door*route 已移至 mission_planner.c（门回程业务逻辑相关）*/
+/* rout_57/58/67/68 已删除 - USE_PLANNER_ROUTE=1 时由规划器动态生成 */
 
-extern u8 rout_57[50];
-extern u8 rout_58[50];
-extern u8 rout_67[50];
-extern u8 rout_68[50];
 enum MapNode {	//MapNode
 	S1, 	//0
 	P1, 	//1
@@ -150,7 +136,11 @@ typedef struct _node{
 	u8 function;    //结点函数
 }NODE;
 
-extern NODE Node[132];
+/* 执行层图数据：定义在 nav_planner.c，启动时由 nav_init() 统一构建（原 nav_graph_init() 已并入）。
+   这里用不完整数组类型声明，长度以定义处的 NAV_MAX_EDGES/NAV_MAX_NODES 为准，避免两处尺寸不同步 */
+extern NODE Node[];
+extern u8 ConnectionNum[];
+extern u8 Address[];
 /*************************/
 //flag 0位：1编码器清零请求，0清零完毕
 //flag 1位：启动路口判断
@@ -189,10 +179,6 @@ void Navigation(void);
 void map_function(u8 fun);
 void select_speed(void);
 
-extern uint8_t ErrorTimes[2];
-
-
-extern u8 TempRoute[50];
 #endif
 
 

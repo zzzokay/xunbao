@@ -1,20 +1,17 @@
 #include "main_task.h"
-#include "../Mission/config.h"     /* 调试开关 MAIN_DEBUG 等集中在这里 */
+#include "config.h"     /* 调试开关 MAIN_DEBUG 等集中在这里 */
 #include "uart.h"
 #include "imu.h"
-#include "uart.h"
 #include "turn.h"
-#include "../Navigation/map.h"
-#include "../Mission/barrier.h"
+#include "map.h"
+#include "barrier.h"
 #include "bsp_buzzer.h"
 #include "bsp_linefollower.h"
 #include "scaner.h"
 #include "encoder.h"
-#include "barrier.h"
 #include "motor_task.h"
 #include "openmv.h"
 #include "math.h"
-#include "barrier.h"
 #include "sin_generate.h"
 #include "gray.h"
 #include "QR.h"
@@ -33,21 +30,11 @@ float temp_speed=25;
 
 #endif
 
-/*===== 周期耗时测量(调试用): DWT 周期计数器 @216MHz =====*/
-static void timing_dwt_init(void)
-{
-	CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk; // 使能 TRACE 才能访问 DWT
-	DWT->LAR = 0xC5ACCE55;                          // 解锁 DWT（Cortex-M7 软件写被锁，缺此行则 CYCCNT 恒为 0）
-	DWT->CYCCNT = 0;
-	DWT->CTRL  |= DWT_CTRL_CYCCNTENA_Msk;           // 使能周期计数器
-}
-
 /*主任务*/
 void main_task(void *pvParameters)
 {
 	portTickType xLastWakeTime;
 	xLastWakeTime = xTaskGetTickCount();
-	//timing_dwt_init();   // 周期耗时测量: 开启 DWT 周期计数器
 
 #if MAIN_DEBUG
 	/*调试模式：跳过传感器初始化，只做基本的地图加载*/
