@@ -1,7 +1,7 @@
 # 方案：给规划器加"运行时门边权限"，把门回程穷举路线换成最短路
 
-> 状态：**待实施**（阶段 A 已完成：`d44f954` 落库 → `e62d21f` 零风险去重 → `a7d1750` 删废值；见 `项目讲解文档/README.md` 2026-09-11 晚）
-> 证据：本文 §2 的 12/12 复现结论由 `scripts/validate/_weight_calib.py` 的 Python 图镜像实测得出（临时探针脚本已删，可照 §2.3 复跑）
+> 状态：**阶段 B1/B2 已完成**（`8b5bfdf` 加 API + golden 脚本；`31d69a5` 接线并删掉 12 条穷举）；**B3 待做**（`plan_treasure_return` 门梯 / `get_newroute` 回程 8 分支）。阶段 A 见 `项目讲解文档/README.md` 2026-09-11 晚。
+> 证据：本文 §2 的 12/12 复现结论已由 `scripts/validate/_check_door_perm.py` 固化（golden 与改造前 git 快照 `d44f954` 机械比对一致），成为常驻回归工具。
 
 ## Context
 
@@ -111,9 +111,12 @@ void nav_clear_blocked(void);                                          /* 清空
 
 | 子步 | 做什么 | 固件行为变化 | 验证 |
 |------|--------|--------------|------|
-| **B1** | 只往 `nav_planner` 加 `nav_set_edge_blocked()/nav_clear_blocked()`，**不接线**；同时新建 `scripts/validate/_check_door_perm.py`，把 12 条手写数组当"标准答案"，断言"权限表 + 极简 wp"能逐字复现 | **零变化**（新函数没人调用） | 新脚本 12/12 |
-| **B2** | 接线：`door()` 读完颜色后调用 `door_apply_permissions()` 更新禁用集合；`update_route_by_door_1~4` 四合一为 `set_route_from_here({当前节点,[宝物平台],P2})`；删 `door1route/door7route/door_return_via_N4` + 12 条内联数组 | 门回程路线**逐字不变** | 新脚本 12/12 + 原 4 脚本 |
-| **B3** | 同一套表再吃掉 `plan_treasure_return()` 的 4 分支门梯、`get_newroute()` 的 8 分支回程梯 | 路线逐字不变 | 新脚本扩展到门状态组合 |
+| **B1 ✅ `8b5bfdf`** | 只往 `nav_planner` 加 `nav_set_edge_blocked()/nav_clear_blocked()`，**不接线**；同时新建 `scripts/validate/_check_door_perm.py`，把 12 条手写数组当"标准答案"，断言"权限表 + 极简 wp"能逐字复现 | **零变化**（新函数没人调用） | 新脚本 12/12 ✅ |
+| **B2 ✅ `31d69a5`** | 接线：`route_return_home()` 先 `door_block_all()` 封闭门区，再 `wp={当前节点,[宝物平台],P2}`；`update_route_by_door_1~4` 四合一；删 `door7route`/`door_return_via_N4`/`ret_via_P1` + 12 条内联数组；`mapInit()`/`Clear_door()` 加 `nav_clear_blocked()` | 门回程路线**逐字不变**；规划失败改为死停（原为硬走数组） | 新脚本 12/12 + 原 4 脚本 ✅ |
+| **B3 待做** | 同一套机制再吃掉 `plan_treasure_return()` 的 4 分支门梯、`get_newroute()` 的 8 分支回程梯（这两处是"二轮/宝物回程该走哪扇门"，可用同一张门区边表表达） | 路线逐字不变 | 新脚本扩展到门状态组合 |
+
+> **B2 保留的一处小穷举**：`door1route = {N3,N8}`（`barrier.c` 的 `DOOR_D3 NO_PASS` 分支：从 N4 去撞 D4 读灯）。它是**去程**不是回程，只有 2 个节点，未纳入本次改造。
+> **B2 的有意行为变化**（需实车确认）：① 规划失败现在 `CarBrake_Stop()` 死停，不再照旧数组硬走；② `treasure` 非法(0/1)时旧代码不写路线（未定义），新代码直接回家。
 
 ### 阶段 C —— 数据驱动（把剩余 if 链/魔法数字搬进边表；与 B 独立，可单独做）
 
