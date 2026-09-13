@@ -69,6 +69,44 @@ def eval_expr(expr):
     except Exception:
         return None
 
+def sync_field_from_config(config_path=None):
+    """★ 从 Mission/config.h 读 USE_FIELD，把**该场地**的长度宏覆盖进 MACROS，再解析图。
+
+    为什么需要：本模块顶部的 `USE_FIELD` 是手写常量（默认 FIELD_COMP），而真正的场地开关在
+    `Mission/config.h`。两者一旦不同步（例如 config.h 切到 FIELD_SCHOOL），镜像会用错长度算路线——
+    实测后果：`wp={N6,N3,P4}` 在"比赛长度"下算出 `N3→N4`(掉头,510)，在"学校长度"下真值是
+    `N3→N8→N5`(493) —— 结论完全相反。所以**凡是拿镜像预测真实路线的地方，必须先调本函数**。
+    其它校验脚本（_check_wp/_check_csr/_check_door_*）的 golden 是按 FIELD_COMP 建的，未调用本函数即保持原行为。
+    返回 (config.h 里的场地名, 本模块当前等价的场地名)。
+    """
+    path = config_path or os.path.join(BASE, "Mission", "config.h")
+    txt = open(path, encoding="utf-8", errors="replace").read()
+    m = re.search(r"^\s*#define\s+USE_FIELD\s+(\w+)", txt, re.M)
+    field = m.group(1) if m else "FIELD_COMP"
+    # ⚠️ config.h 里有 **多个** `#if USE_FIELD == FIELD_SCHOOL ... #else ... #endif` 块
+    #    （楼梯/山区段长度、门区段长度、门后退距离、角度基准各一块），必须**全部**遍历，
+    #    只匹配第一块会漏掉门区长度（踩过：门段仍按比赛 200 算，调试路线预测又反了）。
+    blk_iter = list(re.finditer(r"#if\s+USE_FIELD\s*==\s*FIELD_SCHOOL(.*?)#else(.*?)#endif", txt, re.S))
+    in_block = set()
+    for blk in blk_iter:
+        body = blk.group(1) if field == "FIELD_SCHOOL" else blk.group(2)
+        for mm in re.finditer(r"^\s*#define\s+((?:LEN|DOOR_LEN)_[A-Z0-9_]+)\s+([0-9]+)\b", body, re.M):
+            MACROS[mm.group(1)] = int(mm.group(2))
+            in_block.add(mm.group(1))
+        # 两个分支里出现过的宏名都记下来（下面对"块外派生宏"求值时排除它们）
+        for mm in re.finditer(r"^\s*#define\s+((?:LEN|DOOR_LEN)_[A-Z0-9_]+)", blk.group(1) + blk.group(2), re.M):
+            in_block.add(mm.group(1))
+    # 块外派生宏（如 LEN_N18B5 = LEN_N22B7 - 20、LEN_B7C6 = LEN_B5N19 + 20）：
+    # 它们在**第一块之后、最后一块之前**也有，所以必须全文扫一遍、只跳过块内定义过的名字
+    for mm in re.finditer(r"^\s*#define\s+((?:LEN|DOOR_LEN)_[A-Z0-9_]+)\s+([^/\n]+)", txt, re.M):
+        if mm.group(1) in in_block:
+            continue
+        v = eval_expr(mm.group(2))
+        if v is not None:
+            MACROS[mm.group(1)] = v
+    module_field = "FIELD_SCHOOL" if USE_FIELD == FIELD_SCHOOL else "FIELD_COMP"
+    return field, module_field
+
 def parse_graph():
     """解析 nav_graph_data.c 的 NavEdgeTbl[]（自描述边表，含 from）。返回边列表。"""
     txt = open(GRAPH_C, encoding="utf-8", errors="replace").read()
@@ -196,9 +234,10 @@ OBS_PENALTY = {
     9:1000.0,         # BACK 后退桩（绝不该被选为前进路径）
     10:90.0,          # BSoutPole 南极
     11:80.0,          # QQB 跷跷板
-    12:60.0,          # BLBS 短波动板
+    12:70.0,          # BLBS 短波动板（原写 60，与 nav_planner.c 的 70 不一致 → 已同步；实测 60/70 都不动金标）
     13:50.0,          # BLBL 长波动板（BLBL<BLBS，南环/长波动板更快；使最小 Hill 降到 240）
-    14:0.0,           # DOOR 门：应由门状态硬过滤，不靠权重
+    14:60.0,          # DOOR 门：原 0（"用必经点处理，不靠权重"）→ 2026-09-11 起 60（与 nav_planner.c 同步；
+                      #               门有停车/等线/读灯 500ms 的固定开销，取 0 会让规划器把穿门当捷径）
     15:90.0,          # BHM 高山
     16:0.0,           # IGNORE
     17:0.0,           # Special_node

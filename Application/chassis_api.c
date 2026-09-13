@@ -69,7 +69,7 @@ typedef struct {
 } LinePidStep_t;
 
 static const LinePidStep_t line_pid_steps[] = {
-    { 75, 3.5f, 0, 200 },   /* SPEED5 */
+    { 75, 3.0f, 0, 200 },   /* SPEED5 */
     { 70, 3.5f, 0, 200 },   /* SPEED4 */
     { 60, 4.0f, 0, 120 },   /* SPEED3 */
     { 55, 5.0f, 0, 150 },   /* SPEED25 */
@@ -681,7 +681,7 @@ float Chassis_GetLineGyroComp(void)
 
 /* ========= 翘头保护阈值 ========= */
 #define WHEELIE_PITCH_THRESHOLD      8.0f    /* pitch > basic_p + 8° 视为翘头 */
-#define WHEELIE_CINCREMENT_REDUCED   0.1f   /* 翘头保护时的加速度 */
+#define WHEELIE_CINCREMENT_REDUCED   0.2f   /* 翘头保护时的加速度 */
 
 #define LINE_LOST_THRESHOLD  80   // 80 * 5ms = 0.4秒
 

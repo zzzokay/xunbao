@@ -167,6 +167,7 @@ typedef enum { is_No=0, is_Free, is_Line, is_Turn, is_Gyro };
 
 **循迹**：16 路 GPIO/DMA → `bsp_linefollower` → `scaner.c:Scaner_Update()`（单入口；`line_data[5]` 滑动窗口，static 仅本文件访问）→ `Get_scaner_error()`（多数决+簇投票，丢线时返回上一次有效错误）→ `Go_Line()` 外环 PID → 差速。`value_calculation` 四种 `TRACK_` 模式均显式 case；`Scaner_ClearLineData()`/`Scaner_IsLineLost()` 为外部接口。
 **寻中线**：亮灯总数≥4 保守判中心(error=0)；中心两灯(7,8)同亮判中心；否则扫描**连续亮灯段**（不允许跨空隙），段内只取最靠中心 2 灯算平均位置。
+**寻左/寻右（边寻线）**：`calc_left_edge`/`calc_right_edge` 取最靠边的一段（最多 2 灯）；**节点保护**——用 `edge_run_len()` 量该段连续长度，`> EDGE_SEG_MAX_LED`（默认 3）判为节点横向线/粘连 → `return -1`（帧记 `ALL_ERR`，交 5 帧历史保持上次有效误差），避免节点处误差大跳变。参数 `EDGE_SEG_MAX_LED` 在 `scaner.c`（与 `MAX_LED` 同处）。⚠️ 局限：只覆盖"选中段被拉长（粘连宽线）"，"主线+独立 2 灯节点臂"拦不住，靠 `pos_detect`+5 帧投票兜底。
 **IMU**：USART3 DMA + IDLE 中断 → `imu.c` 0x55 协议 10 字节校验 → `imu.yaw/roll/pitch`(±180°)；`IMU_CalibrateZero` 10 次采样归零，`getAngleZ()=yaw+imu.compensateZ`。
 **视觉**：USART6 → `K210.c`（`WaitFor_QR`→`flag_line_clue`/`flag_clue_stage_A/B`；`Door_ReadPass`→`door_pass[5]`；OCR→`flag_clue_A/B`→`treasure`）。
 
@@ -197,7 +198,7 @@ Navigation()
 |----|--------|------|
 | `USE_FIELD` | `FIELD_SCHOOL` | 场地：`FIELD_COMP`=比赛 / `FIELD_SCHOOL`=学校。学校档 14 个 `TODO(学校)` 值已填数字，仍需按学校场地实测复核 |
 | `USE_PLANNER_ROUTE` | `1` | `1`=路线（初始、出门点→平台、二轮）由最短路算法生成；`0`=回退到手写 `route[]`。**一轮门回程(`update_route_by_door_*`)不受此开关影响——它恒用规划器 + 门区边禁用**（见 §10）。⚠️ **切回 `0` 前必看**：`update_route_at_door_for_stageAB` 的手工兜底依赖已删除的 `rout_57/58/67/68`，该段现为 `#if !USE_PLANNER_ROUTE` 条件编译，需先恢复这些数组才能编过（即当前 `0` 档实际编不过） |
-| `MAP_DEBUG` | `0` | `1`=用 `FIRST_POINT→END_POINT` 最短路径自动生成调试路线 |
+| `MAP_DEBUG` | `0` | `1`=用 `FIRST_POINT→[VIA_POINT]→END_POINT` 必经点最短路径自动生成调试路线（`VIA_POINT=0` 表示**不用途径点**，即原来的两点行为） |
 | `SKIP_ROUND1` | `0` | `1`=跳过第一轮直接进第二轮（调试用）；正式比赛必须 0 |
 | `MAIN_DEBUG` / `STEP_DEBUG` | `0` / `0` | 调试分支/按一下跑一个节点；正式比赛必须 0 |
 | `DEBUG` | `0` | `1`=门颜色走 `debug_door_pass[]` 预设（barrier.c） |
@@ -240,6 +241,62 @@ N11=50 G1=51 B10=52 B11=53
 ### 9.4 必经点原则（改 `mission_planner.c` 的 `wp` 时必守）
 `wp` **只写**「起点 + 门节点(`N5/N8/N12/N10/N3`) + `P` 平台 + 终点」；**别加平台入口锚点**（P5 前 `N13`、P6 前 `N9`、far 入口 `N4`）——P5/P6 是支路、P6 跷跷板单向由图强制，规划器必然经过它们，写进去冗余。**门节点必须**，否则会跨未确认/单向门。改 `wp` 后可用 `scripts/validate/_check_wp.py` 验证"删了某个必经点路线不变"。
 
+### 9.5 图形化改图工具 `scripts/map_editor/`（⭐ 推荐先用它，别手抠边表）
+
+> 手改 124 行边表容易改漏（`NAV_EDGE_COUNT`、分组注释、`flag` 位、正反向边）。用编辑器改，
+> 改完导出 C 代码，或让它直接写回（会先备份）。
+> 📄 **[scripts/map_editor/README.md](../scripts/map_editor/README.md)**（给人：使用说明）
+> ｜ 🤖 **[scripts/map_editor/AI_CONTEXT.md](../scripts/map_editor/AI_CONTEXT.md)**
+> （**给 AI：架构、坐标系、必须保住的不变量、安全规则与踩坑、常见改动指引 —— 改这个工具前先读它**）
+
+```bash
+python scripts/map_editor/map_editor.py    # 打开即当前固件地图；零依赖（tkinter 自带）
+```
+
+- **两条心智模型**：① **节点位置只是示意图**——图上远近不代表实际长度，长度只认 `step` 数值，
+  所以**节点随便拖，不影响任何数值**；图的作用是表达"连接关系 + 角度关系"并贴合标准节点图。
+  ② **导出逐字段保真**——不做任何编辑时，导出的边表与源文件完全相同（`_selftest.py` 断言差异 0 处）。
+- **底图对齐**：自动把 `寻宝地图/节点图.jpg` 半透明铺在下面。对齐依据是 `SEED_POSITIONS`
+  就是该 **1729×1080 原图的像素坐标**（1:1，无需换算）。⚠️ `C2/B4/C6/C7/C8/G1` 六个节点
+  原图**没画**，坐标是估的，拖一下即可。
+- **能力**：拖节点；Shift 拖出连线；点选改 `from/to/flag/angle/step/speed/func/comment`（`angle/step`
+  可直接写 `ANGLE_*`/`LEN_*`/`DOOR_LEN_*` 宏，按 `config.h` 当前 `USE_FIELD` 求值）；
+  flag 25 位勾选板；补反向边；校验（孤立/单向/重名/宏能否求值）；必经点最短路（与固件同一套
+  Dijkstra + `NavObsPenalty`）；导出 `NavEdgeTbl[]`/`enum MapNode`/`NAV_EDGE_COUNT`/`route[]`；
+  写回固件（**先自动备份**到 `scripts/map_editor/backups/`，有 error 级问题拒绝写回）。
+- ⚠️ **工具只保证"导出文本正确"，不保证"业务自洽"**：增删节点后必须自己同步检查
+  `mission_planner.c` 的 `wp`、门逻辑、宝物表、`barrier.c` 的节点比较（节点编号 = 枚举顺序）。
+
+### 9.6 `MAP_DEBUG` 地图调试路线（跑单点/多点用，与比赛 `wp` 无关）
+只改 `Mission/config.h` 三个宏，`map.c:mapInit()` 的 `#if MAP_DEBUG` 分支用 `nav_plan_waypoints()` 自动生成 `route[]`：
+```c
+#define FIRST_POINT   N6    /* 调试起点（MapNode 枚举名） */
+#define VIA_POINT     0     /* 调试途径点：填 0 = 不用途径点（退化成两点路线） */
+#define END_POINT     P3    /* 调试终点 */
+```
+- 语义 = `wp = {FIRST_POINT, [VIA_POINT], END_POINT}` 的**必经点**规划：`VIA_POINT≠0` 时路线保证依次经过它。
+- ⚠️ **`S1=0`**（`enum MapNode` 第 0 项），所以 **S1 不能当途径点**（`0` 已被占为"不用"哨兵）。
+- ⚠️ 途径点是**支路/平台**时（如 `P4`、`P5`）会"去一趟再折返"，`route[]` 里会出现回到主路的节点，属正常。
+- `route[]` 语义不变：`nodes.nowNode` = 第一跳，`route[]` 从 path[2] 起（不与 nowNode 重复），末尾 `0xFF`。
+- **陀螺仪参考角（重要）**：`main_task.c` 在 `mapInit()` 之后立刻 `mpuZreset(get_latest_yaw(), nodes.nowNode.angle)`；而 `nowNode` = 「`FIRST_POINT`→第一跳」这条边，`mpuZreset` 令 `compensateZ = need2turn(yaw, referangle)`、`getAngleZ()=yaw+compensateZ`，所以**参考角 = 该边的 `angle`**（注意：地图里**没有"节点角度"**，只有边有 `angle`＝本段航向）。⇒ **摆车时必须把车放在 `FIRST_POINT`，且车头顺着 `FIRST_POINT`→第一跳的方向**，否则整轮所有转弯一起偏这么多。
+  - 参考角随"第一跳"变：`FIRST=N6→N5=0°`、`N9→N10=180°`、`C7→B10=-90°`、`N8→N3=-35°`；**途径点也可能改掉第一跳**（`FIRST=N6,END=P3` 无 via=0°，`VIA=P5`→第一跳 C1=50°，`VIA=P4`→第一跳 P4=180° 起手就上平台）。
+  - 校准时机在 `main_task.c` 的**红外等待之前**（line 62 早于 77~81 行的挡板等待）：**校准后别再用手机械摆正车头**（`getAngleZ()` 是相对量，会跟着一起转），要重校就复位一次。
+  - 现存约定一致：`barrier.c:397`（巡线稳定重校）与 `ArriveDetect_task.c:29` 同样用 `nowNode.angle`，可见"`nowNode.angle` = 当前边航向"是全工程统一语义。
+  - ⚠️ 唯一小坑：`FIRST_POINT=S1`(=`0`) 时 `nodes.lastNode.nodenum==0` 会撞上 `Nav_IsStraightThrough()` 里"首个边未初始化"的哨兵，只影响第一段是否加巡线陀螺阻尼，**不影响角度**。
+- ⚠️ **场次(`USE_FIELD`)必须同步**：`scripts/validate/_weight_calib.py` 顶部的 `USE_FIELD` 是手写常量（默认 `FIELD_COMP`），与 `Mission/config.h` 的 `USE_FIELD` 不同步时，镜像算出的"调试路线"会和车上实际跑的不一样（**2026-09-11 实测踩过**：`FIRST=N6,VIA=N3,END=P4` 在门惩罚 0 + 学校长度下是 `N3→N8→N5`、比赛长度下是 `N3→N4` 掉头）。已加 `_weight_calib.sync_field_from_config()`（**注意 config.h 里有 4 个 `#if USE_FIELD == FIELD_SCHOOL` 块，必须全部遍历**，只取第一块会漏掉门区长度），`_check_map_debug.py` 每次自动按 `config.h` 覆盖长度宏 + 打场次告警；`_check_wp/_check_csr/_check_door_*` 的 golden 仍按 `FIELD_COMP`（保持原行为）。镜像的 `OBS_PENALTY` 也已与 `nav_planner.c` 对齐（`DOOR`→60、`BLBS` 60→70）。
+- ⚠️ **门惩罚已从 0 提到 60**（`nav_planner.c: NavObsPenalty[14]`，2026-09-11 改）。原值 0 的设计是"门用必经点约束、不靠权重"，但门有**固定时间开销**（停车→等线 `Scaner.ledNum>=8`→刹车→读灯 500ms+转弯），纯"长度+转弯"模型完全没算 → 取 0 会让规划器把"穿门"当**免费捷径**。实测这个偏差（学校场地 `N3→P4`）：
+
+  | `N3→P4` 两种走法 | 门惩罚 0（旧） | 门惩罚 60（现） |
+  |---|---|---|
+  | 原路折返 `N3→N4→N5→N6→P4` | 510 | 510 |
+  | 穿门 `N3→N8→N5→N6→P4` | 493(学校) / 523(比赛) | 613 / 643 |
+  | 规划器选 | **穿门**（学校） | **折返** |
+  
+  取 60 = 与 `UpStage` 同量级。回归证据：`NavObsPenalty[DOOR]` 在 **0→300** 全程，15 条参考路线 / 12 条门回程 golden / 门逻辑表 / wp 不变量**全部不变**，只有"本来就不该穿门"的组合会改。⚠️ **残余风险**：门节点的"从哪一侧进"是靠**成本最省**决定的（`door()` 用 `lastNode/nowNode` 判 `D2/D3/D4/D5`），提权重后若某个 wp 组合换了进门方向 → 读的灯也换 → **必须实车复核门区**。`DOOR1`(18) 目前**无任何边使用**，保持 0。
+  另外：**必经点交界处那个转弯在规划里不计费**（`nav_shortest_path` 对段首边只算 base）——所以"在 N3 拐 145° 还是 180°"的差别根本没进成本，这也是上面两种走法只差十几的原因；评估改动时别用"整条 route 总成本"下结论。
+- ⚠️ **调试路线一进 DOOR 边就不再是你的路线**：到点后 `map_function(DOOR)→door()`，而 `door()` 开头 `map.point=0; route[0]=0xFF;`（`barrier.c`）会**清空 `route[]`**，之后跑比赛门逻辑（`DEBUG=0` 时真读红绿灯，`door()` 按 `lastNode/nowNode` 定 `DOOR_D2/D3/D4/…`）。脚本检测到路线经过 DOOR 边会告警。想纯跑路线就别让必经点/终点把它带进门区。
+- 校验：`scripts/validate/_check_map_debug.py`（穷举 54×54 断言"`VIA_POINT=0` 与改造前两点行为逐字一致"+ via 路线真经过途径点；第 4 节打印当前配置的**陀螺仪参考角**、摆车方向、**逐段航向/转弯量**，并对"**180° 原路折返**"和"**经过 DOOR 边**"告警——平台节点(UpStage/UpStageHome/BSoutPole)上的折返会标注为"平台内部转身，正常"）、`scripts/validate/_syntax_map_debug.py`（把该代码块抽出来做 GCC 语法检查）。
+
 ---
 
 ## 10. 关键函数位置一览（知道去哪儿改）
@@ -255,9 +312,11 @@ N11=50 G1=51 B10=52 B11=53
 | 一轮门回程 | `update_route_by_door_1~4()` → 统一走 `route_return_home()`（**规划层禁用门区 + `wp={当前节点,[宝物平台],P2}`**，不再手写路线）。door_2 额外放行 `N8→N3`（退回重读 D4）；`door_zone[8][2]` 是禁用的门区边表 | `Mission/mission_planner.c` |
 | 第二轮完整路线 | `get_newroute()` / `Clear_door()` / `load_route_at()` | `Mission/mission_planner.c` |
 | 门通行检测 + 障碍物理 | `door()` / `Door_ReadPass()` / `door_set_pass_node()` / `door_retreat()` | `Mission/barrier.c` |
+| **地图图形化编辑（辅助工具，不进固件）** | `map_editor.py`（界面）/ `map_model.py`（解析+导出+校验+Dijkstra） | `scripts/map_editor/`（见 §9.5） |
 | 底盘/电机/传感器 | `Chassis_*` API（`Chassis_Init/SetMode/SetTargetSpeed/SetTrackMode/MotorControl/Brake/DriveDistance_Blocking/Periodic_Update_5ms/OverrideLinePid`） | `Application/chassis_api.c` |
 | 16 路巡线 | `Scaner_Update()` / `Go_Line()` / `Get_scaner_error()` | `Application/scaner.c` |
 | 转弯 | `Turn_Angle_Base()` / `Go_Angle()` / `Stage_turn_Angle()` / `Turn360Step()` | `Application/turn.c` |
+| **转弯前补偿距离** | `GetForwardDistanceBeforeTurn()`（停车转，默认19）/ `GetForwardDistanceBeforeGyroTurn()`（陀螺转，默认0） | `Navigation/map.c` |
 | 内/外环 PID | `incremental_PID()` / `positional_PID()` | `Math/pid.c` |
 | 电机 PWM / 编码器 | `motor_set_pwm()` | `Motor/motor.c` |
 
@@ -280,7 +339,104 @@ N11=50 G1=51 B10=52 B11=53
 4. **include 规则**：所有源目录已在 Keil/EIDE 的 IncludePath 里，**一律用短写** `#include "xxx.h"`（全工程统一，不再用 `../Xxx/xxx.h`）。前提是**裸名必须唯一**：工程里 `sys.h`（`Application/`）与 `adc.h`（`Core/Inc/`）原各有两份同名文件，已分别删掉 `USMAT/sys.h`、`Module/adc.{c,h}` 消除歧义；**新增同名头文件前先确认不会撞名**，否则 `-I` 顺序会静默改变命中对象。`#include` 的查找顺序是「当前文件所在目录 → `-I` 列表顺序」。
 5. **别做的操作**：`motor_task` 5ms 循环内别加阻塞/大量 `printf`（破坏周期）；别把负值写进 PWM CCR（反向换 TIM 通道极性并取反编码器）；CubeMX 重新生成后要注释 `main.c` 定时器中断回调 + `stm32f7xx_it.c` 的 `USART3_IRQHandler`。
 6. **改完同步文档**：改完代码更新本文件（相关函数/配置/结构）和 [README.md](README.md) 的修改日志（写日期 + 改了啥）。
-7. **验证方法**：`scripts/validate/_weight_calib.py`（复现参考路线/权重灵敏度）、`scripts/validate/_check_csr.py`（CSR 连通性）、`scripts/validate/_check_wp.py`（必经点删除不改路线）、`scripts/validate/_check_door_logic.py`（门逻辑表驱动）；这些脚本只做校验/分析，不进固件。
+7. **验证方法**：`scripts/validate/_weight_calib.py`（复现参考路线/权重灵敏度）、`scripts/validate/_check_csr.py`（CSR 连通性）、`scripts/validate/_check_wp.py`（必经点删除不改路线）、`scripts/validate/_check_door_logic.py`（门逻辑表驱动）、`scripts/validate/_check_door_perm.py`（门回程边禁用 golden）、`scripts/validate/_check_map_debug.py`（`MAP_DEBUG` 起终点/途径点路线）、`scripts/validate/_syntax_map_debug.py`（`map.c` 的 `MAP_DEBUG` 代码块 GCC 语法检查——`map.c` 整体因 RVDS `__asm` 编不过，故抽块检查）；这些脚本只做校验/分析，不进固件。
+8. **改地图/路线建议用图形化工具**：`python scripts/map_editor/map_editor.py`（见 §9.5）。手抠 124 行边表容易漏改 `NAV_EDGE_COUNT`/正反向边；工具能导出逐字段保真的 C 代码，也能直接写回（先自动备份）。改完仍要跑上面 7 个脚本 + Keil 编译。
 
 ---
 > 更细的底层资料直接看代码：`map.h`(节点枚举/结构)、`map_message.c`(边表)、`nav_planner.h`(权重 `NavObsPenalty[]`/`NAV_W_TURN`)、`chassis_api.c`(PID 阶梯 `line_pid_steps[]`)、`scaner.c`(权重表 `line_weight_default[16]`)、`pid.c`(内环/外环实现)。
+
+---
+
+## 13. 巡线稳定性两处改动：配置 / 验证 / 排查
+
+> 用于"跑直线/过节点还摆"时快速定位。两处都是**附加**逻辑，可独立关闭，互不依赖。
+
+### 13.1 长直线陀螺仪阻尼（方案A）
+
+- **在哪**：`Application/chassis_api.c/h` 的 `Chassis_EnableLineGyroComp()/DisableLineGyroComp()/GetLineGyroComp()`；`Navigation/map.c` 的 `Nav_IsStraightThrough()` 判"直穿段"并开关；`Application/scaner.c` 的 `Go_Line()` 末尾 `Fspeed += Chassis_GetLineGyroComp();`。
+- **原理**：只做**角速度阻尼**（`Gcomp = -kd × yaw_rate`，yaw_rate 为一阶低通后的角速度），**不加绝对目标角** → 不需要 `RESTMPUZ`（一阶差分自动抵消零位偏差），也不怕进直线时车头偏几度；横向纠偏仍由激光负责，两者分工。
+- **参数（`Application/chassis_api.h`，当前值）**：`LINE_GYRO_COMP_KD = 0.08f`（增益，°/s→差速）、`LINE_GYRO_COMP_MAX = 7.0f`（陀螺仪项**独立小限幅**，保证只是小修正）、`LINE_GYRO_YAW_FILTER = 0.8f`（yaw_rate 一阶低通，越小越平滑/滞后越大）。
+- **启用判定（`Navigation/map.c`）**：`Nav_IsStraightThrough()` = `nodes.lastNode.nodenum != 0`（首边未初始化哨兵）且（`|need2turn(nowNode.angle, nextNode.angle)| < STRAIGHT_ANGLE_THRESH(5°)` **或** `nodes.nowNode.step >= 90`）。`Nav_TurnAndAdvance()` 也用它决定"直行推 15cm（`Chassis_DriveDistance_Blocking(is_Line,15,...,edge_ignore=6)`）"。
+- **排查**：
+  - **越摆越大（助振）** → 翻转符号：`Chassis_GetLineGyroComp()` 里 `-chassis.line_gyro_kd` 改 `+`。
+  - **高频嗡嗡** → 调小 `LINE_GYRO_YAW_FILTER`；**低频摆尾** → 调小 `LINE_GYRO_COMP_KD`；**输出顶限幅/发飘** → 调小 `LINE_GYRO_COMP_MAX`。
+  - **高速小幅度震动（只在高速出现）** → ① 先 A/B：`KD=0` 确认是不是本项；② 按频率定方向：**细密高频（微分噪声主导）**→调小 `LINE_GYRO_YAW_FILTER`（0.8→0.5，增加平滑）；**固定几 Hz（滞后/相位裕度主导）**→调大 `LINE_GYRO_YAW_FILTER`（0.8→0.95，减少滞后）；③ **两种情况"降 `KD`"都有效**（相位裕度不足时降增益直接见效），**别靠加大 `KD` 求"快"**——那是加大环路增益，只会更抖。
+  - ⚠️ **滞后量参考**：一阶低通 `LINE_GYRO_YAW_FILTER=a` 的截止 `f_c = -ln(1-a)/(2π·5ms)` → `a=0.8`≈**51Hz**、`a=0.5`≈22Hz、`a=0.4`≈16Hz；相位滞后 `atan(f/f_c)`，51Hz 档在 5/10/20Hz 仅约 6°/11°/21°。判断"是不是滤波滞后造成"要先看抖的频率。
+  - ⚠️ **本项不随速度缩放**（循迹项是 `×|speed|/40`）：高速时循迹项变大、本项固定，易顶到 `LINE_GYRO_COMP_MAX` **饱和**，饱和后是固定幅度 bang-bang，易形成小幅极限环 → "高速抖"优先**降 `MAX`**，别加大 `KD`。
+  - ⚠️ **滞后主要在上游（关键）**：本项微分的 `getAngleZ()` 是 IMU 的**融合角度帧**（`imu.c` 只解析角度帧；软件滤波 `filter_Open` 已为 0），模块内部融合本身低带宽/有滞后 → 本层 `LINE_GYRO_YAW_FILTER` 再怎么调收益有限。**根治：改用模块原生角速度帧**（WIT/JY62 系为 `0x52`，`gz` 即偏航角速度）→ `gcomp = -kd × gyroZ`，**无微分、无融合滞后、无微分噪声**，同时解决"慢"与"噪声"（需先抓原始帧确认模块确实发 `0x52`）。
+  - **完全没效果** → 没触发直穿判定（看 `step>=90`/角差条件）或 `KD=0`。
+  - 手推车头再松手：一两个来回停住=符号对；等幅/增幅=符号反或增益过大。
+  - 整体关闭：删 `Nav_SegmentInit()` 里的 `Chassis_EnableLineGyroComp(...)` 调用，或 `LINE_GYRO_COMP_KD = 0`。
+
+### 13.2 边寻线节点保护
+
+- **在哪**：`Application/scaner.c` 的 `calc_left_edge()`/`calc_right_edge()` + `edge_run_len()`。
+- **参数**：`EDGE_SEG_MAX_LED`（默认 3；被选中连续亮灯段长度 **>** 该值即判节点、丢帧）。
+- **排查**：正常直线被误丢 → **调大**；过节点还在摆 → **调小**；节点处触发丢线急刹 → **调大**；想完全恢复旧行为 → 调到 99。
+- **局限**：只覆盖"选中段被拉长（线与线粘连成宽线）"；"主线 + 独立 2 灯节点臂"（如 CLEFT bits13/14）拦不住，靠 `pos_detect` + 5 帧投票兜底。
+
+---
+
+## 14. 转弯前补偿距离（硬补偿）——现状分析与改造方案
+
+> **状态：已分析、已定方案，尚未改代码。** 完整报告见
+> [转弯补偿拟合分析.md](转弯补偿拟合分析.md)（问题定位）与 [转弯补偿_能算就算方案.md](转弯补偿_能算就算方案.md)（落地方案）。
+
+### 14.1 现状（务必先知道这三点）
+
+1. **两张表 29 条，只有 22 条真正生效**，7 条是死值/无效：
+   - 路由错分支（永远不生效）：`B3→N2→P2`=24、`N8→N3→P3`=18、`B8→N9→N10`=30、`B2→N1→P1`=18、`N5→N12→N11`=5、`N4→N5→N12`=6
+   - 边表里根本没这条组合：`N2→N8→N10`=15
+   - 原因：分支判定是 `(STOPTURN && |turn|>30) || |turn|>=90`，与表项所在的位置没有一致性约束。**调车时很容易调到一张没在跑的表。**
+2. **覆盖率极低**：边表里"需要停车转"的 (入边,出边) 组合共 **241** 个，实测值只覆盖 **14** 个（6%），其余 93% 一律吃默认 **19**。
+3. **表里 `angle` 是可信的**：与节点图上的真实走向只差一个固定的参考系旋转（图像分析结论）。
+   ⚠️ 但**节点图是示意图不是按比例图**（`B9→N7` 表 5cm / 图上约 99cm），**不能用像素反推距离**。
+
+### 14.2 为什么"硬补偿"不通用（根因）
+
+硬补偿那一列**同时表达了两件不同的事**：
+
+| 信号 | 内容 | 能否计算 |
+|---|---|---|
+| **A 真·转弯几何** | `Δ = L·(1−cosφ) + d(判据)`，`L` = 旋转中心→传感器板中心纵向距离 | **能**。9 条"平地+大角度"数据反解 `L` 中位 **17.0**、均值 **19.2**，`1−cosφ` 与实测相关 **r=+0.70** |
+| **B 段长补偿** | `map.c` 到达门槛是 `里程 ≥ 0.7×step`；`step≤18cm` 时车被**里程提前放行**，补偿实际在补段长 | **不能**，只能改数据。证据：`0.7×step + 补偿` 落在 17~38cm（正常检测起点量级） |
+
+**崩掉的点有零反例的共同点**（用地图像素坐标定位后确认）：
+①跷跷板/山/桥/平台（板子离地，检测时刻不可预测）②门区/X 交叉（多判据竞争）③入边 `step≤18cm`。
+对上的 8 条**全部是普通平地的单线节点**。
+
+### 14.3 改造方案：能算就算、不能算保留原值（含 5cm 闸门）
+
+```
+Tier1  表里有这条三元组                        → 用实测值
+Tier2  规则命中 且 |公式 − 实测| ≤ 5cm          → 用公式
+Tier3  其它                                    → 保持原默认 19
+
+规则：入边 func ∈ {NONE, DOOR}  且  step ≥ 20cm  且  100° ≤ |转弯| < 178°
+公式：Δ = 19.0 × (1 − cosφ) + d(判据)
+      d(CRIGHT)=+11   d(CLEFT)=−4   d(DLEFT)=−5   其他=−4
+```
+
+- **覆盖率**：Tier1 实测 8 + **Tier2 算出 53**（其中 47 条原本吃 19）+ Tier3 保留 186。
+  （按"所有 241 个组合"口径，实测值名义上覆盖 14 个；再叠加 5cm 闸门后，最终走实测值的 8 个、走公式的 53 个。）
+  ⚠️ 注意"22 条生效"与"覆盖 14 个组合"是两个口径：22 条 = 表里去掉 7 条死值后**真正会被执行的表项数**（含 5 条入边是障碍/短段的），14 = 这些表项对应的 (入边,出边) 组合在 241 个里占的个数。
+- **5cm 闸门挡回 3 条**（公式与实测差太多，一律用实测）：`N13→N18→B5`(60 vs 28.9)、`C4→N20→P8`(35 vs 46.9)、`N4→N3→N8`(20 vs 29.1)。
+- **闸门让机制自保护**：以后每补一条实测数据，公式与它矛盾就自动退回实测值 ⇒ 可以放心一条条加数据。
+- **陀螺不停车转分支（`GetForwardDistanceBeforeGyroTurn`）本次不动**：它 44 个组合绝大多数是小角度，现有表+默认 0 够用，而公式在 <90° 未经验证。
+- **依赖**：Tier2 需要**节点检测的判据标志位**——`ArriveDetect_task.c` 的 `deal_arrive()` 目前只返回 0/1，需把"哪个判据命中"带出来交给 `Navigation()`。这是唯一必需的代码新增。
+- ⚠️ 实现用 `cosf`（M7 只有单精度 FPU，不能用 `cos`）。
+
+### 14.4 后续收益点（按性价比）
+
+1. **复核 5 条 `step ≤ 18cm` 的段长**（`B8→N9`=1、`B9→N7`=5、`P8→N20`/`B2→N4`=12、`P6→N7`=18）—— 不用写代码，量尺子即可，那几条"怪值"可能自己就正常。
+2. **补 3~5 条 90° 转弯的实测** → Tier2 从 53 条涨到约 106 条（R3 阈值放到 85°）。
+3. **量"旋转中心→板中心"实距**，替换拟合出的 `L=19` → 公式从"拟合"变"求解"。
+4. **给 `N8` 补条目** —— 全图最复杂的 X 交叉（两条对角线 + 四条门臂），两张表里一条都没有。
+5. **单独查 `N13→N18→B5`**（实测 60 vs 公式 28.9，差 31cm）—— 唯一差得离谱的点，位于长斜边接独木桥处。
+
+### 14.5 分析脚本
+
+`scripts/analyze/analyze_turn_comp_*.py`（6 个，只读源码做统计，不进固件）：
+`base`（生效/死值清单 + 每条命中判据）、`step_check`（段长假设检验）、`rule`（判据验证）、
+`final_plan`（三层覆盖率）、`gate`（★最终方案 + Tier2 完整清单）、`map_geom`（节点图几何 vs 表里 angle）。
+详情见 [scripts/README.md](../scripts/README.md)。

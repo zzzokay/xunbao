@@ -33,9 +33,9 @@
  * LINE_GYRO_COMP_MAX   陀螺仪项独立小限幅，保证只是小修正、不主导转向
  * LINE_GYRO_YAW_FILTER yaw_rate 一阶低通系数（0~1，越小越平滑）
  * ================================================================ */
-#define LINE_GYRO_COMP_KD    0.08f
-#define LINE_GYRO_COMP_MAX   7.0f
-#define LINE_GYRO_YAW_FILTER 0.5f
+#define LINE_GYRO_COMP_KD    0.06f
+#define LINE_GYRO_COMP_MAX   8.0f
+#define LINE_GYRO_YAW_FILTER 0.9f
 /* 循迹边界模式 */
 typedef enum {
     TRACK_ALL = 0,        // 正常双边循迹

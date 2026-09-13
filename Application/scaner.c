@@ -228,14 +228,39 @@ void printf_byte(uint16_t data)
 /*循迹滤波*/
 #define MAX_LED	4
 
-/*--- 左循线：从左往右取第一段连续亮灯，最多2个灯 ---*/
+/* 边寻线(左/右)节点保护：被选中的连续亮灯段长度超过该值，判为节点横向线/线与线粘连，
+ * 丢弃本帧(return -1 → ALL_ERR，交由 5 帧历史保持上次有效误差)，避免节点处误差大跳变。
+ * 正常要跟的细线一般 1~3 灯；节点横线/粘连通常 >=4 灯(coarse_filter 只能挡 >=6)。*/
+#define EDGE_SEG_MAX_LED  3
+
+/*--- 统计从 start_bit 起、沿 dir(+1/-1) 的连续亮灯段长度（限定在 [lo,hi] 内）---*/
+static uint8_t edge_run_len(uint16_t detail, uint8_t start_bit, int8_t dir, uint8_t lo, uint8_t hi)
+{
+	uint8_t len = 0;
+	int16_t b = (int16_t)start_bit;
+	while (b >= (int16_t)lo && b <= (int16_t)hi && (detail & (1u << (uint8_t)b)))
+	{
+		len++;
+		b += dir;
+	}
+	return len;
+}
+
+/*--- 左循线：从左往右取第一段连续亮灯，最多2个灯；段过长(节点横线/粘连)则丢弃本帧 ---*/
 static float calc_left_edge(volatile SCANER *scaner, int8_t edge_ignore, uint8_t sensorNum, float *error, uint8_t *lednum)
 {
 	float pos = 0;
+	uint8_t lo = (uint8_t)(edge_ignore > 0 ? edge_ignore : 0);
+	uint8_t hi = sensorNum - 1 - lo;
+
 	for (uint8_t i = edge_ignore; i < sensorNum - edge_ignore; i++)
 	{
 		if ((scaner->detail >> (sensorNum - 1 - i)) & 0X01)
 		{
+			/* 首个亮灯：先量它所在连续段长度，过长判为节点干扰 */
+			if (*lednum == 0 && edge_run_len(scaner->detail, sensorNum - 1 - i, -1, lo, hi) > EDGE_SEG_MAX_LED)
+				return -1;
+
 			*lednum += 1;
 			*error += line_weight[i];
 			pos += i;
@@ -249,14 +274,21 @@ static float calc_left_edge(volatile SCANER *scaner, int8_t edge_ignore, uint8_t
 	return pos;
 }
 
-/*--- 右循线：从右往左取第一段连续亮灯，最多2个灯 ---*/
+/*--- 右循线：从右往左取第一段连续亮灯，最多2个灯；段过长(节点横线/粘连)则丢弃本帧 ---*/
 static float calc_right_edge(volatile SCANER *scaner, int8_t edge_ignore, uint8_t sensorNum, float *error, uint8_t *lednum)
 {
 	float pos = 0;
+	uint8_t lo = (uint8_t)(edge_ignore > 0 ? edge_ignore : 0);
+	uint8_t hi = sensorNum - 1 - lo;
+
 	for (uint8_t i = edge_ignore; i < sensorNum - edge_ignore; i++)
 	{
 		if ((scaner->detail >> i) & 0X01)
 		{
+			/* 首个亮灯：先量它所在连续段长度，过长判为节点干扰 */
+			if (*lednum == 0 && edge_run_len(scaner->detail, i, +1, lo, hi) > EDGE_SEG_MAX_LED)
+				return -1;
+
 			*lednum += 1;
 			*error += line_weight[sensorNum - 1 - i];
 			pos += sensorNum - 1 - i;

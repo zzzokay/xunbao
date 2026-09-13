@@ -1,4 +1,4 @@
-#ifndef __CONFIG_H
+﻿#ifndef __CONFIG_H
 #define __CONFIG_H
 
 /* =====================================================================
@@ -11,16 +11,18 @@
 #define MAP_DEBUG      0   /* 1=打印地图调试信息 */
 #define STEP_DEBUG     0   /* 1=按一下跑一个节点调试；正式比赛必须改回0 */
 #define MAIN_DEBUG     0   /* 1=主任务跑调试分支(test_flag)，不会执行 Navigation()；正式比赛必须改回0 */
-#define DEBUG          1   /* 1=门颜色走 debug_door_pass 预设(barrier.c)；0=走真实颜色传感器 */
+#define DEBUG          0   /* 1=门颜色走 debug_door_pass 预设(barrier.c)；0=走真实颜色传感器 */
 
 /* ===================== 路线生成 ===================== */
 #define USE_PLANNER_ROUTE  1   /* 1=由最短路径算法生成路线；0=沿用现有路线数组 */
-#define SKIP_ROUND1        0   /* 1=跳过第一轮直接进第二轮（调试用） */
+#define SKIP_ROUND1        0  /* 1=跳过第一轮直接进第二轮（调试用） */
 
 /* ===================== 地图起始/目标 & 按键合并窗口 ===================== */
-/* 调试（MAP_DEBUG=1）时，只需改这两个节点名：程序用最短路径算法自动生成 起始点->目标点 的路线 */
-#define FIRST_POINT   N10    /* 调试起始点（MapNode 枚举名） */
-#define END_POINT     N9     /* 调试目标点（最优路径终点；不用再手写路线 / 不用 SECOND_POINT） */
+/* 调试（MAP_DEBUG=1）时，只需改这三个节点名：程序用最短路径算法自动生成 起始点->[途径点]->目标点 的路线 */
+#define FIRST_POINT   P4    /* 调试起始点（MapNode 枚举名） */
+#define VIA_POINT     P3     /* 调试途径点（MapNode 枚举名）；填 0 = 不用途径点（退化成两点路线）。
+                               注意 S1=0，故 S1 不能当途径点；要途经 S1 请改用别的调试方式 */
+#define END_POINT     P4     /* 调试目标点（最优路径终点；不用再手写路线 / 不用 SECOND_POINT） */
 #define NAV_TOKEN_WINDOW_MS  2000   /* 按键连按合并窗口(ms)：窗口内按几次=几张票 */
 
 

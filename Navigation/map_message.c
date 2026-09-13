@@ -101,11 +101,11 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { C2, N13, DRIGHT|DLEFT|CLEFT|CRIGHT|DRIFT, 120, 24, SPEED1, NONE },  /* C2->N13 */
 
     /* ========== C3 ========== */
-    { C3, N9, RIGHT_LINE|MUL2SING|NOTURN, 180, 24, SPEED1, NONE },  /* C3->N9 */
+    { C3, N9, RIGHT_LINE|MUL2SING|NOTURN, 180, 20, SPEED1, NONE },  /* C3->N9 */
     { C3, N14, DLEFT|MCLEFT|CLEFT, 90, 0, SPEED0, NONE },  /* C3->N14 */
 
     /* ========== N9 ========== */
-    { N9, B9, LEFT_LINE|NOTURN, -170, 0, SPEED1, QQB },  /* N9->B9 */
+    { N9, B9, LEFT_LINE|NOTURN, -165, 0, SPEED1, QQB },  /* N9->B9 */
     { N9, C3, DLEFT|LEFT_LINE, 0, 48, SPEED2, NONE },  /* N9->C3 */
     { N9, N10, DLEFT|DRIGHT|NEAR_CENTER, 180, 180, SPEED3, NONE },  /* N9->N10 */
 
@@ -237,7 +237,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { B10, C7, DLEFT|CLEFT, 90, 20, SPEED1, NONE },  /* B10->C7 */
 
     /* ========== B11 ========== */
-    { B11, C4, CRIGHT, -90, 50, SPEED2, NONE },  /* B11->C4 */
+    { B11, C4, CRIGHT, -90, 40, SPEED2, NONE },  /* B11->C4 */
     { B11, C8, DRIGHT|CRIGHT, 90, 10, SPEED1, NONE },  /* B11->C8 */
 };
 

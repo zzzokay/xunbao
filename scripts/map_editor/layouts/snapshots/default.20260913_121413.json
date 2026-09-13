@@ -1,0 +1,1628 @@
+{
+ "format": "xunbao-map",
+ "version": 2,
+ "field": "FIELD_SCHOOL",
+ "macros": {
+  "MAP_DEBUG": "0",
+  "STEP_DEBUG": "0",
+  "MAIN_DEBUG": "0",
+  "DEBUG": "0",
+  "USE_PLANNER_ROUTE": "1",
+  "SKIP_ROUND1": "0",
+  "FIRST_POINT": "P4",
+  "VIA_POINT": "P3",
+  "END_POINT": "P4",
+  "NAV_TOKEN_WINDOW_MS": "2000",
+  "FIELD_COMP": "0",
+  "FIELD_SCHOOL": "1",
+  "USE_FIELD": "FIELD_SCHOOL",
+  "LEN_N22B7": "90",
+  "LEN_B5N19": "150",
+  "LEN_N18B5": "(LEN_N22B7 - 20)",
+  "LEN_B7C6": "LEN_B5N19 + 20",
+  "DOOR_LEN_N5N12": "170",
+  "DOOR_LEN_N5N8": "170",
+  "DOOR_LEN_N8N10": "170",
+  "DOOR_LEN_N3N10": "170",
+  "DOOR_LEN_N3N8": "170",
+  "DOOR_LEN_N8N12": "170",
+  "DOOR_RETREAT_N5N8": "67",
+  "DOOR_RETREAT_N5N4": "67",
+  "DOOR_RETREAT_N10N8": "90",
+  "DOOR_RETREAT_N8N5": "65",
+  "ANGLE_N3N8": "145",
+  "ANGLE_N5N8": "35",
+  "ANGLE_N8N12": "ANGLE_N3N8",
+  "ANGLE_N8N10": "ANGLE_N5N8",
+  "ANGLE_N8N3": "ANGLE_REV(ANGLE_N3N8)",
+  "ANGLE_N8N5": "ANGLE_REV(ANGLE_N5N8)",
+  "ANGLE_N12N8": "ANGLE_REV(ANGLE_N8N12)",
+  "ANGLE_N10N8": "ANGLE_REV(ANGLE_N8N10)",
+  "LEN_SCALE": "1.2f"
+ },
+ "background": {
+  "path": "C:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\寻宝地图\\节点图.jpg",
+  "scale_x": 1.0,
+  "scale_y": 1.0,
+  "off_x": 0.0,
+  "off_y": 0.0,
+  "opacity": 0.55,
+  "rot": "0°",
+  "show": true
+ },
+ "constraints": {
+  "lock_angle": true,
+  "snap_mode": "吸附水平/竖直",
+  "snap_tol": 4.0,
+  "snap_near": 25.0,
+  "enforce_min_len": false,
+  "unit_px_per_cm": 1.48,
+  "rot": "0°",
+  "edge_view": "合并双向",
+  "label_mode": "标准"
+ },
+ "nodes": [
+  {
+   "name": "S1",
+   "comment": "0",
+   "x": 197.0,
+   "y": 77.0
+  },
+  {
+   "name": "P1",
+   "comment": "1",
+   "x": 549.7375507356048,
+   "y": 59.99999999999999
+  },
+  {
+   "name": "N1",
+   "comment": "2",
+   "x": 667.0,
+   "y": 60.0
+  },
+  {
+   "name": "B1",
+   "comment": "3",
+   "x": 856.1036333081089,
+   "y": 59.999999999999986
+  },
+  {
+   "name": "B2",
+   "comment": "4",
+   "x": 743.7886941908347,
+   "y": 141.79004058848386
+  },
+  {
+   "name": "B3",
+   "comment": "5",
+   "x": 967.9959608070524,
+   "y": 135.58008117696775
+  },
+  {
+   "name": "N2",
+   "comment": "6",
+   "x": 1046.9448173518226,
+   "y": 59.99999999999997
+  },
+  {
+   "name": "P2",
+   "comment": "7",
+   "x": 1164.5800811769677,
+   "y": 59.999999999999964
+  },
+  {
+   "name": "S2",
+   "comment": "8",
+   "x": 1538.3162855149233,
+   "y": 98.42126522068145
+  },
+  {
+   "name": "P3",
+   "comment": "9",
+   "x": 171.0,
+   "y": 243.0
+  },
+  {
+   "name": "N3",
+   "comment": "10",
+   "x": 626.895020294242,
+   "y": 242.99999999999997
+  },
+  {
+   "name": "N4",
+   "comment": "11",
+   "x": 830.2637956620446,
+   "y": 238.7375507356048
+  },
+  {
+   "name": "N5",
+   "comment": "12",
+   "x": 1090.2637956620445,
+   "y": 238.73755073560483
+  },
+  {
+   "name": "N6",
+   "comment": "13",
+   "x": 1280.8411840437136,
+   "y": 233.26244926439517
+  },
+  {
+   "name": "P4",
+   "comment": "14",
+   "x": 1506.2113058091654,
+   "y": 233.26244926439517
+  },
+  {
+   "name": "N7",
+   "comment": "15",
+   "x": 364.0,
+   "y": 334.0
+  },
+  {
+   "name": "P6",
+   "comment": "16",
+   "x": 368.57873477931855,
+   "y": 468.0013463976492
+  },
+  {
+   "name": "B8",
+   "comment": "17",
+   "x": 221.16150875158473,
+   "y": 468.10497970575807
+  },
+  {
+   "name": "B9",
+   "comment": "18",
+   "x": 498.9973072047016,
+   "y": 477.2624492643952
+  },
+  {
+   "name": "N8",
+   "comment": "19",
+   "x": 864.2637956620443,
+   "y": 428.2637956620444
+  },
+  {
+   "name": "C3",
+   "comment": "22",
+   "x": 160.26244926439514,
+   "y": 603.2099594115161
+  },
+  {
+   "name": "N9",
+   "comment": "23",
+   "x": 364.0,
+   "y": 611.0
+  },
+  {
+   "name": "N10",
+   "comment": "24",
+   "x": 633.0,
+   "y": 599.4212652206814
+  },
+  {
+   "name": "N12",
+   "comment": "25",
+   "x": 1087.2113058091654,
+   "y": 598.6312246321976
+  },
+  {
+   "name": "N13",
+   "comment": "26",
+   "x": 1299.961344107029,
+   "y": 598.6312246321976
+  },
+  {
+   "name": "P5",
+   "comment": "27",
+   "x": 1501.6325710298468,
+   "y": 598.6312246321976
+  },
+  {
+   "name": "N14",
+   "comment": "28",
+   "x": 160.26244926439514,
+   "y": 695.947510147121
+  },
+  {
+   "name": "S3",
+   "comment": "29",
+   "x": 263.26326023080225,
+   "y": 695.947510147121
+  },
+  {
+   "name": "S4",
+   "comment": "30",
+   "x": 541.0530357101796,
+   "y": 690.0013463976492
+  },
+  {
+   "name": "N15",
+   "comment": "31",
+   "x": 631.4737550735604,
+   "y": 690.0013463976492
+  },
+  {
+   "name": "S5",
+   "comment": "32",
+   "x": 1009.4783349107794,
+   "y": 679.7927333837823
+  },
+  {
+   "name": "C4",
+   "comment": "33",
+   "x": 349.05114345522986,
+   "y": 715.1076725010565
+  },
+  {
+   "name": "C5",
+   "comment": "34",
+   "x": 629.947510147121,
+   "y": 762.4226116183307
+  },
+  {
+   "name": "B4",
+   "comment": "35 [坐标估计]",
+   "x": 856.555846019282,
+   "y": 757.1022869104597
+  },
+  {
+   "name": "B5",
+   "comment": "36",
+   "x": 1343.0,
+   "y": 767.0
+  },
+  {
+   "name": "B6",
+   "comment": "37",
+   "x": 859.2113058091653,
+   "y": 854.110365296355
+  },
+  {
+   "name": "B7",
+   "comment": "38",
+   "x": 1343.0,
+   "y": 856.0
+  },
+  {
+   "name": "N16",
+   "comment": "39",
+   "x": 1087.2113058091654,
+   "y": 679.7927333837823
+  },
+  {
+   "name": "N18",
+   "comment": "40",
+   "x": 1088.5432927448496,
+   "y": 765.4737550735605
+  },
+  {
+   "name": "N19",
+   "comment": "41",
+   "x": 1523.0,
+   "y": 762.0
+  },
+  {
+   "name": "P7",
+   "comment": "42",
+   "x": 1494.0538414635575,
+   "y": 976.8452232366614
+  },
+  {
+   "name": "N20",
+   "comment": "43",
+   "x": 565.4279972089274,
+   "y": 854.110365296355
+  },
+  {
+   "name": "N22",
+   "comment": "44",
+   "x": 1012.9461637494717,
+   "y": 854.110365296355
+  },
+  {
+   "name": "C6",
+   "comment": "45 [坐标估计]",
+   "x": 1516.0497970575807,
+   "y": 854.4199188230323
+  },
+  {
+   "name": "C7",
+   "comment": "46 [坐标估计]",
+   "x": 159.0013463976492,
+   "y": 1006.3176319125727
+  },
+  {
+   "name": "C8",
+   "comment": "47 [坐标估计]",
+   "x": 350.4710622782621,
+   "y": 1006.3176319125727
+  },
+  {
+   "name": "C9",
+   "comment": "48",
+   "x": 1010.6419958133913,
+   "y": 976.8452232366614
+  },
+  {
+   "name": "P8",
+   "comment": "49",
+   "x": 160.05303049715042,
+   "y": 854.110365296355
+  },
+  {
+   "name": "N11",
+   "comment": "50",
+   "x": 868.5248985287903,
+   "y": 599.4212652206814
+  },
+  {
+   "name": "B10",
+   "comment": "52\t波动板节点：N14-C7段，位于板尾(C7侧)",
+   "x": 160.26244926439517,
+   "y": 848.5862829470009
+  },
+  {
+   "name": "B11",
+   "comment": "53\t波动板节点：C8-C4段，位于板尾(C4侧)",
+   "x": 349.05114345522986,
+   "y": 866.474020182667
+  }
+ ],
+ "edges": [
+  {
+   "frm": "S1",
+   "to": "N3",
+   "flag": "CLEFT|DLEFT|MUL2MUL",
+   "angle": "160",
+   "step": "216",
+   "speed": "SPEED4",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e2"
+  },
+  {
+   "frm": "P1",
+   "to": "N1",
+   "flag": "CRIGHT|LEFT_LINE",
+   "angle": "180",
+   "step": "36",
+   "speed": "SPEED0",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e3"
+  },
+  {
+   "frm": "N1",
+   "to": "P1",
+   "flag": "RIGHT_LINE",
+   "angle": "0",
+   "step": "48",
+   "speed": "SPEED2",
+   "func": "UpStage",
+   "comment": "",
+   "tag": "e4"
+  },
+  {
+   "frm": "N1",
+   "to": "B1",
+   "flag": "RESTMPUZ|LEFT_LINE",
+   "angle": "180",
+   "step": "24",
+   "speed": "15",
+   "func": "Bridge",
+   "comment": "",
+   "tag": "e5"
+  },
+  {
+   "frm": "N1",
+   "to": "B2",
+   "flag": "NO",
+   "angle": "135",
+   "step": "36",
+   "speed": "15",
+   "func": "Hill",
+   "comment": "",
+   "tag": "e6"
+  },
+  {
+   "frm": "B1",
+   "to": "N1",
+   "flag": "RIGHT_LINE|MCLEFT|CLEFT|DLEFT",
+   "angle": "0",
+   "step": "6",
+   "speed": "SPEED2",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e7"
+  },
+  {
+   "frm": "B1",
+   "to": "N2",
+   "flag": "LEFT_LINE|CRIGHT|MUL2SING",
+   "angle": "180",
+   "step": "40",
+   "speed": "SPEED0",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e8"
+  },
+  {
+   "frm": "B2",
+   "to": "N1",
+   "flag": "LEFT_LINE|CRIGHT|STOPTURN",
+   "angle": "-40",
+   "step": "30",
+   "speed": "SPEED0",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e9"
+  },
+  {
+   "frm": "B2",
+   "to": "N4",
+   "flag": "DLEFT|CLEFT|LEFT_LINE",
+   "angle": "140",
+   "step": "12",
+   "speed": "SPEED2",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e10"
+  },
+  {
+   "frm": "B3",
+   "to": "N2",
+   "flag": "RIGHT_LINE|CLEFT|STOPTURN",
+   "angle": "-150",
+   "step": "40",
+   "speed": "SPEED0",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e11"
+  },
+  {
+   "frm": "B3",
+   "to": "N4",
+   "flag": "CLEFT",
+   "angle": "30",
+   "step": "52",
+   "speed": "SPEED1",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e12"
+  },
+  {
+   "frm": "N2",
+   "to": "B1",
+   "flag": "RESTMPUZ|RIGHT_LINE",
+   "angle": "0",
+   "step": "24",
+   "speed": "SPEED0",
+   "func": "Bridge",
+   "comment": "",
+   "tag": "e13"
+  },
+  {
+   "frm": "N2",
+   "to": "B3",
+   "flag": "NO",
+   "angle": "30",
+   "step": "36",
+   "speed": "SPEED1",
+   "func": "BLBS",
+   "comment": "",
+   "tag": "e14"
+  },
+  {
+   "frm": "N2",
+   "to": "P2",
+   "flag": "LEFT_LINE",
+   "angle": "180",
+   "step": "12",
+   "speed": "15",
+   "func": "UpStageHome",
+   "comment": "",
+   "tag": "e15"
+  },
+  {
+   "frm": "P2",
+   "to": "N2",
+   "flag": "CLEFT|RIGHT_LINE",
+   "angle": "0",
+   "step": "12",
+   "speed": "SPEED1",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e16"
+  },
+  {
+   "frm": "S2",
+   "to": "N6",
+   "flag": "MUL2MUL|RIGHT_LINE|CLEFT|STOPTURN",
+   "angle": "45",
+   "step": "120",
+   "speed": "SPEED4",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e17"
+  },
+  {
+   "frm": "P3",
+   "to": "N3",
+   "flag": "DRIGHT|RIGHT_LINE",
+   "angle": "180",
+   "step": "246",
+   "speed": "SPEED4",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e18"
+  },
+  {
+   "frm": "N3",
+   "to": "S1",
+   "flag": "NO",
+   "angle": "-25",
+   "step": "216",
+   "speed": "SPEED4",
+   "func": "View",
+   "comment": "",
+   "tag": "e19"
+  },
+  {
+   "frm": "N3",
+   "to": "P3",
+   "flag": "LEFT_LINE",
+   "angle": "0",
+   "step": "320",
+   "speed": "SPEED4",
+   "func": "UpStage",
+   "comment": "",
+   "tag": "e20"
+  },
+  {
+   "frm": "N3",
+   "to": "N4",
+   "flag": "CLEFT|LEFT_LINE|Temp_R",
+   "angle": "180",
+   "step": "130",
+   "speed": "SPEED3",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e21"
+  },
+  {
+   "frm": "N3",
+   "to": "N8",
+   "flag": "DRIGHT|DLEFT|NEAR_CENTER",
+   "angle": "ANGLE_N3N8",
+   "step": "DOOR_LEN_N3N8/2",
+   "speed": "SPEED1",
+   "func": "DOOR",
+   "comment": "",
+   "tag": "e22"
+  },
+  {
+   "frm": "N3",
+   "to": "N10",
+   "flag": "CLEFT|DLEFT|RIGHT_LINE",
+   "angle": "90",
+   "step": "DOOR_LEN_N3N10",
+   "speed": "SPEED3",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e23"
+  },
+  {
+   "frm": "N4",
+   "to": "B2",
+   "flag": "NO",
+   "angle": "-40",
+   "step": "40",
+   "speed": "SPEED1",
+   "func": "Hill",
+   "comment": "",
+   "tag": "e24"
+  },
+  {
+   "frm": "N4",
+   "to": "B3",
+   "flag": "NEAR_CENTER",
+   "angle": "-140",
+   "step": "84",
+   "speed": "15",
+   "func": "BLBS",
+   "comment": "",
+   "tag": "e25"
+  },
+  {
+   "frm": "N4",
+   "to": "N3",
+   "flag": "DLEFT|TEMP_NEAR_CENTER|LEFT_LINE",
+   "angle": "0",
+   "step": "108",
+   "speed": "SPEED3",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e26"
+  },
+  {
+   "frm": "N4",
+   "to": "N5",
+   "flag": "DRIGHT|RIGHT_LINE|Temp_L|MUL2SING",
+   "angle": "180",
+   "step": "120",
+   "speed": "SPEED3",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e27"
+  },
+  {
+   "frm": "N5",
+   "to": "N4",
+   "flag": "RIGHT_LINE|Temp_L|MUL2SING",
+   "angle": "0",
+   "step": "84",
+   "speed": "SPEED3",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e28"
+  },
+  {
+   "frm": "N5",
+   "to": "N6",
+   "flag": "MUL2SING|CLEFT|CRIGHT",
+   "angle": "180",
+   "step": "150",
+   "speed": "SPEED2",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e29"
+  },
+  {
+   "frm": "N5",
+   "to": "N8",
+   "flag": "CLEFT| DLEFT | DRIGHT",
+   "angle": "ANGLE_N5N8",
+   "step": "DOOR_LEN_N5N8/2",
+   "speed": "SPEED1",
+   "func": "DOOR",
+   "comment": "",
+   "tag": "e30"
+  },
+  {
+   "frm": "N5",
+   "to": "N12",
+   "flag": "AWHITE | LEFT_LINE",
+   "angle": "90",
+   "step": "DOOR_LEN_N5N12/2",
+   "speed": "SPEED1",
+   "func": "DOOR",
+   "comment": "",
+   "tag": "e31"
+  },
+  {
+   "frm": "N6",
+   "to": "S2",
+   "flag": "NO",
+   "angle": "-140",
+   "step": "120",
+   "speed": "SPEED4",
+   "func": "View",
+   "comment": "",
+   "tag": "e32"
+  },
+  {
+   "frm": "N6",
+   "to": "N5",
+   "flag": "DLEFT|RIGHT_LINE",
+   "angle": "0",
+   "step": "114",
+   "speed": "SPEED3",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e33"
+  },
+  {
+   "frm": "N6",
+   "to": "P4",
+   "flag": "NEAR_CENTER",
+   "angle": "180",
+   "step": "50",
+   "speed": "SPEED1",
+   "func": "UpStage",
+   "comment": "",
+   "tag": "e34"
+  },
+  {
+   "frm": "P4",
+   "to": "N6",
+   "flag": "LEFT_LINE|MUL2SING|NOTURN",
+   "angle": "0",
+   "step": "66",
+   "speed": "SPEED3",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e36"
+  },
+  {
+   "frm": "N7",
+   "to": "P6",
+   "flag": "NO",
+   "angle": "90",
+   "step": "24",
+   "speed": "15",
+   "func": "UpStage",
+   "comment": "",
+   "tag": "e37"
+  },
+  {
+   "frm": "N7",
+   "to": "B8",
+   "flag": "LEFT_LINE|NOTURN",
+   "angle": "10",
+   "step": "1",
+   "speed": "SPEED1",
+   "func": "QQB",
+   "comment": "",
+   "tag": "e38"
+  },
+  {
+   "frm": "P6",
+   "to": "N7",
+   "flag": "DLEFT|DRIGHT|AWHITE|STOPTURN",
+   "angle": "-90",
+   "step": "18",
+   "speed": "SPEED1",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e39"
+  },
+  {
+   "frm": "B8",
+   "to": "N9",
+   "flag": "MUL2MUL|MUL2SING|STOPTURN|CLEFT",
+   "angle": "160",
+   "step": "1",
+   "speed": "15",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e40"
+  },
+  {
+   "frm": "B9",
+   "to": "N7",
+   "flag": "DLEFT|CLEFT|STOPTURN",
+   "angle": "-80",
+   "step": "5",
+   "speed": "SPEED1",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e41"
+  },
+  {
+   "frm": "N8",
+   "to": "N3",
+   "flag": "CLEFT|CRIGHT|NEAR_CENTER|MUL2MUL",
+   "angle": "ANGLE_N8N3",
+   "step": "DOOR_LEN_N3N8/2",
+   "speed": "SPEED0",
+   "func": "DOOR",
+   "comment": "",
+   "tag": "e42"
+  },
+  {
+   "frm": "N8",
+   "to": "N5",
+   "flag": "STOPTURN|CLEFT",
+   "angle": "ANGLE_N8N5",
+   "step": "DOOR_LEN_N5N8/2",
+   "speed": "SPEED0",
+   "func": "DOOR",
+   "comment": "",
+   "tag": "e43"
+  },
+  {
+   "frm": "N8",
+   "to": "N10",
+   "flag": "MUL2MUL|NEAR_CENTER",
+   "angle": "ANGLE_N8N10",
+   "step": "DOOR_LEN_N8N10",
+   "speed": "SPEED4",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e44"
+  },
+  {
+   "frm": "N8",
+   "to": "N12",
+   "flag": "MUL2MUL",
+   "angle": "ANGLE_N8N12",
+   "step": "DOOR_LEN_N8N12",
+   "speed": "SPEED3",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e45"
+  },
+  {
+   "frm": "C3",
+   "to": "N9",
+   "flag": "RIGHT_LINE|MUL2SING|NOTURN",
+   "angle": "180",
+   "step": "20",
+   "speed": "SPEED1",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e50"
+  },
+  {
+   "frm": "C3",
+   "to": "N14",
+   "flag": "DLEFT|MCLEFT|CLEFT",
+   "angle": "90",
+   "step": "0",
+   "speed": "SPEED0",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e51"
+  },
+  {
+   "frm": "N9",
+   "to": "B9",
+   "flag": "LEFT_LINE|NOTURN",
+   "angle": "-165",
+   "step": "0",
+   "speed": "SPEED1",
+   "func": "QQB",
+   "comment": "",
+   "tag": "e52"
+  },
+  {
+   "frm": "N9",
+   "to": "C3",
+   "flag": "DLEFT|LEFT_LINE",
+   "angle": "0",
+   "step": "48",
+   "speed": "SPEED2",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e53"
+  },
+  {
+   "frm": "N9",
+   "to": "N10",
+   "flag": "DLEFT|DRIGHT|NEAR_CENTER",
+   "angle": "180",
+   "step": "180",
+   "speed": "SPEED3",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e54"
+  },
+  {
+   "frm": "N10",
+   "to": "N3",
+   "flag": "DRIGHT|DLEFT|RIGHT_LINE|STOPTURN",
+   "angle": "-90",
+   "step": "DOOR_LEN_N3N10/2",
+   "speed": "SPEED1",
+   "func": "DOOR",
+   "comment": "",
+   "tag": "e55"
+  },
+  {
+   "frm": "N10",
+   "to": "N8",
+   "flag": "CLEFT|CRIGHT|DLEFT|DRIGHT",
+   "angle": "ANGLE_N10N8",
+   "step": "DOOR_LEN_N8N10",
+   "speed": "SPEED3",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e56"
+  },
+  {
+   "frm": "N10",
+   "to": "N9",
+   "flag": "LEFT_LINE|CRIGHT|MUL2SING|STOPTURN",
+   "angle": "0",
+   "step": "156",
+   "speed": "SPEED3",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e57"
+  },
+  {
+   "frm": "N10",
+   "to": "N12",
+   "flag": "DRIGHT|RIGHT_LINE",
+   "angle": "-180",
+   "step": "264",
+   "speed": "SPEED1",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e58"
+  },
+  {
+   "frm": "N10",
+   "to": "N15",
+   "flag": "DRIGHT|STOPTURN",
+   "angle": "90",
+   "step": "24",
+   "speed": "SPEED2",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e59"
+  },
+  {
+   "frm": "N10",
+   "to": "N11",
+   "flag": "NO",
+   "angle": "180",
+   "step": "70",
+   "speed": "SPEED1",
+   "func": "SM",
+   "comment": "",
+   "tag": "e60"
+  },
+  {
+   "frm": "N12",
+   "to": "N5",
+   "flag": "AWHITE|RIGHT_LINE|RESTMPUZ",
+   "angle": "-90",
+   "step": "222",
+   "speed": "SPEED4",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e61"
+  },
+  {
+   "frm": "N12",
+   "to": "N8",
+   "flag": "CRIGHT|DLEFT",
+   "angle": "ANGLE_N12N8",
+   "step": "180",
+   "speed": "60",
+   "func": "1",
+   "comment": "",
+   "tag": "e62"
+  },
+  {
+   "frm": "N12",
+   "to": "N13",
+   "flag": "CLEFT|CRIGHT|MUL2SING|NEAR_CENTER",
+   "angle": "180",
+   "step": "80",
+   "speed": "SPEED4",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e63"
+  },
+  {
+   "frm": "N12",
+   "to": "N16",
+   "flag": "DRIGHT|STOPTURN",
+   "angle": "90",
+   "step": "18",
+   "speed": "SPEED0",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e65"
+  },
+  {
+   "frm": "N12",
+   "to": "N11",
+   "flag": "LEFT_LINE",
+   "angle": "0",
+   "step": "100",
+   "speed": "SPEED1",
+   "func": "SM",
+   "comment": "",
+   "tag": "e66"
+  },
+  {
+   "frm": "N13",
+   "to": "N12",
+   "flag": "DLEFT|DRIGHT|NEAR_CENTER",
+   "angle": "0",
+   "step": "100",
+   "speed": "SPEED25",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e67"
+  },
+  {
+   "frm": "N13",
+   "to": "P5",
+   "flag": "NEAR_CENTER",
+   "angle": "180",
+   "step": "80",
+   "speed": "SPEED2",
+   "func": "UpStage",
+   "comment": "",
+   "tag": "e68"
+  },
+  {
+   "frm": "P5",
+   "to": "N13",
+   "flag": "MUL2SING|CLEFT|CRIGHT|NEAR_CENTER",
+   "angle": "0",
+   "step": "60",
+   "speed": "SPEED2",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e70"
+  },
+  {
+   "frm": "N14",
+   "to": "C3",
+   "flag": "DRIGHT|STOPTURN",
+   "angle": "-90",
+   "step": "18",
+   "speed": "SPEED0",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e71"
+  },
+  {
+   "frm": "N14",
+   "to": "S3",
+   "flag": "NO",
+   "angle": "-180",
+   "step": "2",
+   "speed": "SPEED1",
+   "func": "View1",
+   "comment": "",
+   "tag": "e72"
+  },
+  {
+   "frm": "N14",
+   "to": "B10",
+   "flag": "NO",
+   "angle": "90",
+   "step": "100",
+   "speed": "SPEED3",
+   "func": "BLBL",
+   "comment": "",
+   "tag": "e73"
+  },
+  {
+   "frm": "S3",
+   "to": "N14",
+   "flag": "INGNORE",
+   "angle": "180",
+   "step": "2",
+   "speed": "-SPEED0",
+   "func": "BACK",
+   "comment": "",
+   "tag": "e74"
+  },
+  {
+   "frm": "S4",
+   "to": "N15",
+   "flag": "INGNORE",
+   "angle": "0",
+   "step": "1",
+   "speed": "-SPEED0",
+   "func": "BACK",
+   "comment": "",
+   "tag": "e75"
+  },
+  {
+   "frm": "N15",
+   "to": "N10",
+   "flag": "DLEFT|DRIGHT",
+   "angle": "-90",
+   "step": "24",
+   "speed": "SPEED2",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e76"
+  },
+  {
+   "frm": "N15",
+   "to": "S4",
+   "flag": "NO",
+   "angle": "0",
+   "step": "1",
+   "speed": "SPEED1",
+   "func": "View1",
+   "comment": "",
+   "tag": "e77"
+  },
+  {
+   "frm": "N15",
+   "to": "C5",
+   "flag": "DLEFT",
+   "angle": "90",
+   "step": "36",
+   "speed": "SPEED2",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e78"
+  },
+  {
+   "frm": "S5",
+   "to": "N16",
+   "flag": "INGNORE",
+   "angle": "0",
+   "step": "1",
+   "speed": "-SPEED0",
+   "func": "BACK",
+   "comment": "",
+   "tag": "e79"
+  },
+  {
+   "frm": "C4",
+   "to": "N20",
+   "flag": "CRIGHT|MUL2MUL",
+   "angle": "155",
+   "step": "170",
+   "speed": "SPEED4",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e80"
+  },
+  {
+   "frm": "C4",
+   "to": "B11",
+   "flag": "NO",
+   "angle": "90",
+   "step": "50",
+   "speed": "SPEED2",
+   "func": "BLBL",
+   "comment": "",
+   "tag": "e81"
+  },
+  {
+   "frm": "C5",
+   "to": "N15",
+   "flag": "DLEFT|STOPTURN",
+   "angle": "-90",
+   "step": "36",
+   "speed": "SPEED2",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e82"
+  },
+  {
+   "frm": "C5",
+   "to": "N18",
+   "flag": "DLEFT|CLEFT",
+   "angle": "180",
+   "step": "324",
+   "speed": "SPEED4",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e83"
+  },
+  {
+   "frm": "B4",
+   "to": "C5",
+   "flag": "DRIGHT",
+   "angle": "0",
+   "step": "174",
+   "speed": "SPEED1",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e84"
+  },
+  {
+   "frm": "B4",
+   "to": "N18",
+   "flag": "DLEFT|CLEFT|RESTMPUZ",
+   "angle": "180",
+   "step": "120",
+   "speed": "SPEED1",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e85"
+  },
+  {
+   "frm": "B5",
+   "to": "N18",
+   "flag": "DRIGHT",
+   "angle": "0",
+   "step": "LEN_N18B5",
+   "speed": "SPEED1",
+   "func": "NONE",
+   "comment": "（与 N18->B5 同长，取大=LEN_N18B5）",
+   "tag": "e86"
+  },
+  {
+   "frm": "B5",
+   "to": "N19",
+   "flag": "DRIGHT",
+   "angle": "180",
+   "step": "LEN_B5N19",
+   "speed": "SPEED25",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e87"
+  },
+  {
+   "frm": "B6",
+   "to": "N20",
+   "flag": "CRIGHT|DRIGHT|RESTMPUZ|LEFT_LINE",
+   "angle": "0",
+   "step": "36",
+   "speed": "SPEED2",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e88"
+  },
+  {
+   "frm": "B6",
+   "to": "N22",
+   "flag": "DRIGHT|RESTMPUZ",
+   "angle": "180",
+   "step": "36",
+   "speed": "SPEED3",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e89"
+  },
+  {
+   "frm": "B7",
+   "to": "N22",
+   "flag": "DLEFT|RESTMPUZ",
+   "angle": "0",
+   "step": "LEN_N22B7",
+   "speed": "SPEED3",
+   "func": "NONE",
+   "comment": "（与 N22->B7 同长，取大=LEN_N22B7）",
+   "tag": "e90"
+  },
+  {
+   "frm": "B7",
+   "to": "C6",
+   "flag": "DLEFT",
+   "angle": "180",
+   "step": "LEN_B7C6",
+   "speed": "SPEED25",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e91"
+  },
+  {
+   "frm": "N16",
+   "to": "N12",
+   "flag": "DLEFT|DRIGHT",
+   "angle": "-90",
+   "step": "20",
+   "speed": "SPEED2",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e92"
+  },
+  {
+   "frm": "N16",
+   "to": "S5",
+   "flag": "NO",
+   "angle": "0",
+   "step": "1",
+   "speed": "SPEED1",
+   "func": "View1",
+   "comment": "",
+   "tag": "e93"
+  },
+  {
+   "frm": "N16",
+   "to": "N18",
+   "flag": "DRIGHT|RIGHT_LINE",
+   "angle": "90",
+   "step": "18",
+   "speed": "SPEED0",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e94"
+  },
+  {
+   "frm": "N18",
+   "to": "C5",
+   "flag": "DRIGHT|CRIGHT",
+   "angle": "0",
+   "step": "324",
+   "speed": "SPEED3",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e95"
+  },
+  {
+   "frm": "N18",
+   "to": "B5",
+   "flag": "RIGHT_LINE",
+   "angle": "180",
+   "step": "LEN_N18B5",
+   "speed": "SPEED0",
+   "func": "Hill",
+   "comment": "",
+   "tag": "e96"
+  },
+  {
+   "frm": "N18",
+   "to": "N16",
+   "flag": "DLEFT|CLEFT|STOPTURN",
+   "angle": "-90",
+   "step": "20",
+   "speed": "SPEED2",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e97"
+  },
+  {
+   "frm": "N19",
+   "to": "B5",
+   "flag": "NO",
+   "angle": "0",
+   "step": "LEN_B5N19",
+   "speed": "SPEED3",
+   "func": "Hill",
+   "comment": "（与 B5->N19 同长，取大=LEN_B5N19）",
+   "tag": "e98"
+  },
+  {
+   "frm": "N19",
+   "to": "C6",
+   "flag": "DRIGHT",
+   "angle": "90",
+   "step": "30",
+   "speed": "SPEED2",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e99"
+  },
+  {
+   "frm": "P7",
+   "to": "C9",
+   "flag": "DRIGHT",
+   "angle": "0",
+   "step": "180",
+   "speed": "SPEED25",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e100"
+  },
+  {
+   "frm": "N20",
+   "to": "C4",
+   "flag": "CLEFT|MCLEFT|STOPTURN|RIGHT_LINE",
+   "angle": "-35",
+   "step": "180",
+   "speed": "SPEED4",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e102"
+  },
+  {
+   "frm": "N20",
+   "to": "B6",
+   "flag": "NO",
+   "angle": "180",
+   "step": "24",
+   "speed": "SPEED1",
+   "func": "SM",
+   "comment": "",
+   "tag": "e103"
+  },
+  {
+   "frm": "N20",
+   "to": "P8",
+   "flag": "NEAR_CENTER|RESTMPUZ",
+   "angle": "0",
+   "step": "12",
+   "speed": "SPEED0",
+   "func": "BHM",
+   "comment": "",
+   "tag": "e104"
+  },
+  {
+   "frm": "N22",
+   "to": "B6",
+   "flag": "RESTMPUZ",
+   "angle": "0",
+   "step": "18",
+   "speed": "SPEED1",
+   "func": "SM",
+   "comment": "",
+   "tag": "e105"
+  },
+  {
+   "frm": "N22",
+   "to": "B7",
+   "flag": "NO",
+   "angle": "180",
+   "step": "LEN_N22B7",
+   "speed": "SPEED2",
+   "func": "Hill",
+   "comment": "",
+   "tag": "e106"
+  },
+  {
+   "frm": "N22",
+   "to": "C9",
+   "flag": "DLEFT|CLEFT",
+   "angle": "90",
+   "step": "10",
+   "speed": "SPEED0",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e107"
+  },
+  {
+   "frm": "C6",
+   "to": "B7",
+   "flag": "RESTMPUZ",
+   "angle": "0",
+   "step": "LEN_B7C6",
+   "speed": "SPEED25",
+   "func": "Hill",
+   "comment": "（与 B7->C6 同长，取大=LEN_B7C6）",
+   "tag": "e108"
+  },
+  {
+   "frm": "C6",
+   "to": "N19",
+   "flag": "DLEFT",
+   "angle": "-90",
+   "step": "30",
+   "speed": "SPEED2",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e109"
+  },
+  {
+   "frm": "C7",
+   "to": "C8",
+   "flag": "DLEFT|STOPTURN",
+   "angle": "180",
+   "step": "108",
+   "speed": "SPEED25",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e110"
+  },
+  {
+   "frm": "C7",
+   "to": "B10",
+   "flag": "NO",
+   "angle": "-90",
+   "step": "45",
+   "speed": "SPEED1",
+   "func": "BLBL",
+   "comment": "",
+   "tag": "e111"
+  },
+  {
+   "frm": "C8",
+   "to": "C7",
+   "flag": "DRIGHT|CRIGHT|STOPTURN",
+   "angle": "0",
+   "step": "96",
+   "speed": "SPEED2",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e112"
+  },
+  {
+   "frm": "C8",
+   "to": "B11",
+   "flag": "NO",
+   "angle": "-90",
+   "step": "30",
+   "speed": "SPEED3",
+   "func": "BLBL",
+   "comment": "",
+   "tag": "e113"
+  },
+  {
+   "frm": "C9",
+   "to": "P7",
+   "flag": "NONE",
+   "angle": "180",
+   "step": "260",
+   "speed": "SPEED2",
+   "func": "BSoutPole",
+   "comment": "",
+   "tag": "e114"
+  },
+  {
+   "frm": "C9",
+   "to": "N22",
+   "flag": "DLEFT|DRIGHT|STOPTURN",
+   "angle": "-90",
+   "step": "18",
+   "speed": "SPEED0",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e115"
+  },
+  {
+   "frm": "P8",
+   "to": "N20",
+   "flag": "MCLEFT|RIGHT_LINE|STOPTURN",
+   "angle": "180",
+   "step": "12",
+   "speed": "SPEED0",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e117"
+  },
+  {
+   "frm": "N11",
+   "to": "N10",
+   "flag": "LEFT_LINE|DLEFT",
+   "angle": "0",
+   "step": "60",
+   "speed": "SPEED25",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e118"
+  },
+  {
+   "frm": "N11",
+   "to": "N12",
+   "flag": "RIGHT_LINE|AWHITE|DRIGHT",
+   "angle": "180",
+   "step": "60",
+   "speed": "SPEED3",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e119"
+  },
+  {
+   "frm": "B10",
+   "to": "N14",
+   "flag": "DRIGHT|STOPTURN",
+   "angle": "-90",
+   "step": "100",
+   "speed": "SPEED1",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e122"
+  },
+  {
+   "frm": "B10",
+   "to": "C7",
+   "flag": "DLEFT|CLEFT",
+   "angle": "90",
+   "step": "20",
+   "speed": "SPEED1",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e123"
+  },
+  {
+   "frm": "B11",
+   "to": "C4",
+   "flag": "CRIGHT",
+   "angle": "-90",
+   "step": "40",
+   "speed": "SPEED2",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e124"
+  },
+  {
+   "frm": "B11",
+   "to": "C8",
+   "flag": "DRIGHT|CRIGHT",
+   "angle": "90",
+   "step": "10",
+   "speed": "SPEED1",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e125"
+  },
+  {
+   "frm": "N18",
+   "to": "B4",
+   "flag": "NO",
+   "angle": "-87.9",
+   "step": "0",
+   "speed": "SPEED2",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e126"
+  }
+ ]
+}

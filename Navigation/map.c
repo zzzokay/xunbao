@@ -95,22 +95,35 @@ void mapInit()
     nodes = (Nodes){0};	
 	cross_event = 0;       //起始点   
 #if MAP_DEBUG
-    /* 最短路径调试：只写 config.h 的 FIRST_POINT + END_POINT，规划器自动生成路线，
+    /* 最短路径调试：只写 config.h 的 FIRST_POINT / VIA_POINT / END_POINT，规划器自动生成路线，
      * 不再需要手写 route[]/SECOND_POINT。
-     * path = [FIRST_POINT, n1, n2, ..., END_POINT]；车从 FIRST_POINT 出发：
-     *   firstNode(nowNode) = n1（第一跳，nav_shortest_path 已含 FIRST_POINT，故不重复）
-     *   route = [n2, ..., END_POINT, 0xFF]（n1 已在 nowNode，route 从 n2 起，避免与 nowNode 重复） */
+     * VIA_POINT = 0 表示不用途径点（退化为 FIRST_POINT->END_POINT 两点）。
+     * wp   = [FIRST_POINT, (VIA_POINT), END_POINT]
+     * path = [FIRST_POINT, ..., (VIA_POINT), ..., END_POINT, 0xFF]；车从 FIRST_POINT 出发：
+     *   firstNode(nowNode) = path[1]（第一跳）
+     *   route = [path[2], ..., END_POINT, 0xFF]（path[1] 已在 nowNode，route 从 path[2] 起，避免与 nowNode 重复） */
     nodes.lastNode.nodenum = FIRST_POINT;  //起始点
     {
+        u8 wp[3];              /* 最多三个必经点：起点 + 途径点 + 终点 */
+        u8 nwp = 0;
+        u8 via = (u8)VIA_POINT;   /* 途径点编号；0=不用途径点（用局部变量比较，避免常量比较告警） */
         u8 path[NAV_MAX_PATH];
-        uint8_t n = nav_shortest_path(FIRST_POINT, END_POINT, path, sizeof(path));
-        if (n < 2) return;   /* 起终点相同或不可达(配置错误)：直接返回，不规划 */
-        u8 idx = getNextConnectNode(FIRST_POINT, path[1]);   /* 第一跳(从 FIRST_POINT 出发) */
-        if (idx == ROUTE_NOT_FOUND) return;   /* 兜底：起始连接错误，Route_Error_Stop 已死停车 */
-        nodes.nowNode = Node[idx];
+        uint8_t n;
+        wp[nwp++] = FIRST_POINT;                 /* 起点 */
+        if (via != 0u) wp[nwp++] = via;          /* 途径点：0=不用（S1=0 不能用） */
+        wp[nwp++] = END_POINT;                   /* 终点 */
+        /* n = 节点数 + 1（末尾写入了 0xFF 哨兵）；n==0 表示某一段不可达(配置错误) */
+        n = nav_plan_waypoints(path, sizeof(path), wp, nwp);
+        if (n < 3) return;   /* 至少要有 起点 + 第一跳 + 0xFF；不足则起终点相同/不可达，直接返回不规划 */
+        {
+            u8 idx = getNextConnectNode(FIRST_POINT, path[1]);   /* 第一跳(从 FIRST_POINT 出发) */
+            if (idx == ROUTE_NOT_FOUND) return;   /* 兜底：起始连接错误，Route_Error_Stop 已死停车 */
+            nodes.nowNode = Node[idx];
+        }
         {
             uint8_t j = 0;
-            for (uint8_t i = 2; i < n && j < (uint8_t)sizeof(route); i++) route[j++] = path[i];
+            /* i+1 < n ：跳过末尾 0xFF（下面统一补），只拷 path[2]..path[n-2] */
+            for (uint8_t i = 2; i + 1 < n && j < (uint8_t)sizeof(route); i++) route[j++] = path[i];
             if (j < (uint8_t)sizeof(route)) route[j++] = 0xFF;
         }
     }
@@ -187,19 +200,16 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
     if (last == P8 && now == N20 && next == C4) return 30;
 	if (last == N8 && now == N5 && next == N4) return 36;
    // if (last == N13 && now == N18 && next == B5) return 60;
-	if (last == N5 && now == N8 && next == N12) return 15;
+	if (last == N5 && now == N8 && next == N12) return 20;
     if (last == N2 && now == N8 && next == N10) return 15;
     if (last == N8 && now == N3 && next == P3) return 18;
 	if (last == N8 && now == N3 && next == N4) return 30;
     if (last == N4 && now == N3 && next == N8) return 20;
-	/* 原第 192 行还有一条 (last==N3 && now==N4 && next==B2) -> 24，与第 183 行
-	   (同条件 -> 30) 完全重复、且恒被前者 return 遮蔽（不可达死分支），已删除。
-	   ⚠️ 30 与 24 哪个才是期望值未定：保留生效值 30，改动前请实车确认。 */
 	if (last == B8 && now == N9 && next == C3) return 0;
 	if (last == N10 && now == N9 && next == B9) return 48;
 	if (last == B8 && now == N9 && next == N10) return 30;
     if (last == B2 && now == N1 && next == P1) return 25;
-	return 20;
+	return 19;
 }
 
 /* 获取对应节点的陀螺仪不停车转弯前的前进距离判断 */
@@ -388,7 +398,7 @@ static void Nav_TurnAndAdvance(void)
         {
              /* 无需转弯，直接直行通过 */
              if(Nav_IsStraightThrough())
-             Chassis_DriveDistance_Blocking(is_Line, 10, nodes.nowNode.speed, 0, 6);
+             Chassis_DriveDistance_Blocking(is_Line, 15, nodes.nowNode.speed, 0, 6);
              
         }
         else/* 转弯 */
@@ -422,7 +432,7 @@ static void Nav_TurnAndAdvance(void)
                 float forwardDist = GetForwardDistanceBeforeGyroTurn(nodes.lastNode.nodenum, nodes.nowNode.nodenum, nodes.nextNode.nodenum);
                 Chassis_DriveDistance_Blocking(is_Gyro, forwardDist, Gyro_Speed, getAngleZ(), 0);
                 //转弯
-                Chassis_Turn_By_Gyro_Blocking(nodes.nextNode.angle, getAngleZ(), 45.0f);
+                Chassis_Turn_By_Gyro_Blocking(nodes.nextNode.angle, getAngleZ(), 40.0f);
             }
         }
 
@@ -547,7 +557,7 @@ void map_function(u8 fun)
 		case BSoutPole	: South_Pole();	          				break;			//南极
 		case QQB	    : QQB_1();	          					break;			//跷跷板
 		case BLBS       : Barrier_WavedPlate(70);	    		break;			//短波动板 速度：调试 80//85
-		case BLBL	    : Barrier_WavedPlate(30);	  			break;			//长波动板 速度：调试	//180
+		case BLBL	    : Barrier_WavedPlate(35);	  			break;			//长波动板 速度：调试	//180
 		case DOOR	    : door();		                 	  	break;			//门
 		case BHM        : Barrier_HighMountain();				break;    		//高山
 		case UpStageHome	: Stage_Home();	                		break;

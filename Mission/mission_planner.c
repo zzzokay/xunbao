@@ -164,7 +164,22 @@ static uint8_t plan_treasure_return(uint8_t start)
 		wp[n++] = target;
 	wp[n++] = P2;
 
-	return plan_route_at(map.point - 1, wp, n);
+	/* 交接（stageAB 段不再写尾锚点 C9/N20 后必须做）：
+	 * 本函数只在宝物平台上被调用，而 stageAB 段现在以平台本身为终点。
+	 * 到达平台那一刻 nodes.nextNode 会停在"进平台那条边"，若不修正：
+	 *   ① 推进时 nodes.nowNode = nodes.nextNode 会错位 → 下一步 getNextConnectNode 找不到边 → Route_Error_Stop 死停车；
+	 *   ② Stage_Correct() 拿 nodes.nextNode.angle 当行驶航向，会反向 180°。
+	 * 所以这里显式把 nextNode 对齐到"出平台第一跳"（= 本段重规划后的第一个目标）。
+	 * 证据：scripts/validate/_check_wp_east.py + 状态机仿真（删尾锚点不补交接 = 4/4 场次死停车）。 */
+	if (plan_route_at(map.point - 1, wp, n) == 0)
+		return 0;
+	if (map.point > 0)
+	{
+		u8 first = route[map.point - 1];
+		if (first != 0xFF)
+			nodes.nextNode = Node[getNextConnectNode(start, first)];
+	}
+	return 1;
 }
 #endif
 
@@ -277,24 +292,27 @@ void update_route_by_door_4(void)
 void update_route_at_door_for_stageAB(void)
 {
 #if USE_PLANNER_ROUTE
+	/* 过门后只要 P 平台本身：环上节点、以及平台出口锚点(C9/N20)全部交给最短路自动选。
+	 * 平台出口锚点原先靠"路线里还有下一跳"给 nodes.nextNode 兜底；现在改成
+	 * plan_treasure_return() 里显式把 nextNode 对齐到"出平台第一跳"（见该函数注释）。 */
 	if (flag_clue_stage_A == 5 && flag_clue_stage_B == 7)
 	{
-		u8 wp[] = {nodes.nowNode.nodenum, P5, N12, P7, C9};
+		u8 wp[] = {nodes.nowNode.nodenum, P5, P7};
 		(void)plan_route_at(0, wp, sizeof(wp) / sizeof(wp[0]));
 	}
 	else if (flag_clue_stage_A == 5 && flag_clue_stage_B == 8)
 	{
-		u8 wp[] = {nodes.nowNode.nodenum, P5, N12, P8, N20};
+		u8 wp[] = {nodes.nowNode.nodenum, P5, P8};
 		(void)plan_route_at(0, wp, sizeof(wp) / sizeof(wp[0]));
 	}
 	else if (flag_clue_stage_A == 6 && flag_clue_stage_B == 7)
 	{
-		u8 wp[] = {nodes.nowNode.nodenum, N10, P6, P7, C9};
+		u8 wp[] = {nodes.nowNode.nodenum, P6, P7};
 		(void)plan_route_at(0, wp, sizeof(wp) / sizeof(wp[0]));
 	}
 	else if (flag_clue_stage_A == 6 && flag_clue_stage_B == 8)
 	{
-		u8 wp[] = {nodes.nowNode.nodenum, N10, P6, P8, N20};
+		u8 wp[] = {nodes.nowNode.nodenum, P6, P8};
 		(void)plan_route_at(0, wp, sizeof(wp) / sizeof(wp[0]));
 	}
 	else
@@ -409,6 +427,8 @@ void get_newroute(void)
 		wp[n++] = P4;
 		wp[n++] = N5;
 
+		/* 进门：只留"真正要过的那扇门"；环上入口(N8 之后的 N12、N3 之后的 N8)由最短路自动选
+		 * ——实测与写全 N 锚点逐字节相同，见 scripts/validate/_check_wp_east.py */
 		if (Can_Pass(door_pass[0]))
 		{
 			wp[n++] = N12;
@@ -416,13 +436,11 @@ void get_newroute(void)
 		else if (Can_Pass(door_pass[1]))
 		{
 			wp[n++] = N8;
-			if (!p6_first) wp[n++] = N12;
 		}
 		else if (Can_Pass(door_pass[2]))
 		{
 			wp[n++] = N3;
-			wp[n++] = N8;
-			if (!p6_first) wp[n++] = N12;
+			if (p6_first) wp[n++] = N8;   /* 宝物=P6 逆时针时，这两个门节点都要保留 */
 		}
 		else
 		{
@@ -430,14 +448,14 @@ void get_newroute(void)
 			return;
 		}
 
+		/* 巡游：只写 P5~P8，顺时针/逆时针由顺序决定（其余 N 全部交给最短路） */
 		if (p6_first)
 		{
-			/* 逆时针：P6 -> P8 -> P7 -> P5（P5/P6 支路规划器自动经入口节点）*/
+			/* 逆时针：P6 -> P8 -> P7 -> P5 */
 			wp[n++] = P6;
 			wp[n++] = P8;
 			wp[n++] = P7;
 			wp[n++] = P5;
-			wp[n++] = N12;
 		}
 		else
 		{
@@ -446,53 +464,47 @@ void get_newroute(void)
 			wp[n++] = P7;
 			wp[n++] = P8;
 			wp[n++] = P6;
-			wp[n++] = N10;
 		}
 
-		/* 回程：根据门状态选择回程路径 */
+		/* 回程：只留"要过的那扇门"；⚠️ N8,N5 里的 N5 必须保留
+		 * （删掉后规划器会改走 N8->N3 穿 D4 出西侧，实测路线会变） */
 		if (door_pass[0] == CAN_PASS)
 		{
 			wp[n++] = N5;
 		}
 		else if (door_pass[0] == ONE_WAY_PASS && door_pass[3] == CAN_PASS)
 		{
-			wp[n++] = N10;
-			wp[n++] = N3;
+			wp[n++] = N10;               /* 原 N10,N3：N3 冗余 */
 		}
 		else if (door_pass[0] == ONE_WAY_PASS && door_pass[3] == NO_PASS && door_pass[2] == CAN_PASS)
 		{
-			wp[n++] = N8;
-			wp[n++] = N3;
+			wp[n++] = N8;                /* 原 N8,N3：N3 冗余 */
 		}
 		else if (door_pass[0] == ONE_WAY_PASS && door_pass[3] == NO_PASS && door_pass[2] == NO_PASS)
 		{
 			wp[n++] = N8;
-			wp[n++] = N5;
+			wp[n++] = N5;                /* ⚠️ 不可删 */
 		}
 		else if (door_pass[0] == NO_PASS && door_pass[1] == CAN_PASS)
 		{
 			wp[n++] = N8;
-			wp[n++] = N5;
+			wp[n++] = N5;                /* ⚠️ 不可删 */
 		}
 		else if (door_pass[0] == NO_PASS && door_pass[1] == ONE_WAY_PASS && door_pass[3] == CAN_PASS)
 		{
-			wp[n++] = N10;
-			wp[n++] = N3;
+			wp[n++] = N10;               /* 原 N10,N3：N3 冗余 */
 		}
 		else if (door_pass[0] == NO_PASS && door_pass[1] == ONE_WAY_PASS && door_pass[3] == NO_PASS)
 		{
-			wp[n++] = N8;
-			wp[n++] = N3;
+			wp[n++] = N8;                /* 原 N8,N3：N3 冗余 */
 		}
 		else if (door_pass[0] == NO_PASS && door_pass[1] == NO_PASS && door_pass[2] == CAN_PASS)
 		{
-			wp[n++] = N8;
-			wp[n++] = N3;
+			wp[n++] = N8;                /* 原 N8,N3：N3 冗余 */
 		}
 		else if (door_pass[0] == NO_PASS && door_pass[1] == NO_PASS && door_pass[2] == ONE_WAY_PASS)
 		{
-			wp[n++] = N10;
-			wp[n++] = N3;
+			wp[n++] = N10;               /* 原 N10,N3：N3 冗余 */
 		}
 		else
 		{

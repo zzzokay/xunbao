@@ -21,7 +21,7 @@ volatile uint8_t open_OCR_mode_sign=2;
 volatile uint8_t open_COLOR_L_mode_sign=2;
 volatile uint8_t open_COLOR_R_mode_sign=2;
 
-#define REQUIRED_CONSECUTIVE 3  // 需要连续相同的次数
+#define REQUIRED_CONSECUTIVE 2  // 需要连续相同的次数（QR/OCR/颜色共用；3→2 让识别更快被接受）
 
 
 /*使能Maxicam*/

@@ -1,0 +1,934 @@
+# -*- coding: utf-8 -*-
+"""
+map_model.py — 寻宝地图「源码解析 / 数据模型 / 校验 / 规划 / 导出」核心（与界面无关）
+
+唯一数据源仍是固件的两个文件：
+  Navigation/map.h          ->  enum MapNode（节点名 → 索引）
+  Navigation/map_message.c  ->  NavEdgeTbl[]（边表，唯一人工编辑源）
+  Mission/config.h          ->  LEN_*/DOOR_LEN_*/ANGLE_* 宏（边表里用宏写 step/angle）
+
+本模块只读源码；所有修改都发生在内存模型里，再由 export_* 生成文本。
+"""
+import os
+import re
+import json
+import datetime
+
+# ---------------------------------------------------------------- 仓库路径
+
+def find_root(start=None):
+    """从脚本位置向上找仓库根（含 Navigation/map_message.c 的那一层）。"""
+    here = os.path.dirname(os.path.abspath(start or __file__))
+    cur = here
+    for _ in range(6):
+        if os.path.isfile(os.path.join(cur, "Navigation", "map_message.c")):
+            return cur
+        cur = os.path.dirname(cur)
+    return os.path.dirname(os.path.dirname(here))
+
+
+ROOT = find_root()
+PATH_MAP_H = os.path.join(ROOT, "Navigation", "map.h")
+PATH_EDGE_C = os.path.join(ROOT, "Navigation", "map_message.c")
+PATH_MSG_H = os.path.join(ROOT, "Navigation", "map_message.h")
+PATH_CONFIG = os.path.join(ROOT, "Mission", "config.h")
+
+
+# ---------------------------------------------------------------- flag / func 名字表
+# 与 Navigation/map.h 的 #define 一一对应（只用于界面勾选与校验，不改变固件）
+FLAG_ORDER = [
+    "NO", "NONE",                                                             # 1<<0
+    "DLEFT", "DRIGHT", "CLEFT", "CRIGHT",                                      # 1<<1..4
+    "MUL2SING", "MUL2MUL", "AWHITE",                                            # 1<<5..7
+    "RESTMPUZ", "STOPTURN", "SLOWDOWN",                                         # 1<<8..10
+    "LEFT_LINE", "RIGHT_LINE", "MCLEFT", "MCRIGHT",                             # 1<<11..14
+    "DRIFT", "L_follow", "R_follow", "MORELED", "NEAR_CENTER",                  # 1<<15..19
+    "NOTURN", "INGNORE", "Temp_L", "Temp_R", "TEMP_NEAR_CENTER",                # 1<<20..24
+]
+FLAG_ORDER_SORT = {n: i for i, n in enumerate(FLAG_ORDER)}
+
+FUNC_ORDER = [
+    "NONE", "UpStage", "Bridge", "Hill", "LBHill", "SM", "View", "View1", "BACK",
+    "BSoutPole", "QQB", "BLBS", "BLBL", "DOOR", "BHM", "IGNORE", "Special_node",
+    "DOOR1", "UpStageHome",
+]
+
+# 常用速度档（在 Application/chassis_api.h；界面给下拉，也允许填数字）
+SPEED_NAMES = ["SPEED0", "SPEED1", "SPEED2", "SPEED25", "SPEED3", "SPEED4", "SPEED5"]
+
+NODE_KIND_ORDER = ["S", "P", "N", "C", "B", "G", "D"]
+
+
+def node_kind(name):
+    """按命名前缀分类：P=平台, S=景点, N=普通节点, C=拐点/分支, B=桥/障碍, G/D=其它。"""
+    m = re.match(r"^([A-Za-z]+)", name or "")
+    k = (m.group(1) if m else "")[:2].upper()
+    for p, kind in (("P", "P"), ("S", "S"), ("C", "C"), ("B", "B"), ("N", "N"), ("G", "G")):
+        if k.startswith(p):
+            return kind
+    return "?"
+
+
+# ---------------------------------------------------------------- 源码解析
+
+def _strip_line_comment(line):
+    i = line.find("//")
+    return line if i < 0 else line[:i]
+
+
+def _strip_block_comments(text):
+    return re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
+
+
+class ParseError(Exception):
+    pass
+
+
+def parse_map_enum(path=PATH_MAP_H):
+    """解析 map.h 的 enum MapNode。返回 [(name, comment, index), ...]（按出现顺序）。
+
+    索引 = 出现顺序（枚举不给初值），与固件一致。
+    """
+    src = open(path, encoding="utf-8").read()
+    m = re.search(r"enum\s+MapNode\s*\{(.*?)\}\s*;", src, re.S)
+    if not m:
+        raise ParseError("map.h 里找不到 enum MapNode")
+    body = m.group(1)
+    out = []
+    idx = 0
+    for raw in body.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        cm = re.search(r"//\s*(.*)$", line)
+        comment = cm.group(1).strip() if cm else ""
+        part = _strip_line_comment(line).strip().rstrip(",").strip()
+        for tok in part.split(","):
+            tok = tok.strip()
+            if not tok:
+                continue
+            cmt = comment
+            if "=" in tok:                     # 万一将来加了显式初值
+                name, val = tok.split("=", 1)
+                name = name.strip()
+                try:
+                    idx = int(val.strip(), 0)
+                except ValueError:
+                    pass
+            else:
+                name = tok
+            if not re.match(r"^[A-Za-z_]\w*$", name):
+                continue
+            out.append((name, cmt, idx))
+            idx += 1
+    if not out:
+        raise ParseError("enum MapNode 解析为空")
+    return out
+
+
+# ---------------------------------------------------------------- C 表达式求值
+# 自己写递归下降：不用 eval + 文本替换，避免 ANGLE_N8N3 这类名字被
+# 子串替换成 ANGLE_(...)_N8N3（_ 是 \w，\b 拦不住）。
+
+_TOKEN_RE = re.compile(r"\s*(?:(\d+)|([A-Za-z_]\w*)|(.))")
+
+
+class _CExpr:
+    def __init__(self, text, macros):
+        self.macros = macros
+        self.toks = []
+        for m in _TOKEN_RE.finditer(text or ""):
+            if m.group(1):
+                self.toks.append(("num", int(m.group(1))))
+            elif m.group(2):
+                self.toks.append(("id", m.group(2)))
+            else:
+                self.toks.append(("op", m.group(3)))
+        self.i = 0
+
+    def peek(self):
+        return self.toks[self.i] if self.i < len(self.toks) else (None, None)
+
+    def eat(self, val=None):
+        t = self.peek()
+        if val is not None and t[1] != val:
+            raise ValueError("期望 %r，实际 %r" % (val, t[1]))
+        self.i += 1
+        return t
+
+    # expr := term (('+'|'-') term)*
+    def expr(self):
+        v = self.term()
+        while True:
+            k, s = self.peek()
+            if k == "op" and s in "+-":
+                self.eat()
+                r = self.term()
+                v = v + r if s == "+" else v - r
+            else:
+                return v
+
+    # term := unary (('*'|'/') unary)*
+    def term(self):
+        v = self.unary()
+        while True:
+            k, s = self.peek()
+            if k == "op" and s in "*/":
+                self.eat()
+                r = self.unary()
+                if s == "*":
+                    v = v * r
+                else:
+                    if r == 0:
+                        raise ValueError("除零")
+                    v = v / r
+            else:
+                return v
+
+    # unary := ('-'|'+') unary | atom
+    def unary(self):
+        k, s = self.peek()
+        if k == "op" and s in "+-":
+            self.eat()
+            v = self.unary()
+            return -v if s == "-" else v
+        return self.atom()
+
+    # atom := num | id | id '(' expr ')' | '(' expr ')'
+    def atom(self):
+        k, s = self.eat()
+        if k == "num":
+            return float(s)
+        if k == "id":
+            if s == "ANGLE_REV":
+                self.eat("(")
+                v = self.expr()
+                self.eat(")")
+                return (v - 180.0) if v >= 0 else (v + 180.0)
+            if s in self.macros:
+                return _CExpr(self.macros[s], self.macros).parse()
+            raise ValueError("未知标识符 %s" % s)
+        if k == "op" and s == "(":
+            v = self.expr()
+            self.eat(")")
+            return v
+        raise ValueError("无法解析的记号 %r" % (s,))
+
+    def parse(self):
+        v = self.expr()
+        if self.i != len(self.toks):
+            raise ValueError("表达式尾部多余记号")
+        return v
+
+
+def eval_c_expr(expr, macros):
+    """把 C 表达式（可含 config.h 的宏与 ANGLE_REV）求值成数字；失败返回 None。"""
+    if expr is None:
+        return None
+    e = str(expr).strip()
+    if not e:
+        return None
+    try:
+        return _CExpr(e, macros).parse()
+    except Exception:
+        return None
+
+
+def parse_config_macros(path=PATH_CONFIG, source_text=None):
+    """把 config.h 解析成「宏 -> 表达式」字典（按当前 USE_FIELD 展开）。
+
+    返回 (macros, field_name)。macros 里只有对象宏（ANGLE_REV 由求值器内置）。
+    """
+    src = source_text if source_text is not None else open(path, encoding="utf-8").read()
+    # 先整体去掉块注释：config.h 里有跨行 /* ... */（如 VIA_POINT 那条），
+    # 逐行 strip 会把 "*/" 留在表达式里导致该宏求值失败。
+    src = _strip_block_comments(src)
+
+    consts = {}
+    for name in ("FIELD_COMP", "FIELD_SCHOOL"):
+        mm = re.search(r"#define\s+%s\s+(\d+)" % name, src)
+        if mm:
+            consts[name] = int(mm.group(1))
+    mm = re.search(r"#define\s+USE_FIELD\s+([A-Za-z_]\w*)", src)
+    if not mm:
+        raise ParseError("config.h 里找不到 USE_FIELD")
+    field_tok = mm.group(1)
+    field = consts.get(field_tok)
+    if field is None:
+        try:
+            field = int(field_tok, 0)
+        except ValueError:
+            field = 0
+    field_name = "FIELD_SCHOOL" if field == consts.get("FIELD_SCHOOL", 1) else "FIELD_COMP"
+
+    def eval_cond(expr):
+        e = expr.strip()
+        m2 = re.match(r"^USE_FIELD\s*==\s*(\w+)$", e)
+        if m2:
+            return consts.get(m2.group(1), 0) == field
+        m2 = re.match(r"^(\d+)\s*==\s*(\d+)$", e)
+        if m2:
+            return int(m2.group(1)) == int(m2.group(2))
+        e2 = e
+        for k, v in consts.items():
+            e2 = re.sub(r"\b%s\b" % k, str(v), e2)
+        try:
+            return bool(eval(e2, {"__builtins__": {}}, {}))
+        except Exception:
+            return True
+
+    defines = {}
+    stack = []          # [[外层是否 active, 该链上是否已命中过]]
+    active = True
+    for raw in src.splitlines():
+        line = raw.strip()
+        if line.startswith("#if"):
+            cond = eval_cond(line[3:])
+            stack.append([active, bool(cond)])
+            active = active and bool(cond)
+            continue
+        if line.startswith("#elif"):
+            prev_active, taken = stack[-1]
+            cond = eval_cond(line[5:])
+            stack[-1][1] = taken or bool(cond)
+            active = prev_active and (not taken) and bool(cond)
+            continue
+        if line.startswith("#else"):
+            prev_active, taken = stack[-1]
+            stack[-1][1] = True
+            active = prev_active and (not taken)
+            continue
+        if line.startswith("#endif"):
+            if stack:
+                active = stack.pop()[0]
+            continue
+        if not active:
+            continue
+        # 函数宏的 '(' 必须紧贴宏名。不能写成 name + 可选 '(args)'：
+        # "#define LEN_N18B5   (LEN_N22B7 - 20)" 里的括号会被当成参数表吃掉，
+        # body 变空 -> 宏被误判成函数宏丢弃。故用「紧贴括号=函数宏 | 其余=对象宏」两分支。
+        m2 = re.match(r"#define\s+([A-Za-z_]\w*)\(", line)
+        if m2:
+            continue                      # 函数宏（本项目只有 ANGLE_REV，已内置在求值器里）
+        m2 = re.match(r"#define\s+([A-Za-z_]\w*)\s+(.*?)\s*$", line)
+        if not m2:
+            continue
+        name, body = m2.group(1), m2.group(2)
+        body = _strip_line_comment(body).strip()
+        if body:
+            defines[name] = body
+
+    return defines, field_name
+
+
+_EDGE_ROW_RE = re.compile(
+    r"\{\s*([A-Za-z_]\w*)\s*,\s*([A-Za-z_]\w*)\s*,\s*(.*?)\s*\}\s*,?\s*(?:/\*\s*(.*?)\s*\*/)?\s*$"
+)
+
+
+def parse_edge_table(path=PATH_EDGE_C):
+    """解析 NavEdgeTbl[]。返回 (rows, declared_count)。
+
+    每行 -> dict(from, to, flag, angle, step, speed, func, comment)
+    文本字段原样保留（没编辑过就原样导出，保证"不改 = 不产生差异"）。
+    """
+    src = open(path, encoding="utf-8").read()
+    m = re.search(r"NavEdgeTbl\s*\[[^\]]*\]\s*=\s*\{", src)
+    if not m:
+        raise ParseError("map_message.c 里找不到 NavEdgeTbl[] 初始化")
+    start = m.end()
+    end = src.index("};", start)
+    body = src[start:end]
+
+    declared = None
+    try:
+        cm = re.search(r"#define\s+NAV_EDGE_COUNT\s+(\d+)",
+                       open(PATH_MSG_H, encoding="utf-8").read())
+        if cm:
+            declared = int(cm.group(1))
+    except OSError:
+        pass
+
+    rows = []
+    for raw in body.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("/*") or "{" not in line:
+            continue
+        mm = _EDGE_ROW_RE.search(line)
+        if not mm:
+            continue
+        frm, to, rest, comment = mm.group(1), mm.group(2), mm.group(3), mm.group(4)
+        parts = [p.strip() for p in rest.split(",")]
+        if len(parts) < 5:
+            continue
+        # flag 可能因为源码里写成 "CLEFT| DLEFT | DRIGHT" 而含逗号（历史笔误）：
+        # 取末 4 段作为 angle/step/speed，倒数第 5 段起是 flag
+        func, speed, step, angle = parts[-1], parts[-2], parts[-3], parts[-4]
+        flag = ", ".join(parts[:-4])
+        cmt = (comment or "").strip()
+        # 去掉行尾注释里重复的 "A->B" 前缀（导出时统一写成 "A->B（原注释）"）
+        cmt = re.sub(r"^%s\s*->\s*%s\s*" % (re.escape(frm), re.escape(to)), "", cmt).strip()
+        rows.append({
+            "from": frm, "to": to, "flag": flag, "angle": angle,
+            "step": step, "speed": speed, "func": func, "comment": cmt,
+        })
+    return rows, declared
+
+
+# ---------------------------------------------------------------- 数据模型
+
+class Node:
+    __slots__ = ("name", "comment", "index", "x", "y")
+
+    def __init__(self, name, comment="", index=0, x=0.0, y=0.0):
+        self.name = name
+        self.comment = comment
+        self.index = index          # 仅供显示；导出 enum 时按列表顺序重排
+        self.x = float(x)
+        self.y = float(y)
+
+    @property
+    def kind(self):
+        return node_kind(self.name)
+
+    def to_dict(self):
+        return {"name": self.name, "comment": self.comment, "x": self.x, "y": self.y}
+
+    @staticmethod
+    def from_dict(d):
+        return Node(d.get("name", "?"), d.get("comment", ""), 0,
+                    d.get("x", 0.0), d.get("y", 0.0))
+
+
+class Edge:
+    __slots__ = ("frm", "to", "flag", "angle", "step", "speed", "func", "comment", "tag")
+
+    def __init__(self, frm, to, flag="NO", angle="0", step="0", speed="SPEED0",
+                 func="NONE", comment="", tag=None):
+        self.frm = frm
+        self.to = to
+        self.flag = flag          # 文本（可含位或表达式）
+        self.angle = angle        # 文本（可含 ANGLE_* 宏）
+        self.step = step          # 文本（可含 LEN_*/DOOR_LEN_* 宏）
+        self.speed = speed        # 文本（SPEED0..5 或数字）
+        self.func = func
+        self.comment = comment
+        self.tag = tag            # 界面用的稳定 id
+
+    def key(self):
+        return (self.frm, self.to)
+
+    def label(self):
+        return "%s -> %s" % (self.frm, self.to)
+
+    def to_dict(self):
+        return {k: getattr(self, k) for k in
+                ("frm", "to", "flag", "angle", "step", "speed", "func", "comment", "tag")}
+
+    @staticmethod
+    def from_dict(d):
+        return Edge(d.get("frm"), d.get("to"), d.get("flag", "NO"), d.get("angle", "0"),
+                    d.get("step", "0"), d.get("speed", "SPEED0"), d.get("func", "NONE"),
+                    d.get("comment", ""), d.get("tag"))
+
+
+class MapModel:
+    """整张地图的内存模型 + 校验 + 规划 + 导出。"""
+
+    def __init__(self):
+        self.nodes = []                 # [Node]
+        self.edges = []                 # [Edge]
+        self.macros = {}                # config.h 展开后的宏
+        self.field_name = "?"
+        self.declared_count = None
+        self.dirty = False
+        self._tag_seq = 1
+
+    # -------------------------------------------------- 载入
+    @staticmethod
+    def load_from_sources(with_positions=True):
+        m = MapModel()
+        m.macros, m.field_name = parse_config_macros()
+        enum = parse_map_enum()
+        coords = load_seed_positions() if with_positions else {}
+        for i, (name, comment, idx) in enumerate(enum):
+            x, y = coords.get(name, (60 + (i % 8) * 110, 640 + (i // 8) * 80))
+            n = Node(name, comment, idx, x, y)
+            if name in MISSING_SEED:
+                n.comment = (n.comment + " [坐标估计]").strip()
+            m.nodes.append(n)
+        rows, declared = parse_edge_table()
+        for r in rows:
+            m.edges.append(Edge(r["from"], r["to"], r["flag"], r["angle"], r["step"],
+                                r["speed"], r["func"], r["comment"], tag=m._new_tag()))
+        m.declared_count = declared
+        m.dirty = False
+        return m
+
+    def _new_tag(self):
+        self._tag_seq += 1
+        return "e%d" % self._tag_seq
+
+    # -------------------------------------------------- 查询
+    def node(self, name):
+        for n in self.nodes:
+            if n.name == name:
+                return n
+        return None
+
+    def node_index(self, name):
+        for i, n in enumerate(self.nodes):
+            if n.name == name:
+                return i
+        return -1
+
+    def names(self):
+        return [n.name for n in self.nodes]
+
+    def edge(self, frm, to):
+        for e in self.edges:
+            if e.frm == frm and e.to == to:
+                return e
+        return None
+
+    def edges_of(self, name, outgoing=True):
+        return [e for e in self.edges if (e.frm if outgoing else e.to) == name]
+
+    def has_reverse(self, e):
+        return self.edge(e.to, e.frm) is not None
+
+    def out_neighbors(self, name):
+        return [e.to for e in self.edges if e.frm == name]
+
+    def ang(self, e):
+        return eval_c_expr(e.angle, self.macros)
+
+    def step(self, e):
+        return eval_c_expr(e.step, self.macros)
+
+    # -------------------------------------------------- 编辑
+    def add_node(self, name, x, y, comment=""):
+        if self.node(name):
+            raise ValueError("节点 %s 已存在" % name)
+        if not re.match(r"^[A-Za-z_]\w*$", name):
+            raise ValueError("节点名必须是合法 C 标识符：%r" % name)
+        n = Node(name, comment, len(self.nodes), x, y)
+        self.nodes.append(n)
+        self.dirty = True
+        return n
+
+    def remove_node(self, name, remove_edges=True):
+        n = self.node(name)
+        if not n:
+            return False
+        self.nodes.remove(n)
+        if remove_edges:
+            self.edges = [e for e in self.edges if e.frm != name and e.to != name]
+        self.dirty = True
+        return True
+
+    def rename_node(self, old, new):
+        if old == new:
+            return True
+        if self.node(new):
+            raise ValueError("节点 %s 已存在" % new)
+        if not re.match(r"^[A-Za-z_]\w*$", new):
+            raise ValueError("节点名必须是合法 C 标识符：%r" % new)
+        self.node(old).name = new
+        for e in self.edges:
+            if e.frm == old:
+                e.frm = new
+            if e.to == old:
+                e.to = new
+        self.dirty = True
+        return True
+
+    def add_edge(self, frm, to, flag="NO", angle="0", step="0", speed="SPEED0",
+                 func="NONE", comment=""):
+        if not self.node(frm) or not self.node(to):
+            raise ValueError("边端点不存在：%s -> %s" % (frm, to))
+        if frm == to:
+            raise ValueError("不允许自环：%s" % frm)
+        if self.edge(frm, to):
+            raise ValueError("边 %s -> %s 已存在" % (frm, to))
+        e = Edge(frm, to, flag, angle, step, speed, func, comment, tag=self._new_tag())
+        self.edges.append(e)
+        self.dirty = True
+        return e
+
+    def remove_edge(self, frm, to):
+        before = len(self.edges)
+        self.edges = [e for e in self.edges if not (e.frm == frm and e.to == to)]
+        if len(self.edges) != before:
+            self.dirty = True
+            return True
+        return False
+
+    def move_node(self, name, x, y):
+        n = self.node(name)
+        if n:
+            n.x, n.y = float(x), float(y)
+            self.dirty = True
+
+    # -------------------------------------------------- 序列化（撤销/存档）
+    def snapshot(self):
+        return json.dumps({
+            "nodes": [n.to_dict() for n in self.nodes],
+            "edges": [e.to_dict() for e in self.edges],
+            "tag_seq": self._tag_seq,
+        }, ensure_ascii=False, sort_keys=True)
+
+    def restore(self, snap):
+        d = json.loads(snap)
+        self.nodes = [Node.from_dict(x) for x in d["nodes"]]
+        self.edges = [Edge.from_dict(x) for x in d["edges"]]
+        self._tag_seq = d.get("tag_seq", 1)
+        self.dirty = True
+
+    def to_json(self):
+        return json.dumps({
+            "format": "xunbao-map",
+            "version": 2,
+            "field": self.field_name,
+            "macros": {k: v for k, v in self.macros.items()},
+            "background": dict(getattr(self, "background", {}) or {}),
+            "constraints": dict(getattr(self, "constraints", {}) or {}),
+            "nodes": [n.to_dict() for n in self.nodes],
+            "edges": [e.to_dict() for e in self.edges],
+        }, ensure_ascii=False, indent=1)
+
+    def load_json(self, text):
+        d = json.loads(text)
+        self.nodes = [Node.from_dict(x) for x in d.get("nodes", [])]
+        self.edges = [Edge.from_dict(x) for x in d.get("edges", [])]
+        for e in self.edges:
+            if not e.tag:
+                e.tag = self._new_tag()
+        self.field_name = d.get("field", self.field_name)
+        self.macros.update(d.get("macros", {}))
+        # 底图标定 / 拖动约束（界面写、界面读；核心层不解释其内容）
+        self.background = d.get("background", {}) or {}
+        self.constraints = d.get("constraints", {}) or {}
+        self.dirty = True
+
+    # -------------------------------------------------- 校验
+    def validate(self):
+        """返回 [(级别, 消息)]；级别 'error' / 'warn' / 'info'。"""
+        out = []
+        names = set(self.names())
+        seen = {}
+        for i, e in enumerate(self.edges, 1):
+            if e.frm not in names:
+                out.append(("error", "第 %d 行：from 节点 %s 不在 enum MapNode 里" % (i, e.frm)))
+            if e.to not in names:
+                out.append(("error", "第 %d 行：to 节点 %s 不在 enum MapNode 里" % (i, e.to)))
+            if e.frm == e.to:
+                out.append(("error", "第 %d 行：自环 %s->%s" % (i, e.frm, e.to)))
+            if e.key() in seen:
+                out.append(("error", "重复边 %s，第 %d 行与第 %d 行"
+                            % (e.label(), seen[e.key()], i)))
+            seen[e.key()] = i
+            if e.func not in FUNC_ORDER and not re.match(r"^\d+$", e.func or ""):
+                out.append(("warn", "第 %d 行：function=%s 不在已知列表" % (i, e.func)))
+            for tok in re.split(r"[|,\s]+", e.flag or ""):
+                tok = tok.strip()
+                if tok and not re.match(r"^\d+$", tok) and tok not in FLAG_ORDER:
+                    out.append(("warn", "第 %d 行：flag 里的 %s 不认识" % (i, tok)))
+            if eval_c_expr(e.angle, self.macros) is None:
+                out.append(("warn", "第 %d 行：angle=%s 无法解析成数字" % (i, e.angle)))
+            if eval_c_expr(e.step, self.macros) is None:
+                out.append(("warn", "第 %d 行：step=%s 无法解析成数字" % (i, e.step)))
+
+        used = set()
+        for e in self.edges:
+            used.add(e.frm)
+            used.add(e.to)
+        for n in self.nodes:
+            if n.name not in used:
+                out.append(("info", "孤立节点 %s（没有任何边）" % n.name))
+
+        for e in self.edges:
+            if not self.has_reverse(e):
+                out.append(("warn", "单向边 %s（没有反向边 %s）" % (e.label(), e.to + "->" + e.frm)))
+
+        for n in self.nodes:
+            outs = len(self.edges_of(n.name, True))
+            ins = len(self.edges_of(n.name, False))
+            if outs == 0 and ins == 1:
+                out.append(("warn", "节点 %s 只有入边没有出边（车到这儿没路走）" % n.name))
+            if outs == 1 and ins == 0:
+                out.append(("warn", "节点 %s 只有出边没有入边" % n.name))
+        if not out:
+            out.append(("info", "校验通过：%d 个节点 / %d 条边" % (len(self.nodes), len(self.edges))))
+        return out
+
+    # -------------------------------------------------- 规划（与固件同一套 Dijkstra）
+    NAV_W_TURN = 0.6
+    # 与 nav_planner.c 的 NavObsPenalty[] 对齐（键 = barriers 枚举名）
+    OBS = {"NONE": 0, "UpStage": 60, "Bridge": 0, "Hill": 0, "LBHill": 0, "SM": 0,
+           "View": 0, "View1": 0, "BACK": 0, "BSoutPole": 0, "QQB": 0, "BLBS": 70,
+           "BLBL": 70, "DOOR": 60, "BHM": 0, "IGNORE": 0, "Special_node": 0,
+           "DOOR1": 0, "UpStageHome": 60}
+
+    def plan_route(self, waypoints, cost_mode="full"):
+        """必经点最短路。返回 (path, None) 或 (None, 原因)。"""
+        if not waypoints:
+            return None, "没有必经点"
+        for w in waypoints:
+            if not self.node(w):
+                return None, "必经点 %s 不存在" % w
+        full = []
+        for i in range(len(waypoints) - 1):
+            if waypoints[i] == waypoints[i + 1]:
+                continue
+            seg, why = self._dijkstra(waypoints[i], waypoints[i + 1], cost_mode)
+            if seg is None:
+                return None, "%s -> %s 不可达" % (waypoints[i], waypoints[i + 1])
+            full.extend(seg if not full else seg[1:])
+        return (full or [waypoints[0]]), None
+
+    def _dijkstra(self, src, dst, mode):
+        import heapq
+        if src == dst:
+            return [src], None
+
+        def w_obs(e):
+            return self.OBS.get(e.func, 0) if mode == "full" else 0
+
+        def turn_cost(pe, e):
+            if pe is None or mode == "len":
+                return 0.0
+            a1, a2 = self.ang(pe), self.ang(e)
+            if a1 is None or a2 is None:
+                return 0.0
+            d = (a2 - a1) % 360.0
+            if d > 180:
+                d -= 360
+            return abs(d) * self.NAV_W_TURN
+
+        INF = float("inf")
+        best = {}
+        prev = {}
+        pq = []
+        for e in self.edges_of(src, True):
+            c = (self.step(e) or 0.0) + w_obs(e)
+            st = (e.to, e.tag)
+            if c < best.get(st, INF):
+                best[st] = c
+                # (起点, None)：回溯到它再查 prev 会得到 None，循环自然结束
+                prev[st] = (src, None)
+                heapq.heappush(pq, (c, e.to, e.tag))
+        by_tag = {e.tag: e for e in self.edges}
+        while pq:
+            c, u, tag = heapq.heappop(pq)
+            if c > best.get((u, tag), INF) + 1e-9:
+                continue
+            if u == dst:
+                path = [u]
+                st = (u, tag)
+                while prev.get(st) is not None:
+                    pu, ptag = prev[st]
+                    path.append(pu)
+                    st = (pu, ptag)
+                path.reverse()
+                return path, None
+            pe = by_tag.get(tag)
+            for e in self.edges_of(u, True):
+                nc = c + (self.step(e) or 0.0) + w_obs(e) + turn_cost(pe, e)
+                st2 = (e.to, e.tag)
+                if nc < best.get(st2, INF) - 1e-9:
+                    best[st2] = nc
+                    # 前驱统一记成 (上一跳所在节点, 上一跳的边 tag)；
+                    # 起点的前驱在初始化时写 None（表示"没有更前面的节点了"）。
+                    prev[st2] = (u, tag)
+                    heapq.heappush(pq, (nc, e.to, e.tag))
+        return None, "不可达"
+
+    # -------------------------------------------------- 导出
+    def export_enum(self):
+        """生成 enum MapNode（按当前节点列表顺序重排索引）。"""
+        lines = ["enum MapNode {\t//MapNode"]
+        for i, n in enumerate(self.nodes):
+            cmt = ("//%d" % i) if not n.comment else ("//%d\t%s" % (i, n.comment))
+            lines.append("\t%s,\t%s" % (n.name, cmt))
+        lines[-1] = lines[-1].rstrip(",")     # 最后一项不带逗号（原文件风格）
+        return "\n".join(lines) + "\n};"
+
+    def _fmt_edge_row(self, e):
+        toks = [t.strip() for t in re.split(r"[|,]", e.flag or "") if t.strip()]
+        flag_txt = "|".join(toks) if toks else "NO"
+        row = "    { %s, %s, %s, %s, %s, %s, %s }," % (
+            e.frm, e.to, flag_txt, e.angle, e.step, e.speed, e.func)
+        cmt = (e.comment or "").strip()
+        if cmt:
+            row = "%-56s /* %s->%s %s */" % (row, e.frm, e.to, cmt)
+        return row
+
+    def export_edge_table(self, with_header=True):
+        """生成 NavEdgeTbl[] 的完整 C 文本。"""
+        out = []
+        if with_header:
+            out.append("/* ---- 由 scripts/map_editor/map_editor.py 导出（%s）---- */"
+                       % datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
+        out.append("const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {")
+        order = {n.name: i for i, n in enumerate(self.nodes)}
+        groups = {}
+        for e in self.edges:
+            groups.setdefault(e.frm, []).append(e)
+        for name in sorted(groups.keys(), key=lambda k: order.get(k, 9999)):
+            out.append("")
+            out.append("    /* ========== %s ========== */" % name)
+            for e in groups[name]:
+                out.append(self._fmt_edge_row(e))
+        out.append("};")
+        out.append("")
+        out.append("/* 编译期检查：NavEdgeTbl 行数必须与 NAV_EDGE_COUNT 一致（改漏立即编译报错）")
+        out.append("   使用 C99 兼容技巧：负数组大小在编译期报错 */")
+        out.append("typedef char NavEdgeTbl_size_check[(sizeof(NavEdgeTbl)/sizeof(NavEdge) == "
+                   "NAV_EDGE_COUNT) ? 1 : -1];")
+        out.append("")
+        out.append("/* Node[]/ConnectionNum[]/Address[] 已移至 nav_planner.c 统一构建，"
+                   "nav_graph_init() 已废弃 */")
+        return "\n".join(out) + "\n"
+
+    def export_edges_only(self):
+        """只导出表体（从第一行边到最后一行边，带分组注释），方便手工粘回。"""
+        txt = self.export_edge_table(with_header=False)
+        lines = txt.splitlines()
+        # 去掉 const 行与尾部 sizeof 检查
+        keep = []
+        for ln in lines:
+            if ln.startswith("const NavEdge"):
+                continue
+            if ln.startswith("/* 编译期检查") or ln.startswith("typedef char NavEdgeTbl_size_check"):
+                continue
+            if ln.startswith("   使用 C99 兼容技巧"):
+                continue
+            if ln.startswith("/* Node[]/ConnectionNum"):
+                continue
+            if ln.strip() == "};":
+                continue
+            keep.append(ln)
+        return "\n".join(keep).strip("\n") + "\n"
+
+    def export_nav_edge_count(self):
+        return "#define NAV_EDGE_COUNT %d" % len(self.edges)
+
+    def export_route_array(self, path):
+        """把一条路线导出成 route[100] 初始化（map.c 的 MAP_DEBUG 用）。"""
+        if not path:
+            return "u8 route[100] = {0XFF};"
+        return "u8 route[100] = {%s, 0XFF};" % ", ".join(path)
+
+    def export_debug_macros(self, first, via, end):
+        return "\n".join([
+            "#define FIRST_POINT   %s" % first,
+            "#define VIA_POINT     %s" % (via if via and via != "0" else "0"),
+            "#define END_POINT     %s" % end,
+        ])
+
+    def export_connectivity(self):
+        lines = ["%-6s %-6s %-6s %-8s %-8s %-8s %s" %
+                 ("from", "to", "ang", "step", "speed", "func", "flag")]
+        for e in self.edges:
+            lines.append("%-6s %-6s %-6s %-8s %-8s %-8s %s" % (
+                e.frm, e.to, e.angle, e.step, e.speed, e.func, e.flag))
+        return "\n".join(lines) + "\n"
+
+    def export_eval_report(self):
+        """把每条边的 angle/step 求值结果打出来（自检宏是否都解析成功）。"""
+        lines = ["%-6s %-6s %10s %10s  %s" % ("from", "to", "angle", "step", "func")]
+        bad = 0
+        for e in self.edges:
+            a, s = self.ang(e), self.step(e)
+            if a is None or s is None:
+                bad += 1
+            lines.append("%-6s %-6s %10s %10s  %s" % (
+                e.frm, e.to, "ERR" if a is None else "%.1f" % a,
+                "ERR" if s is None else "%.1f" % s, e.func))
+        lines.append("")
+        lines.append("求值失败 %d 条 / 共 %d 条" % (bad, len(self.edges)))
+        return "\n".join(lines) + "\n"
+
+    # -------------------------------------------------- 兼容性自检
+    def roundtrip_report(self):
+        """对照原文件，逐行比较「原边表」与「重新导出」的差异。"""
+        rows, _ = parse_edge_table()
+        orig = {}
+        for r in rows:
+            orig[(r["from"], r["to"])] = r
+        mine = {}
+        for e in self.edges:
+            mine[e.key()] = e
+        problems = []
+        for k, r in orig.items():
+            if k not in mine:
+                problems.append("丢失边 %s->%s" % k)
+                continue
+            e = mine[k]
+            exp_flag = "|".join(t.strip() for t in re.split(r"[|,]", r["flag"]) if t.strip())
+            got_flag = "|".join(t.strip() for t in re.split(r"[|,]", e.flag or "") if t.strip())
+            for fld, want, got in (("flag", exp_flag, got_flag), ("angle", r["angle"], e.angle),
+                                   ("step", r["step"], e.step), ("speed", r["speed"], e.speed),
+                                   ("func", r["func"], e.func)):
+                if want != got:
+                    problems.append("%s->%s 字段 %s: 原=%r 现=%r" % (k[0], k[1], fld, want, got))
+        for k in mine:
+            if k not in orig:
+                problems.append("新增边 %s->%s" % k)
+        return problems
+
+
+# ---------------------------------------------------------------- 初始坐标种子
+# 读自 寻宝地图/节点图.jpg（1012x632 预览坐标系）；纯界面用途，不参与固件。
+SEED_POSITIONS = {
+    'S1': (197, 77), 'P1': (565, 72), 'B1': (821, 60), 'N1': (667, 60), 'B2': (727, 154),
+    'B3': (881, 160), 'N2': (992, 60), 'P2': (1189, 69), 'S2': (1549, 103),
+    'P3': (171, 243), 'N3': (633, 249), 'N4': (878, 254), 'N5': (1104, 254), 'N6': (1261, 218),
+    'P4': (1523, 243), 'C1': (1198, 351), 'D4': (727, 372), 'D3': (967, 351), 'N8': (878, 442),
+    'D2': (1061, 450), 'D1': (1198, 420), 'N7': (364, 334), 'N9': (364, 611), 'N10': (595, 604),
+    'N12': (1104, 591), 'N13': (1261, 591), 'P5': (1523, 622), 'C3': (145, 591), 'N14': (145, 699),
+    'S3': (257, 707), 'S4': (530, 699), 'N15': (633, 719), 'S5': (1104, 699), 'N16': (1155, 750),
+    'C4': (317, 767), 'C5': (633, 796), 'N18': (1104, 813), 'B5': (1343, 767), 'N19': (1523, 762),
+    'C6': (1523, 856), 'B6': (876, 964), 'N22': (987, 976), 'C9': (1235, 1053), 'P7': (1506, 1022),
+    'C7': (151, 1019), 'C8': (305, 1053), 'B11': (436, 885), 'B7': (1343, 856), 'N20': (715, 885),
+    'P8': (163, 882), 'N11': (838, 591), 'G1': (1412, 1044), 'B10': (116, 984),
+    'B8': (299, 462), 'B9': (441, 462), 'P6': (364, 497),
+    # ↓ 这 6 个节点在 节点图.jpg 上**没有画**，坐标是估的：
+    #    用"相邻边的表里 angle"做联合最小二乘求解，再结合图上相对方位微调。
+    #    ⚠️ 精度上限 ≈ ±50px：把图上已画的节点当未知重解一遍，平均也偏 52px，
+    #    这就是节点图（示意图）本身的不准程度。所以这几个点**按你觉得对的位置拖**即可，
+    #    拖动只改示意图位置，**不影响任何 step/angle 数值**。
+    'C6': (1455, 830), 'C7': (188, 1001), 'C8': (294, 1046),
+    'G1': (1376, 1044), 'C2': (1205, 447), 'B4': (359, 693),
+}
+
+# 没有画在节点图上的节点（界面会提示"坐标是估的，可拖"）
+MISSING_SEED = ("C6", "C7", "C8", "G1", "C2", "B4")
+
+
+def load_seed_positions():
+    return dict(SEED_POSITIONS)
+
+
+# ---------------------------------------------------------------- 自检
+if __name__ == "__main__":
+    m = MapModel.load_from_sources()
+    print("ROOT =", ROOT)
+    print("field =", m.field_name)
+    print("nodes = %d, edges = %d, NAV_EDGE_COUNT = %s"
+          % (len(m.nodes), len(m.edges), m.declared_count))
+    probs = m.roundtrip_report()
+    print("roundtrip problems =", len(probs))
+    for p in probs[:20]:
+        print("   ", p)
+    ev = m.export_eval_report()
+    print(ev.splitlines()[-2])
+    print("---- validate ----")
+    for lvl, msg in m.validate()[:20]:
+        print("[%s] %s" % (lvl, msg))
+    print("---- C9 / C6 / B7 / P7 ----")
+    for name in ("C9", "C6", "B7", "P7", "G1"):
+        outs = m.edges_of(name, True)
+        print("%-4s 出边: %s" % (name, ", ".join(
+            "%s(%.0f/%.0f/%s)" % (e.to, m.ang(e) or 0, m.step(e) or 0, e.func) for e in outs)))

@@ -190,6 +190,8 @@ void IMU_RxIdleHandler(uint16_t Size)
 	portYIELD_FROM_ISR(higher_priority_task_woken);
 }
 #else
+
+//当前imu数据解析 纯靠 串口空闲中断 检测 发送的间断 来区分 每一帧，如果是没有间断的陀螺仪，就不能用此方法
 #define BUFFER_SIZE 33
 
 static uint8_t imu_rx_len = 0;
@@ -225,17 +227,18 @@ void imu_receive_init(void)
 #else
 void imu_receive_init(void)
 {
+	//陀螺仪互斥量创建
 	imu_mutex = xSemaphoreCreateMutex();
-	if (imu_mutex == NULL)
-	{
+	if (imu_mutex == NULL) {
+		// 创建失败，系统异常处理
 		buzzer_on();
 		delay_ms(2000);
 	}
-
-	HAL_UART_Receive_DMA(&IMU_UART, imu_rx_buf, BUFFER_SIZE);
-	__HAL_UART_ENABLE_IT(&IMU_UART, UART_IT_IDLE);
+	HAL_UART_Receive_DMA(&huart3,imu_rx_buf,BUFFER_SIZE);//单独这一条并不会触发USART3_IRQHandler
+	__HAL_UART_ENABLE_IT(&huart3, UART_IT_IDLE);//启动了空闲中断才可能进入USART3_IRQHandler(没配置接收中断RXNE，不会接收一个字节触发一次)
+	//HAL_UARTEx_ReceiveToIdle_DMA(&IMU_UART, imu_rx_buf, BUFFER_SIZE);//同样会开启DMA和空闲中断，但会在HAL_UART_IRQHandler里杀死DMA，导致下一次接收失败
+	//注：只要开启DMA就默认开启DMA中断，在过半中断和完成中断里会调用event callback函数
 }
-#endif
 
 #if IMU_USE_JY62
 void USART3_IRQHandler(void)
@@ -285,13 +288,14 @@ void USART3_IRQHandler(void)
 						imu.roll  = filter(imu.roll);
 						imu.yaw   = filter(imu.yaw);
 					}
-
+					// 临界区写入共享数据
 					BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 					if (imu_mutex != NULL &&
-						xSemaphoreTakeFromISR(imu_mutex, &xHigherPriorityTaskWoken) == pdTRUE)
+						xSemaphoreTakeFromISR(imu_mutex, &xHigherPriorityTaskWoken) == pdTRUE)//从 ISR（中断服务程序）中尝试“获取”这个互斥锁
 					{
 						imu_shared_data = imu;
-						xSemaphoreGiveFromISR(imu_mutex, &xHigherPriorityTaskWoken);
+						xSemaphoreGiveFromISR(imu_mutex, &xHigherPriorityTaskWoken);//xSemaphoreGiveFromISR() 中把 xHigherPriorityTaskWoken 设置为了 pdTRUE
+						//如果有任务阻塞在等这个锁，那现在它可以被唤醒了
 					}
 					portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 				}
@@ -302,9 +306,9 @@ void USART3_IRQHandler(void)
 		imu_rx_len = 0;
 	}
 
-	HAL_UART_Receive_DMA(&IMU_UART, imu_rx_buf, BUFFER_SIZE);
+	HAL_UART_Receive_DMA(&IMU_UART, imu_rx_buf, BUFFER_SIZE);//不放在if((flag_idle != RESET))里防止错误触发中断直接杀死传输
 	__HAL_UART_ENABLE_IT(&IMU_UART, UART_IT_IDLE);
-	HAL_UART_IRQHandler(&IMU_UART);
+	HAL_UART_IRQHandler(&IMU_UART);//不建议删除，内部清除错误标志位，删了就得手动置位
 }
 #endif
 
