@@ -57,7 +57,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { N4, B2, NO, -40, 40, SPEED1, Hill },
     { N4, B3, NEAR_CENTER, -140, 84, 15, BLBS },
     { N4, N3, DLEFT|TEMP_NEAR_CENTER|LEFT_LINE, 0, 108, SPEED3, NONE },
-    { N4, N5, DRIGHT|RIGHT_LINE|Temp_L, 180, 120, SPEED3, NONE },
+    { N4, N5, DRIGHT|RIGHT_LINE|Temp_L|MUL2SING, 180, 120, SPEED3, NONE },
 
     /* ========== N5 ========== */
     { N5, N4, RIGHT_LINE|Temp_L|MUL2SING, 0, 84, SPEED3, NONE },
@@ -218,6 +218,13 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { B11, C4, CRIGHT, -90, 40, SPEED2, NONE },
     { B11, C8, DRIGHT|CRIGHT, 90, 10, SPEED1, NONE },
 };
+
+/* 编译期检查：NavEdgeTbl 行数必须与 NAV_EDGE_COUNT 一致（改漏立即编译报错）
+   使用 C99 兼容技巧：负数组大小在编译期报错 */
+typedef char NavEdgeTbl_size_check[(sizeof(NavEdgeTbl)/sizeof(NavEdge) == NAV_EDGE_COUNT) ? 1 : -1];
+
+/* Node[]/ConnectionNum[]/Address[] 已移至 nav_planner.c 统一构建，nav_graph_init() 已废弃 */
+
 
 /* 编译期检查：NavEdgeTbl 行数必须与 NAV_EDGE_COUNT 一致（改漏立即编译报错）
    使用 C99 兼容技巧：负数组大小在编译期报错 */

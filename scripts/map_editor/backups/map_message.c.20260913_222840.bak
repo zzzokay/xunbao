@@ -118,10 +118,10 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
 
     /* ========== N13 ========== */
     { N13, N12, DLEFT|DRIGHT|NEAR_CENTER, 0, 100, SPEED25, NONE },
-    { N13, P5, NEAR_CENTER, 180, 80, SPEED2, UpStage },
+    { N13, P7, NEAR_CENTER, 180, 10, SPEED2, BSoutPole },
 
     /* ========== P5 ========== */
-    { P5, N13, MUL2SING|CLEFT|CRIGHT|NEAR_CENTER, 0, 60, SPEED2, NONE },
+    { P5, C9, DRIGHT, 0, 180, SPEED25, NONE },
 
     /* ========== N14 ========== */
     { N14, C3, DRIGHT|STOPTURN, -90, 18, SPEED0, NONE },
@@ -175,7 +175,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { N19, C6, DRIGHT, 90, 30, SPEED2, NONE },
 
     /* ========== P7 ========== */
-    { P7, C9, DRIGHT, 0, 180, SPEED25, NONE },
+    { P7, N13, MUL2SING|CLEFT|CRIGHT|NEAR_CENTER, 0, 10, SPEED2, NONE },
 
     /* ========== N20 ========== */
     { N20, C4, CLEFT|MCLEFT|STOPTURN|RIGHT_LINE, -35, 180, SPEED4, NONE },
@@ -200,7 +200,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { C8, B11, NO, -90, 30, SPEED3, BLBL },
 
     /* ========== C9 ========== */
-    { C9, P7, NONE, 180, 260, SPEED2, BSoutPole },
+    { C9, P5, NONE, 180, 260, SPEED2, UpStage },
     { C9, N22, DLEFT|DRIGHT|STOPTURN, -90, 18, SPEED0, NONE },
 
     /* ========== P8 ========== */

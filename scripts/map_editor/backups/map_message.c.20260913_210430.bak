@@ -57,7 +57,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { N4, B2, NO, -40, 40, SPEED1, Hill },
     { N4, B3, NEAR_CENTER, -140, 84, 15, BLBS },
     { N4, N3, DLEFT|TEMP_NEAR_CENTER|LEFT_LINE, 0, 108, SPEED3, NONE },
-    { N4, N5, DRIGHT|RIGHT_LINE|Temp_L, 180, 120, SPEED3, NONE },
+    { N4, N5, DRIGHT|RIGHT_LINE|Temp_L|MUL2SING, 180, 120, SPEED3, NONE },
 
     /* ========== N5 ========== */
     { N5, N4, RIGHT_LINE|Temp_L|MUL2SING, 0, 84, SPEED3, NONE },

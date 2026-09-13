@@ -432,295 +432,6 @@ class Edge:
                     d.get("comment", ""), d.get("tag"))
 
 
-# ---------------------------------------------------------------- 门 / 线索 / 宝物（镜像固件分支）
-# 通行语义与 Mission/barrier.h 一致（与具体颜色解耦）：绿=能过、蓝=单相、黑=不能过。
-CAN_PASS = 2        # 绿
-ONE_WAY_PASS = 3    # 蓝
-NO_PASS = 1         # 黑
-DOOR_STATE_NAME = {CAN_PASS: "绿(能过)", ONE_WAY_PASS: "蓝(单相)",
-                   NO_PASS: "黑(不能过)", 0: "未读"}
-DOOR_STATE_ORDER = [CAN_PASS, ONE_WAY_PASS, NO_PASS, 0]
-# door_pass[] 下标 -> 门名（barrier.c door() 的 DoorState）
-DOOR_SLOT_NAME = ["D2", "D3", "D4", "D5"]
-
-# 门区 8 条通行边：与 mission_planner.c 的 door_zone[8][2] / Clear_door() 是同一组
-DOOR_ZONE = [("N5", "N12"), ("N12", "N5"), ("N5", "N8"), ("N8", "N5"),
-             ("N3", "N8"), ("N8", "N3"), ("N3", "N10"), ("N10", "N3")]
-
-# 宝物编号 -> 回程前要绕去取的平台（5/6 在东区已取过，见 plan_treasure_return）
-TREASURE_PF = {2: "P1", 3: "P3", 4: "P4", 5: "P5", 6: "P6"}
-
-
-def can_pass(state):
-    """镜像 Can_Pass()：绿或蓝都算可通行。"""
-    return state == CAN_PASS or state == ONE_WAY_PASS
-
-
-def p1_route(clue):
-    """镜像 Mission/mission_planner.c:update_route_at_P1()（手写数组，不走规划器）。
-
-    返回 route[] 内容（不含起点 N2，0xFF 由调用方补）；clue 不在 {0,3,4} 时固件不改路线，返回 None。
-    """
-    if clue == 3:
-        return ["B1", "N1", "P1", "N1", "B2", "N4", "N3", "P3", "N3", "N4", "N5", "N12"]
-    if clue == 4:
-        return ["B1", "N1", "P1", "N1", "B2", "N4", "N5", "N6", "P4", "N6", "N5", "N12"]
-    if clue == 0:
-        return ["B1", "N1", "P1", "N1", "B2", "N4", "N5", "N12"]
-    return None
-
-
-def stageab_waypoints(enter_node, clue_a, clue_b):
-    """镜像 update_route_at_door_for_stageAB()：wp = {当前节点, 平台A, 平台B}。"""
-    if (clue_a, clue_b) not in ((5, 7), (5, 8), (6, 7), (6, 8)):
-        return None, "平台 A/B 线索组合固件会 CarBrake_Stop（只支持 5/6 × 7/8）"
-    return [enter_node, "P%d" % clue_a, "P%d" % clue_b], None
-
-
-def stageab_enter_node(doors):
-    """过门后 nodes.nowNode 落在哪：镜像 barrier.c:door() 把 door_set_pass_node() 的返回值
-    赋给 nodes.nowNode —— D2 能过 → N12；否则退回 N5→N8 读 D3、再退到 N3→N8 读 D4，最终都落在 N8。
-    三种灯全不能过时固件 CarBrake_Stop，返回 None。"""
-    if can_pass(doors[0]):
-        return "N12"
-    if can_pass(doors[1]) or can_pass(doors[2]):
-        return "N8"
-    return None
-
-
-# door() 里"去撞下一扇门"用的手写字面数组（mission_planner.c: door1route）
-DOOR1ROUTE = ["N3", "N8"]
-
-
-def door_read_flow(doors):
-    """镜像 barrier.c:door() 的【进门读灯推进】：D2 → (退回) → D3 → (退回) → D4。
-
-    返回 (steps, enter_node, err)：
-      steps = [(门, 读灯的边, 灯状态, 判定, 动作/手写路线)]，只含**实际会被读到**的门；
-      enter_node = 过门后 nodes.nowNode 落在哪（N12 / N8）；没过成则 None；
-      err = None 或固件会停车的原因。
-
-    ⚠️ 这里出现的路线全部写在 door() 内部，不经过规划器 —— 上位机以前完全不显示它们。
-    """
-    d2, d3, d4 = doors[0], doors[1], doors[2]
-    steps = []
-    # --- D2：车走到 N5->N12 这条 DOOR 边上读灯 ---
-    if can_pass(d2):
-        steps.append(("D2", "N5→N12", d2, "能过 → 过门",
-                      "door_set_pass_node(N5,N12) 后赋给 nodes.nowNode ⇒ 过门落在 N12"
-                      + ("（并放行 N12→N5）" if d2 == CAN_PASS else "（蓝=单相，不放行 N12→N5）")))
-        return steps, "N12", None
-    steps.append(("D2", "N5→N12", d2, "不能过 → 退回重读",
-                  "door_retreat(N5,N8) 后退 DOOR_RETREAT_N5N8 ⇒ nowNode 变成 N5→N8，"
-                  "开到 N8 在 N5→N8 上读 D3"))
-    # --- D3：车走到 N5->N8 读灯 ---
-    if can_pass(d3):
-        steps.append(("D3", "N5→N8", d3, "能过 → 过门",
-                      "door_set_pass_node(N5,N8) 后赋给 nodes.nowNode ⇒ 过门落在 N8"
-                      + ("（并放行 N8→N5）" if d3 == CAN_PASS else "（蓝=单相，不放行 N8→N5）")))
-        return steps, "N8", None
-    steps.append(("D3", "N5→N8", d3, "不能过 → 退回重读",
-                  "door_retreat(N5,N4) 后退 DOOR_RETREAT_N5N4，并 load_route_at(0, door1route) "
-                  "⇒ route[] = {N3, N8}（door() 内部手写）⇒ 车由 N5→N4→N3→N8，"
-                  "在 N3→N8 上读 D4"))
-    # --- D4：车走到 N3->N8 读灯 ---
-    if can_pass(d4):
-        steps.append(("D4", "N3→N8", d4, "能过 → 过门",
-                      "door_set_pass_node(N3,N8) 后赋给 nodes.nowNode ⇒ 过门落在 N8"
-                      + ("；绿额外放行 N8→N3" if d4 == CAN_PASS
-                         else "；蓝额外放行 N10→N3（回程走 D5）")))
-        return steps, "N8", None
-    steps.append(("D4", "N3→N8", d4, "不能过 → 死停",
-                  "barrier.c:door() 的 DOOR_D4 分支直接 CarBrake_Stop()（不返回）"))
-    return steps, None, "D2/D3/D4 全不能过 → 固件 CarBrake_Stop()，走不下去"
-
-
-def door_back_flow(doors):
-    """镜像 barrier.c:door() 的【回家路上过门】两个分支（D5_BACK: N10→N3、D4_BACK: N8→N3）。
-
-    返回 (steps, hazards)：steps=[(门, 读灯的边, 灯状态, 判定, 动作)]；
-    hazards=[提示文本]，例如"这个灯组合在 door() 里没有匹配分支"。
-    """
-    d2, d3, d4, d5 = doors[0], doors[1], doors[2], doors[3]
-    steps, hazards = [], []
-
-    # ---------- DOOR_D5_BACK：N10 -> N3 ----------
-    if d5 == CAN_PASS:
-        steps.append(("D5", "N10→N3", d5, "绿 → 过门",
-                      "door_set_pass_node(N10,N3)（step=36, SPEED3），nowNode 落在 N3 ⇒ "
-                      "update_route_by_door_1() = route_return_home(起点 N3, 门区 8 边全禁)"))
-    elif d2 == ONE_WAY_PASS:
-        steps.append(("D5", "N10→N3", d5, "非绿（else 分支；D2 是蓝、单相已用尽）→ 退回重读",
-                      "route[0]=N3; route[1]=0xFF（door() 内部手写）+ door_retreat(N10,N8) "
-                      "⇒ nowNode 变成 N10→N8 ⇒ 车由 N8→N3 在 N8→N3 上重读 D4"))
-    elif d2 == NO_PASS and d3 == ONE_WAY_PASS:
-        steps.append(("D5", "N10→N3", d5, "非绿（else 分支；D2 黑、D3 蓝已用尽）→ 退回",
-                      "door_retreat(N10,N8) + 放行 N3↔N8 ⇒ update_route_by_door_2() "
-                      "= route_return_home(起点 N8, 额外放行 N8→N3)"))
-    else:
-        steps.append(("D5", "N10→N3", d5, "非绿 → ⚠ door() 里没有匹配分支", "什么都不做"))
-        hazards.append("D5 非绿时 door() 只处理「D2=蓝」或「D2=黑且 D3=蓝」两种组合；"
-                       "当前组合两边都不满足 ⇒ 不置 cross_event、不改 route[] "
-                       "⇒ Navigation() 会重跑同一段并再次触发 door()，**可能反复重读这扇门**。")
-
-    # ---------- DOOR_D4_BACK：N8 -> N3 ----------
-    if d4 == CAN_PASS:
-        steps.append(("D4(回程)", "N8→N3", d4, "绿 → 过门",
-                      "放行 N3↔N8；nowNode = N8→N3（step=36, SPEED3, function=NONE）+ "
-                      "motor_pid_clear() ⇒ update_route_by_door_3() = route_return_home(起点 N3)"))
-    else:
-        steps.append(("D4(回程)", "N8→N3", d4, "非绿（else 分支：黑/蓝）→ 退回",
-                      "先放行 N8↔N5（必须！否则 retreat 读到旧值会二次触发 door()）+ "
-                      "door_retreat(N8,N5) ⇒ update_route_by_door_4() "
-                      "= route_return_home(起点 N5)"))
-    return steps, hazards
-
-
-def door_read_hops(doors):
-    """进门读灯时，**除了直接过门之外还要多走的节点**（退回重读），只挑边表里真实存在的边。
-
-    第一轮 P1 之后的手写数组一律以 N12 结尾（= 在 N5→N12 上读 D2），所以这里返回的 hops
-    直接接在 N12 后面即可拼成连续路径：
-      D2 能过      → []                          （过门落在 N12）
-      D2 黑、D3 能过 → ["N8"]                      （N12→N8 是真实边；物理上是退回后重走 N5→N8）
-      D2 黑、D3 黑、D4 能过 → ["N8","N5","N4","N3","N8"]（N8→N5→N4→N3→N8 全是真实边）
-    返回 (hops, enter_node, err)。
-    """
-    d2, d3, d4 = doors[0], doors[1], doors[2]
-    if can_pass(d2):
-        return [], "N12", None
-    if can_pass(d3):
-        return ["N8"], "N8", None
-    if can_pass(d4):
-        return ["N8", "N5", "N4", "N3", "N8"], "N8", None
-    return [], None, "D2/D3/D4 全不能过 → 固件 barrier.c:door() 会 CarBrake_Stop()"
-
-
-def door_back_chain(doors, door_edge):
-    """回程在 `door_edge` 上撞到 BACK 门时，镜像 door() 的 D5_BACK / D4_BACK 分支。
-
-    door_edge ∈ {("N10","N3"), ("N8","N3")}（这两条是"回家路上"读的门）。
-    返回 (hops, start, allow, note)：
-      hops  = 走 route_return_home 之前还要经过的节点（如退回 N8 后由 N8→N3 重读 D4）；
-      start/allow 交给 door_return_home_waypoints()。
-    ⚠️ 注意两个 BACK 分支的 else 是**"非绿"**（黑和蓝都走），不是只有黑。
-    """
-    d2, d3, d4, d5 = doors[0], doors[1], doors[2], doors[3]
-    if door_edge == ("N10", "N3"):                       # DOOR_D5_BACK
-        if d5 == CAN_PASS:
-            return [], "N3", False, "D5 绿 ⇒ update_route_by_door_1()（起点 N3）"
-        if d2 == ONE_WAY_PASS:
-            # route[0]=N3; route[1]=0xFF ⇒ 退回 N8，再由 N8→N3 重读 D4（DOOR_D4_BACK）
-            if d4 == CAN_PASS:
-                return (["N8", "N3"], "N3", False,
-                        "D5 非绿 + D2 蓝 ⇒ route[0]=N3、退回 N8 ⇒ N8→N3 重读 D4 得绿 ⇒ "
-                        "update_route_by_door_3()（起点 N3）")
-            return (["N8", "N3", "N5"], "N5", False,
-                    "D5 非绿 + D2 蓝 ⇒ route[0]=N3、退回 N8 ⇒ N8→N3 重读 D4 非绿 ⇒ "
-                    "退回 N5 ⇒ update_route_by_door_4()（起点 N5）")
-        if d2 == NO_PASS and d3 == ONE_WAY_PASS:
-            return ([], "N8", True,
-                    "D5 非绿 + D2 黑 + D3 蓝 ⇒ 退回 N8 ⇒ update_route_by_door_2()"
-                    "（起点 N8，放行 N8→N3）")
-        return ([], "N3", False,
-                "⚠ D5 非绿且 D2/D3 组合在 door() 里没有匹配分支（不置 cross_event，"
-                "可能反复重读这扇门）——下面按 D5 绿的结果占位，仅作示意")
-    # DOOR_D4_BACK：N8 → N3
-    if d4 == CAN_PASS:
-        return [], "N3", False, "D4 回程绿 ⇒ update_route_by_door_3()（起点 N3）"
-    return (["N5"], "N5", False,
-            "D4 回程非绿 ⇒ 放行 N8↔N5、退回 N5 ⇒ update_route_by_door_4()（起点 N5）")
-
-
-def treasure_return_waypoints(start, doors, treasure):
-    """镜像 plan_treasure_return()：在 P7/P8 读到宝物编号后的回程 wp。"""
-    if treasure not in TREASURE_PF:
-        return None, "宝物线索未定/非法（固件会 CarBrake_Stop）"
-    wp = [start]
-    if treasure == 5:
-        wp.append("P5")          # P5 是 N13 支路
-    elif treasure == 6:
-        wp.append("P6")          # P6 经 N7/N9 支路
-    d2, d3, d4 = doors[0], doors[1], doors[2]
-    if d2 == CAN_PASS:
-        wp += ["N12", "N5"]
-    elif d3 == CAN_PASS:
-        wp += ["N12", "N8", "N5"]
-    elif d4 == CAN_PASS:
-        wp += ["N12", "N8", "N3"]
-    elif ONE_WAY_PASS in (d2, d3, d4):
-        wp += ["N10", "N3"]      # 回程需经 D5
-    else:
-        return None, "D2/D3/D4 都不能过（固件会 CarBrake_Stop）"
-    if treasure not in (5, 6):
-        wp.append(TREASURE_PF[treasure])
-    wp.append("P2")
-    return wp, None
-
-
-def door_return_home_waypoints(start, treasure, allow_N8_N3=False):
-    """镜像 mission_planner.c:route_return_home()：门区 8 条边全禁 + wp={当前节点,[宝物平台],P2}。
-
-    返回 (wp, blocked)，blocked 是规划时需封闭的 (from,to) 集合。
-    allow_N8_N3=True 对应 door_2（D5 黑且 D3 蓝已用尽）额外放行 N8→N3，退回去重读 D4。
-    """
-    wp = [start]
-    if treasure in (2, 3, 4):
-        wp.append(TREASURE_PF[treasure])
-    wp.append("P2")
-    blocked = set(DOOR_ZONE)
-    if allow_N8_N3:
-        blocked.discard(("N8", "N3"))
-    return wp, blocked
-
-
-def round2_waypoints(doors, treasure):
-    """镜像 get_newroute()（USE_PLANNER_ROUTE=1）：第二轮完整 wp。
-
-    doors = door_pass[0..3]（D2/D3/D4/D5）；treasure 只用来定巡游方向（6=逆时针）。
-    固件在这些组合下会 CarBrake_Stop，此时返回 (None, 原因)。
-    """
-    d2, d3, d4, d5 = doors[0], doors[1], doors[2], doors[3]
-    p6_first = (treasure == 6)
-    wp = ["N2", "P1", "P3", "P4", "N5"]
-    # 进门：只留真正要过的那扇门
-    if can_pass(d2):
-        wp.append("N12")
-    elif can_pass(d3):
-        wp.append("N8")
-    elif can_pass(d4):
-        wp.append("N3")
-        if p6_first:
-            wp.append("N8")      # 宝物=P6 逆时针时两个门节点都要保留
-    else:
-        return None, "D2/D3/D4 都不能过（固件会 CarBrake_Stop）"
-    # 巡游：只写 P5~P8，方向由顺序决定
-    wp += ["P6", "P8", "P7", "P5"] if p6_first else ["P5", "P7", "P8", "P6"]
-    # 回程：只留要过的那扇门
-    if d2 == CAN_PASS:
-        wp.append("N5")
-    elif d2 == ONE_WAY_PASS and d5 == CAN_PASS:
-        wp.append("N10")
-    elif d2 == ONE_WAY_PASS and d5 == NO_PASS and d4 == CAN_PASS:
-        wp.append("N8")
-    elif d2 == ONE_WAY_PASS and d5 == NO_PASS and d4 == NO_PASS:
-        wp += ["N8", "N5"]       # ⚠️ N5 不可删
-    elif d2 == NO_PASS and d3 == CAN_PASS:
-        wp += ["N8", "N5"]       # ⚠️ N5 不可删
-    elif d2 == NO_PASS and d3 == ONE_WAY_PASS and d5 == CAN_PASS:
-        wp.append("N10")
-    elif d2 == NO_PASS and d3 == ONE_WAY_PASS and d5 == NO_PASS:
-        wp.append("N8")
-    elif d2 == NO_PASS and d3 == NO_PASS and d4 == CAN_PASS:
-        wp.append("N8")
-    elif d2 == NO_PASS and d3 == NO_PASS and d4 == ONE_WAY_PASS:
-        wp.append("N10")
-    else:
-        return None, "回程门状态组合固件会 CarBrake_Stop"
-    wp.append("P2")
-    return wp, None
-
-
 class MapModel:
     """整张地图的内存模型 + 校验 + 规划 + 导出。"""
 
@@ -953,107 +664,14 @@ class MapModel:
 
     # -------------------------------------------------- 规划（与固件同一套 Dijkstra）
     NAV_W_TURN = 0.6
-    # 逐项对齐 nav_planner.c 的 NavObsPenalty[]（键 = barriers 枚举名）。
-    # ⚠️ 漏改过：Bridge/Hill/LBHill/SM/View/View1/BACK/BSoutPole/QQB/BHM 曾被写成 0、
-    #    BLBL 曾写成 70，导致上位机把桥/山/楼梯/景点/跷跷板/波动板当免费捷径，
-    #    "显示的路线"和车上跑的不是一条。_selftest.py 的第 8 节会自动比对固件源码，别再手改。
-    # ⚠️ `Hill` 2026-09-13 由 300 降到 230（用户要求：N8→C9 走楼梯、N12→N20 仍走南环；
-    #    各对翻转阈值不同：N8→C9 ≤239 才翻、N12→N20 ≤200 才翻，取中间 230）。
-    OBS = {"NONE": 0, "UpStage": 60, "Bridge": 300, "Hill": 230, "LBHill": 50,
-           "SM": 120, "View": 100, "View1": 100, "BACK": 1000, "BSoutPole": 90,
-           "QQB": 80, "BLBS": 70, "BLBL": 50, "DOOR": 60, "BHM": 90,
-           "IGNORE": 0, "Special_node": 0, "DOOR1": 0, "UpStageHome": 60}
+    # 与 nav_planner.c 的 NavObsPenalty[] 对齐（键 = barriers 枚举名）
+    OBS = {"NONE": 0, "UpStage": 60, "Bridge": 0, "Hill": 0, "LBHill": 0, "SM": 0,
+           "View": 0, "View1": 0, "BACK": 0, "BSoutPole": 0, "QQB": 0, "BLBS": 70,
+           "BLBL": 70, "DOOR": 60, "BHM": 0, "IGNORE": 0, "Special_node": 0,
+           "DOOR1": 0, "UpStageHome": 60}
 
-    def node_io_roles(self, name):
-        """该节点的 (入口动作, 出口动作)。
-
-        平台在边表里就是"一条进边带平台动作（`UpStage`/`UpStageHome`/`BSoutPole`/`BHM`…）
-        + 一条出边"。多条进/出边时优先取 `func != NONE` 的那条（动作就写在它上面）。
-        """
-        def pick(lst):
-            for e in lst:
-                if e.func and e.func != "NONE":
-                    return e.func
-            return lst[0].func if lst else "NONE"
-
-        return pick(self.edges_of(name, False)), pick(self.edges_of(name, True))
-
-    def swap_platforms(self, a, b, swap_xy=False, dry_run=False):
-        """**平台快速交换**：把 a、b 两个节点的名字互换。
-
-        * **只改 `from`/`to`**：`angle`/`step`/`flag`/`speed` 一个都不动 ⇒ **长度不变**；
-        * 每条相关边的 `func` 换成"**新名字那个平台**"的入口/出口动作 ⇒ **function 随平台切换**；
-        * `swap_xy=True` 时连图上坐标也一起换（默认 False：位置不动，"其他沿用原来的"）。
-
-        例：`swap_platforms("P5","P7")` ⇒ 原来 `N13→P5(step=80,UpStage)` 变成 `N13→P7(step=80,**BSoutPole**)`，
-        原来 `B7→P7(step=10,BSoutPole)` 变成 `B7→P5(step=10,**UpStage**)`。
-
-        `dry_run=True` 只返回变更说明、不改模型（界面用它做预览）。
-        出错抛 `ValueError`（界面直接显示）。
-        """
-        if a == b:
-            raise ValueError("两个平台不能是同一个：%s" % a)
-        na, nb = self.node(a), self.node(b)
-        if na is None:
-            raise ValueError("地图里没有节点 %s" % a)
-        if nb is None:
-            raise ValueError("地图里没有节点 %s" % b)
-        if self.edge(a, b) is not None or self.edge(b, a) is not None:
-            raise ValueError("%s 与 %s 之间有直接边，交换会有歧义（那条边算谁的？），"
-                             "请先删掉它再交换" % (a, b))
-        in_a, out_a = self.node_io_roles(a)
-        in_b, out_b = self.node_io_roles(b)
-        a_ins = list(self.edges_of(a, False))
-        a_outs = list(self.edges_of(a, True))
-        b_ins = list(self.edges_of(b, False))
-        b_outs = list(self.edges_of(b, True))
-
-        # 名字映射（改名前先算好，说明文本要用新名字）
-        plan = []                                   # (edge, 新from, 新to)
-        for e in (a_ins + a_outs + b_ins + b_outs):
-            nf = b if e.frm == a else (a if e.frm == b else e.frm)
-            nt = b if e.to == a else (a if e.to == b else e.to)
-            plan.append((e, nf, nt))
-        # func：**坐在 a 位置的那些边**现在叫 b 了 ⇒ 用 b 的入口/出口动作；反之亦然
-        want = []
-        for e in a_ins:
-            want.append((e, in_b, b))
-        for e in a_outs:
-            want.append((e, out_b, b))
-        for e in b_ins:
-            want.append((e, in_a, a))
-        for e in b_outs:
-            want.append((e, out_a, a))
-
-        newlabel = {e.tag: (nf, nt) for e, nf, nt in plan}
-        changes = ["改名  %-14s ⇒ %s → %s" % ("%s→%s" % (e.frm, e.to), nf, nt)
-                   for e, nf, nt in plan
-                   if (e.frm, e.to) != (nf, nt)]
-        changes += ["func  %-14s %-11s → %-11s（%s 的动作）"
-                    % ("%s→%s" % newlabel[e.tag], e.func, w, owner)
-                    for e, w, owner in want if e.func != w]
-        if swap_xy:
-            changes.append("坐标  %s ↔ %s 互换（%.0f,%.0f ↔ %.0f,%.0f）"
-                           % (a, b, na.x, na.y, nb.x, nb.y))
-        if dry_run:
-            return changes
-
-        for e, nf, nt in plan:                      # ① 只改 from/to，其它字段一个不动
-            e.frm, e.to = nf, nt
-        for e, w, _owner in want:                   # ② func 随平台切换
-            e.func = w
-        if swap_xy:
-            na.x, nb.x = nb.x, na.x
-            na.y, nb.y = nb.y, na.y
-        self.dirty = True
-        return changes
-
-    def plan_route(self, waypoints, cost_mode="full", blocked=None):
-        """必经点最短路。返回 (path, None) 或 (None, 原因)。
-
-        blocked: 规划时需封闭的 (from,to) 集合，镜像 nav_set_edge_blocked()；
-                 门回程用 door_return_home_waypoints() 生成。
-        """
+    def plan_route(self, waypoints, cost_mode="full"):
+        """必经点最短路。返回 (path, None) 或 (None, 原因)。"""
         if not waypoints:
             return None, "没有必经点"
         for w in waypoints:
@@ -1063,17 +681,16 @@ class MapModel:
         for i in range(len(waypoints) - 1):
             if waypoints[i] == waypoints[i + 1]:
                 continue
-            seg, why = self._dijkstra(waypoints[i], waypoints[i + 1], cost_mode, blocked)
+            seg, why = self._dijkstra(waypoints[i], waypoints[i + 1], cost_mode)
             if seg is None:
                 return None, "%s -> %s 不可达" % (waypoints[i], waypoints[i + 1])
             full.extend(seg if not full else seg[1:])
         return (full or [waypoints[0]]), None
 
-    def _dijkstra(self, src, dst, mode, blocked=None):
+    def _dijkstra(self, src, dst, mode):
         import heapq
         if src == dst:
             return [src], None
-        blocked = set(blocked or ())
 
         def w_obs(e):
             return self.OBS.get(e.func, 0) if mode == "full" else 0
@@ -1094,8 +711,6 @@ class MapModel:
         prev = {}
         pq = []
         for e in self.edges_of(src, True):
-            if (e.frm, e.to) in blocked:      # 镜像 nav_shortest_path：被禁边不作为起点
-                continue
             c = (self.step(e) or 0.0) + w_obs(e)
             st = (e.to, e.tag)
             if c < best.get(st, INF):
@@ -1119,8 +734,6 @@ class MapModel:
                 return path, None
             pe = by_tag.get(tag)
             for e in self.edges_of(u, True):
-                if (e.frm, e.to) in blocked:  # 镜像 nav_shortest_path：被禁边不参与松弛
-                    continue
                 nc = c + (self.step(e) or 0.0) + w_obs(e) + turn_cost(pe, e)
                 st2 = (e.to, e.tag)
                 if nc < best.get(st2, INF) - 1e-9:

@@ -23,7 +23,6 @@ import sys
 import json
 import math
 import copy
-import time
 import shutil
 import datetime
 import tkinter as tk
@@ -102,35 +101,6 @@ ROT_DEFAULT = "0°"
 # 想还原成"直接用表里 angle"就把这里改成 0。
 DRAG_ANGLE_OFFSET = 90.0
 
-# 共线锚定容差（°）：新建边时，若起点已有一条出边与新边几乎共线，就沿用那条边的 angle。
-# 依据：表里 angle 只能由几何定出**直线**、定不出**方向感**；实测本图 109 条边里
-# 52 条是「几何+90°」、31 条是「几何−90°」（同一根直线、方向相反），所以"看图算方向"天生有歧义。
-ANGLE_ANCHOR_TOL = 8.0
-# 吸附容差（°）：算出来的角度离 0/±90/180 很近就吸成整数（"完全水平"就该写成 0/180）
-ANGLE_SNAP_TOL = 5.0
-
-
-def _norm180(a):
-    """把角度归一到 (-180, 180]。"""
-    while a > 180.0:
-        a -= 360.0
-    while a <= -180.0:
-        a += 360.0
-    return a
-
-
-def _angdiff(a, b):
-    """两个方向的最小夹角（0~180°）。"""
-    return abs(_norm180(a - b))
-
-
-def _snap90(a, tol=ANGLE_SNAP_TOL):
-    """接近 0/±90/180 就吸附成整数；否则返回 None。"""
-    for c in (0.0, 90.0, 180.0, -90.0):
-        if _angdiff(a, c) <= tol:
-            return _norm180(c)
-    return None
-
 # ================================================================
 #  拖动吸附模式（比"硬锁表里角度"更实用）
 # ================================================================
@@ -159,11 +129,9 @@ NODE_STYLE = {
 EDGE_COLOR = "#555555"
 EDGE_COLOR_FUNC = "#c0392b"      # 带特殊功能(障碍/门/平台)的边
 EDGE_COLOR_SEL = "#e67e22"
-ROUTE_COLOR = "#1e88e5"           # 路线·去程（蓝）
-ROUTE_COLOR_BACK = "#00897b"      # 路线·回程（青绿）—— 与去程区分，且不撞边的红/橙/选中色
+ROUTE_COLOR = "#1e88e5"
 BG = "#fbfbf8"
 EDGE_HIT_WIDTH = 14               # 边的"隐形命中区"宽度(px)：点它附近即可选中
-EDGE_PAIR_OFFSET = 6.0            # 双向边两条线的**垂直间距**一半(px)：各偏 6 ⇒ 相隔 12px，看得清也点得开
 
 KIND_ZH = {"P": "平台 P", "S": "景点 S", "N": "节点 N", "C": "拐点 C",
            "B": "桥/障碍 B", "G": "其它 G", "?": "其它"}
@@ -393,8 +361,6 @@ class App(tk.Tk):
         self.sel_edge = None          # 选中的 Edge 对象
         self.selected_nodes = set()   # Ctrl 框选后用于整体移动的节点
         self.route = []               # 规划出来的路线（节点名列表）
-        self.route_split = None       # 回程起始下标（仅"第一轮完整路线"用；其余为 None）
-        self.clue_route_cfg = {}      # 「线索路线…」对话框上次用的配置（随布局一起保存/恢复）
         self.waypoints = []           # 必经点
         self.undo_stack = []
         self.redo_stack = []
@@ -469,16 +435,10 @@ class App(tk.Tk):
         self.after(60, self._refit_once)
         self.after(300, self._refit_once)
         if self._auto_loaded:
-            _items, _short = self._source_diff_items()
-            if _short:
-                # 布局盖掉了固件地图 —— 必须说清楚，否则"显示的路线"会与车上不一致
-                self.status("⚠ 已自动载入布局，但它与固件源码不一致（%s）："
-                            "点「校验」看明细，点「重新载入源码」回到固件版" % _short)
-            else:
-                self.status("已自动载入保存过的布局（%s）｜%d 节点 / %d 边"
-                            "　｜　拖动节点只改示意图，不影响 step/angle"
-                            % (os.path.basename(auto), len(self.model.nodes),
-                               len(self.model.edges)))
+            self.status("已自动载入保存过的布局（%s）｜%d 节点 / %d 边"
+                        "　｜　拖动节点只改示意图，不影响 step/angle"
+                        % (os.path.basename(auto), len(self.model.nodes),
+                           len(self.model.edges)))
         else:
             self.status("已载入：%d 个节点 / %d 条边（源：Navigation/map_message.c，场地 %s）"
                         "　｜　节点位置只是示意图：拖动不影响 step/angle 数值"
@@ -621,8 +581,6 @@ class App(tk.Tk):
         btn("＋边", self.add_edge_dialog)
         btn("＋双向边", lambda: self.add_edge_dialog(both=True))
         btn("删除选中", self.delete_selected)
-        # ⚠️ 「平台快速交换」不放在这一行：加了之后本行宽 1254px > minsize 1200，会在最小窗口下溢出。
-        #    它的入口在左栏「总览 → 地图级快捷操作」。
         sep()
         chk("连线模式", self.connect_mode)
         chk("双向", self.var_quick_both)
@@ -717,11 +675,6 @@ class App(tk.Tk):
                            values=["合并双向", "逐条", "只看双向"])
         cbv.pack(side="left", padx=(2, 0))
         cbv.bind("<<ComboboxSelected>>", lambda e: self.refresh_trees())
-        # 平台快速交换（function 随平台切换，长度/角度全沿用）。
-        # ⚠️ 必须挂在**这一行**：pack 顺序靠前的才拿得到空间 —— 之前放在边表下面，
-        #    父容器已被两个 expand 的 Treeview 占满，结果整块 frame 根本没被映射（看不到）。
-        ttk.Button(mrow, text="⇄ 平台交换…",
-                   command=self.platform_swap_dialog).pack(side="left", padx=(8, 0))
 
         self._edge_cols = ("a1", "s1", "a2", "s2")
         self.tree_edges = ttk.Treeview(top, columns=self._edge_cols,
@@ -1021,14 +974,14 @@ class App(tk.Tk):
         # 快捷增删（不用手选 from/to）
         q = ttk.LabelFrame(f, text="快捷增删边（不用手选 from/to）")
         q.grid(row=r, column=0, columnspan=2, sticky="we", pady=6)
-        ttk.Button(q, text="从选中节点连线（或右键节点 / 按 A）",
+        ttk.Button(q, text="从选中节点连线（点两下 / 或按 A）",
                    command=self.start_connect_from_sel).pack(fill="x", padx=4, pady=2)
         ttk.Button(q, text="＋ 补反向边（复制选中边参数）",
                    command=self.make_reverse_edge).pack(fill="x", padx=4, pady=2)
         ttk.Button(q, text="－ 删除这一对（双向都删）",
                    command=self.delete_sel_pair).pack(fill="x", padx=4, pady=2)
         ttk.Label(q, text="点图形即可选中边（命中区已加宽到 ±7px）；\n"
-                          "右键节点 = 以它为起点连线（Shift+右键 = 节点菜单）。",
+                          "选中后 Delete 删除、A 从它续连。",
                   foreground="#666666", justify="left").pack(anchor="w", padx=4, pady=(2, 4))
         r += 1
 
@@ -1037,93 +990,10 @@ class App(tk.Tk):
         g.grid(row=r, column=0, columnspan=2, sticky="we", pady=6)
         ttk.Button(g, text="按图上位置算角度", command=self.calc_angle_geo).pack(
             fill="x", padx=4, pady=2)
-        ttk.Button(g, text="按图上位置算 step(px÷K)", command=self.calc_step_geo).pack(
+        ttk.Button(g, text="按图上位置算 step(px÷0.884)", command=self.calc_step_geo).pack(
             fill="x", padx=4, pady=2)
         ttk.Button(g, text="整条边取反（from/to 互换，角度+180）",
                    command=self.reverse_edge_sel).pack(fill="x", padx=4, pady=2)
-
-    def platform_swap_dialog(self):
-        """平台快速交换：把两个平台节点的**名字互换**。
-
-        * `angle`/`step`/`flag`/`speed` **全部沿用原值** ⇒ 长度不变；
-        * 每条相关边的 `func` 换成"新名字那个平台"的入口/出口动作 ⇒ **function 随平台切换**
-          （例：`P5↔P7` ⇒ `N13→P7` 变 `BSoutPole`、`B7→P5` 变 `UpStage`，step 一个都不动）；
-        * 默认**位置不动**（"其他沿用原来的"），可勾选"连坐标一起换"。
-        ⚠️ 换完必须自己复核 `mission_planner.c` 的 `wp` / 门逻辑 / 宝物表（它们都按平台名走）。
-        """
-        plats = [n.name for n in self.model.nodes if n.name[:1] == "P"]
-        if len(plats) < 2:
-            messagebox.showerror("平台快速交换", "地图里少于 2 个 P 平台节点，换不了。", parent=self)
-            return
-        last = getattr(self, "_plat_swap_last", None)
-        dlg = tk.Toplevel(self)
-        dlg.title("平台快速交换（长度不变，function 随平台切换）")
-        dlg.geometry("620x430")
-        dlg.transient(self)
-        frm = ttk.Frame(dlg, padding=12)
-        frm.pack(fill="both", expand=True)
-        ttk.Label(frm, wraplength=580, justify="left",
-                  text="互换两个平台的名字：**只改 from/to**，长度/角度/flag 全部沿用；"
-                       "每条相关边的 func 换成新平台的动作。位置默认不动。").pack(anchor="w")
-
-        row = ttk.Frame(frm)
-        row.pack(fill="x", pady=(10, 4))
-        ttk.Label(row, text="平台 A").pack(side="left")
-        a_var = tk.StringVar(value=(last[0] if last and last[0] in plats else plats[0]))
-        ttk.Combobox(row, textvariable=a_var, values=plats, state="readonly",
-                     width=8).pack(side="left", padx=(4, 14))
-        ttk.Label(row, text="⇄").pack(side="left")
-        ttk.Label(row, text="平台 B").pack(side="left", padx=(14, 0))
-        b_var = tk.StringVar(value=(last[1] if last and last[1] in plats else plats[-1]))
-        ttk.Combobox(row, textvariable=b_var, values=plats, state="readonly",
-                     width=8).pack(side="left", padx=4)
-
-        xy_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(frm, text="连图上的坐标也一起换（默认不换，只换平台身份）",
-                        variable=xy_var).pack(anchor="w", pady=(2, 6))
-
-        ttk.Label(frm, text="改动预览：").pack(anchor="w")
-        prev = tk.Text(frm, height=12, wrap="word")
-        prev.pack(fill="both", expand=True, pady=(2, 8))
-
-        def refresh(*_a):
-            try:
-                ch = self.model.swap_platforms(a_var.get(), b_var.get(), xy_var.get(),
-                                               dry_run=True)
-                txt = "\n".join(ch) if ch else "（这两个平台的相关边完全一样，换了没有变化）"
-            except ValueError as ex:
-                txt = "⚠ %s" % ex
-            prev.configure(state="normal")
-            prev.delete("1.0", "end")
-            prev.insert("end", txt)
-            prev.configure(state="disabled")
-
-        a_var.trace_add("write", refresh)
-        b_var.trace_add("write", refresh)
-        xy_var.trace_add("write", refresh)
-        refresh()
-
-        def do_it():
-            snap = self.model.snapshot()
-            try:
-                ch = self.model.swap_platforms(a_var.get(), b_var.get(), xy_var.get())
-            except ValueError as ex:
-                messagebox.showerror("平台快速交换", str(ex), parent=dlg)
-                return
-            self._plat_swap_last = (a_var.get(), b_var.get())
-            self.sel_node = self.sel_edge = None
-            self._apply_change(snap)
-            self.refresh_all()
-            self.status("已交换平台 %s ⇄ %s（%d 处改动）；⚠ 请复核 mission_planner.c 的 "
-                        "wp / 门逻辑 / 宝物表" % (a_var.get(), b_var.get(), len(ch)))
-            dlg.destroy()
-
-        btns = ttk.Frame(frm)
-        btns.pack(fill="x")
-        ttk.Button(btns, text="交换", command=do_it).pack(side="left")
-        ttk.Button(btns, text="取消", command=dlg.destroy).pack(side="left", padx=8)
-        ttk.Label(btns, text="⚠ 会直接改当前模型（可 Ctrl+Z 撤销；写回固件才动源码）",
-                  foreground="#a04000").pack(side="left", padx=12)
 
     # ================================================================ 视图变换
     def _rot_xy(self):
@@ -1367,7 +1237,7 @@ class App(tk.Tk):
                 self.canvas.tag_bind(it, "<Double-Button-1>",
                                      lambda e, nm=n.name: self._on_node_double(e, nm))
                 self.canvas.tag_bind(it, "<Button-3>",
-                                     lambda e, nm=n.name: self._on_node_right(e, nm))
+                                     lambda e, nm=n.name: self._on_node_menu(e, nm))
 
     def _edge_endpoints(self, e, rad_from, rad_to):
         a = self.model.node(e.frm)
@@ -1381,10 +1251,10 @@ class App(tk.Tk):
         if d < 1e-6:
             return None
         ux, uy = dx / d, dy / d
-        # 反向边存在时，两条线各往两边偏一点（相隔 2×EDGE_PAIR_OFFSET），否则完全重叠看不出方向
+        # 反向边存在时，两条线各偏移一点点，避免完全重叠
         off = 0.0
         if self.model.has_reverse(e):
-            off = EDGE_PAIR_OFFSET
+            off = 4.0
             ux2, uy2 = -uy, ux
         else:
             ux2, uy2 = 0.0, 0.0
@@ -1418,7 +1288,7 @@ class App(tk.Tk):
                 mx, my = (x1 + x2) / 2.0, (y1 + y2) / 2.0
                 ang = self.model.ang(e)
                 stp = self.model.step(e)
-                length_cm = self._world_len_cm(e)   # 用世界坐标 ⇒ 不随缩放变化
+                length_cm = seg / self._unit_k() if self._unit_k() > 0 else None
                 if m == "详细" and seg >= 80:
                     txt = "%s\n%.0f° %s" % (
                         e.func, ang if ang is not None else 0,
@@ -1469,47 +1339,19 @@ class App(tk.Tk):
     def _draw_route(self):
         if len(self.route) < 2:
             return
-        split = self.route_split
-        if split is None or not (0 < split < len(self.route) - 1):
-            segs = [(self.route, ROUTE_COLOR, "去程")]
-        else:
-            # 去程/回程分开上色（共享交接点，避免中间断一截）
-            segs = [(self.route[:split + 1], ROUTE_COLOR, "去程"),
-                    (self.route[split:], ROUTE_COLOR_BACK, "回程")]
-        drawn, allpts = [], []
-        for names, col, tag in segs:
-            pts = []
-            for name in names:
-                n = self.model.node(name)
-                if n:
-                    pts.extend(self.w2s(n.x, n.y))
-            if len(pts) < 4:
-                continue
-            allpts.extend(zip(pts[0::2], pts[1::2]))
-            self.canvas.create_line(*pts, fill=col, width=7, dash=(10, 5),
-                                    arrow="last", arrowshape=(12, 14, 5))
+        pts = []
+        for name in self.route:
+            n = self.model.node(name)
+            if n:
+                pts.extend(self.w2s(n.x, n.y))
+        if len(pts) >= 4:
+            item = self.canvas.create_line(*pts, fill="#1565c0", width=7, dash=(10, 5),
+                                           arrow="last", arrowshape=(12, 14, 5))
+            # 路线保持在节点和边之上，确保用户能看见当前规划结果。
             for i in range(0, len(pts), 2):
                 self.canvas.create_oval(pts[i] - 5, pts[i + 1] - 5,
                                         pts[i] + 5, pts[i + 1] + 5,
-                                        fill=col, outline="white", width=2)
-            drawn.append((tag, col, len(names)))
-        # 交接点（回程起点）单独标一圈
-        if len(segs) > 1:
-            n = self.model.node(self.route[split])
-            if n:
-                x, y = self.w2s(n.x, n.y)
-                self.canvas.create_oval(x - 11, y - 11, x + 11, y + 11,
-                                        outline=ROUTE_COLOR_BACK, width=3)
-        # 图例画在路线包围盒左上角外侧（跟着路线走，不受平移/缩放影响）
-        if len(drawn) > 1 and allpts:
-            lx = min(p[0] for p in allpts) - 4
-            ly = min(p[1] for p in allpts) - 16 - 16 * len(drawn)
-            for i, (tag, col, n) in enumerate(drawn):
-                yy = ly + i * 16
-                self.canvas.create_line(lx, yy, lx + 26, yy, fill=col, width=6, dash=(8, 4))
-                self.canvas.create_text(lx + 32, yy, anchor="w",
-                                        text="%s（%d 跳）" % (tag, n - 1),
-                                        font=self._font(8), fill=col)
+                                        fill="#42a5f5", outline="white", width=2)
 
     def _draw_drag_overlay(self):
         """拖动时：把被拖节点的相邻边标出状态（角度/长度是否达标）。"""
@@ -1595,9 +1437,20 @@ class App(tk.Tk):
         self.redraw()
 
     def _on_node_press(self, ev, name):
-        # 待连线状态（右键起点 / 连线模式起点）：左键点目标节点也能把边建出来
-        if self.connect_from is not None or self.connect_mode.get():
-            self._connect_pick(name)
+        if self.connect_mode.get():
+            # 「连线模式」= 点两下连线：第一下选起点，第二下成边
+            if self.connect_from is None:
+                self.connect_from = name
+                self.select_node(name)
+                self.status("连线模式：起点 = %s　→ 再点另一个节点即可建边（Esc 取消）"
+                            % name)
+            elif self.connect_from == name:
+                self.connect_from = None
+                self.status("连线模式：已取消起点")
+            else:
+                src = self.connect_from
+                self.connect_from = None
+                self.create_edge_quick(src, name)
             return "break"
         shift = bool(ev.state & 0x0001)
         if shift:
@@ -1681,19 +1534,6 @@ class App(tk.Tk):
         if st is None or st <= 0:
             return 0.0
         return st * self._unit_k()
-
-    def _world_len_cm(self, e):
-        """该边在**图坐标**下的长度换算成 cm —— **与缩放无关**。
-
-        ⚠️ 必须用世界坐标：`_edge_endpoints()` / `w2s()` 返回的是**屏幕**坐标，
-        而屏px = 世界px × scale；直接拿屏幕距离 ÷ K 会让画布上那个"图 xx.xcm"
-        随缩放一起变（踩过：放大就变大）。返回 None 表示算不了。
-        """
-        a, b = self.model.node(e.frm), self.model.node(e.to)
-        k = self._unit_k()
-        if a is None or b is None or k <= 0:
-            return None
-        return math.hypot(b.x - a.x, b.y - a.y) / k
 
     def _edge_pref_dirs(self, e, name):
         """这条边**偏好**的方向单位向量列表（从另一端指向 name 这一端）。
@@ -2014,9 +1854,6 @@ class App(tk.Tk):
         if ev.state & 0x0004:       # Ctrl + 空白拖动：框选节点
             self._marquee = {"x0": ev.x, "y0": ev.y, "item": None}
             return "break"
-        if self.connect_from is not None:      # 空白左键 = 放弃待连线的起点
-            self.connect_from = None
-            self.status("已取消连线起点（Esc 同效）")
         self.selected_nodes.clear()
         self.sel_node = None
         self.sel_edge = None
@@ -2025,37 +1862,25 @@ class App(tk.Tk):
         # 空白处按下也支持平移
         self._pan = (ev.x, ev.y, self.ox, self.oy)
 
-    def _edges_near(self, sx, sy, tol=None):
-        """屏幕点附近**所有**边，按到该边自身画线（含双向偏移）的距离排序。
-
-        ⚠️ 为什么不能只靠 Tk 的"最上面那个 item"：双向边的两条线是同一线段、
-        只差十几像素，命中区（±7px）会重叠 ⇒ 永远命中后画的那条。用户反馈正是
-        "老是选到一条线，另一条线点不开"。这里自己列出候选，配合
-        `_on_edge_press` 的"同一处再点一次 = 换下一条（切换方向）"。
-        """
-        if tol is None:
-            tol = EDGE_HIT_WIDTH / 2.0 + 1.0
-        out = []
+    def _edge_near(self, sx, sy, tol=6.0):
+        """屏幕坐标附近有没有边（点到线段的距离 < tol）。用于避免"双击边却建了节点"。"""
+        best = None
         for e in self.model.edges:
-            ep = self._edge_endpoints(e, self._node_radius(e.frm), self._node_radius(e.to))
-            if not ep:
+            a, b = self.model.node(e.frm), self.model.node(e.to)
+            if not a or not b:
                 continue
-            x1, y1, x2, y2, _ux, _uy = ep
+            x1, y1 = self.w2s(a.x, a.y)
+            x2, y2 = self.w2s(b.x, b.y)
             dx, dy = x2 - x1, y2 - y1
             L2 = dx * dx + dy * dy
             if L2 < 1e-9:
                 continue
             t = max(0.0, min(1.0, ((sx - x1) * dx + (sy - y1) * dy) / L2))
-            d = math.hypot(sx - (x1 + t * dx), sy - (y1 + t * dy))
-            if d <= tol:
-                out.append((d, e.frm, e.to, e))
-        out.sort(key=lambda it: it[:3])          # 距离优先，同距离按 from/to 稳定排序
-        return [it[3] for it in out]
-
-    def _edge_near(self, sx, sy, tol=6.0):
-        """屏幕坐标附近最近的那条边（含双向偏移）。用于"双击边却建了节点"的判定。"""
-        got = self._edges_near(sx, sy, tol + EDGE_HIT_WIDTH / 2.0)
-        return got[0] if got else None
+            px, py = x1 + t * dx, y1 + t * dy
+            d = math.hypot(sx - px, sy - py)
+            if tol + EDGE_HIT_WIDTH / 2.0 >= d and (best is None or d < best[0]):
+                best = (d, e)
+        return best[1] if best else None
 
     def _on_bg_double(self, ev):
         """双击：**先判断落点是什么**，再做对应动作。
@@ -2086,33 +1911,6 @@ class App(tk.Tk):
                         "右键「在此新建节点」，或按住 Shift 双击空白")
         return "break"
 
-    def _connect_pick(self, name):
-        """连线取点（左键/右键共用）：第一下选起点，第二下成边，再点自己取消。"""
-        if self.connect_from is None:
-            self.connect_from = name
-            self.select_node(name)
-            self.status("连线起点 = %s　→ 左键或右键点另一个节点即可建边"
-                        "（再点自己 / Esc 取消；Shift+右键 = 节点菜单）" % name)
-        elif self.connect_from == name:
-            self.connect_from = None
-            self.status("已取消连线起点")
-        else:
-            src = self.connect_from
-            self.connect_from = None
-            self.create_edge_quick(src, name)
-
-    def _on_node_right(self, ev, name):
-        """右键节点：默认 = 开始/完成连线；**Shift+右键 = 原来的节点快捷菜单**。
-
-        原因：原来"左键双击节点开始连线"经常点不中（一歪就变成选中/拖动/框选），
-        右键单击更稳。菜单里的功能（重命名/删除/补反向边/设为必经点…）一个没少，只是挪到 Shift+右键。
-        """
-        if bool(ev.state & 0x0001):                 # Shift 按下 → 老菜单
-            self._on_node_menu(ev, name)
-            return "break"
-        self._connect_pick(name)
-        return "break"
-
     def _on_node_double(self, ev, name):
         """双击节点 = 打开"编辑边"不方便，改为：以它为起点快速连线。"""
         self.start_connect_from(name)
@@ -2123,43 +1921,20 @@ class App(tk.Tk):
         if self.connect_mode.get():
             self.start_connect_from(e.to)
             return "break"
-        cands = self._edges_near(ev.x, ev.y)
-        if e not in cands:
-            cands.insert(0, e)
-        # 双击的第二次按下别当成"切换"，否则双击编辑会跳到另一条边上去
-        now = time.monotonic()
-        last = getattr(self, "_edge_click", None)
-        is_dbl = (last is not None and (now - last[0]) < 0.35
-                  and abs(ev.x - last[1]) <= 3 and abs(ev.y - last[2]) <= 3)
-        self._edge_click = (now, ev.x, ev.y)
-        if is_dbl:
-            extra = ""
-        elif len(cands) > 1 and self.sel_edge is not None and self.sel_edge in cands:
-            # 同一处再点一次 ⇒ 换下一条（双向边就是"切换方向"）
-            e = cands[(cands.index(self.sel_edge) + 1) % len(cands)]
-            extra = "；同一处共 %d 条，再点一次继续切换" % len(cands)
-        else:
-            e = cands[0]
-            extra = ("；同一处还有 %d 条，再点一次切换（双向边=切换方向）"
-                     % (len(cands) - 1)) if len(cands) > 1 else ""
         self.sel_edge = e
         self.sel_node = None
         self.refresh_props()
         self.redraw()
-        self.status("已选中边 %s → %s%s（双击=编辑 / Delete 删除 / 右键更多）"
-                    % (e.frm, e.to, extra))
+        self.status("已选中边 %s（双击=编辑 / Delete 删除 / 右键更多）" % e.label())
         return "break"
 
     def _on_edge_double(self, ev, e):
-        """双击边 = 选中并在右侧属性栏编辑（尊重"再点一次切换"切出来的那条）。"""
-        cands = self._edges_near(ev.x, ev.y)
-        if self.sel_edge is not None and self.sel_edge in cands:
-            e = self.sel_edge
+        """双击边 = 选中并在右侧属性栏编辑。"""
         self.sel_edge = e
         self.sel_node = None
         self.refresh_props()
         self.redraw()
-        self.status("已选中边 %s → %s，右侧属性栏可直接编辑" % (e.frm, e.to))
+        self.status("已选中边 %s，右侧属性栏可直接编辑" % e.label())
         return "break"
 
     def node_at(self, sx, sy):
@@ -2229,11 +2004,11 @@ class App(tk.Tk):
 
     # ---- 快捷增删 ----
     def start_connect_from(self, name):
-        """进入"点两下连线"，并把起点设为 name。（右键节点 / 双击节点 / 按 A 都走这里）"""
+        """进入"点两下连线"，并把起点设为 name。"""
         self.connect_mode.set(True)
         self.connect_from = name
         self.select_node(name)
-        self.status("连线起点 = %s　→ 点另一个节点即可建边（左键/右键都行；Esc 取消）" % name)
+        self.status("连线：起点 = %s　→ 现在点另一个节点即可建边（Esc 取消）" % name)
 
     def start_connect_from_sel(self):
         """快捷键 A：以当前选中节点（或选中边的 to 端）为起点开始连线。"""
@@ -2296,9 +2071,6 @@ class App(tk.Tk):
             self.status("已退出连线模式")
 
     def _on_bg_menu(self, ev):
-        if self.connect_from is not None:      # 空白右键 = 放弃待连线的起点，再弹菜单
-            self.connect_from = None
-            self.status("已取消连线起点")
         m = tk.Menu(self, tearoff=0)
         nx, ny = self.s2w(ev.x, ev.y)
         m.add_command(label="在此新建节点…", command=lambda: self.create_node_dialog(nx, ny))
@@ -2359,7 +2131,7 @@ class App(tk.Tk):
         self.redraw()
         lines = [
             "报警条件：图上长度(cm) < 边表 step；图上长度 ≥ step 不报警。",
-            "长度显示 = 图坐标距离 ÷ K（K = %.4g px/cm，**与缩放无关**）；角度只作信息显示。"
+            "长度显示 = 图上像素 ÷ K（K = %.4g px/cm）；角度只作信息显示。"
             % self._unit_k(),
             "超差边：%d / %d" % (len(items), len(self.model.edges)), ""]
         if items:
@@ -2619,39 +2391,6 @@ class App(tk.Tk):
             self.sel_edge = None
         self.refresh_all()
 
-    def _auto_edge_angle(self, frm, to, ignore=None):
-        """给 `frm→to` 算一个**边表约定**的 angle（而不是图上裸几何角）。
-
-        表里 angle 是"单向图"编码：几何只能定出**直线**，定不出**方向感**。实测本图 109 条边里，
-        52 条是「几何 + 90°」、31 条是「几何 − 90°」（同一根直线、方向相反），其余是示意图不准的边。
-        所以按优先级：
-          ① **共线锚定**：起点 `frm` 已有一条出边与 `frm→to` 几乎共线（≤ `ANGLE_ANCHOR_TOL`）
-             ⇒ 沿用它的 angle —— 这是地图自己的方向约定，最可靠；
-          ② **几何 + `DRAG_ANGLE_OFFSET`**（与「跟随角度表」同一套：view = angle + offset）；
-          ③ 把接近 0/±90/180 的值**吸附成整数**（"完全水平"就该是 0/180）。
-        返回 (angle, 说明文本)。
-        """
-        a, b = self.model.node(frm), self.model.node(to)
-        if not a or not b:
-            return 0.0, "缺节点，退回 0°"
-        g = math.degrees(math.atan2(b.x - a.x, -(b.y - a.y)))
-        for e in self.model.edges_of(frm, True):                 # ① 共线锚定
-            if e is ignore or e.to == to:
-                continue
-            dst = self.model.node(e.to)
-            ea = self.model.ang(e)
-            if dst is None or ea is None:
-                continue
-            g2 = math.degrees(math.atan2(dst.x - a.x, -(dst.y - a.y)))
-            if _angdiff(g2, g) <= ANGLE_ANCHOR_TOL:
-                v = _norm180(ea)
-                return v, "沿用共线边 %s→%s 的 %g°" % (e.frm, e.to, v)
-        raw = _norm180(g + DRAG_ANGLE_OFFSET)                    # ② 几何 + 偏移
-        snap = _snap90(raw)                                      # ③ 吸附整数
-        if snap is not None:
-            return snap, "图上 %+.1f° %+g° 偏移 → 吸附为 %g°" % (g, DRAG_ANGLE_OFFSET, snap)
-        return round(raw, 1), "图上 %+.1f° %+g° 偏移 = %g°" % (g, DRAG_ANGLE_OFFSET, round(raw, 1))
-
     def create_edge_quick(self, frm, to, both=None):
         """快捷建边（选中两点即建，**不弹对话框**）。
 
@@ -2665,22 +2404,24 @@ class App(tk.Tk):
             return None
         if both is None:
             both = bool(self.var_quick_both.get())
-        # 角度按**边表约定**算（不是图上裸几何角）—— 否则"完全水平"会写成 88/90° 而不是 180/0°
-        ang, how = self._auto_edge_angle(frm, to)
-        rng, how_rev = self._auto_edge_angle(to, frm)
+        a, b = self.model.node(frm), self.model.node(to)
+        ang = math.degrees(math.atan2(b.x - a.x, -(b.y - a.y)))
+        if ang > 180:
+            ang -= 360
+        rng = ang - 180 if ang >= 0 else ang + 180
         snap = self.model.snapshot()
         try:
-            e = self.model.add_edge(frm, to, flag="NO", angle="%g" % ang,
+            e = self.model.add_edge(frm, to, flag="NO", angle="%g" % round(ang, 1),
                                     step="0", speed="SPEED2", func="NONE")
             if both and not self.model.edge(to, frm):
-                self.model.add_edge(to, frm, flag="NO", angle="%g" % rng,
+                self.model.add_edge(to, frm, flag="NO", angle="%g" % round(rng, 1),
                                     step="0", speed="SPEED2", func="NONE")
             self.sel_edge = e
             self.sel_node = None
             self._apply_change(snap)
-            self.status("已建%s边 %s → %s（%s%s；step 默认 0，请在属性面板改成实测值）"
-                        % ("双向" if both else "", frm, to, how,
-                           "；反向 %g°（%s）" % (rng, how_rev) if both else ""))
+            self.status("已建%s边 %s → %s（角度按图上位置自动算 %g°；"
+                        "step 默认 0，请在属性面板改成实测值）"
+                        % ("双向" if both else "", frm, to, round(ang, 1)))
             return e
         except ValueError as ex:
             messagebox.showerror("建边失败", str(ex), parent=self)
@@ -2824,11 +2565,16 @@ class App(tk.Tk):
         a, b = self.model.node(e.frm), self.model.node(e.to)
         if not a or not b:
             return
-        # 与「快捷建边」同一套：边表约定（共线锚定 → 几何+90° → 吸附整数），不是裸几何角
-        ang, how = self._auto_edge_angle(e.frm, e.to, ignore=e)
-        e.angle = "%g" % ang
+        dx, dy = b.x - a.x, -(b.y - a.y)
+        import math
+        ang = math.degrees(math.atan2(dx, dy))
+        if ang > 180:
+            ang -= 360
+        if ang <= -180:
+            ang += 360
+        e.angle = "%g" % round(ang, 1)
         self.refresh_props()
-        self.status("按图上位置算出 %g°（%s；节点图是示意图，仅供参考）" % (ang, how))
+        self.status("按图上位置算出 %.1f°（注意：节点图是示意图，角度仅供参考）" % ang)
 
     def calc_step_geo(self):
         if not self.sel_edge:
@@ -2838,12 +2584,10 @@ class App(tk.Tk):
         if not a or not b:
             return
         d = ((b.x - a.x) ** 2 + (b.y - a.y) ** 2) ** 0.5
-        k = self._unit_k()                  # 用工具栏里那个可改的 K，别再硬编码 0.884
-        cm = d / k
+        cm = d / 0.884
         e.step = "%g" % round(cm)
         self.refresh_props()
-        self.status("图上 %.0f px ÷ K(%.4g px/cm) = %g cm（⚠️ 只是估算，务必实测标定）"
-                    % (d, k, round(cm)))
+        self.status("图上 %.0f px ÷ 0.884 = %g cm（⚠️ 只是估算，务必实测标定）" % (d, round(cm)))
 
     def delete_selected(self):
         if self.sel_edge:
@@ -2928,18 +2672,12 @@ class App(tk.Tk):
         if iid.startswith("b:"):                    # 合并行 A<->B
             frm, to = iid[2:].split("<->")
             e = self.model.edge(frm, to) or self.model.edge(to, frm)
-            # 同一合并行再点一次 = 在正/反两个方向间切换（和画布上的"再点一次"一致）
-            rev = self.model.edge(to, frm)
-            if (e is not None and rev is not None and self.sel_edge is not None
-                    and self.sel_edge.tag == e.tag):
-                e = rev
         else:
             frm, to = iid[2:].split("->")
             e = self.model.edge(frm, to)
         if not e:
             return
         if self.sel_edge is not None and self.sel_edge.tag == e.tag:
-            self.status("已选中边 %s → %s" % (e.frm, e.to))
             return
         self.sel_edge = e
         self.sel_node = None
@@ -2947,9 +2685,8 @@ class App(tk.Tk):
         self.redraw()
         rev = self.model.edge(e.to, e.frm)
         if rev is not None:
-            self.status("已选中线段 %s ↔ %s（当前方向 %s → %s；再点这一行可切换方向 / "
-                        "画布上同一处再点一次也行）"
-                        % (e.frm, e.to, e.frm, e.to))
+            self.status("已选中线段 %s ↔ %s（两个方向都在：正向 %s / 反向 %s）"
+                        % (e.frm, e.to, e.label(), rev.label()))
         else:
             self.status("已选中边 %s（**没有反向边**，可在属性面板「补反向边」）" % e.label())
 
@@ -3139,45 +2876,8 @@ class App(tk.Tk):
             messagebox.showerror("修改失败", str(ex), parent=self)
 
     # ================================================================ 校验
-    def _source_diff_items(self):
-        """把「当前模型」与「固件源码」比一比 —— 启动自动载入的布局可能已经不是固件地图了。
-
-        很实际的坑：`App.__init__` 会自动载入 `layouts/default.json`，**它会盖掉固件地图**。
-        那份布局若是旧的/试验性的（例如做过演示改动），那么"显示的路线 / 校验 / 导出的 C 代码"
-        全都基于布局，而不是车上的地图 —— 于是就会出现"上位机算的路线和车上跑的不一样"。
-        返回 (items, short)：items 给校验面板用；short 是不一致时的一句话摘要（一致为 None）。
-        """
-        try:
-            src = M.MapModel.load_from_sources()
-        except Exception as ex:                                   # noqa: BLE001
-            return [("warn", "无法读取固件源码做对比：%s" % ex)], None
-        cur = self.model
-        add_n = sorted({n.name for n in cur.nodes} - {n.name for n in src.nodes})
-        del_n = sorted({n.name for n in src.nodes} - {n.name for n in cur.nodes})
-        add_e = sorted({(e.frm, e.to) for e in cur.edges} - {(e.frm, e.to) for e in src.edges})
-        del_e = sorted({(e.frm, e.to) for e in src.edges} - {(e.frm, e.to) for e in cur.edges})
-        if not (add_n or del_n or add_e or del_e):
-            return ([("info", "当前地图与固件源码一致（%d 节点 / %d 条边）"
-                      % (len(src.nodes), len(src.edges)))], None)
-        items = [("warn", "⚠ 当前地图 ≠ 固件源码：启动自动载入的 "
-                          "layouts/default.json 会盖掉固件地图，下面所有路线/校验/导出"
-                          "都基于【当前地图】。要回到固件版请点工具栏「重新载入源码」。")]
-        if add_n:
-            items.append(("warn", "多出节点（当前地图有、固件没有）：%s" % ", ".join(add_n)))
-        if del_n:
-            items.append(("warn", "缺少节点（固件有、当前地图没有）：%s" % ", ".join(del_n)))
-        if add_e:
-            items.append(("warn", "多出边 %d 条：%s"
-                          % (len(add_e), ", ".join("%s→%s" % p for p in add_e[:10]))))
-        if del_e:
-            items.append(("warn", "缺少边 %d 条：%s"
-                          % (len(del_e), ", ".join("%s→%s" % p for p in del_e[:10]))))
-        return items, "＋%d节点 / －%d节点 / ＋%d边 / －%d边" % (
-            len(add_n), len(del_n), len(add_e), len(del_e))
-
     def do_validate(self):
         items = self.model.validate()
-        items += self._source_diff_items()[0]
         self.txt_val.delete("1.0", "end")
         n_err = sum(1 for lv, _ in items if lv == "error")
         n_warn = sum(1 for lv, _ in items if lv == "warn")
@@ -3238,7 +2938,6 @@ class App(tk.Tk):
         if len(self.waypoints) < 2:
             messagebox.showinfo("提示", "至少要有 2 个必经点（起点+终点）", parent=self)
             return
-        self.route_split = None          # 普通规划不分去程/回程
         path, why = self.model.plan_route(self.waypoints, self.cost_mode.get())
         if path is None:
             self.txt_route.delete("1.0", "end")
@@ -3262,7 +2961,6 @@ class App(tk.Tk):
             return
         self.waypoints = waypoints
         self._refresh_wp()
-        self.route_split = None          # 常规路线不分去程/回程
         path, why = self.model.plan_route(waypoints, self.cost_mode.get())
         if path is None:
             self.route = []
@@ -3276,471 +2974,82 @@ class App(tk.Tk):
         self.redraw()
         self.status("已显示固件常规路线：N2 -> P1 -> N5，共 %d 跳" % (len(path) - 1))
 
-    def _fmt_planned(self, wp, path, why, blocked=None):
-        """把一条规划结果格式化成若干行（含逐段角度/长度/flag）。"""
-        lines = ["wp: %s" % " -> ".join(wp)]
-        if blocked:
-            lines.append("禁用边（nav_set_edge_blocked）: %s"
-                         % ", ".join("%s->%s" % b for b in sorted(blocked)))
-        if path is None:
-            lines.append("⚠ 规划失败：%s" % why)
-            return lines
-        lines.append("路线（%d 跳）: %s" % (len(path) - 1, " -> ".join(path)))
-        lines.append("route[]: %s" % self.model.export_route_array(path).strip())
-        lines.append("逐段明细:")
-        for i in range(len(path) - 1):
-            e = self.model.edge(path[i], path[i + 1])
-            if e is None:
-                lines.append("    %-6s -> %-6s  ⚠ 无边！" % (path[i], path[i + 1]))
-                continue
-            a, s = self.model.ang(e), self.model.step(e)
-            lines.append("    %-6s -> %-6s %7.1f° %6s cm  %-10s %s" % (
-                path[i], path[i + 1], a if a is not None else 0,
-                ("%.0f" % s) if s is not None else "?", e.func, e.flag))
-        if len(path) > 1:
-            e1 = self.model.edge(path[0], path[1])
-            if e1 is not None:
-                lines.append("注：固件起点 = wp[0]（%s）；摆车时车头顺 %s->%s，"
-                             "陀螺仪参考角 = 该边 angle = %s°"
-                             % (path[0], path[0], path[1], self.model.ang(e1)))
-        # 两类告警（与 show_route_text 同源）：DOOR 边会清空 route[]；180° 原路折返
-        for i in range(len(path) - 1):
-            e = self.model.edge(path[i], path[i + 1])
-            if e is not None and e.func == "DOOR":
-                lines.append("    ⚠ %s -> %s 是 DOOR 边：到点后 door() 先 map.point=0、"
-                             "route[0]=0xFF，再按读到的灯重写 route[] / 改 nowNode"
-                             % (path[i], path[i + 1]))
-        for i in range(1, len(path) - 1):
-            e1 = self.model.edge(path[i - 1], path[i])
-            e2 = self.model.edge(path[i], path[i + 1])
-            if e1 is None or e2 is None:
-                continue
-            a1, a2 = self.model.ang(e1), self.model.ang(e2)
-            if a1 is None or a2 is None:
-                continue
-            d = (a2 - a1) % 360.0
-            if d > 180:
-                d -= 360
-            if abs(abs(d) - 180) < 3:
-                lines.append("    ⚠ %s 处 180° 原路折返" % path[i])
-        return lines
-
-    def _macro_value(self, name):
-        """求 Mission/config.h 里的宏（按当前 USE_FIELD 展开）。求不出来返回 None。"""
-        try:
-            return M.eval_c_expr(name, self.model.macros)
-        except Exception:                                        # noqa: BLE001
-            return None
-
-    def _append_after_door(self, sections, enter, ab, doors, treasure, mode):
-        """过门之后：stageAB（平台 A/B）+ 宝物回程。返回可上画布的 path（或 None）。"""
-        a, b = ab
-        wp1, why1 = M.stageab_waypoints(enter, a, b)
-        if wp1 is None:
-            sections.append(("过门后 stageAB / update_route_at_door_for_stageAB()",
-                             ["⚠ %s" % why1]))
-            return None
-        p1, e1 = self.model.plan_route(wp1, mode)
-        sections.append((
-            "过门后 stageAB / update_route_at_door_for_stageAB()（过门落在 %s）" % enter,
-            self._fmt_planned(wp1, p1, e1)))
-        if p1 is None:
-            return None
-        canvas = list(p1)
-        if treasure is None:
-            sections.append(("宝物回程 / plan_treasure_return()", [
-                "宝物线索「未定」：固件读不到宝物编号时会 CarBrake_Stop()。"]))
-            return canvas
-        wp2, why2 = M.treasure_return_waypoints("P%d" % b, doors, treasure)
-        if wp2 is None:
-            sections.append(("宝物回程 / plan_treasure_return()", ["⚠ %s" % why2]))
-            return canvas
-        p2, e2 = self.model.plan_route(wp2, mode)
-        sections.append(("宝物回程 / plan_treasure_return(P%d)" % b,
-                         self._fmt_planned(wp2, p2, e2)))
-        if p2 is not None:
-            merged = list(p1) + list(p2[1:])
-            sections.append(("车上连续执行（两段拼接）", [
-                "路线（%d 跳）: %s" % (len(merged) - 1, " -> ".join(merged)),
-                "route[]: %s" % self.model.export_route_array(merged).strip()]))
-            canvas = merged
-        return canvas
-
-    def _door_trace_lines(self, doors, with_back=True):
-        """door() 内部推演 → 文本行（读灯推进 + 手写路线 + 退回距离 + 回家过门分支）。"""
-        lines = ["【进门读灯推进】barrier.c:door() —— 路线/节点改动都写在 door() 内部，不经规划器"]
-        steps, enter, err = M.door_read_flow(doors)
-        for name, edge, st, verdict, act in steps:
-            lines.append("  %-6s 在 %-8s 读灯 = %-10s %s" % (name, edge, M.DOOR_STATE_NAME[st], verdict))
-            lines.append("         └ %s" % act)
-        for macro, who in (("DOOR_RETREAT_N5N8", "D2 黑退回"), ("DOOR_RETREAT_N5N4", "D3 黑退回"),
-                           ("DOOR_RETREAT_N10N8", "D5 黑退回"), ("DOOR_RETREAT_N8N5", "D4回程黑退回")):
-            v = self._macro_value(macro)
-            if v is not None:
-                lines.append("  %s距离：%s = %s cm" % (who, macro, ("%.0f" % v)))
-        if err:
-            lines.append("  → ⚠ %s" % err)
-        else:
-            lines.append("  → 过门后 nodes.nowNode 落在 %s" % enter)
-
-        bsteps, hazards = M.door_back_flow(doors)
-        if with_back:
-            lines.append("")
-            lines.append("【回家路上过门】door() 的 D5_BACK(N10→N3) / D4_BACK(N8→N3)")
-            for name, edge, st, verdict, act in bsteps:
-                lines.append("  %-10s 在 %-8s 读灯 = %-10s %s"
-                             % (name, edge, M.DOOR_STATE_NAME[st], verdict))
-                lines.append("         └ %s" % act)
-            for h in hazards:
-                lines.append("  ⚠ %s" % h)
-        return lines, enter, err
-
-    def _write_route_report(self, sections):
-        """sections = [(标题, 行列表)]，写入主路线面板（关掉对话框后仍可见）。"""
-        t = self.txt_route
-        t.delete("1.0", "end")
-        for title, lines in sections:
-            t.insert("end", "=== %s ===\n" % title)
-            for ln in lines:
-                t.insert("end", ln + "\n")
-            t.insert("end", "\n")
-
-    @staticmethod
-    def _join(seq, add):
-        """把 add 接到 seq 后面；首节点与 seq 末尾重复时跳过（拼接点去重）。"""
-        add = list(add)
-        if seq and add and add[0] == seq[-1]:
-            add = add[1:]
-        return list(seq) + add
-
-    def _round1_complete(self, clue, ab, doors, treasure, mode="full"):
-        """第一轮**完整路线**：起步 → P1 → 门区 → 东区 → 回程，逐段拼接成一条。
-
-        拼接依据（都是固件真实交接点）：
-          ① mapInit() 把 nowNode 置成 P2→N2，之后 route[] = nav_build_route({N2,P1,N5})；
-             在 P1 平台里 update_route_at_P1() 用手写数组**整条覆盖** route[]，
-             其前 4 跳与 mapInit 完全相同 ⇒ 完整路线 = P2 → N2 → 手写数组。
-          ② 手写数组一律以 N12 结尾（在 N5→N12 上读 D2）⇒ 门区从 N12 接着走。
-          ③ 过门后 update_route_at_door_for_stageAB() 的 wp[0] 就是过门落点 ⇒ 自然接上。
-          ④ 到第二个平台(P7/P8)读宝物 ⇒ plan_treasure_return() 的 wp[0] 就是该平台。
-          ⑤ 回程若穿过 BACK 门(N10→N3 / N8→N3)，door() 会再调 route_return_home() 覆盖 ⇒ 再拼一段。
-
-        返回 (sections, flat_nodes, split_idx, err)：split_idx = 回程起始下标（画布分色用）。
-        """
-        sections = []
-        # ---- ① 起步 + P1 ----
-        if clue is None:
-            base, _w = self.model.plan_route(["N2", "P1", "N5"], mode)
-            arr = list(base[1:]) if base else []
-            note1 = ("P1 线索不在 {0,3,4} ⇒ update_route_at_P1() 不改路线："
-                     "车走到 N5 就结束第一轮（不进东区、不过门）。")
-        else:
-            arr = list(M.p1_route(clue) or [])
-            note1 = ("P1 线索 = %d ⇒ update_route_at_P1() 的手写数组"
-                     "（前 4 跳与 mapInit 的 N2→P1→N5 完全相同）" % clue)
-        if not arr:
-            return sections, [], None, ("无法拼接", "P1 之后的路线取不到（缺节点或线索组合不可用）")
-        leg1 = ["P2", "N2"] + arr
-        sections.append(("① 去程·起步与 P1 / mapInit() + update_route_at_P1()", [
-            note1,
-            "序列（%d 跳）: %s" % (len(leg1) - 1, " -> ".join(leg1))]))
-        if clue is None:
-            return sections, leg1, None, None
-
-        # ---- ② 门区读灯（退回重读的额外节点）----
-        hops, enter, err = M.door_read_hops(doors)
-        if err:
-            return sections, [], None, ("固件会停车", err)
-        trace, _e, _er = self._door_trace_lines(doors, with_back=False)
-        sections.append(("② 去程·门区读灯 / barrier.c:door()", list(trace) + [
-            "门区额外节点: %s" % (" -> ".join(hops) if hops else "（无，D2 直接过门）"),
-            "过门落点: %s" % enter]))
-        outbound = self._join(leg1, hops)
-
-        # ---- ③ 东区（stageAB）----
-        a, b = ab
-        wp1, why1 = M.stageab_waypoints(enter, a, b)
-        if wp1 is None:
-            return sections, [], None, ("线索组合不合法", str(why1))
-        p1, e1 = self.model.plan_route(wp1, mode)
-        if p1 is None:
-            return sections, [], None, ("规划失败", "stageAB：%s" % e1)
-        sections.append(("③ 去程·东区平台 / update_route_at_door_for_stageAB()",
-                         self._fmt_planned(wp1, p1, e1)))
-        outbound = self._join(outbound, p1)
-        split = len(outbound) - 1          # 回程从 P_B（东区第二个平台）开始
-
-        # ---- ④ 回程 ----
-        if treasure is None:
-            sections.append(("④ 回程", ["宝物线索「未定」：固件读不到宝物编号会 CarBrake_Stop()，"
-                                        "回程算不出来。"]))
-            return sections, outbound, None, None
-        wp2, why2 = M.treasure_return_waypoints("P%d" % b, doors, treasure)
-        if wp2 is None:
-            return sections, [], None, ("固件会停车", str(why2))
-        p2, e2 = self.model.plan_route(wp2, mode)
-        if p2 is None:
-            return sections, [], None, ("规划失败", "宝物回程：%s" % e2)
-        ret = list(p2)
-        lines4 = self._fmt_planned(wp2, p2, e2)
-        sections.append(("④ 回程·宝物 / plan_treasure_return(P%d)" % b, lines4))
-        # 回程穿过 BACK 门 ⇒ 固件在那里用 route_return_home() 覆盖路线，再拼一段
-        idx = None
-        for i in range(len(ret) - 1):
-            e = self.model.edge(ret[i], ret[i + 1])
-            if e is not None and e.func == "DOOR" and ret[i + 1] == "N3" and ret[i] in ("N10", "N8"):
-                idx = i
-                break
-        if idx is not None:
-            edge = (ret[idx], ret[idx + 1])
-            lines4.append("↑ 这段走到 %s→%s 就作废了：固件在这里调 route_return_home()，"
-                          "见下面 ④b" % edge)
-            chain, start, allow, note = M.door_back_chain(doors, edge)
-            wp3, blocked = M.door_return_home_waypoints(start, treasure, allow)
-            p3, e3 = self.model.plan_route(wp3, mode, blocked)
-            lines = ["回程在 %s→%s 上撞到 BACK 门 ⇒ door() 会重写路线：" % edge, "  " + note]
-            foot = list(ret[:idx + 1]) + list(chain)
-            if p3 is not None:
-                foot = self._join(foot, p3)
-                lines += self._fmt_planned(wp3, p3, e3, blocked)
-            else:
-                lines.append("  ⚠ 重规划失败：%s" % e3)
-            ret = foot
-            sections.append(("④b 回程·门区（door() 的 BACK 分支重规划）", lines))
-
-        flat = self._join(outbound, ret)
-        front = flat[:split + 1]
-        back = flat[split:]
-        bad = [(front[i], front[i + 1]) for i in range(len(front) - 1)
-               if self.model.edge(front[i], front[i + 1]) is None]
-        sections.append(("第一轮·完整路线（去程 + 回程拼接，共 %d 跳）" % (len(flat) - 1), [
-            "去程（蓝）%d 跳: %s" % (len(front) - 1, " -> ".join(front)),
-            "回程（青绿）%d 跳: %s" % (len(back) - 1, " -> ".join(back)),
-            "route[]: %s" % self.model.export_route_array(flat).strip()] +
-            (["⚠ 去程里有 %d 处相邻节点在边表里没有边（门区退回是「退+转」动作，"
-              "不代表边表缺边）：%s"
-              % (len(bad), ", ".join("%s→%s" % p for p in bad))] if bad else [])))
-        return sections, flat, split, None
-
-    def _clue_route_sections(self, stage, clue, ab, doors, treasure, back, mode="full"):
-        """线索/门灯/宝物 → 固件分支的路线（**纯计算，不碰 UI**；对话框与冒烟测试共用）。
-
-        参数：stage=阶段文本；clue=P1 线索(0/3/4/None)；ab=(平台A, 平台B)；
-              doors=[D2,D3,D4,D5] 状态；treasure=宝物编号或 None；
-              back=(门区回程起点, 是否放行 N8->N3)。
-        返回 (sections, canvas_path, err)：sections=[(标题, 行列表)]；err=(标题, 说明) 或 None。
-        """
-        sections, canvas = [], []
-        self.route_split = None          # 每次重算；只有「第一轮·完整路线」会设它（画布分色用）
-
-        def plan(wp, blocked=None):
-            return self.model.plan_route(wp, mode, blocked)
-
-        if stage.startswith("第一轮·完整路线"):
-            sections, flat, split, err = self._round1_complete(clue, ab, doors, treasure, mode)
-            if err:
-                return sections, [], err
-            self.route_split = split
-            return sections, flat, None
-
-        if stage.startswith("第一轮·P1"):
-            arr = M.p1_route(clue) if clue is not None else None
-            if arr is None:
-                # 固件不改路线 → 保持 mapInit() 的 N2→P1→N5，这里把它算出来显示
-                wp0 = [w for w in ("N2", "P1", "N5") if self.model.node(w)]
-                s0 = ["固件在这里不改路线（只有线索 = 0 / 3 / 4 才改写 route[]），",
-                      "保持 mapInit() 的 N2 → P1 → N5。"]
-                if len(wp0) == 3:
-                    p0, e0 = plan(wp0)
-                    s0 += self._fmt_planned(wp0, p0, e0)
-                    if p0:
-                        canvas = list(p0)
-                sections.append(("第一轮·P1 之后 / update_route_at_P1()", s0))
-            else:
-                sections.append((
-                    "第一轮·P1 之后 / update_route_at_P1()（线索=%d）" % clue, [
-                        "⚠ 这段是固件里的手写数组，不走规划器；按源码逐字列出。",
-                        "route[]: %s" % self.model.export_route_array(arr).strip(),
-                        "序列（%d 跳）: %s" % (len(arr) - 1, " -> ".join(arr))]))
-                canvas = list(arr)
-
-        elif stage.startswith("第一轮·门区全流程"):
-            trace, enter, err = self._door_trace_lines(doors)
-            sections.append(("第一轮·门区全流程 / barrier.c:door()（进门读灯 + 手写路线）", trace))
-            if err:
-                return sections, canvas, None
-            canvas = self._append_after_door(sections, enter, ab, doors, treasure, mode) or []
-
-        elif stage.startswith("第一轮·过门"):
-            trace, enter, err = self._door_trace_lines(doors, with_back=False)
-            if err:
-                return sections, canvas, ("固件会停车", err)
-            sections.append(("门区读灯推进（door()，路线写在门里）", trace))
-            canvas = self._append_after_door(sections, enter, ab, doors, treasure, mode) or []
-
-        elif stage.startswith("第一轮·门区回程"):
-            bsteps, hazards = M.door_back_flow(doors)
-            head = ["回家路上过门（door() 内部）："]
-            for name, edge, st, verdict, act in bsteps:
-                head.append("  %-10s 在 %-8s 读灯 = %-10s %s"
-                            % (name, edge, M.DOOR_STATE_NAME[st], verdict))
-                head.append("         └ %s" % act)
-            for h in hazards:
-                head.append("  ⚠ %s" % h)
-            start, allow = back
-            wp, blocked = M.door_return_home_waypoints(start, treasure, allow)
-            path, why = plan(wp, blocked)
-            sections.append((
-                "门区回程 / route_return_home()（起点 %s%s）"
-                % (start, "，放行 N8→N3" if allow else ""), head + [
-                    "门区 8 条边在规划层全禁（nav_set_edge_blocked），"
-                    "防止回程又拐进门区 / 在门口穿门掉头。"] +
-                self._fmt_planned(wp, path, why, blocked)))
-            canvas = list(path) if path else []
-
-        else:
-            wp, why = M.round2_waypoints(doors, treasure if treasure is not None else 0)
-            if wp is None:
-                return sections, canvas, ("固件会停车", str(why))
-            path, e = plan(wp)
-            sections.append(("第二轮·完整路线 / get_newroute()", self._fmt_planned(wp, path, e)))
-            canvas = list(path) if path else []
-
-        return sections, canvas, None
-
     def plan_clue_route_dialog(self):
-        """按固件真实分支显示路线：每盏门灯(D2~D5) + 宝物线索 + P1/平台线索。
-
-        每个「阶段」= 固件里一条确定的代码路径，逐条镜像（map_model 里的同名函数）：
-          · 第一轮 P1 之后     -> mission_planner.c: update_route_at_P1()   （手写数组，非规划器）
-          · 第一轮 过门→平台→回程 -> update_route_at_door_for_stageAB() + plan_treasure_return()
-          · 第一轮 门区回程     -> route_return_home()（门区 8 边全禁；door_2 额外放行 N8->N3）
-          · 第二轮 完整路线     -> get_newroute()
-        """
+        """按 mission_planner.c 的三类线索组合显示一条后续路线。"""
         dlg = tk.Toplevel(self)
-        dlg.title("线索 / 门灯 / 宝物 → 显示固件会跑的路线")
-        dlg.geometry("660x430")
+        dlg.title("选择线索并显示后续路线")
+        dlg.geometry("560x360")
         dlg.transient(self)
         frm = ttk.Frame(dlg, padding=12)
         frm.pack(fill="both", expand=True)
+        ttk.Label(frm, text="未指定的条件交给最短路自动选择；红绿灯选项只固定门区入口节点。",
+                  wraplength=520).pack(anchor="w", pady=(0, 10))
 
-        ttk.Label(frm, wraplength=620, justify="left",
-                  text="灯按 barrier.h 的通行语义填：绿=能过(CAN_PASS)、蓝=单相(ONE_WAY_PASS)、"
-                       "黑=不能过(NO_PASS)。选哪个阶段，就只镜像固件里那条分支；"
-                       "结果（含逐段明细）写到主界面路线框。").grid(
-            row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
-
-        def combo(row, label, values, default, width=36):
-            ttk.Label(frm, text=label).grid(row=row, column=0, sticky="w", pady=3, padx=(0, 6))
+        def choice(label, values, default):
+            row = ttk.Frame(frm)
+            row.pack(fill="x", pady=5)
+            ttk.Label(row, text=label, width=14).pack(side="left")
             var = tk.StringVar(value=default)
-            ttk.Combobox(frm, textvariable=var, values=values, state="readonly",
-                         width=width).grid(row=row, column=1, sticky="w", pady=3)
+            ttk.Combobox(row, textvariable=var, values=values,
+                         state="readonly", width=34).pack(side="left")
             return var
 
-        STAGES = [
-            "第一轮·完整路线（去程+门区+东区+回程 自动拼接，画布分色）",
-            "第一轮·P1 之后（update_route_at_P1）",
-            "第一轮·门区全流程（door() 状态机 + 门里的手写路线）",
-            "第一轮·过门→平台A/B→宝物回程（stageAB + plan_treasure_return）",
-            "第一轮·门区回程（route_return_home，门区禁用）",
-            "第二轮·完整路线（get_newroute）",
-        ]
-        P1_VALS = ["不指定（固件不改路线）", "线索=0：跳过 P3、P4",
-                   "线索=3：经过 P3", "线索=4：经过 P4"]
-        AB_VALS = ["A=5,B=7：P5 -> P7", "A=5,B=8：P5 -> P8",
-                   "A=6,B=7：P6 -> P7", "A=6,B=8：P6 -> P8"]
-        TREASURE_VALS = ["未定", "2 · P1", "3 · P3", "4 · P4", "5 · P5", "6 · P6"]
-        BACK_VALS = ["door_1：D5 绿（起点 N3）",
-                     "door_2：D5 黑 + D3 蓝已用尽（起点 N8，放行 N8→N3）",
-                     "door_3：D4 回程绿（起点 N3）",
-                     "door_4：D4 回程黑（起点 N5）"]
-        light_vals = [M.DOOR_STATE_NAME[s] for s in M.DOOR_STATE_ORDER]
-
-        # 上次用的配置（内存里记着；随「保存布局」写进 constraints.clue_route，重启也能恢复）
-        _cfg = dict(self.clue_route_cfg or {})
-
-        def _pick(key, values, default):
-            v = _cfg.get(key)
-            return v if v in values else default
-
-        stage = combo(1, "阶段", STAGES, _pick("stage", STAGES, STAGES[0]), width=54)
-        p1clue = combo(2, "P1 平台线索", P1_VALS,
-                       _pick("p1clue", P1_VALS, P1_VALS[0]))
-        stg = combo(3, "平台 A/B 线索", AB_VALS, _pick("stg", AB_VALS, AB_VALS[0]))
-
-        # 每盏灯一格（door_pass[0..3] = D2/D3/D4/D5）—— 固件 get_newroute() 全靠这 4 个值分支
-        ttk.Label(frm, text="门灯状态").grid(row=4, column=0, sticky="nw", pady=(8, 3), padx=(0, 6))
-        lights = ttk.Frame(frm)
-        lights.grid(row=4, column=1, sticky="w", pady=(8, 3))
-        _cdoors = _cfg.get("doors")
-        light_vars = []
-        for i, name in enumerate(M.DOOR_SLOT_NAME):
-            dv = M.DOOR_STATE_NAME[M.NO_PASS]
-            if isinstance(_cdoors, (list, tuple)) and i < len(_cdoors) \
-                    and _cdoors[i] in light_vals:
-                dv = _cdoors[i]
-            var = tk.StringVar(value=dv)
-            ttk.Label(lights, text=name).pack(side="left", padx=(0 if i == 0 else 10, 2))
-            ttk.Combobox(lights, textvariable=var, values=light_vals, state="readonly",
-                         width=10).pack(side="left")
-            light_vars.append(var)
-
-        treasure = combo(5, "宝物线索", TREASURE_VALS,
-                         _pick("treasure", TREASURE_VALS, TREASURE_VALS[0]))
-        back = combo(6, "门区回程入口（仅阶段3用）", BACK_VALS,
-                     _pick("back", BACK_VALS, BACK_VALS[0]), width=54)
-        ttk.Label(frm, text="（这些选择会记住：下次打开就是上次那套；"
-                            "随「保存布局」一起存，重启也在）",
-                  foreground="#666666").grid(row=7, column=0, columnspan=2,
-                                             sticky="w", pady=(6, 0))
-
-        def light_state(i):
-            for s in M.DOOR_STATE_ORDER:
-                if M.DOOR_STATE_NAME[s] == light_vars[i].get():
-                    return s
-            return M.NO_PASS
+        platform = choice("P1 平台线索", [
+            "自动/跳过 P3、P4", "线索=3：经过 P3", "线索=4：经过 P4"],
+            "自动/跳过 P3、P4")
+        stage = choice("平台 A/B 线索", [
+            "不指定", "A=5,B=7：P5 -> P7", "A=5,B=8：P5 -> P8",
+            "A=6,B=7：P6 -> P7", "A=6,B=8：P6 -> P8"], "不指定")
+        door = choice("红绿灯/门入口", [
+            "自动选择", "门1：N12", "门2：N8", "门3：N3"], "自动选择")
+        home = tk.BooleanVar(value=True)
+        ttk.Checkbutton(frm, text="宝物路线结束后规划回 P2（回家）", variable=home).pack(
+            anchor="w", pady=5)
 
         def run():
-            doors = [light_state(i) for i in range(4)]
-            tsel = treasure.get()
-            tval = int(tsel.split(" ")[0]) if tsel != "未定" else None
-            clue = {"不指定（固件不改路线）": None, "线索=0：跳过 P3、P4": 0,
-                    "线索=3：经过 P3": 3, "线索=4：经过 P4": 4}[p1clue.get()]
-            ab = (int(stg.get().split(",")[0].split("=")[1]),
-                  int(stg.get().split(",")[1].split("：")[0].split("=")[1]))
-            bsel = back.get()
-            bk = ("N8", True) if bsel.startswith("door_2") else \
-                 (("N5" if bsel.startswith("door_4") else "N3"), False)
-            # 记住这次的选择（下次打开就是这套；也会随「保存布局」写进 constraints）
-            self.clue_route_cfg = {
-                "stage": stage.get(),
-                "p1clue": p1clue.get(),
-                "stg": stg.get(),
-                "doors": [light_vars[i].get() for i in range(4)],
-                "treasure": tsel,
-                "back": bsel,
+            waypoints = ["N2", "P1"]
+            if platform.get().endswith("P3"):
+                waypoints += ["P3", "N3", "N4", "N5"]
+            elif platform.get().endswith("P4"):
+                waypoints += ["P4", "N6", "N5"]
+            if door.get().endswith("N12"):
+                waypoints.append("N12")
+            elif door.get().endswith("N8"):
+                waypoints.append("N8")
+            elif door.get().endswith("N3"):
+                waypoints.append("N3")
+            stage_map = {
+                "A=5,B=7：P5 -> P7": ("P5", "P7"),
+                "A=5,B=8：P5 -> P8": ("P5", "P8"),
+                "A=6,B=7：P6 -> P7": ("P6", "P7"),
+                "A=6,B=8：P6 -> P8": ("P6", "P8"),
             }
-            sections, canvas, err = self._clue_route_sections(
-                stage.get(), clue, ab, doors, tval, bk, self.cost_mode.get())
-            if err:
-                self._write_route_report(sections)      # 先把已经算出来的段落给出来
-                messagebox.showerror(err[0], err[1], parent=dlg)
+            if stage.get() in stage_map:
+                waypoints.extend(stage_map[stage.get()])
+                if home.get():
+                    waypoints.append("P2")
+            elif home.get():
+                waypoints.append("P2")
+            missing = [name for name in waypoints if not self.model.node(name)]
+            if missing:
+                messagebox.showerror("线索路线不可用", "地图缺少节点：" + ", ".join(missing), parent=dlg)
                 return
-            if canvas:
-                self.route = canvas
-                self.redraw()
-            else:
-                self.route = []
-                self.route_split = None
-                self.redraw()
-            self._write_route_report(sections)
-            self.status("已按固件分支显示路线（%s）" % stage.get().split("（")[0])
+            path, why = self.model.plan_route(waypoints, self.cost_mode.get())
+            if path is None:
+                messagebox.showerror("规划失败", str(why), parent=dlg)
+                return
+            self.waypoints = waypoints
+            self._refresh_wp()
+            self.route = path
+            self.show_route_text(path)
+            self.redraw()
+            self.status("已显示线索路线，共 %d 跳" % (len(path) - 1))
             dlg.destroy()
 
         buttons = ttk.Frame(frm)
-        buttons.grid(row=8, column=0, columnspan=2, sticky="w", pady=(14, 0))
+        buttons.pack(fill="x", pady=(12, 0))
         ttk.Button(buttons, text="显示路线", command=run).pack(side="left")
-        ttk.Button(buttons, text="取消", command=dlg.destroy).pack(side="left", padx=8)
+        ttk.Button(buttons, text="取消", command=dlg.destroy).pack(side="right")
 
     def show_route_text(self, path):
         t = self.txt_route
@@ -3784,7 +3093,6 @@ class App(tk.Tk):
 
     def clear_route(self):
         self.route = []
-        self.route_split = None
         self.txt_route.delete("1.0", "end")
         self.redraw()
 
@@ -4047,29 +3355,16 @@ class App(tk.Tk):
             return dst
         return None
 
-    @staticmethod
-    def _splice_edge_table(src, block):
-        """把导出块替换进 map_message.c 源码里（**纯函数**，便于测试）。
-
-        ⚠️ 踩过的坑：`export_edge_table(with_header=False)` 的输出**自带尾部**
-        （`};` + 编译期检查 typedef + "已移至" 说明注释），而原文件在 `};` 之后
-        **本来就有那一段**。早期直接整块拼接 ⇒ **`NavEdgeTbl_size_check` 变成两份**，
-        而且**每写回一次就多一份**（实测：写回前备份 1 份 → 写回后 2 份）。
-        所以这里只取到表体结束的 `};` 为止，尾部一律沿用原文件。
-        """
+    def _patch_edge_table(self, backup_dir, ts):
+        path = M.PATH_EDGE_C
+        src = open(path, encoding="utf-8").read()
         m = re.search(r"(const\s+NavEdge\s+NavEdgeTbl\s*\[[^\]]*\]\s*=\s*\{)", src)
         if not m:
             raise RuntimeError("在 map_message.c 里找不到 NavEdgeTbl[] 起始位置")
         start = m.start(1)
-        end = src.index("};", m.end()) + 2          # 原文件表体的收尾
-        cut = block.index("};") + 2                 # 导出块只取到表体收尾
-        return src[:start] + block[:cut] + src[end:]
-
-    def _patch_edge_table(self, backup_dir, ts):
-        path = M.PATH_EDGE_C
-        src = open(path, encoding="utf-8").read()
+        end = src.index("};", m.end()) + 2
         new_block = self.model.export_edge_table(with_header=False)
-        new_src = self._splice_edge_table(src, new_block)
+        new_src = src[:start] + new_block + src[end:]
         self._backup(path, backup_dir, ts)
         open(path, "w", encoding="utf-8", newline="").write(new_src)
         return "Navigation/map_message.c（%d 条边）" % len(self.model.edges)
@@ -4122,8 +3417,6 @@ class App(tk.Tk):
             "rot": self.rot.get(),
             "edge_view": self.edge_view.get(),      # 边列表展示模式
             "label_mode": self.label_mode.get(),
-            # 「线索路线…」上次用的配置：省得每次点开都重新配一遍
-            "clue_route": dict(self.clue_route_cfg or {}),
         }
 
     def save_layout(self, show_msg=True, path=None):
@@ -4312,9 +3605,6 @@ class App(tk.Tk):
                 self.edge_view.set(con["edge_view"])
             if con.get("label_mode") in ("无", "标准", "详细"):
                 self.label_mode.set(con["label_mode"])
-            if isinstance(con.get("clue_route"), dict):
-                # 「线索路线…」上次的配置（值都当字符串存，用的时候再做合法性校验）
-                self.clue_route_cfg = dict(con["clue_route"])
 
     def load_layout_file(self, path, quiet=False):
         try:
@@ -4322,7 +3612,6 @@ class App(tk.Tk):
                 self.model.load_json(f.read())
             self.sel_node = self.sel_edge = None
             self.route = []
-            self.route_split = None
             self._current_layout = path
             self._apply_model_background()
             self.refresh_all()
@@ -4381,7 +3670,6 @@ class App(tk.Tk):
                     n.x, n.y = old_pos[n.name]
             self.sel_node = self.sel_edge = None
             self.route = []
-            self.route_split = None
             self.undo_stack.clear()
             self.redo_stack.clear()
             self._apply_model_background()
@@ -4420,31 +3708,24 @@ HELP_TEXT = """寻宝地图编辑器 — 操作说明
   2) 角度/长度最终真值靠实车标定；「辅助 → 按图上位置算」只是估算。
 
 【鼠标 / 手势（特意分开，避免冲突）】
-  左键点节点 / 边    选中（边的命中区已加宽到 ±7px，点线附近就算选中；双向边偏向哪条选哪条）
+  左键点节点 / 边    选中（边的命中区已加宽到 ±7px，点线附近就算选中）
   左键拖节点         移动节点（只是示意图位置，不影响固件任何数值）
   双击【边】         直接打开这条边的编辑框
-  右键【节点】       以它为起点开始连线 → 再右键另一个节点即建边（左键点目标也行）
-                     再右键自己 / 点空白 / Esc = 取消起点
-  Shift + 右键【节点】 节点快捷菜单（重命名/删除/补反向边/设为必经点…）
-  双击【节点】       以它为起点开始连线（右键的备用方式，等同按 A）
+  双击【节点】       以它为起点开始连线（等同按 A）
   Shift + 双击空白   在空白处新建节点（防误触）
   中键拖 / 空白拖    平移画布
   滚轮               以鼠标为中心缩放
-  右键边 / 右键空白  各自的快捷菜单（删边、补反向边、在此新建节点等）
+  右键节点/边/空白   各自的快捷菜单（删边、补反向边、连到…、在此新建节点等）
 
 【选边 / 增删边（不用手选 from-to）】
   点图形即可选中边        <- 边的命中区已加宽（±7px），不用精确点中细线
-  ⭐ 双向边两条线相隔 12px：**偏向哪条就选哪条**；同一处**再点一次 = 切换方向**
-     （双击不会被当成切换，仍是"编辑当前选中那条"）
   双击边 = 编辑；Delete = 删除选中的边
   A                       以选中节点（或选中边的 to 端）为起点开始续连
   连线模式（工具栏）      点两个节点直接建边；点边则以它的 to 端起继续连
-  Esc                     退出连线模式 / 取消待连线的起点
-  右键节点                以它为起点开始连线（再右键目标节点建边）
-  Shift+右键节点          删除它全部入边/出边、补反向边、从这里连到…
+  Esc                     退出连线模式
+  右键节点                删除它全部入边/出边、补反向边、从这里连到…
   右键边                  删除这条边 / 删除这一对（双向都删）/ 补反向边 / 从任一端续连
-  快捷建边按**边表约定**自动算角度（先看有没有共线边可沿用 → 否则图上几何 +90° → 再吸附整数）；
-  「双向」勾选框决定是否同时建反向边。
+  快捷建边按图上位置自动算角度；「双向」勾选框决定是否同时建反向边。
   ⚠️ 快捷建边的 step 默认 0，建完请在「属性」面板改成实测值。
 
 【常用快捷键】

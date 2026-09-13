@@ -7,6 +7,11 @@
 #include "stdio.h"
 
 static uint8_t  mul2sing = 0 ,sing2mul = 0;
+
+/* 最近一次命中的到达判据（ARRIVE_xxx，见 map.h）：随 CROSS_EVENT_ARRIVED 一起交给 Navigation。
+ * 转弯前补偿距离的"能算就算"分支用它区分不同判据的固有检测滞后。 */
+volatile uint8_t arrive_method = ARRIVE_NONE;
+
 void arrive_detect_task(void *pvParameters)
 {
 	 while (1)
@@ -18,7 +23,7 @@ void arrive_detect_task(void *pvParameters)
         sing2mul = 0;
         // --- 进行节点检测 ---
         Cross_getline(&Cross_Scaner);
-        while (!deal_arrive(&Cross_Scaner, nodes.nowNode.flag))
+        while (!deal_arrive(&Cross_Scaner, nodes.nowNode.flag, (uint8_t *)&arrive_method))
         {
             vTaskDelay(1);
             Cross_getline(&Cross_Scaner);
@@ -31,7 +36,7 @@ void arrive_detect_task(void *pvParameters)
 				}
         }
 
-        // 标记到达
+        // 标记到达（arrive_method 已由 deal_arrive 写好，顺序：先写判据再置事件）
         cross_event |= CROSS_EVENT_ARRIVED;
 
         send_play_specified_command(13); // 播报
@@ -104,12 +109,15 @@ void send_set_volume_command(uint8_t volume)   // 0~30
 	}
 }
 
-/*判断节点*/
-
-uint8_t deal_arrive(volatile SCANER *scaner, uint32_t node_flag)
+/*判断节点
+ * out_method：命中时写入命中的判据（ARRIVE_xxx，见 map.h）；未命中写 ARRIVE_NONE。
+ *             顺序必须与下面 if 链一致 —— 多个判据同时为真时，先命中的那个就是实际触发者。 */
+uint8_t deal_arrive(volatile SCANER *scaner, uint32_t node_flag, uint8_t *out_method)
 {
 	register uint8_t lnum = 0, i = 0;
 	register uint16_t seed = 0;
+
+	if (out_method) *out_method = ARRIVE_NONE;   /* 默认：本轮没有命中 */
 
 	if ((node_flag & DLEFT) == DLEFT)  //左半边
 	{
@@ -123,6 +131,7 @@ uint8_t deal_arrive(volatile SCANER *scaner, uint32_t node_flag)
 					++lnum;
 				if (lnum >= 5)
 				{
+					if (out_method) *out_method = ARRIVE_DLEFT;
 					return 1;
 				}
 				seed >>= 1;
@@ -142,6 +151,7 @@ uint8_t deal_arrive(volatile SCANER *scaner, uint32_t node_flag)
 					++lnum;
 				if (lnum >= 5)
 				{
+					if (out_method) *out_method = ARRIVE_DRIGHT;
 					return 1;
 				}
 				seed <<= 1;
@@ -154,6 +164,7 @@ uint8_t deal_arrive(volatile SCANER *scaner, uint32_t node_flag)
 		//左边数起第二、第三个灯任意一个亮即可
 		 if( (scaner->ledNum>=4&&scaner->ledNum<=7) && ((scaner->detail&0x4000)|(scaner->detail&0x2000)) )
 		 {
+			if (out_method) *out_method = ARRIVE_CLEFT;
 			return 1;
 		}
 	}
@@ -162,6 +173,7 @@ uint8_t deal_arrive(volatile SCANER *scaner, uint32_t node_flag)
 		//左边数起第一个灯亮即可
 		 if( (scaner->ledNum>=4&&scaner->ledNum<=7) && (scaner->detail&0x8000) )
 		{
+			if (out_method) *out_method = ARRIVE_MCLEFT;
 			return 1;
 		}
 	}
@@ -170,6 +182,7 @@ uint8_t deal_arrive(volatile SCANER *scaner, uint32_t node_flag)
 		//右边数起第一个灯亮即可
 		 if( (scaner->ledNum>=4&&scaner->ledNum<=7) && (scaner->detail&0x0001) )
 		{
+			if (out_method) *out_method = ARRIVE_MCRIGHT;
 			return 1;
 		}
 	}
@@ -177,6 +190,7 @@ uint8_t deal_arrive(volatile SCANER *scaner, uint32_t node_flag)
 	{
 		 if( (scaner->ledNum>=4&&scaner->ledNum<=7) && (scaner->detail&0xc) )//右起2和3灯亮
 		{
+			if (out_method) *out_method = ARRIVE_CRIGHT;
 			return 1;
 		}
 	}
@@ -184,6 +198,7 @@ uint8_t deal_arrive(volatile SCANER *scaner, uint32_t node_flag)
 	{
 		 if( (scaner->ledNum>=5) )//5个灯以上亮
 		{
+			if (out_method) *out_method = ARRIVE_MORELED;
 			return 1;
 		}
 	}
@@ -191,6 +206,7 @@ uint8_t deal_arrive(volatile SCANER *scaner, uint32_t node_flag)
 	{
 		 if((scaner->ledNum>=10&&(scaner->detail&0x1FF8)==0x1FF8))
 		{
+			if (out_method) *out_method = ARRIVE_AWHITE;
 			return 1;
 		}
 	}
@@ -201,6 +217,7 @@ uint8_t deal_arrive(volatile SCANER *scaner, uint32_t node_flag)
 		if (mul2sing > 4 && scaner->lineNum == 1) //线数目由多变成一条
 		{
 			mul2sing = sing2mul = 0;
+			if (out_method) *out_method = ARRIVE_MUL2SING;
 			return 1;
 		}
 	}
@@ -213,6 +230,7 @@ uint8_t deal_arrive(volatile SCANER *scaner, uint32_t node_flag)
 		if (sing2mul > 4 && scaner->lineNum > 1 && scaner->ledNum >= 4)
 		{
 			mul2sing = sing2mul = 0;
+			if (out_method) *out_method = ARRIVE_MUL2MUL;
 			return 1;
 		}
 	}

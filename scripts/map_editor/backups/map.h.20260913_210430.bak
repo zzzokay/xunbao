@@ -154,21 +154,6 @@ extern volatile uint8_t cross_event;
 #define CROSS_EVENT_ARRIVED     (1<<0)  // 已到达节点
 #define CROSS_EVENT_DOOR        (1<<1)  // 门结果就绪（红/绿灯统一）
 
-/* ============ 节点检测判据（deal_arrive 命中的是哪一个）============
- * 顺序 = ArriveDetect_task.c 的 if 链优先级（也是多个判据同时为真时的先命中者）。
- * 由 ArriveDetect_task 写、Navigation 读：转弯前补偿距离的"能算就算"分支靠它区分
- * 各判据的固有检测滞后 d（见 project_reference.md §14）。
- * ⚠️ 若某条到达路径不经过 deal_arrive（barrier.c 里直接 cross_event |= CROSS_EVENT_ARRIVED），
- *    arrive_method 会残留上一次的值 —— 公式会退回"缺省 d"，不会出错。 */
-enum {
-	ARRIVE_NONE = 0,
-	ARRIVE_DLEFT, ARRIVE_DRIGHT,                                  /* 单侧 6 灯中 >=5 亮 */
-	ARRIVE_CLEFT, ARRIVE_MCLEFT, ARRIVE_MCRIGHT, ARRIVE_CRIGHT,   /* 斜线 / 最外侧单灯 */
-	ARRIVE_MORELED, ARRIVE_AWHITE,                                /* ledNum>=5 / 全白 */
-	ARRIVE_MUL2SING, ARRIVE_MUL2MUL                               /* 多->单 / 多->多 */
-};
-extern volatile uint8_t arrive_method;
-
 /* 按一下跑一个节点调试：信号量/票计数（每按短一次累积，Navigation 每跑一条边-1，到0停下等票） */
 extern volatile uint8_t nav_token;
 

@@ -9,8 +9,17 @@ static const float NavObsPenalty[20] = {
     0.0f,   /* 0 空 */
     0.0f,   /* 1 NONE */
     60.0f,  /* 2 UpStage 平台(去完要往返，含爬坡) */
-    300.0f, /* 3 Bridge 桥(过桥固定耗时>爬楼梯，故取更高；与 Hill 一起提高才能让 N12→P8 走南环且 round-2 不变) */
-    300.0f, /* 4 Hill 山地/楼梯(安全窗240~340取中：离翻南环临界240有60余量、离round-2崩溃360有60余量；240~340间路线全同) */
+    300.0f, /* 3 Bridge 桥(过桥固定耗时>爬楼梯，故取更高) */
+    230.0f, /* 4 Hill 山地/楼梯：**2026-09-13 由 300 降到 230**。为什么是 230：
+                实测（用户正式图 scripts/map_editor/layouts/57交换.json，全 2450 对起终点）各对的翻转阈值不同——
+                  · N8→C9 / N8→P5：Hill <= 239 才翻成"走 N12→N16→N18→B5 楼梯"
+                  · N12→N20      ：要到 Hill <= 200 才翻
+                所以取中间的 230 ⇒“**N8→C9 走楼梯、N12→N20 仍走南环**”同时成立，
+                且 scripts/validate/_weight_calib.py 的 15 条参考路线仍 15/15（rout_58 在 <=200 才断）。
+                ⚠️ 副作用：N12→P8（阈值 247）等 61/2450 对会改走楼梯侧，需实车复核。
+                ⚠️ 原注释写的“安全窗240~340”说的是 N8→C9/N8→P5 那条 239 的翻转点，已按新需求下调。
+                改这里必须同步 scripts/map_editor/map_model.py 的 OBS["Hill"] 与
+                scripts/validate/_weight_calib.py 的 OBS_PENALTY[4]（_selftest.py 第 8 节会逐项比对）。 */
     50.0f,  /* 5 LBHill */
     120.0f, /* 6 SM 刀山(round2 用权重避开 N11) */
     100.0f, /* 7 View 景点支路(不应被当捷径) */

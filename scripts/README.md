@@ -69,7 +69,9 @@ python scripts/map_editor/analyze_layout.py  # 只读分析你的布局（精度
 | `analyze_turn_comp_rule.py` | **"能算就算"判据验证**：按 R1(平地 `func∈{NONE,DOOR}`) / R2(`step≥20`) / R3(`100°≤|转弯|<178°`) 给 22 条打标，列出各自反解的 `L`，并统计边表全部 (入,出) 组合的命中率。 | 改判据阈值后 |
 | `analyze_turn_comp_final_plan.py` | **三层覆盖率统计**：Tier1 实测保留 / Tier2 公式算出 / Tier3 保留默认 19，输出各层条数与明细。 | 定方案时 |
 | `analyze_turn_comp_gate.py` | **★最终方案（含 5cm 闸门）验证**：Tier1 实测 / Tier2 `|公式−实测|≤5cm` 用公式 / Tier3 保留默认；输出 L 敏感性扫描、被闸门挡回的条目、**Tier2 完整清单（53 条）**与取值范围。**改方案参数后跑这个**。 | 改方案/`L`/阈值后 |
-| `analyze_turn_comp_map_geom.py` | **从节点图反查几何**：内置 `节点图.jpg` 的节点像素坐标 + 5 条长直边标定比例（0.884 px/cm），算每条边的地图真实走向与表里 `angle` 的偏差，并输出"地图真实转弯量 vs 表转弯量"。结论：表里角度**是对的**（只差参考系旋转），但节点图是**示意图**、臂长与 `step` 大面积不符，**不能用来定量反推补偿**。 | 需要对照地图几何时 |
+| `analyze_turn_comp_map_geom.py` | **从节点图反查几何**：内置 `节点图.jpg` 的节点像素坐标 + 5 条长直边标定比例（0.884 px/cm），算每条边的地图真实走向与表里 `angle` 的偏差，并输出"地图真实转弯量 vs 表转弯量"。结论：表里角度**是对的**（只差参考系旋转），但节点图是**示意图**、臂长与 `step` 大面积不符，**不能用来定量反推补偿**。⚠️ 本文件的节点名→编号映射是**旧版**，以 ⑦ probe 的解析为准。 | 需要对照地图几何时 |
+| `analyze_turn_comp_probe.py` | **★改造保真性 + 语法校验**：从 `Navigation/map.c` **逐字抽取** `TURN_*` 宏、`kTurnTbl[]`、`GetForwardDistanceBeforeTurn()` 函数体，断言"仅差 5 处已声明替换 + 1 处表扫描展开，且**可逆还原后逐字一致**"（保证校验对象是真代码而非手抄副本），再用 `arm-none-eabi-gcc -std=c99 -Wall -Wextra -O0 -c` 编译 19 个用例调用；同时按 **C 的真实枚举规则**解析 `map.h`（先剥注释再编号，带 `N4/N8/P8/B11` 抽查断言）并打印 python 侧独立算出的期望值。**改 `map.c` 的补偿逻辑后跑这个。** | 改转弯补偿表/公式后 |
+| `analyze_turn_comp_selfcheck.py` | **★不依赖 Keil 的静态自检**（7 节约 30 条断言）：① `arrive_method` 必须**恰好 1 处定义**（`L6200E multiply defined` 就是这么来的）② 声明可见性（extern / include 链）③ 判据枚举齐全 + `deal_arrive` 三参原型与定义同步 ④ `deal_arrive` 的 10 处 `return 1` 各自都写了命中判据、未命中复位 `ARRIVE_NONE` ⑤ `kTurnTbl` 行数与节点号上界、`MAP_NODE_LIMIT` 与真实节点数一致 ⑥ 不引用不存在的宏 ⑦ `cosf` / `Node_Lookup` / 不读会被 `door_set_pass_node()` 改写的 `nodes.nowNode.step`。**交给用户编译前先跑这个。** | 改这 5 个文件后 |
 | `analyze_door_bug.py` | 早期打印式分析 D4 回程 `door_retreat` 后退+转向的冲突（文本输出，非解析源码）。 | 历史 |
 | `analyze_n8_n5_turn.py` | 早期打印式逐步分解 `N8→N5→N4` 执行流程、查找 N5->N4 边角度。 | 历史 |
 | `check_door_route_logic.py` | 早期打印式分析 `DOOR_D4_BACK` 与 `plan_after_return_door` 的分支可行性。 | 历史 |
@@ -103,6 +105,8 @@ python3 scripts/analyze/analyze_door_return_route.py
 python3 scripts/analyze/analyze_turn_comp_base.py       # 生效22条 + 死值7条 + 每条命中判据
 python3 scripts/analyze/analyze_turn_comp_gate.py       # ★最终方案：Tier2 53 条清单 + 5cm 闸门
 python3 scripts/analyze/analyze_turn_comp_map_geom.py   # 节点图几何 vs 表里 angle
+python3 scripts/analyze/analyze_turn_comp_probe.py      # ★保真性(可逆还原) + 语法编译校验
+python3 scripts/analyze/analyze_turn_comp_selfcheck.py  # ★静态自检(定义点/可见性/枚举/节点上界)
 
 # 改权重前：看会动哪些路线（灵敏度表 + 穷举 diff）
 python3 scripts/analyze/analyze_weight_sensitivity.py

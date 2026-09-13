@@ -9,5 +9,5 @@
 extern void arrive_detect_task(void *pvParameters);
 void send_play_specified_command(uint8_t index);
 void send_set_volume_command(uint8_t volume);
-uint8_t deal_arrive(volatile SCANER *scaner, uint32_t node_flag);
+uint8_t deal_arrive(volatile SCANER *scaner, uint32_t node_flag, uint8_t *out_method);
 #endif

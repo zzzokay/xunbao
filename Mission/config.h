@@ -11,7 +11,15 @@
 #define MAP_DEBUG      0   /* 1=打印地图调试信息 */
 #define STEP_DEBUG     0   /* 1=按一下跑一个节点调试；正式比赛必须改回0 */
 #define MAIN_DEBUG     0   /* 1=主任务跑调试分支(test_flag)，不会执行 Navigation()；正式比赛必须改回0 */
-#define DEBUG          0   /* 1=门颜色走 debug_door_pass 预设(barrier.c)；0=走真实颜色传感器 */
+#define DEBUG          1   /* 1=门颜色走 debug_door_pass 预设(barrier.c)；0=走真实颜色传感器 */
+
+/* ===================== 转弯前补偿距离"能算就算" =====================
+ * 1 = 平地(func=NONE/DOOR) + 入边 step>=20cm + 转弯 100°~178° 的节点，距离由
+ *     Δ = 19*(1-cosφ) + d(判据) 算出，而不是吃默认值 19；
+ *     但若该三元组已有实测值且公式与它相差 >5cm，则仍用实测值（5cm 闸门，自保护）。
+ * 0 = 完全保持原行为（只用实测表 + 默认值）。
+ * 依据与验证见 project_reference.md §14、项目讲解文档/转弯补偿_能算就算方案.md */
+#define TURN_CALC_ENABLE   1
 
 /* ===================== 路线生成 ===================== */
 #define USE_PLANNER_ROUTE  1   /* 1=由最短路径算法生成路线；0=沿用现有路线数组 */

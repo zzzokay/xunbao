@@ -90,15 +90,75 @@ def enabled(flag_expr):
     return [n for (n, b) in METHODS if v & b]
 
 # ---------------- 4. 两张硬补偿表 ----------------
+# 2026-09-12 起，停车转那张表已从 if 链改成 `kTurnTbl[]`（见 map.c），所以这里要认两种格式：
+#   格式A（新，kTurnTbl[]）  ： { LAST, NOW, NEXT, dist },
+#   格式B（旧/陀螺转，if 链）： if (last == X && now == Y && next == Z) return v;
 mapc = open(os.path.join(ROOT, 'Navigation', 'map.c'), encoding='utf-8').read()
-def parse_tbl(name):
-    seg = mapc[mapc.index(name):]; seg = seg[:seg.index('\n}')]
-    out = []
+
+def _code_end(line):
+    """返回该行"有效代码"结束的位置：// 之后、以及不在字符串里的 /* */ 之后都算注释。
+    用于识别被注释掉的表项（2026-09-12 踩过坑：N13->N18->B5=60 其实是注释状态，
+    原正则把它当生效条目，导致整轮拟合结论偏差）。"""
+    i, n = 0, len(line)
+    in_str = None
+    while i < n:
+        c = line[i]
+        if in_str:
+            if c == '\\': i += 2; continue
+            if c == in_str: in_str = None
+            i += 1; continue
+        if c in '"\'':
+            in_str = c; i += 1; continue
+        if line.startswith('//', i):
+            return i
+        if line.startswith('/*', i):
+            j = line.find('*/', i + 2)
+            return n if j < 0 else j + 2   # 该行内被注掉，或整行尾部都是注释
+        i += 1
+    return n
+
+def parse_stop_table():
+    """停车转表：优先认 kTurnTbl[]（新格式），退化为 if 链（旧格式）。"""
+    out, skipped = [], []
+    m = re.search(r'kTurnTbl\[\]\s*=\s*\{(.*?)\n\};', mapc, re.S)
+    if m:
+        for l in m.group(1).splitlines():
+            mm = re.match(r'\s*\{\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*([-\d.]+)\s*\}\s*,?', l)
+            if not mm: continue
+            item = (mm.group(1), mm.group(2), mm.group(3), float(mm.group(4)))
+            (out if mm.start() < _code_end(l) else skipped).append(item)
+        if out:
+            return out, skipped
+    # 旧格式兜底：函数体里的 if 链
+    seg = mapc[mapc.index('GetForwardDistanceBeforeTurn'):]
+    seg = seg[:seg.index('\n}')]
+    for l in seg.splitlines():
+        mm = re.search(r'if\s*\(\s*last\s*==\s*(\w+)\s*&&\s*now\s*==\s*(\w+)\s*&&\s*next\s*==\s*(\w+)\s*\)\s*return\s*([-\d.]+)', l)
+        if not mm: continue
+        item = (mm.group(1), mm.group(2), mm.group(3), float(mm.group(4)))
+        (out if mm.start() < _code_end(l) else skipped).append(item)
+    return out, skipped
+
+def parse_gyro_table():
+    """陀螺转表：仍是 if 链。"""
+    seg = mapc[mapc.index('GetForwardDistanceBeforeGyroTurn'):]
+    seg = seg[:seg.index('\n}')]
+    out, skipped = [], []
     for l in seg.splitlines():
         m = re.search(r'if\s*\(\s*last\s*==\s*(\w+)\s*&&\s*now\s*==\s*(\w+)\s*&&\s*next\s*==\s*(\w+)\s*\)\s*return\s*([-\d.]+)', l)
-        if m: out.append((m.group(1), m.group(2), m.group(3), float(m.group(4))))
-    return out
-t_stop, t_gyro = parse_tbl('GetForwardDistanceBeforeTurn'), parse_tbl('GetForwardDistanceBeforeGyroTurn')
+        if not m: continue
+        item = (m.group(1), m.group(2), m.group(3), float(m.group(4)))
+        (out if m.start() < _code_end(l) else skipped).append(item)
+    return out, skipped
+
+t_stop, t_stop_cmt = parse_stop_table()
+t_gyro, t_gyro_cmt = parse_gyro_table()
+print('[表解析] 停车转 %d 条（kTurnTbl） / 陀螺转 %d 条（if 链）' % (len(t_stop), len(t_gyro)))
+if t_stop_cmt or t_gyro_cmt:
+    print('[注意] 被注释掉的表项（不生效）:')
+    for a, b, c, v in t_stop_cmt: print('   // %s->%s->%s = %.0f' % (a, b, c, v))
+    for a, b, c, v in t_gyro_cmt: print('   // %s->%s->%s = %.0f' % (a, b, c, v))
+    print()
 
 rows, dead = [], []
 for tbl_name, tbl, default in (('停车转', t_stop, 19.0), ('陀螺转', t_gyro, 0.0)):

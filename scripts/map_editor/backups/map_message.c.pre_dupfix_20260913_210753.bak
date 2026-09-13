@@ -57,7 +57,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { N4, B2, NO, -40, 40, SPEED1, Hill },
     { N4, B3, NEAR_CENTER, -140, 84, 15, BLBS },
     { N4, N3, DLEFT|TEMP_NEAR_CENTER|LEFT_LINE, 0, 108, SPEED3, NONE },
-    { N4, N5, DRIGHT|RIGHT_LINE|Temp_L, 180, 120, SPEED3, NONE },
+    { N4, N5, DRIGHT|RIGHT_LINE|Temp_L|MUL2SING, 180, 120, SPEED3, NONE },
 
     /* ========== N5 ========== */
     { N5, N4, RIGHT_LINE|Temp_L|MUL2SING, 0, 84, SPEED3, NONE },
@@ -159,7 +159,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
 
     /* ========== B7 ========== */
     { B7, N22, DLEFT|RESTMPUZ, 0, LEN_N22B7, SPEED3, NONE }, /* B7->N22 （与 N22->B7 同长，取大=LEN_N22B7） */
-    { B7, C6, DLEFT, 180, LEN_B7C6, SPEED25, NONE },
+    { B7, P7, NO, 180, 10, SPEED2, BSoutPole },
 
     /* ========== N16 ========== */
     { N16, N12, DLEFT|DRIGHT, -90, 20, SPEED2, NONE },
@@ -175,7 +175,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { N19, C6, DRIGHT, 90, 30, SPEED2, NONE },
 
     /* ========== P7 ========== */
-    { P7, C9, DRIGHT, 0, 180, SPEED25, NONE },
+    { P7, B7, NO, 0, 10, SPEED2, Hill },
 
     /* ========== N20 ========== */
     { N20, C4, CLEFT|MCLEFT|STOPTURN|RIGHT_LINE, -35, 180, SPEED4, NONE },
@@ -188,8 +188,8 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { N22, C9, DLEFT|CLEFT, 90, 10, SPEED0, NONE },
 
     /* ========== C6 ========== */
-    { C6, B7, RESTMPUZ, 0, LEN_B7C6, SPEED25, Hill },    /* C6->B7 （与 B7->C6 同长，取大=LEN_B7C6） */
     { C6, N19, DLEFT, -90, 30, SPEED2, NONE },
+    { C6, C10, DRIGHT, 90, 30, SPEED2, NONE },
 
     /* ========== C7 ========== */
     { C7, C8, DLEFT|STOPTURN, 180, 108, SPEED25, NONE },
@@ -200,8 +200,8 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { C8, B11, NO, -90, 30, SPEED3, BLBL },
 
     /* ========== C9 ========== */
-    { C9, P7, NONE, 180, 260, SPEED2, BSoutPole },
     { C9, N22, DLEFT|DRIGHT|STOPTURN, -90, 18, SPEED0, NONE },
+    { C9, C10, DLEFT, 180, 180, SPEED3, NONE },
 
     /* ========== P8 ========== */
     { P8, N20, MCLEFT|RIGHT_LINE|STOPTURN, 180, 12, SPEED0, NONE },
@@ -217,7 +217,18 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     /* ========== B11 ========== */
     { B11, C4, CRIGHT, -90, 40, SPEED2, NONE },
     { B11, C8, DRIGHT|CRIGHT, 90, 10, SPEED1, NONE },
+
+    /* ========== C10 ========== */
+    { C10, C6, NO|DLEFT, -90, 30, SPEED2, NONE },
+    { C10, C9, DRIGHT, 0, 180, SPEED3, NONE },
 };
+
+/* 编译期检查：NavEdgeTbl 行数必须与 NAV_EDGE_COUNT 一致（改漏立即编译报错）
+   使用 C99 兼容技巧：负数组大小在编译期报错 */
+typedef char NavEdgeTbl_size_check[(sizeof(NavEdgeTbl)/sizeof(NavEdge) == NAV_EDGE_COUNT) ? 1 : -1];
+
+/* Node[]/ConnectionNum[]/Address[] 已移至 nav_planner.c 统一构建，nav_graph_init() 已废弃 */
+
 
 /* 编译期检查：NavEdgeTbl 行数必须与 NAV_EDGE_COUNT 一致（改漏立即编译报错）
    使用 C99 兼容技巧：负数组大小在编译期报错 */

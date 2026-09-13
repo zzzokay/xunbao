@@ -13,6 +13,8 @@ _selftest.py — 地图编辑器自检（无界面）
   5. 编辑操作：加节点 / 加双向边 / 删边 / 改名 / 撤销-重做
   6. 规划：与 _weight_calib 的参考路线对照（若可导入）
   7. 演示：按用户需求模拟「切 C9-P7、B7-C6；加 C10；P7 移到 C6 位置」的结果
+  8. 成本表：map_model.OBS 逐项比对固件 nav_planner.c 的 NavObsPenalty[]
+  9. 门回程：门区禁用 + 极简 wp 复现 validate/_check_door_perm.py 的 12 条 golden
 只读源码，不写任何固件文件。
 """
 import os
@@ -34,6 +36,26 @@ def check(cond, msg):
         FAIL.append(msg)
 
 
+def warn(msg):
+    """不规范但能编过的问题：只提示，不计入失败。"""
+    print("  [WARN] " + msg)
+
+
+def _parse_firmware_obs():
+    """从 Navigation/nav_planner.c 解析 NavObsPenalty[]（下标 = map.h 的 barriers 枚举编号）。"""
+    path = os.path.join(M.ROOT, "Navigation", "nav_planner.c")
+    if not os.path.isfile(path):
+        return None
+    with open(path, encoding="utf-8", errors="replace") as f:
+        txt = f.read()
+    mm = re.search(r"NavObsPenalty\s*\[[^\]]*\]\s*=\s*\{(.*?)\};", txt, re.S)
+    if not mm:
+        return None
+    body = M._strip_block_comments(mm.group(1))
+    vals = [float(x) for x in re.findall(r"(-?\d+(?:\.\d+)?)f\b", body)]
+    return vals or None
+
+
 def sec(t):
     print("\n" + "=" * 78)
     print(t)
@@ -43,11 +65,38 @@ def sec(t):
 def main():
     sec("1. 解析源码")
     m = M.MapModel.load_from_sources()
-    check(len(m.nodes) == 54, "节点数 = 54（实际 %d）" % len(m.nodes))
-    check(len(m.edges) == 124, "边数 = 124（实际 %d）" % len(m.edges))
-    check(m.declared_count == len(m.edges),
-          "NAV_EDGE_COUNT(%s) 与表内行数(%d) 一致" % (m.declared_count, len(m.edges)))
-    check(m.field_name == "FIELD_SCHOOL", "场地解析 = FIELD_SCHOOL（实际 %s）" % m.field_name)
+    n_nodes, n_edges = len(m.nodes), len(m.edges)
+    # 不再硬编码 54 节点 / 124 边：节点数与边数由源码决定，改地图后这里不该失败。
+    print("  节点 %d 个 / 边 %d 条 / 场地 %s" % (n_nodes, n_edges, m.field_name))
+    check(m.declared_count == n_edges,
+          "NAV_EDGE_COUNT(%s) 与表内行数(%d) 一致" % (m.declared_count, n_edges))
+    check(len(set(m.names())) == n_nodes, "节点名无重复（%d 个）" % n_nodes)
+    dangling = [(e.label(), x) for e in m.edges for x in (e.frm, e.to) if m.node(x) is None]
+    check(not dangling, "所有边端点都在 enum 里（悬空端点 %d）" % len(dangling))
+    for d in dangling[:6]:
+        print("       ", d)
+    check(m.field_name in ("FIELD_SCHOOL", "FIELD_COMP"), "场地解析 = %s" % m.field_name)
+
+    # 固件源码里的两处一致性（编辑器导出/写回时必须保住）
+    with open(M.PATH_EDGE_C, encoding="utf-8", errors="replace") as f:
+        src_edge = f.read()
+    n_td = len(re.findall(r"typedef\s+char\s+NavEdgeTbl_size_check", src_edge))
+    if n_td == 1:
+        print("  [OK]   NavEdgeTbl_size_check 只声明一次")
+    else:
+        warn("NavEdgeTbl_size_check 声明了 %d 次（重复 typedef 块）：C99 下是约束违规，"
+             "GCC/armcc 只在 -pedantic 时告警、仍能编过，但基本可以断定是误加" % n_td)
+    with open(os.path.join(M.ROOT, "Navigation", "map.c"), encoding="utf-8",
+              errors="replace") as f:
+        src_mapc = f.read()
+    mi = re.search(r"nav_init\s*\(\s*NavEdgeTbl\s*,\s*NAV_EDGE_COUNT\s*,\s*(\d+)\s*\)", src_mapc)
+    if mi:
+        declared_nodes = int(mi.group(1))
+        check(declared_nodes >= n_nodes,
+              "map.c: nav_init(..., %d) >= enum 节点数(%d)" % (declared_nodes, n_nodes))
+        if declared_nodes != n_nodes:
+            warn("map.c 写死 %d 个节点，而 enum 只有 %d 个：多出的出度为 0，当前无害，"
+                 "但改地图（增删节点）时别忘同步" % (declared_nodes, n_nodes))
 
     sec("2. 往返一致（不编辑 => 导出应与原文件逐字段相同）")
     probs = m.roundtrip_report()
@@ -61,8 +110,9 @@ def main():
     check(not bad, "全部 %d 条边可求值（失败 %d）" % (len(m.edges), len(bad)))
     for b in bad[:10]:
         print("       ", b)
-    print("     抽样：C9->P7 angle=%s step=%s(func=%s)"
-          % (m.ang(m.edge("C9", "P7")), m.step(m.edge("C9", "P7")), m.edge("C9", "P7").func))
+    _samp = max(m.edges, key=lambda x: (m.step(x) or 0.0))   # 别硬编码某条边：地图随时会改
+    print("     抽样：%s angle=%s step=%s(func=%s)"
+          % (_samp.label(), m.ang(_samp), m.step(_samp), _samp.func))
     print("           LEN_B7C6 求值 = %s" % M.eval_c_expr("LEN_B7C6", m.macros))
     print("           LEN_N18B5 求值 = %s" % M.eval_c_expr("LEN_N18B5", m.macros))
     print("           ANGLE_N8N3 求值 = %s" % M.eval_c_expr("ANGLE_N8N3", m.macros))
@@ -84,24 +134,33 @@ def main():
           "enum 最后一项无逗号")
 
     sec("5. 编辑操作")
+    base = len(m.edges)
     snap0 = m.snapshot()
-    m.add_node("C10", 800, 610, "测试新节点")
-    check(m.node("C10") is not None, "加节点 C10")
-    m.add_edge("C9", "C10", flag="NO", angle="0", step="90", speed="SPEED2", func="NONE")
-    m.add_edge("C10", "C9", flag="NO", angle="180", step="90", speed="SPEED2", func="NONE")
-    check(m.edge("C9", "C10") and m.edge("C10", "C9"), "加双向边 C9<->C10")
-    check(len(m.edges) == 126, "边数变 126（实际 %d）" % len(m.edges))
-    m.remove_edge("C9", "C10")
-    check(m.edge("C9", "C10") is None, "删边 C9->C10")
-    m.rename_node("C10", "C10X")
-    check(m.node("C10X") is not None and m.node("C10") is None, "节点改名 C10 -> C10X")
-    check(m.edge("C10X", "C9") is not None, "改名后边端点跟着改（C10X->C9 存在）")
-    m.remove_node("C10X")
-    check(m.node("C10X") is None and m.edge("C10X", "C9") is None, "删节点并连带删边")
-    check(len(m.edges) == 124, "边数回到 124（实际 %d）" % len(m.edges))
+    # ⚠️ 只动**自己新建的**节点：改名/删除"原装"节点会连带删掉它原有的边，边数就回不去了。
+    # ⚠️ 也别硬编码节点名（"C10" 曾经是测试临时名，后来真被加进地图了）。
+    tmp = "ZZTMP"
+    while m.node(tmp) or m.node(tmp + "X"):
+        tmp += "_"
+    b_ = m.names()[0]
+    m.add_node(tmp, 800, 610, "测试新节点")
+    check(m.node(tmp) is not None, "加节点 %s" % tmp)
+    m.add_edge(tmp, b_, flag="NO", angle="0", step="90", speed="SPEED2", func="NONE")
+    m.add_edge(b_, tmp, flag="NO", angle="180", step="90", speed="SPEED2", func="NONE")
+    check(m.edge(tmp, b_) and m.edge(b_, tmp), "加双向边 %s<->%s" % (tmp, b_))
+    check(len(m.edges) == base + 2,
+          "边数 %d -> %d（实际 %d）" % (base, base + 2, len(m.edges)))
+    m.remove_edge(tmp, b_)
+    check(m.edge(tmp, b_) is None, "删边 %s->%s" % (tmp, b_))
+    m.rename_node(tmp, tmp + "X")
+    check(m.node(tmp + "X") is not None and m.node(tmp) is None, "节点改名 %s -> %sX" % (tmp, tmp))
+    check(m.edge(b_, tmp + "X") is not None, "改名后边端点跟着改（%s->%sX 存在）" % (b_, tmp))
+    m.remove_node(tmp + "X")
+    check(m.node(tmp + "X") is None and m.edge(b_, tmp + "X") is None, "删节点并连带删边")
+    check(len(m.edges) == base, "边数回到 %d（实际 %d）" % (base, len(m.edges)))
     # 撤销/重做
     m.restore(snap0)
-    check(len(m.edges) == 124 and m.node("C10") is None, "restore 快照回到原状")
+    check(len(m.edges) == base and m.node(tmp) is None and m.node(tmp + "X") is None,
+          "restore 快照回到原状（%d 条边）" % len(m.edges))
 
     sec("6. 规划（与固件同一套 Dijkstra 的镜像）")
     m2 = M.MapModel.load_from_sources()
@@ -121,42 +180,84 @@ def main():
           (p1 and p1[0] == "N2" and p1[-1] == "N5"),
           "初始路线起止正确：%s" % (p1,))
 
-    sec("7. 演示：模拟一次真实地图改动（切 C9-P7 / B7-C6，加 C10，P7 挪到 C6 位置）")
+    sec("7. 演示：一次真实地图改动（切断一条双向边 → 中间插一个新节点 → 重新连上）")
     m3 = M.MapModel.load_from_sources()
-    print("  改动前 C9 出边: %s" % ", ".join(e.label() for e in m3.edges_of("C9", True)))
-    print("  改动前 B7 出边: %s" % ", ".join(e.label() for e in m3.edges_of("B7", True)))
-    # 1) 切断 C9<->P7 与 B7<->C6（双向）
-    for a, b in (("C9", "P7"), ("P7", "C9"), ("B7", "C6"), ("C6", "B7")):
-        m3.remove_edge(a, b)
-    # 2) 在 P7 原位置加 C10
-    old_p7 = m3.node("P7")
-    m3.add_node("C10", old_p7.x, old_p7.y, "原 P7 位置")
-    # 3) P7 挪到 C6 位置
-    old_c6 = m3.node("C6")
-    old_p7.x, old_p7.y = old_c6.x, old_c6.y
-    # 4) 连 C6<->C10、C10<->C9（双向）
-    m3.add_edge("C6", "C10", flag="NO", angle="180", step="90", speed="SPEED2", func="NONE")
-    m3.add_edge("C10", "C6", flag="NO", angle="0", step="90", speed="SPEED2", func="NONE")
-    m3.add_edge("C10", "C9", flag="NO", angle="180", step="90", speed="SPEED2", func="NONE")
-    m3.add_edge("C9", "C10", flag="NO", angle="0", step="90", speed="SPEED2", func="NONE")
-    print("  改动后 C9 出边: %s" % ", ".join(e.label() for e in m3.edges_of("C9", True)))
-    print("  改动后 C6 出边: %s" % ", ".join(e.label() for e in m3.edges_of("C6", True)))
-    print("  改动后 P7 出边: %s" % ", ".join(e.label() for e in m3.edges_of("P7", True)))
-    print("  改动后 C10 出边: %s" % ", ".join(e.label() for e in m3.edges_of("C10", True)))
-    check(m3.edge("C9", "P7") is None and m3.edge("P7", "C9") is None, "C9<->P7 已切断")
-    check(m3.edge("B7", "C6") is None and m3.edge("C6", "B7") is None, "B7<->C6 已切断")
-    check(m3.node("C10") is not None, "C10 已建在 P7 原位置")
-    e = m3.export_edge_table()
-    check("C10" in m3.export_enum(), "导出的 enum 里含 C10")
+    # 挑一条"双向、且两端都不是平台/景点"的边作演示（地图改过也不怕）。
+    pick = None
+    for _e in m3.edges:
+        if m3.has_reverse(_e) and _e.frm[0] in "NCB" and _e.to[0] in "NCB":
+            pick = _e
+            break
+    check(pick is not None, "挑到一条可演示的双向边：%s" % (pick.label() if pick else None))
+    if pick is None:
+        return 1
+    f_, t_ = pick.frm, pick.to
+    mid = "%s_%s" % (f_, t_)            # 合法 C 标识符
+    while m3.node(mid):
+        mid += "_"
+    print("  改动前 %s 出边: %s" % (f_, ", ".join(e.label() for e in m3.edges_of(f_, True))))
+    for _a, _b in ((f_, t_), (t_, f_)):   # 1) 切断这条双向边
+        m3.remove_edge(_a, _b)
+    _fa, _tb = m3.node(f_), m3.node(t_)
+    m3.add_node(mid, (_fa.x + _tb.x) / 2.0, (_fa.y + _tb.y) / 2.0, "演示插点")
+    for _a, _b, _ang in ((f_, mid, 0), (mid, f_, 180), (mid, t_, 0), (t_, mid, 180)):
+        m3.add_edge(_a, _b, flag="NO", angle=str(_ang), step="90", speed="SPEED2", func="NONE")
+    print("  改动后 %s 出边: %s" % (f_, ", ".join(e.label() for e in m3.edges_of(f_, True))))
+    print("  改动后 %s 出边: %s" % (mid, ", ".join(e.label() for e in m3.edges_of(mid, True))))
+    print("  改动后 %s 出边: %s" % (t_, ", ".join(e.label() for e in m3.edges_of(t_, True))))
+    check(m3.edge(f_, t_) is None and m3.edge(t_, f_) is None, "%s<->%s 已切断" % (f_, t_))
+    check(m3.node(mid) is not None, "%s 已插在中间" % mid)
+    m3.export_edge_table()
+    check(mid in m3.export_enum(), "导出的 enum 里含 %s" % mid)
     check(m3.export_nav_edge_count() == "#define NAV_EDGE_COUNT %d" % len(m3.edges),
           "导出 NAV_EDGE_COUNT 与边数一致（%d）" % len(m3.edges))
     errs = [msg for lv, msg in m3.validate() if lv == "error"]
     check(not errs, "改动后无 error 级校验问题（%d 条）" % len(errs))
     for x in errs[:6]:
         print("        ", x)
-    print("  P7 的新出边数 = %d（用户要求：P7 只与 B7 连接）"
-          % len(m3.edges_of("P7", True)))
-    print("  注：本例只是演示「编辑器能不能做出这种改动」，具体连法等你确定拓扑后再改。")
+    print("  注：本例只是演示「编辑器能不能做出这种改动」，具体连法等拓扑定了再改。")
+
+    sec("8. 成本表 == 固件 nav_planner.c 的 NavObsPenalty[]（上位机路线≠车上路线的元凶）")
+    fw = _parse_firmware_obs()
+    if fw is None:
+        print("  ⚠ 没能从 Navigation/nav_planner.c 解析出 NavObsPenalty[]，跳过")
+    else:
+        bad = []
+        for idx, name in enumerate(M.FUNC_ORDER, start=1):
+            want = fw[idx] if idx < len(fw) else None
+            got = M.MapModel.OBS.get(name)
+            if want is None or got is None or abs(float(got) - want) > 1e-6:
+                bad.append((name, want, got))
+        check(not bad, "OBS 与固件逐项一致（比 %d 项，不符 %d 项）" % (len(M.FUNC_ORDER), len(bad)))
+        for name, want, got in bad[:12]:
+            print("        %-14s 固件=%s 上位机=%s" % (name, want, got))
+
+    sec("9. 门回程镜像 == 固件 golden（真值来源：scripts/validate/_check_door_perm.py）")
+    try:
+        vdir = os.path.join(M.ROOT, "scripts", "validate")
+        if vdir not in sys.path:
+            sys.path.insert(0, vdir)
+        # 不往 scripts/validate/ 写 __pycache__（保持工作树干净；本目录的 .pyc 是被跟踪的）
+        _prev_bc = sys.dont_write_bytecode
+        sys.dont_write_bytecode = True
+        try:
+            import _check_door_perm as CP
+        finally:
+            sys.dont_write_bytecode = _prev_bc
+        m9 = M.MapModel.load_from_sources()
+        ok = 0
+        for name, start, t, allow, want in CP.GOLDEN:
+            wp, blocked = M.door_return_home_waypoints(start, t, allow)
+            path, why = m9.plan_route(wp, "full", blocked)
+            got = " ".join(path[1:]) if path else "N/A(%s)" % why
+            good = (got == want)
+            ok += good
+            if not good:
+                print("        [DIF] %-16s t=%d 期望=%s 实际=%s" % (name, t, want, got))
+        check(ok == len(CP.GOLDEN),
+              "门区禁用 + 极简 wp 复现 golden %d/%d" % (ok, len(CP.GOLDEN)))
+    except Exception as e:                                   # noqa: BLE001
+        print("  ⚠ 无法导入 _check_door_perm（%s），跳过该项" % e)
 
     sec("结果")
     if FAIL:

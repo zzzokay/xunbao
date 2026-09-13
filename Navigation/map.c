@@ -28,6 +28,7 @@ Nodes nodes;   	//当前边的三个点
 
 volatile uint8_t cross_event = 0;	//运行时阶段/事件标志，全局变量，供节点检查和导航之间交流
 volatile uint8_t nav_token = 0;		//按一下跑一个节点调试：信号量/票计数（按键累积，每跑一条边-1）
+/* arrive_method：定义在 Task/ArriveDetect_task.c（由它写），声明在 map.h；本文件只读，不要在此定义（会 L6200E） */
 			   
 				
 
@@ -188,27 +189,123 @@ void Route_Error_Stop(u8 from, u8 to)
 
 
 
+/* ============ 转弯前补偿距离：实测表 + "能算就算"公式 ============
+ * 背景与验证见 project_reference.md §14、项目讲解文档/转弯补偿_能算就算方案.md
+ *
+ * 结论：这一列历史上同时表达了两件事 ——
+ *   ① 真·转弯几何 Δ = L(1-cosφ) + d(判据)（L = 旋转中心→传感器板中心纵向距离 ≈19cm）
+ *   ② 段长补偿（step 太短时车被 0.7*step 里程门槛提前放行，补偿实际在补段长，跟几何无关）
+ * 所以对①用公式算、对②保留原值。
+ *
+ * 三层：
+ *   Tier1  实测表命中                                  → 用实测值
+ *   Tier2  平地 + 入边 step>=20 + 转弯100°~178°        → 用公式；但若表里也有且 |公式-实测|>5cm → 落回实测值
+ *   Tier3  都不命中                                    → 默认 19（原行为）
+ */
+
+/* 判据 → 该判据的固有检测滞后 d（cm）。由 8 条"平地+大角度"实测反解得出（L 取 19）。 */
+#define TURN_D_CRIGHT   ( 11.0f)   /* 右斜线（右起2/3灯）—— 最晚触发，滞后最大 */
+#define TURN_D_CLEFT    ( -4.0f)
+#define TURN_D_DLEFT    ( -5.0f)
+#define TURN_D_DEFAULT  ( -4.0f)
+#define TURN_L_PIVOT    ( 19.0f)   /* 旋转中心→传感器板中心 纵向距离 */
+#define TURN_GATE_CM    (  5.0f)   /* 5cm 闸门：公式与实测差超过它就不用公式 */
+
+/* 表1：停车原地转前的前进距离（实测值，三元组 → cm）
+ * 2026-09-12 清掉 4 条"调车时调了但永远不会执行"的条目：
+ *   B3→N2→P2=24、N8→N3→P3=18 → 实际转弯只有 -30°/35°，走"陀螺不停车转"分支（见表2）
+ *   N2→N8→N10=15            → 边表里没有 N2→N8 这条边
+ *   N13→N18→B5=60           → 原代码里整行被 // 注释掉（同一三元组现由 Tier2 公式给出 28.9）
+ * ⚠️ 只能收"真正会走停车转分支"的三元组：分支判定 = (STOPTURN && |转弯|>30) || |转弯|>=90 */
+static const struct { u8 last, now, next; float dist; } kTurnTbl[] = {
+	{ B9, N7, P6, 25 },
+	{ P6, N7, B8, 20 },
+	{ C4, N20, P8, 35 },
+	{ N20, C4, B11, 25 },
+	{ N3, N4, B2, 30 },
+	{ P8, N20, C4, 30 },
+	{ N8, N5, N4, 36 },
+	{ N5, N8, N12, 20 },
+	{ N8, N3, N4, 30 },
+	{ N4, N3, N8, 20 },
+	{ B8, N9, C3, 0 },
+    { B11, C4, N20, 19 },
+	{ N10, N9, B9, 48 },
+	{ B2, N1, P1, 25 },
+};
+/* 编译期护栏：kTurnTbl 里的节点号不能超过实际建表的节点数（写错节点号只会在车上才发现）。
+ * 50 = map.h 里 enum MapNode 的真实成员数（C1/C2 是注释状态不占编号），
+ * 也就是 mapInit() 里 nav_init(NavEdgeTbl, NAV_EDGE_COUNT, 54) 那个 54 的宽松上界之下。
+ * 以后增删节点，这里和 nav_init 的节点数一起改。 */
+#define MAP_NODE_LIMIT   50
+typedef char kTurnTbl_node_check[
+	((B9  < MAP_NODE_LIMIT) && (N7  < MAP_NODE_LIMIT) && (P6  < MAP_NODE_LIMIT) &&
+	 (C4  < MAP_NODE_LIMIT) && (N20 < MAP_NODE_LIMIT) && (P8  < MAP_NODE_LIMIT) &&
+	 (B11 < MAP_NODE_LIMIT) && (N3  < MAP_NODE_LIMIT) && (N4  < MAP_NODE_LIMIT) &&
+	 (B2  < MAP_NODE_LIMIT) && (N8  < MAP_NODE_LIMIT) && (N5  < MAP_NODE_LIMIT) &&
+	 (N12 < MAP_NODE_LIMIT) && (N9  < MAP_NODE_LIMIT) && (B8  < MAP_NODE_LIMIT) &&
+	 (C3  < MAP_NODE_LIMIT) && (N10 < MAP_NODE_LIMIT) && (N1  < MAP_NODE_LIMIT) &&
+	 (P1  < MAP_NODE_LIMIT)) ? 1 : -1];
+
+/* 在 Node[] 里按节点号找条目。
+ * ⚠️ 不能用 getNextConnectNode()：它返回的是"连接表下标"（Address[from] 起的偏移），
+ *    不是 Node[] 下标 —— 只有目标节点恰好是 from 的第一个连接时才凑巧相等。 */
+static const NODE *Node_Lookup(u8 nodenum)
+{
+	u8 i;
+	for (i = 0; i < NAV_MAX_NODES; i++)
+	{
+		if (Node[i].nodenum == nodenum)
+			return &Node[i];
+	}
+	return &Node[0];
+}
+
 /* 获取对应节点的原地转弯前的前进距离判断 */
 static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 {
-	if (last == B3 && now == N2 && next == P2) return 24;//
-	if (last == B9 && now == N7 && next == P6) return 25;
-	if (last == P6 && now == N7 && next == B8) return 20;
-	if (last == C4 && now == N20 && next == P8) return 35;
-    if (last == N20 && now == C4 && next == B11) return 25;
-    if (last == N3 && now == N4 && next == B2) return 30;
-    if (last == P8 && now == N20 && next == C4) return 30;
-	if (last == N8 && now == N5 && next == N4) return 36;
-   // if (last == N13 && now == N18 && next == B5) return 60;
-	if (last == N5 && now == N8 && next == N12) return 20;
-    if (last == N2 && now == N8 && next == N10) return 15;
-    if (last == N8 && now == N3 && next == P3) return 18;
-	if (last == N8 && now == N3 && next == N4) return 30;
-    if (last == N4 && now == N3 && next == N8) return 20;
-	if (last == B8 && now == N9 && next == C3) return 0;
-	if (last == N10 && now == N9 && next == B9) return 48;
-	if (last == B8 && now == N9 && next == N10) return 30;
-    if (last == B2 && now == N1 && next == P1) return 25;
+	u8    found = 0;
+	float meas  = 19.0f;                 /* 默认值（原 return 19 的语义） */
+	u8    i;
+
+	for (i = 0; i < (u8)(sizeof(kTurnTbl) / sizeof(kTurnTbl[0])); i++)
+	{
+		if (kTurnTbl[i].last == last && kTurnTbl[i].now == now && kTurnTbl[i].next == next)
+		{
+			meas  = kTurnTbl[i].dist;
+			found = 1;
+			break;
+		}
+	}
+
+#if TURN_CALC_ENABLE
+	/* ---- Tier2：能算就算 ----
+	 * ⚠️ 用启动时由边表建好的 Node[] 里的原始数据，不能读 nodes.nowNode.step/function：
+	 *    door_set_pass_node() 会在跑的过程中把 step 改成 72/50/36、function 改成 NONE。 */
+	{
+		const NODE *in = Node_Lookup(last);      /* "last→now" 这条入边的原始属性 */
+		float phi = fabsf(need2turn(nodes.nowNode.angle, nodes.nextNode.angle));
+
+		if ((in->function == NONE || in->function == DOOR) &&
+			in->step >= 20 &&
+			phi >= 100.0f && phi < 178.0f)
+		{
+			float d = TURN_D_DEFAULT;
+			if      (arrive_method == ARRIVE_CRIGHT) d = TURN_D_CRIGHT;
+			else if (arrive_method == ARRIVE_CLEFT)  d = TURN_D_CLEFT;
+			else if (arrive_method == ARRIVE_DLEFT)  d = TURN_D_DLEFT;
+			/* cosf：M7 只有单精度 FPU，别用 double 的 cos */
+			float calc = TURN_L_PIVOT * (1.0f - cosf(phi * (3.14159265f / 180.0f))) + d;
+
+			/* 5cm 闸门：表里有实测值且公式与它差太多 → 放弃公式，用实测值 */
+			if (!found || fabsf(calc - meas) <= TURN_GATE_CM)
+				return calc;
+		}
+	}
+#endif
+
+	if (found)
+		return meas;
 	return 19;
 }
 
@@ -293,7 +390,9 @@ static uint8_t Nav_IsStraightThrough(void)
     /* 首个边 lastNode 未初始化(0)，跳过：仅影响是否加小阻尼，宁可不加 */
     if (nodes.lastNode.nodenum == 0)
         return 0;
-    if (fabsf(need2turn(nodes.nowNode.angle, nodes.nextNode.angle)) < STRAIGHT_ANGLE_THRESH 
+    if ((fabsf(need2turn(nodes.nowNode.angle, nodes.nextNode.angle)) < STRAIGHT_ANGLE_THRESH 
+            && nodes.nowNode.speed >= SPEED1 
+            && nodes.nowNode.step >=30)
         ||nodes.nowNode.step >=90)
         return 1;
     return 0;

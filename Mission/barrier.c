@@ -71,11 +71,11 @@ extern u8 door1route[100];
 uint8_t door_pass[5] = {0, 0, 0, 0, 0};
 #if DEBUG
 uint8_t debug_door_pass[5] = {ONE_WAY_PASS, CAN_PASS, CAN_PASS, NO_PASS, NO_PASS}; // 0:D2、1:D3、2:D4、3:D5、4:D1
-volatile uint8_t flag_line_clue    = 0;
+volatile uint8_t flag_line_clue    = 4;
 volatile uint8_t flag_clue_stage_A = 5;
-volatile uint8_t flag_clue_stage_B = 7;
+volatile uint8_t flag_clue_stage_B = 8;
 // OCR 线索：P5/P6读clue_A，P7/P8读clue_B，treasure=clue_A+clue_B → 宝物平台编号
-uint8_t flag_clue_A       = 4;
+uint8_t flag_clue_A       = 2;
 uint8_t flag_clue_B       = 0;
 #else
 volatile uint8_t flag_line_clue    = 0;
@@ -137,14 +137,15 @@ static void Stage_CollectTreasure(void)
 static uint8_t GyroStableReset(uint8_t required, float *reset_angle)
 {
 	static uint8_t stable_times = 0;
-
+	static float total_angle = 0.0f;
 	Cross_getline(&Cross_Scaner);
-	if ((Cross_Scaner.detail & 0X0180) == 0X0180)
+	if ((Cross_Scaner.detail & 0X0180) == 0X0180 ||(Cross_Scaner.detail & 0X0180 && Cross_Scaner.ledNum<=1) )
 	{
 		stable_times++;
+		total_angle += getAngleZ();
 		if (stable_times >= required)
 		{
-			*reset_angle = getAngleZ();
+			*reset_angle = total_angle / stable_times;
 			stable_times = 0;
 			send_play_specified_command(32);
 			return 1;
@@ -157,9 +158,13 @@ static uint8_t GyroStableReset(uint8_t required, float *reset_angle)
 	return 0;
 }
 
-static uint8_t Stage_DetectedRamp(float distance)
+static uint8_t Stage_DetectedRamp(float distance ,float *reset_angle)
 {
+	uint8_t state = 0;
 	while(1){
+	if(state == 0){
+		if(GyroStableReset(100, reset_angle)){state = 1;}
+	}
 	Cross_getline(&Cross_Scaner);
 	if(fabsf(Chassis_GetMileage()) >= distance||
 		//imu.pitch >= Begin_up + 4 ||
@@ -184,7 +189,7 @@ static void Stage_Correct(float back_distance){
 		switch (state)
 		{
 		case 0:
-			if(++break_time>900)state = 3;	// 超时退出
+			if(++break_time>950)state = 3;	// 超时退出
 			if((Cross_Scaner.ledNum>=15))
 			{
 				state = 1;
@@ -378,7 +383,7 @@ static void Arrived_Stage(void)
 	Robot_Work(RARM, DOWN);
 }
 
-static void Stage_Action(float oringinal_angle)
+static void Stage_Action(float original_angle)
 {
 	uint8_t stage_state = 0;
 	uint8_t again_required = 0;
@@ -390,7 +395,7 @@ static void Stage_Action(float oringinal_angle)
 			if(again_required){Chassis_DriveDistance_Blocking(is_Gyro,40,GoStage_Speed,getAngleZ(),0);
 				//Chassis_DriveDistance_Blocking(is_Free, 8,2000, 0, 0);
 				}
-			else {Chassis_DriveDistance_Blocking(is_Gyro,40,GoStage_Speed,oringinal_angle,0);
+			else {Chassis_DriveDistance_Blocking(is_Gyro,40,GoStage_Speed,original_angle,0);
 				//Chassis_DriveDistance_Blocking(is_Free, 8,2000, 0, 0);
 				}
 			CarBrake();
@@ -459,7 +464,7 @@ void Stage(void)
 		STAGE_DONE       // 清标志，结束
 	} state = STAGE_ASCEND;
 
-	float oringinal_angle = 0;
+	float original_angle = 0;
 	Chassis_EnableAntiSnake();
 	Chassis_MotorControl(is_Line, 15, 15, 0);//25
 	Chassis_OverrideLinePid(24, 0, 140, 30);
@@ -471,35 +476,40 @@ void Stage(void)
 		switch (state)
 		{
 		case STAGE_ASCEND:
-			if (Stage_DetectedRamp(40))
+			
+			if (Stage_DetectedRamp(40 , &original_angle))
 			{
 				Chassis_RestoreLinePid();
-				oringinal_angle = getAngleZ();
-				RampCtrl_Blocking(RAMP_ASCEND, 15, oringinal_angle,
-					Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.00f, 5.0f, 0.0f);
+				if(original_angle == 0)
+				{
+					original_angle = getAngleZ();
+				}
+				RampCtrl_Blocking(RAMP_ASCEND, 15, original_angle,
+					Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up-3, 0.05f, 5.0f, 0.0f);
 
-				Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, oringinal_angle);
+				Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, original_angle);
 				state = STAGE_TOP;
 			}
 			break;
 
 		case STAGE_TOP:
 			Robot_Work(BODY, UP); 	//人站起来
-			Stage_Action(oringinal_angle);
+			
+			Stage_Action(original_angle);
 
 			if(Stage_HasTreasure())
 				Stage_CollectTreasure();
 			//if(nodes.nowNode.nodenum != P3 && nodes.nowNode.nodenum != P4 && nodes.nowNode.nodenum != P5)
-				Stage_Correct(4);
+			Stage_Correct(4);
 
 			Robot_Work(BODY, DOWN); 	//人躺下
 			state = STAGE_DESCEND;
 			break;
 
 		case STAGE_DESCEND:
-			oringinal_angle = nodes.nextNode.angle;
+			original_angle  = need2turn(0.0f, nodes.nowNode.angle + 180.0f);
 			
-			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, oringinal_angle,
+			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, original_angle,
 				Begin_down, UpDownStage_Speed_low, down_pitch, UpDownStage_Speed_high, After_down-8, 0.1, 15.0f, 40.0f);
 
 			Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
@@ -528,7 +538,7 @@ void Stage_Home(void)
 	} state = P2_ASCEND;
 
 	//static uint8_t Backtimes = 0; // 回来次数 - 为1时代表第二轮回家
-	float oringinal_angle = 0;
+	float original_angle = 0;
 
 	Chassis_MotorControl(is_Line,15, 15, 0);
 	Chassis_ClearMileage();
@@ -538,19 +548,22 @@ void Stage_Home(void)
 		switch (state)
 		{
 		case P2_ASCEND:
-			if (Stage_DetectedRamp(36))
+			if (Stage_DetectedRamp(36 , &original_angle))
 			{
-				oringinal_angle = getAngleZ();
+				if(original_angle == 0)
+				{
+					original_angle = getAngleZ();
+				}
 				//回家恢复原形
 				Robot_Work(LARM, DOWN);		//左手放下		
 				Robot_Work(RARM, DOWN);		//右手放下
 				Robot_Work(BODY, UP);		//人站起来
 				vTaskDelay(100);
 				Robot_Work(CAMERA,HEAD_MID);
-				RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, oringinal_angle,
-					Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.05, 10.0f, 0.0f);
+				RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, original_angle,
+					Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up-3, 0.05, 10.0f, 0.0f);
 
-				Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, oringinal_angle);			
+				Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, original_angle);			
 				state = P2_TOP;
 			}
 			break;
@@ -609,9 +622,8 @@ void Barrier_Bridge(void)
 		switch (state)
 		{
 		case BRIDGE_APPROACH:
-			GyroStableReset(40, &origin_angle);
 
-			if (Stage_DetectedRamp(48))//检测到桥
+			if (Stage_DetectedRamp(48, &origin_angle))//检测到桥
 			{
 				Chassis_RestoreLinePid();
 				if(origin_angle == 0)origin_angle = getAngleZ();				
@@ -770,7 +782,7 @@ void Barrier_Hill(void)
 		case HILL_APPROACH:
 			GyroStableReset(50, &origin_angle);
 				
-			if (Stage_DetectedRamp(60.0f))
+			if (Stage_DetectedRamp(60.0f, &origin_angle))
 			{
 				Chassis_RestoreLinePid();
 				if (origin_angle == 0) origin_angle = getAngleZ();
@@ -944,9 +956,10 @@ void Barrier_HighMountain(void)
 		{
 		case HM_APPROACH:
 
-			if (Stage_DetectedRamp(40))
+			if (Stage_DetectedRamp(40, &origin_angle))
 			{
 				Chassis_RestoreLinePid();
+				if (origin_angle == 0) origin_angle = getAngleZ();
 				state = HM_ASCEND_1;
 			}
 			break;
@@ -954,13 +967,13 @@ void Barrier_HighMountain(void)
 		case HM_ASCEND_1:
 			//让车抬起后马上退出
 			Chassis_OverrideLinePid(20, 0, 150, 30);
-			RampCtrl_Blocking(RAMP_ASCEND, 10, getAngleZ(),
+			RampCtrl_Blocking(RAMP_ASCEND, 10, origin_angle,
 				Begin_up, 15, up_pitch, 20, up_pitch+30, 0.07f, 10.0f, 24);
 			//用循迹走
 			Chassis_DriveDistance_Blocking(is_Line, 50, 20, 0, 3);
 			//检测上坡结束
-			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
-				Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.07f, 10.0f, 0.0f);
+			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, origin_angle,
+				Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up-3, 0.07f, 10.0f, 0.0f);
 			state = HM_FLAT;
 			break;
 
@@ -977,7 +990,7 @@ void Barrier_HighMountain(void)
 				Begin_up, 20, up_pitch, 20, up_pitch+30, 0.07f, 10.0f, 24);
 			Chassis_DriveDistance_Blocking(is_Line, 50, 20, 0, 3);
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
-				Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up, 0.03f, 10.0f, 0.0f);
+				Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up-3, 0.03f, 10.0f, 0.0f);
 			state = HM_IMPACT;
 			break;
 
@@ -1052,13 +1065,13 @@ void Barrier_WavedPlate(float lenght)
 	Chassis_OverrideLinePid(24, 0, 140, 30);
 	Chassis_OverrideGyroPid(4, 0, 50, 50);
 	Chassis_ClearMileage();
-
+	float origin_angle = 0.0f;
 	while (state != WP_DONE)
 	{
 		switch (state)
 		{
 		case WP_APPROACH:
-			if (Stage_DetectedRamp(60))
+			if (Stage_DetectedRamp(60, &origin_angle))
 			{
 				Chassis_RestoreLinePid();
 				//buzzer_on();
@@ -1109,7 +1122,7 @@ void South_Pole(void)
 		switch (state)
 		{
 		case SP_APPROACH:
-			if (Stage_DetectedRamp(36))
+			if (Stage_DetectedRamp(50, &origin_angle))
 			{
 				origin_angle = getAngleZ();
 				state = SP_ASCEND;
@@ -1289,7 +1302,7 @@ void QQB_1(void)
 			}
 			else if(is_emergency){
 			is_emergency=0;
-			Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ()>0?90:-90);
+			Chassis_MotorControl(is_Gyro, 10, 10, getAngleZ()>0?90:-90);
 			Chassis_ClearMileage();
 			}
 

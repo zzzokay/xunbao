@@ -11,6 +11,8 @@
 #include "queue.h"
 #include "string.h"
 
+#define IMU_USE_JY62 0
+
 #if !IMU_USE_JY62
 #include "filter.h"
 #include "bsp_buzzer.h"
@@ -199,6 +201,7 @@ static uint8_t imu_rx_buf[BUFFER_SIZE] = {0};
 #endif
 
 #if IMU_USE_JY62
+
 void imu_receive_init(void)
 {
 	imu_mutex = xSemaphoreCreateMutex();
@@ -239,6 +242,7 @@ void imu_receive_init(void)
 	//HAL_UARTEx_ReceiveToIdle_DMA(&IMU_UART, imu_rx_buf, BUFFER_SIZE);//同样会开启DMA和空闲中断，但会在HAL_UART_IRQHandler里杀死DMA，导致下一次接收失败
 	//注：只要开启DMA就默认开启DMA中断，在过半中断和完成中断里会调用event callback函数
 }
+#endif
 
 #if IMU_USE_JY62
 void USART3_IRQHandler(void)

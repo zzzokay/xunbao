@@ -7,7 +7,6 @@
   "STEP_DEBUG": "0",
   "MAIN_DEBUG": "0",
   "DEBUG": "0",
-  "TURN_CALC_ENABLE": "1",
   "USE_PLANNER_ROUTE": "1",
   "SKIP_ROUND1": "0",
   "FIRST_POINT": "P4",
@@ -60,20 +59,7 @@
   "unit_px_per_cm": 1.48,
   "rot": "0°",
   "edge_view": "合并双向",
-  "label_mode": "标准",
-  "clue_route": {
-   "stage": "第一轮·完整路线（去程+门区+东区+回程 自动拼接，画布分色）",
-   "p1clue": "线索=3：经过 P3",
-   "stg": "A=5,B=7：P5 -> P7",
-   "doors": [
-    "黑(不能过)",
-    "绿(能过)",
-    "黑(不能过)",
-    "黑(不能过)"
-   ],
-   "treasure": "4 · P4",
-   "back": "door_1：D5 绿（起点 N3）"
-  }
+  "label_mode": "详细"
  },
  "nodes": [
   {
@@ -91,8 +77,8 @@
   {
    "name": "N1",
    "comment": "2",
-   "x": 671.4204542542743,
-   "y": 55.5795457457256
+   "x": 686.3300330894759,
+   "y": 55.57954574572559
   },
   {
    "name": "B1",
@@ -103,8 +89,8 @@
   {
    "name": "B2",
    "comment": "4",
-   "x": 743.7886941908347,
-   "y": 141.79004058848386
+   "x": 748.7585538025685,
+   "y": 135.16356110617204
   },
   {
    "name": "B3",
@@ -145,7 +131,7 @@
   {
    "name": "N4",
    "comment": "11",
-   "x": 830.2637956620446,
+   "x": 836.9304623287112,
    "y": 238.7375507356048
   },
   {
@@ -169,26 +155,26 @@
   {
    "name": "N7",
    "comment": "15",
-   "x": 364.0,
-   "y": 334.0
+   "x": 362.3433801294221,
+   "y": 335.65661987057797
   },
   {
    "name": "P6",
    "comment": "16",
-   "x": 368.57873477931855,
-   "y": 468.0013463976492
+   "x": 366.92211490874064,
+   "y": 469.65796626822714
   },
   {
    "name": "B8",
    "comment": "17",
-   "x": 221.16150875158473,
-   "y": 468.10497970575807
+   "x": 219.50488888100682,
+   "y": 469.76159957633604
   },
   {
    "name": "B9",
    "comment": "18",
-   "x": 500.4764320891462,
-   "y": 463.9503253043937
+   "x": 498.8198122185683,
+   "y": 465.60694517497166
   },
   {
    "name": "N8",
@@ -205,8 +191,8 @@
   {
    "name": "N9",
    "comment": "23",
-   "x": 386.3333333333335,
-   "y": 599.4212652206814
+   "x": 384.6767134627556,
+   "y": 601.0778850912594
   },
   {
    "name": "N10",
@@ -229,8 +215,8 @@
   {
    "name": "P5",
    "comment": "27",
-   "x": 1504.777404202267,
-   "y": 976.8452232366614
+   "x": 1501.6325710298468,
+   "y": 598.6312246321976
   },
   {
    "name": "N14",
@@ -313,8 +299,8 @@
   {
    "name": "P7",
    "comment": "42",
-   "x": 1501.9159243946087,
-   "y": 598.6312246321976
+   "x": 1516.0676736705002,
+   "y": 852.6243129260567
   },
   {
    "name": "N20",
@@ -331,8 +317,8 @@
   {
    "name": "C6",
    "comment": "45 [坐标估计]",
-   "x": 1516.0497970575807,
-   "y": 854.4199188230323
+   "x": 1522.3394634024214,
+   "y": 856.0
   },
   {
    "name": "C7",
@@ -375,6 +361,12 @@
    "comment": "53\t波动板节点：C8-C4段，位于板尾(C4侧)",
    "x": 349.05114345522986,
    "y": 866.474020182667
+  },
+  {
+   "name": "C10",
+   "comment": "",
+   "x": 1522.3394634024214,
+   "y": 976.7286910197369
   }
  ],
  "edges": [
@@ -656,7 +648,7 @@
   {
    "frm": "N4",
    "to": "N5",
-   "flag": "DRIGHT|RIGHT_LINE|Temp_L",
+   "flag": "DRIGHT|RIGHT_LINE|Temp_L|MUL2SING",
    "angle": "180",
    "step": "120",
    "speed": "SPEED3",
@@ -1040,21 +1032,21 @@
   },
   {
    "frm": "N13",
-   "to": "P7",
+   "to": "P5",
    "flag": "NEAR_CENTER",
    "angle": "180",
-   "step": "10",
+   "step": "80",
    "speed": "SPEED2",
-   "func": "BSoutPole",
+   "func": "UpStage",
    "comment": "",
    "tag": "e68"
   },
   {
-   "frm": "P7",
+   "frm": "P5",
    "to": "N13",
    "flag": "MUL2SING|CLEFT|CRIGHT|NEAR_CENTER",
    "angle": "0",
-   "step": "10",
+   "step": "60",
    "speed": "SPEED2",
    "func": "NONE",
    "comment": "",
@@ -1248,17 +1240,6 @@
    "tag": "e90"
   },
   {
-   "frm": "B7",
-   "to": "C6",
-   "flag": "DLEFT",
-   "angle": "180",
-   "step": "LEN_B7C6",
-   "speed": "SPEED25",
-   "func": "NONE",
-   "comment": "",
-   "tag": "e91"
-  },
-  {
    "frm": "N16",
    "to": "N12",
    "flag": "DLEFT|DRIGHT",
@@ -1336,17 +1317,6 @@
    "tag": "e99"
   },
   {
-   "frm": "P5",
-   "to": "C9",
-   "flag": "DRIGHT",
-   "angle": "0",
-   "step": "180",
-   "speed": "SPEED25",
-   "func": "NONE",
-   "comment": "",
-   "tag": "e100"
-  },
-  {
    "frm": "N20",
    "to": "C4",
    "flag": "CLEFT|MCLEFT|STOPTURN|RIGHT_LINE",
@@ -1414,17 +1384,6 @@
   },
   {
    "frm": "C6",
-   "to": "B7",
-   "flag": "RESTMPUZ",
-   "angle": "0",
-   "step": "LEN_B7C6",
-   "speed": "SPEED25",
-   "func": "Hill",
-   "comment": "（与 B7->C6 同长，取大=LEN_B7C6）",
-   "tag": "e108"
-  },
-  {
-   "frm": "C6",
    "to": "N19",
    "flag": "DLEFT",
    "angle": "-90",
@@ -1477,17 +1436,6 @@
    "func": "BLBL",
    "comment": "",
    "tag": "e113"
-  },
-  {
-   "frm": "C9",
-   "to": "P5",
-   "flag": "NONE",
-   "angle": "180",
-   "step": "260",
-   "speed": "SPEED2",
-   "func": "UpStage",
-   "comment": "",
-   "tag": "e114"
   },
   {
    "frm": "C9",
@@ -1560,7 +1508,7 @@
    "to": "C4",
    "flag": "CRIGHT",
    "angle": "-90",
-   "step": "30",
+   "step": "40",
    "speed": "SPEED2",
    "func": "NONE",
    "comment": "",
@@ -1576,6 +1524,72 @@
    "func": "NONE",
    "comment": "",
    "tag": "e125"
+  },
+  {
+   "frm": "C6",
+   "to": "C10",
+   "flag": "NO|DRIGHT",
+   "angle": "90",
+   "step": "30",
+   "speed": "SPEED2",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e117"
+  },
+  {
+   "frm": "C10",
+   "to": "C6",
+   "flag": "NO|DLEFT",
+   "angle": "-90",
+   "step": "30",
+   "speed": "SPEED2",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e118"
+  },
+  {
+   "frm": "C9",
+   "to": "C10",
+   "flag": "NO|DLEFT",
+   "angle": "180",
+   "step": "180",
+   "speed": "SPEED3",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e119"
+  },
+  {
+   "frm": "C10",
+   "to": "C9",
+   "flag": "NO|DRIGHT",
+   "angle": "0",
+   "step": "180",
+   "speed": "SPEED3",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e120"
+  },
+  {
+   "frm": "P7",
+   "to": "B7",
+   "flag": "NO",
+   "angle": "0",
+   "step": "10",
+   "speed": "SPEED2",
+   "func": "Hill",
+   "comment": "",
+   "tag": "e111"
+  },
+  {
+   "frm": "B7",
+   "to": "P7",
+   "flag": "NO",
+   "angle": "180",
+   "step": "10",
+   "speed": "SPEED2",
+   "func": "BSoutPole",
+   "comment": "",
+   "tag": "e112"
   }
  ]
 }

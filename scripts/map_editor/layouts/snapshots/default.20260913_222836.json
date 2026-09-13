@@ -1560,7 +1560,7 @@
    "to": "C4",
    "flag": "CRIGHT",
    "angle": "-90",
-   "step": "30",
+   "step": "40",
    "speed": "SPEED2",
    "func": "NONE",
    "comment": "",

@@ -7,7 +7,6 @@
   "STEP_DEBUG": "0",
   "MAIN_DEBUG": "0",
   "DEBUG": "0",
-  "TURN_CALC_ENABLE": "1",
   "USE_PLANNER_ROUTE": "1",
   "SKIP_ROUND1": "0",
   "FIRST_POINT": "P4",
@@ -61,19 +60,7 @@
   "rot": "0°",
   "edge_view": "合并双向",
   "label_mode": "标准",
-  "clue_route": {
-   "stage": "第一轮·完整路线（去程+门区+东区+回程 自动拼接，画布分色）",
-   "p1clue": "线索=3：经过 P3",
-   "stg": "A=5,B=7：P5 -> P7",
-   "doors": [
-    "黑(不能过)",
-    "绿(能过)",
-    "黑(不能过)",
-    "黑(不能过)"
-   ],
-   "treasure": "4 · P4",
-   "back": "door_1：D5 绿（起点 N3）"
-  }
+  "clue_route": {}
  },
  "nodes": [
   {
@@ -229,8 +216,8 @@
   {
    "name": "P5",
    "comment": "27",
-   "x": 1504.777404202267,
-   "y": 976.8452232366614
+   "x": 1501.6325710298468,
+   "y": 598.6312246321976
   },
   {
    "name": "N14",
@@ -313,8 +300,8 @@
   {
    "name": "P7",
    "comment": "42",
-   "x": 1501.9159243946087,
-   "y": 598.6312246321976
+   "x": 1494.0538414635575,
+   "y": 976.8452232366614
   },
   {
    "name": "N20",
@@ -1040,21 +1027,21 @@
   },
   {
    "frm": "N13",
-   "to": "P7",
+   "to": "P5",
    "flag": "NEAR_CENTER",
    "angle": "180",
-   "step": "10",
+   "step": "80",
    "speed": "SPEED2",
-   "func": "BSoutPole",
+   "func": "UpStage",
    "comment": "",
    "tag": "e68"
   },
   {
-   "frm": "P7",
+   "frm": "P5",
    "to": "N13",
    "flag": "MUL2SING|CLEFT|CRIGHT|NEAR_CENTER",
    "angle": "0",
-   "step": "10",
+   "step": "60",
    "speed": "SPEED2",
    "func": "NONE",
    "comment": "",
@@ -1336,7 +1323,7 @@
    "tag": "e99"
   },
   {
-   "frm": "P5",
+   "frm": "P7",
    "to": "C9",
    "flag": "DRIGHT",
    "angle": "0",
@@ -1480,12 +1467,12 @@
   },
   {
    "frm": "C9",
-   "to": "P5",
+   "to": "P7",
    "flag": "NONE",
    "angle": "180",
    "step": "260",
    "speed": "SPEED2",
-   "func": "UpStage",
+   "func": "BSoutPole",
    "comment": "",
    "tag": "e114"
   },
@@ -1560,7 +1547,7 @@
    "to": "C4",
    "flag": "CRIGHT",
    "angle": "-90",
-   "step": "30",
+   "step": "40",
    "speed": "SPEED2",
    "func": "NONE",
    "comment": "",
