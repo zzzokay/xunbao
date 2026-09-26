@@ -17,7 +17,7 @@
 ---
 
 ## 2. 完整目录结构（当前）
-
+![alt text](image.png)
 ```
 Mission/                    # 任务层 — 比赛业务逻辑（决定"去哪"）
   ├── mission_planner.c/h   # 路线决策（QR/门/宝物改路、get_newroute、Clear_door、load_route_at）
@@ -203,6 +203,7 @@ Navigation()
 | `MAIN_DEBUG` / `STEP_DEBUG` | `0` / `0` | 调试分支/按一下跑一个节点；正式比赛必须 0 |
 | `DEBUG` | `0` | `1`=门颜色走 `debug_door_pass[]` 预设（barrier.c） |
 | 门区段 | — | `DOOR_LEN_*`(6)、`DOOR_RETREAT_*`(4)、`ANGLE_*`(2，反向用 `ANGLE_REV(a)`) |
+| OCR 摆头角度 | `OCR_HEAD_*`(5) | 读数字时舵机0 的「右/左/中」三档摆角，分**基准位**和**已前进靠近**两组（当前 ±150 / ±180）；`WaitFor_OCR()` 用 `near_plate` 在"前进 4cm 后"自动切到靠近组 |
 | 长度标定 | `LEN_SCALE 1.2f` | 100 代码单位 ≈ 120cm；运行时里程公式用，其余距离阈值已内联为 cm |
 
 ---
@@ -275,6 +276,16 @@ python scripts/map_editor/map_editor.py    # 打开即当前固件地图；零�
   写回固件（**先自动备份**到 `scripts/map_editor/backups/`，有 error 级问题拒绝写回）。
 - ⚠️ **工具只保证"导出文本正确"，不保证"业务自洽"**：增删节点后必须自己同步检查
   `mission_planner.c` 的 `wp`、门逻辑、宝物表、`barrier.c` 的节点比较（节点编号 = 枚举顺序）。
+- ⚠️ **不变量：写回 `config.h` 必须原样保住行尾注释**（2026-09-15 踩过，**直接编挂整份工程**）。
+  宏编辑对话框早期用"`#define 名 + 空白` + 行内任意内容 + 换行"三段替换，中间那段**一路吃到行尾** ⇒
+  `#define VIA_POINT P3 /* 调试途径点…` 的 `/*` 被连注释一起删掉，而注释**续行**还在（含收尾 `*/`）
+  ⇒ 编译器把注释正文当代码解析（`identifier "注意" is undefined` …），还级联出 `map.h` 里
+  `"S1" has already been declared` 这种**假**重复声明错误（真正的错只有一处）。
+  已抽成纯函数 `App._rewrite_config_macro()`（行尾 `/* … */`、`// …`、多行注释的 `/*` 开头都单独分组原样保留），
+  `_selftest.py` 第 10 节守着它：6 条合成用例 + **真实 `config.h` 用原值干跑、逐字节不变**。
+  另注：`config.h` 里 `LEN_N22B7`/`DOOR_LEN_*` 这类宏在 `#if USE_FIELD==FIELD_SCHOOL / #else` 两个分支
+  **各定义一次**，写回只改**第一处** ⇒ 切到 `FIELD_COMP` 再改宏值会落错分支（当前 `USE_FIELD=FIELD_SCHOOL`，
+  第一处正是生效那处，暂时无害）。
 
 ### 9.6 `MAP_DEBUG` 地图调试路线（跑单点/多点用，与比赛 `wp` 无关）
 只改 `Mission/config.h` 三个宏，`map.c:mapInit()` 的 `#if MAP_DEBUG` 分支用 `nav_plan_waypoints()` 自动生成 `route[]`：
@@ -336,6 +347,7 @@ python scripts/map_editor/map_editor.py    # 打开即当前固件地图；零�
 - 🚧 **door() D5黑+D2蓝 回程卡死**：`DOOR_D5_BACK` 该分支只写 `route[0]=N3`、没重建 `route[1..]`，车到 N8 转 N3 后 `getNextConnectNode(N3, route[1])` 撞残留脏值 → `Route_Error_Stop` 死停。**修复：`route[0]=N3;` 后补 `route[1]=0xFF;`**（让护栏跳过，车走 N8→N3 重触发 D4 门）。排查门区路线时注意 `door_retreat` 会**隐式改 `nodes.nowNode`**、`door_set_pass_node` 会改 `Node[].function/speed/step`。
 - ⚠️ **`getNextConnectNode` 兜底防跑飞**：查不到连接时不再返回 0（会带车跑飞），改为打印并 `CarBrake_Stop()` 死停。改路线时确保每两个相邻节点在 `NavEdgeTbl[]` 里**有向连通**；`route[map.point]==0xFF` 是路线结束哨兵。
 - ⚠️ **偏差/警告提示**：`pid.c` 有注释掉的 R1 死代码；`motor_task.c` 5ms 循环内若留有调试 printf 会拖慢周期；`main_task.c`/`motor_task.c` 循环里读 `DWT->CYCCNT`，但使能它的 `timing_dwt_init()` 已按"未引用"清理，若要恢复周期耗时测量需同时恢复该函数与调用。属遗留，别误删功能性代码。
+- ⚠️ **别在 `enum barriers`（map.h）中间插成员**：`nav_planner.c` 的 `NavObsPenalty[]` 按**枚举值**直接索引（注释写明 1..19），中间插值会让其后所有成员编号平移、查表整体错位。2026-09-17 踩过：插 `Upright/Upright1` 到 9/10 位 ⇒ `DOOR 60→0`（门又成免费捷径）、`UpStageHome 60→0`、`BHM 90→0`、`BACK 1000→80`、`BLBL 50→90` 等。新障碍类型一律**追加在枚举末尾**并同步扩 `NavObsPenalty[]`（或改用具名查表）。⚠️ `map_editor/_selftest.py` §8 是按**数组位置**比对的，**抓不到**这种错位（上位机镜像仍按旧编号 ⇒ 车上规划 ≠ 桌面显示）。
 
 ---
 

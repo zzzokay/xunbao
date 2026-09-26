@@ -128,7 +128,10 @@ static uint8_t plan_treasure_return(uint8_t start)
 		wp[n++] = P6;
 	}
 
-	/* 根据门状态选择回程路径 */
+	/* 根据门状态选择回程路径
+	 * ⚠️ N12 只在 D2 分支当必经点：D2 的门是 N5<->N12，而规划层看不见门颜色，
+	 *    只能靠必经点把车赶到 D2 门口。D3/D4 分支的门在 N8 上，wp 已钉死 N8，
+	 *    再加 N12 纯属绕路（实测多 170cm，且会经过 N10->N11 刀山）。 */
 	if (door_pass[0] == CAN_PASS)
 	{
 		wp[n++] = N12;
@@ -136,13 +139,11 @@ static uint8_t plan_treasure_return(uint8_t start)
 	}
 	else if (door_pass[1] == CAN_PASS)
 	{
-		wp[n++] = N12;
 		wp[n++] = N8;
 		wp[n++] = N5;
 	}
 	else if (door_pass[2] == CAN_PASS)
 	{
-		wp[n++] = N12;
 		wp[n++] = N8;
 		wp[n++] = N3;
 	}
@@ -413,7 +414,8 @@ void get_newroute(void)
 	mapInit();
 	// 全部放行通行
 	Clear_door();
-
+	//重置直立景点
+	upright_Set();
 #if USE_PLANNER_ROUTE
 	{
 		u8 wp[24];

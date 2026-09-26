@@ -34,8 +34,8 @@
  * LINE_GYRO_YAW_FILTER yaw_rate 一阶低通系数（0~1，越小越平滑）
  * ================================================================ */
 #define LINE_GYRO_COMP_KD    0.06f
-#define LINE_GYRO_COMP_MAX   8.0f
-#define LINE_GYRO_YAW_FILTER 0.9f
+#define LINE_GYRO_COMP_MAX   7.0f
+#define LINE_GYRO_YAW_FILTER 0.7f
 /* 循迹边界模式 */
 typedef enum {
     TRACK_ALL = 0,        // 正常双边循迹

@@ -1257,13 +1257,6 @@
         <Group>
           <GroupName>Application</GroupName>
           <Files>
-            
-            
-            
-            
-            
-            
-            
             <File>
               <FileName>motion.c</FileName>
               <FileType>1</FileType>
@@ -1319,8 +1312,28 @@
               <FileType>5</FileType>
               <FilePath>..\Application\chassis_api.h</FilePath>
             </File>
+            <File>
+              <FileName>delay.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Application\delay.c</FilePath>
+            </File>
+            <File>
+              <FileName>delay.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Application\delay.h</FilePath>
+            </File>
+            <File>
+              <FileName>gray.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Application\gray.c</FilePath>
+            </File>
+            <File>
+              <FileName>gray.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Application\gray.h</FilePath>
+            </File>
           </Files>
-                </Group>
+        </Group>
         <Group>
           <GroupName>Mission</GroupName>
           <Files>
@@ -1384,7 +1397,8 @@
               <FileType>5</FileType>
               <FilePath>..\Navigation\nav_planner.h</FilePath>
             </File>
-          </Files></Group>
+          </Files>
+        </Group>
         <Group>
           <GroupName>::CMSIS</GroupName>
         </Group>

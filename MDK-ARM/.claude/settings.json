@@ -48,7 +48,8 @@
       "Bash(cd /c/Users/14166/Desktop/MC_32/robotcup/xunbao && grep -n \"door1route\" Mission/barrier.c)",
       "Bash(cd /c/Users/14166/Desktop/MC_32/robotcup/xunbao && grep -rn \"door.*route\\\\|rout_[0-9]\" --include=\"*.c\" --include=\"*.h\" | grep -v \"已删除\\\\|已废弃\\\\|已移至\" | grep \"extern\\\\|u8.*route\")",
       "Bash(cd /c/Users/14166/Desktop/MC_32/robotcup/xunbao && grep -n \"nav_graph_init\" --include=\"*.c\" --include=\"*.h\" -r)",
-      "Bash(cd /c/Users/14166/Desktop/MC_32/robotcup/xunbao && grep -rn \"nav_graph_init\" --include=\"*.c\" --include=\"*.h\")"
+      "Bash(cd /c/Users/14166/Desktop/MC_32/robotcup/xunbao && grep -rn \"nav_graph_init\" --include=\"*.c\" --include=\"*.h\")",
+      "Read(//c/Users/14166/Desktop/MC_32/robotcup/xunbao/scripts/map_editor/**)"
     ],
     "additionalDirectories": [
       "c:\\Users\\14166\\Desktop\\MC_32\\robotcup\\xunbao\\Application",

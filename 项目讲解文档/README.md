@@ -467,3 +467,83 @@
   (5) 验证：`arm-none-eabi-gcc -fsyntax-only -std=c99 -Wall -Wextra nav_planner.c` **0 error 0 warning**；
       `_selftest` 第 8 节「OBS 与固件逐项一致（19 项，不符 0 项）」+ exit 0；
       `_guismoke` **144/0**；`scripts/validate/` 六个脚本**全 exit 0**（`_weight_calib` **15/15**）。
+
+- **2026-09-15（修「Keil 一把编挂」：编辑器写回 `config.h` 会吃掉行尾注释 —— 编译器把注释正文当代码解析）**：
+  用户贴来 Keil/EIDE 构建日志：`Mission/config.h:32` 报 `identifier "注意" is undefined`、`unrecognized token`、
+  `expected a ";"`，随后 `nav_planner.h`/`map_message.h` 里 `NavEdge` 未定义、`map.h:68` 又冒出
+  `"S1" has already been declared`（**级联假错**：S1 在枚举里只声明了一次）。
+
+  (1) **根因 ①（真凶）：`config.h` 的 `#define VIA_POINT` 那一行丢了 `/*`。**
+      宏编辑对话框「写回 config.h」用的是三段式替换 `(define 名+空白)(行内任意内容)(换行)`，
+      中间那段**非贪婪但一路吃到行尾** ⇒ `#define VIA_POINT P3 /* 调试途径点…` 的 `/*` 连同注释被整段删掉，
+      而注释的**后续行**（含收尾 `*/`）还在 ⇒ 注释正文 `注意 S1=0，…` 成了裸代码，
+      编译器那一串报错全是它引起的（`NavEdge`/`S1` 都是级联）。
+  (2) **根因 ②（独立问题）：`Navigation/map_message.h:10` 的 `extern` 少了 `const`**
+      （`extern NavEdge NavEdgeTbl[…]` 撞定义 `const NavEdge NavEdgeTbl[]`，armcc #147）。
+      写回工具只改 `#define NAV_EDGE_COUNT` 那一行、不碰 `extern`，**不是它写的**；
+      该文件时间戳（20:37:57）晚于工具写回（20:35:42）且等于构建开始时间 ⇒ 更像 IDE 保存了旧缓冲。
+  (3) **修复**：① `config.h` 恢复 `/*`（与 git HEAD 逐字一致）；② `map_message.h:10` 恢复
+      `extern const NavEdge NavEdgeTbl[NAV_EDGE_COUNT];`（现与 HEAD 无差异）；
+      ③ **工具侧（治本）**：新增纯函数 `App._rewrite_config_macro(src, name, value)`，
+      把**行尾注释**（`/* … */`、`// …`、多行注释的 `/*` 开头）单独分组**原样保留**，
+      `write_config()` 改调它 ⇒ 同样的事故不会再发生。
+  (4) **顺手清掉隐式声明警告**（同一类问题，3 个文件，只加声明、不改逻辑）：
+      `Mission/barrier.c` 补 `#include "mission_planner.h"`（`load_route_at()` 声明在这里，`door()` 在用）；
+      `Navigation/map.c` 在既有 `extern TaskHandle_t xHandle_ArriveDetect;` 旁补局部声明
+      `void send_play_specified_command(uint8_t);`（沿用它"避免越层包含"的写法）；
+      `Application/chassis_api.c` 也补了同一函数的局部声明（它原有 **5 处**隐式声明，日志里没提到）。
+  (5) 验证：用工程自带 armcc（EIDE 的 `MDK-ARM/build/test1/compile_commands.json` 里**原样命令行**）
+      **全 75 个 .c 逐个编译 → 0 error**；上述隐式声明警告**全部消失**；剩 12 条 warning 全是既有的
+      无关项（`#546-D` 越初始化跳转 ×2、`#1035-D` float→double ×2、`#870-D` 无效多字节 ×4 等）。
+      `_selftest.py` 新增**第 10 节**（合成用例：普通值 / `//` / 单行 `/* */` / **多行注释 `/*` 开头** /
+      不存在的宏；外加 **真实 config.h 干跑：37 个对象宏用原值回写后逐字节不变**）→ **exit 0**。
+  ⏳ **本轮只报告、未改动**：
+  - `Math/pid.c:78` 的 `fabsf(motor->measure) < 0.5f` 也是隐式声明（该文件没 include `math.h`）——
+    隐式声明下 armcc 按 `int fabsf()` 处理 ⇒ **这个比较当前基本失效**（"过小输出置零"那段可能是死代码）。
+    补 `#include "math.h"` 会让它**真的生效**，属**改行为**，可能影响调好的 PID 手感 ⇒ **实车验证后再定**。
+  - `config.h` 里另有 **30 处**行尾注释在历次写回中被吃掉（含 `/* TODO(学校) */`、`/* <=== 切换场地改这一行 */`），
+    本轮**没有恢复**：工作区里混着你的有意改动（`TURN_CALC_ENABLE` 1→0、`USE_FIELD` 外挂 `#ifndef` 等），
+    整文件回滚会一起抹掉。要补就按 git HEAD 逐行比对、只补注释。
+  - `config.h` 里 `LEN_N22B7`/`DOOR_LEN_*` 这类宏在 `#if USE_FIELD==FIELD_SCHOOL / #else` 两个分支
+    **各定义一次**，而「写回 config.h」只改**第一处** ⇒ 切到 `FIELD_COMP` 后再改宏值会写进 SCHOOL 分支
+    （当前 `USE_FIELD=FIELD_SCHOOL`、第一处正是生效那处，**暂时无害**）。
+
+- **2026-09-17（修「直立景点第二轮不触发」+ 枚举插值顶错位障碍惩罚表）**：
+  (1) **症状**：新增的直立景点 `View` 逻辑一轮会做（边表 `map_message.c` 里 `C3→N14`/`N12→N16`/`N18→N16`/`B10→N14` 四条边 func=`View`），二轮到点却什么都不做。
+  (2) **根因**：二轮 `get_newroute()` 用新增的 `upright_Set()` 重新武装这四条边，但 `barrier.c:upright_Set_node()`
+      写的是当时新加的枚举 `Upright`，而 `map.c:map_function()` 只有 `case View: do_Upright();` —— **没有 `case Upright`** ⇒ 落 `default:` 静默不触发。
+      **修复**：`upright_Set_node()` 改写 `View`（留 1 行注释说明"必须写 View"）。
+  (3) **同一改动的连带 bug**：`Upright/Upright1` 被插在 `enum barriers` 的 9/10 位，而 `nav_planner.c` 的
+      `NavObsPenalty[]` 是按**枚举值**索引（1..19）⇒ 其后成员编号全部 +2、查表整体错位：
+      `DOOR 60→0`、`UpStageHome 60→0`、`BHM 90→0`、`BACK 1000→80`、`BLBL 50→90`、`QQB 80→50`、`BLBS 70→60`、`BSoutPole 90→70`、`Special_node 0→60`。
+      ⚠️ `map_editor/_selftest.py` 第 8 节是按**数组位置**比对的，抓不到这种"枚举错位"（上位机镜像仍按旧编号 ⇒ 车上规划 ≠ 桌面显示）。
+      **修复**：删掉 `Upright/Upright1`（全工程只有 `upright_Set_node()` 引用过）⇒ 编号回到 1..19，逐项核对 `ALIGN-OK`。
+  (4) **验证**：`_check_csr.py`、`_check_wp_east.py`（二轮 100 组合 + stageAB 12 组合逐字节等价）、
+      `_weight_calib.py`（15/15）、`map_editor/_selftest.py`（§8 惩罚表 19/19、§9 门回程 12/12、§10 config.h 干跑逐字节不变）全绿；
+      二轮两条臂都确认会经过 View 边（顺时针 `N12→N16`+`B10→N14`；宝物6 逆时针 `C3→N14`+`N18→N16`，100/100 组合全覆盖）。
+      Keil 尚未编译（改动只涉及 `barrier.c`/`map.h` 两文件，无新增符号）。
+
+- **2026-09-25（OCR 读数字：摄像头摆角按"基准位 / 已靠近"分两组）**：
+  (1) **诉求**：`WaitFor_OCR()` 扫描的三档摆角原本是写死的 `1440/1560/1500`（中位 ±60），车在 `retry==2` 失败**前进 4cm 靠近号码板**后仍用同一组小角度，实车反馈"靠近时摆角太小"。
+  (2) **改动**（`Mission/config.h` + `Mission/barrier.c`）：新增 5 个宏 `OCR_HEAD_MID=1500`、`OCR_HEAD_FAR_{RIGHT,LEFT}=1350/1650`（基准位 ±150）、`OCR_HEAD_NEAR_{RIGHT,LEFT}=1320/1680`（靠近后 ±180）；`WaitFor_OCR()` 加局部标志 `near_plate`——前进 4cm 后置 1（其后 retry 3/4/5 三次扫描走 NEAR 组）、后退 7cm 后清 0；扫到后的复位 `1500` 改用 `OCR_HEAD_MID`（值不变）。
+  (3) **未动**：扫描顺序（右→左→中）、车体前后移动距离/次数、超时与重试次数、`head_right_left` 语义（1=右 2=左 0=中）。
+  (4) **验证**：armcc 单文件编译 `barrier.c` **0 error**；与 `HEAD` 版本对比，warning 仍为改动前那 2 条（`switch(state)` 跨初始化，位于 680/1262 行无关函数）。Keil 全量未编。
+
+- **2026-09-26（编辑器「线索路线…」：删掉手选的「门区回程入口」，门灯成为唯一输入，**本轮未改固件**）**：
+  (1) **诉求（用户）**："这里逻辑有问题啊，你后面加多一行单读的 D5 选项干嘛" —— 同一个信息被问了两遍：
+      「门灯状态」4 格填 D2~D5 颜色，下面「门区回程入口」下拉又把 D5/D4 的**结论**手选一遍（选项文字写着
+      `door_1：D5 绿（起点 N3）`、`door_2：D5 黑 + D3 蓝已用尽…`）。两处可互相矛盾，而且那个下拉**只在
+      「第一轮·门区回程」阶段生效**（标签"仅阶段3用"是过期标注），「完整路线」阶段根本不读它 ⇒ 现场出现
+      "D5 填了绿、画布却照 D5 黑走 N8"的误判（用户 2026-09-26 反馈）。它是 09-13 老对话框「红绿灯/门入口」
+      的遗留（`backups/pre_route_fix_20260913_200129/map_editor.py:3003`），加 4 格门灯时没删干净。
+  (2) **改动**（只动 `地图修改上位机/map_editor/`）：删掉该下拉 + `BACK_VALS`；`_clue_route_sections()` 去掉
+      `back` 参数；新增两个纯函数——`_back_door_edge(doors)`（镜像 `plan_treasure_return()` 的梯子：进门读到
+      D2/D3 绿 ⇒ 回程不撞 BACK 门；D4 绿 ⇒ 撞 `N8→N3`；只有蓝 ⇒ 撞 `N10→N3`；全不能过 ⇒ 停车）与
+      `_back_branch_from_edge(doors, read, edge)`（**④b 与「门区回程」阶段共用**同一套推导）。「门区回程」阶段
+      改成由 4 格门灯**自动推**入口并在报告里写明依据（`D5 绿 ⇒ door_1（起点 N3）` 这类），不撞门的组合
+      只给结论不画线（以前会硬凑一条）。旧布局里存的 `clue_route.back` 键按未知键忽略。
+  (3) **报告头新增「本次输入」回显**：阶段 / P1 线索 / 平台 A+B / 宝物 / `D2=蓝 D3=绿 D4=黑 D5=黑` ——
+      以后一眼能看出这份报告是哪套灯算的。
+  (4) **验证**：`map_editor/_selftest.py` 全过；`map_editor/_guismoke.py` 全过（新增 3 项断言：
+      `D2黑+D3蓝` ⇒ 自动 `door_2` 并命中 `validate/_check_door_perm.py` 的 golden；`D2蓝+D5绿` ⇒ 自动
+      `door_1`、画布不出现 `N8`；`D2绿` ⇒ 只提示"不撞 BACK 门"不画线）。

@@ -13,6 +13,10 @@
 /* 从 task_create.h 迁入，避免 map.c 越层包含 */
 extern TaskHandle_t xHandle_ArriveDetect;
 
+/* 定义在 Task/ArriveDetect_task.c，声明原本只在它的头文件里；
+   同上，用局部声明避免 map.c 越层包含（之前这里报过隐式声明警告）*/
+void send_play_specified_command(uint8_t index);
+
 /******************  记录地图状态和小车状态的全局变量  *************************/
                                             
 struct Map_State map = {0,0};   //point //routine
@@ -183,8 +187,9 @@ u8 getNextConnectNode(u8 nownode,u8 nextnode)
 void Route_Error_Stop(u8 from, u8 to)
 {
 	printf("ROUTE ERROR: no connection %d -> %d, STOP!\r\n", from, to);
+    send_play_specified_command(33);
 	CarBrake_Stop();   /* 卡死停车：内部 while(1) 持续刹车，不返回 */
-    send_play_specified_command(33);   /* 播报“路线错误” */
+       /* 播报“路线错误” */
 }
 
 
@@ -231,7 +236,7 @@ static const struct { u8 last, now, next; float dist; } kTurnTbl[] = {
 	{ B8, N9, C3, 0 },
     { B11, C4, N20, 19 },
 	{ N10, N9, B9, 48 },
-	{ B2, N1, P1, 25 },
+	{ B2, N1, P1, 30 },
 };
 /* 编译期护栏：kTurnTbl 里的节点号不能超过实际建表的节点数（写错节点号只会在车上才发现）。
  * 50 = map.h 里 enum MapNode 的真实成员数（C1/C2 是注释状态不占编号），
@@ -319,7 +324,7 @@ static float GetForwardDistanceBeforeGyroTurn(u8 last, u8 now, u8 next)
     if (last == C4 && now == N20 && next == B6) return 24;
 	if (last == N3 && now == N4 && next == B3) return 12;
     if (last == N5 && now == N12 && next == N11) return 5;
-    if (last == N8 && now == N12 && next == N13) return 5;
+    if (last == N8 && now == N12 && next == N13) return 10;
     if (last == N4 && now == N5 && next == N12) return 6;
 	if (last == N8 && now == N3 && next == P3) return 24;
 	if (last == P1 && now == N1 && next == B2)return 3; 
@@ -331,8 +336,8 @@ static void Check_And_Apply_SpeedUp(void)
 {
 	if ((nodes.lastNode.nodenum == N4 && nodes.nowNode.nodenum == N5 && nodes.nextNode.nodenum == N6) ||
 		(nodes.lastNode.nodenum == N5 && nodes.nowNode.nodenum == N6 && nodes.nextNode.nodenum == P4) ||
-		(nodes.lastNode.nodenum == N5 && nodes.nowNode.nodenum == N4 && nodes.nextNode.nodenum == N3) ||
-		(nodes.lastNode.nodenum == P3 && nodes.nowNode.nodenum == N3 && nodes.nextNode.nodenum == N4))
+		(nodes.lastNode.nodenum == N5 && nodes.nowNode.nodenum == N4 && nodes.nextNode.nodenum == N3) )
+	
 	{	
 		nodes.nowNode.speed = SPEED4;
 		Chassis_SetTargetSpeed(nodes.nowNode.speed);
@@ -512,7 +517,7 @@ static void Nav_TurnAndAdvance(void)
             //     Chassis_Turn_By_RightLine_Blocking(nodes.nextNode.angle, nodes.nowNode.angle, 0.75f * nodes.nowNode.speed);
             // }
             //原地转弯
-            if ((nodes.nowNode.flag & STOPTURN && fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 30.0f)
+            if ((nodes.nowNode.flag & STOPTURN && fabsf(need2turn(getAngleZ(), nodes.nextNode.angle)) > 20.0f)
             || (fabsf(need2turn(nodes.nowNode.angle, nodes.nextNode.angle)) >= 90.0f )
             )
                 
@@ -576,7 +581,7 @@ void Navigation(void)
                 /* 无票：停车等票（自由轮，方便抱放）。只刹一次，避免每周期重刹 */
                 if (!nav_idle_braked)
                 {
-                    Chassis_MotorControl(is_Free, 0, 0, 0);
+                    Chassis_Brake();
                     nav_idle_braked = 1;
                 }
                 return;
@@ -659,7 +664,8 @@ void map_function(u8 fun)
 		case BLBL	    : Barrier_WavedPlate(35);	  			break;			//长波动板 速度：调试	//180
 		case DOOR	    : door();		                 	  	break;			//门
 		case BHM        : Barrier_HighMountain();				break;    		//高山
-		case UpStageHome	: Stage_Home();	                		break;
+		case UpStageHome: Stage_Home();	                		break;
+        case View       : do_Upright();	                	    break;			//景点
 		default:				                        		break;		
 	}
 }

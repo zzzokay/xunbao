@@ -28,7 +28,7 @@
 /* ===================== 地图起始/目标 & 按键合并窗口 ===================== */
 /* 调试（MAP_DEBUG=1）时，只需改这三个节点名：程序用最短路径算法自动生成 起始点->[途径点]->目标点 的路线 */
 #define FIRST_POINT   P4
-#define VIA_POINT     P3     /* 调试途径点（MapNode 枚举名）；填 0 = 不用途径点（退化成两点路线）。
+#define VIA_POINT     P3
                                注意 S1=0，故 S1 不能当途径点；要途经 S1 请改用别的调试方式 */
 #define END_POINT     P4
 #define NAV_TOKEN_WINDOW_MS  2000
@@ -39,8 +39,8 @@
  * FIELD_SCHOOL = 学校场地（实测值填入下方对应块的 TODO）
  * 切换场地：只改 USE_FIELD 这一行，重新编译即可。
  */
-#define FIELD_COMP     0
-#define FIELD_SCHOOL   1
+#define FIELD_COMP     1
+#define FIELD_SCHOOL   0
 #ifndef USE_FIELD
 #define USE_FIELD      FIELD_SCHOOL
 #endif
@@ -84,7 +84,7 @@
 /* ===== door_retreat 后退距离（与路段全长无关，按”起点→目标”方向命名）===== */
 #if USE_FIELD == FIELD_SCHOOL
     /* —— 学校场地实测值（TODO）—— */
-    #define DOOR_RETREAT_N5N8   63
+    #define DOOR_RETREAT_N5N8   67
     #define DOOR_RETREAT_N5N4   67
     #define DOOR_RETREAT_N10N8  90
     #define DOOR_RETREAT_N8N5   65
@@ -117,17 +117,6 @@
 #define ANGLE_N8N5   ANGLE_REV(ANGLE_N5N8)
 #define ANGLE_N12N8  ANGLE_REV(ANGLE_N8N12)
 #define ANGLE_N10N8  ANGLE_REV(ANGLE_N8N10)
-
-/* ===== OCR 读数字：摄像头（舵机0）左右摆角 =====
- * 1500 = 正中；数值越大越往左（Rudder_control.c 的 HEAD_LEFT=2250 / HEAD_RIGHT=770）。
- * WaitFor_OCR() 每轮按「右 → 左 → 中」三档扫描，摆角分两组：
- *   FAR  = 车在基准位（还没前进）
- *   NEAR = 已前进 4cm 靠近号码板之后（近处同一横向偏差对应更大偏角） */
-#define OCR_HEAD_MID         1500
-#define OCR_HEAD_FAR_RIGHT   1350
-#define OCR_HEAD_FAR_LEFT    1650
-#define OCR_HEAD_NEAR_RIGHT  1320
-#define OCR_HEAD_NEAR_LEFT   1680
 
 
 /* ===================== 底盘长度标定 =====================

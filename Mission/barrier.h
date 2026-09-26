@@ -71,6 +71,7 @@ void South_Pole(void);
 void QQB_1(void);
 void door(void);
 void Stage_Home(void);
+void do_Upright(void);
 //void ignore_node(void);
 void undermou(void);
 //void Special_Node(void);
@@ -101,6 +102,9 @@ void update_route_at_P7_for_treasure(void);
 void update_route_at_P8_for_treasure(void);
 /* 配置节点直接通行（修改 Node[] 并返回新状态） */
 NODE door_set_pass_node(uint8_t a, uint8_t b, uint16_t step, float speed);
+void upright_Set_node(uint8_t a, uint8_t b);
+void upright_Reset_node(uint8_t a, uint8_t b);
+void upright_Set();
 int Six2Zero(void);
 
 uint8_t Door_ReadPass_Test(void);

@@ -94,7 +94,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
 
     /* ========== C3 ========== */
     { C3, N9, RIGHT_LINE|MUL2SING|NOTURN, 180, 20, SPEED1, NONE },
-    { C3, N14, DLEFT|MCLEFT|CLEFT, 90, 10, SPEED0, View },
+    { C3, N14, DLEFT|MCLEFT|CLEFT, 90, 0, SPEED0, NONE },
 
     /* ========== N9 ========== */
     { N9, B9, LEFT_LINE|NOTURN, -165, 0, SPEED1, QQB },
@@ -105,14 +105,15 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { N10, N3, DRIGHT|DLEFT|RIGHT_LINE|STOPTURN, -90, DOOR_LEN_N3N10/2, SPEED1, DOOR },
     { N10, N8, CLEFT|CRIGHT|DLEFT|DRIGHT, ANGLE_N10N8, DOOR_LEN_N8N10, SPEED3, NONE },
     { N10, N9, LEFT_LINE|CRIGHT|MUL2SING|STOPTURN, 0, 156, SPEED3, NONE },
+    { N10, N12, DRIGHT|RIGHT_LINE, -180, 264, SPEED1, NONE },
     { N10, N15, DRIGHT|STOPTURN, 90, 24, SPEED2, NONE },
-    { N10, N11, NO, 180, 100, SPEED1, SM },
+    { N10, N11, NO, 180, 70, SPEED1, SM },
 
     /* ========== N12 ========== */
     { N12, N5, AWHITE|RIGHT_LINE|RESTMPUZ, -90, 222, SPEED4, NONE },
     { N12, N8, CRIGHT|DLEFT, ANGLE_N12N8, 180, 60, 1 },
     { N12, N13, CLEFT|CRIGHT|MUL2SING|NEAR_CENTER, 180, 80, SPEED4, NONE },
-    { N12, N16, DRIGHT|STOPTURN, 90, 18, SPEED0, View },
+    { N12, N16, DRIGHT|STOPTURN, 90, 18, SPEED0, NONE },
     { N12, N11, LEFT_LINE, 0, 100, SPEED1, SM },
 
     /* ========== N13 ========== */
@@ -167,7 +168,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
 
     /* ========== N18 ========== */
     { N18, B5, RIGHT_LINE, 180, LEN_N18B5, SPEED0, Hill },
-    { N18, N16, DLEFT|CLEFT|STOPTURN, -90, 20, SPEED2, View },
+    { N18, N16, DLEFT|CLEFT|STOPTURN, -90, 20, SPEED2, NONE },
 
     /* ========== N19 ========== */
     { N19, B5, NO, 0, LEN_B5N19, SPEED3, Hill },         /* N19->B5 （与 B5->N19 同长，取大=LEN_B5N19） */
@@ -210,7 +211,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { N11, N12, RIGHT_LINE|AWHITE|DRIGHT, 180, 60, SPEED3, NONE },
 
     /* ========== B10 ========== */
-    { B10, N14, DRIGHT|STOPTURN, -90, 100, SPEED1, View },
+    { B10, N14, DRIGHT|STOPTURN, -90, 100, SPEED1, NONE },
     { B10, C7, DLEFT|CLEFT, 90, 20, SPEED1, NONE },
 
     /* ========== B11 ========== */

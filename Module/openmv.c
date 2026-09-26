@@ -21,13 +21,12 @@ void Open_COLOR_R()
 	open_COLOR_R_mode_sign=1;
 	COLOR_flag = 2;
 	uint8_t cmd[] = {0x33};
-	
-//	while(retry--) {
-	while(1) {
-			HAL_UART_Transmit(&huart6, cmd, sizeof(cmd), 100);
-			HAL_Delay(20);
-			if(	open_COLOR_R_mode_sign==0)  break;
-			HAL_Delay(30);
+	uint8_t retry = 3;
+	while(retry--) {
+		HAL_UART_Transmit(&huart6, cmd, sizeof(cmd), 100);
+		HAL_Delay(20);
+		if(	open_COLOR_R_mode_sign==0)  break;
+		HAL_Delay(30);
 	}
 }
 
@@ -39,12 +38,12 @@ void Open_COLOR_L()
 	COLOR_flag = 1;
 	uint8_t cmd[] = {0x33};
 	open_COLOR_L_mode_sign=1;
-//	while(retry--) {
-	while(1) {
-			HAL_UART_Transmit(&huart6, cmd, sizeof(cmd), 100);
-			HAL_Delay(20);
-			if(open_COLOR_L_mode_sign==0) break;
-			HAL_Delay(30);
+	uint8_t retry = 3;
+	while(retry--) {
+		HAL_UART_Transmit(&huart6, cmd, sizeof(cmd), 100);
+		HAL_Delay(20);
+		if(open_COLOR_L_mode_sign == 0) break;
+		HAL_Delay(30);
 	}
 }
 

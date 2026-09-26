@@ -31,8 +31,9 @@
 #include "nav_planner.h"
 #include "chassis_api.h"
 #include "config.h"     /* 调试开关 DEBUG 已集中到这里 */
+#include "mission_planner.h"    /* load_route_at() 声明在这里（门区手写路线要用） */
 
-/* 门回程路线（mission_planner.c 中定义）*/
+/* 门回程路线（mission_planner.c 中定义，头文件里没有这个变量）*/
 extern u8 door1route[100];
 
 /*==============================================================================
@@ -47,7 +48,7 @@ extern u8 door1route[100];
  *  楼梯              Barrier_Hill
  *  刀山              Sword_CorrectByScanner / Sword_Mountain
  *  珠峰              Barrier_HighMountain
- *  直立景点          view / view1 / back
+ *  直立景点          view / view1 
  *  波浪板            Barrier_WavedPlate
  *  南极              South_Pole
  *  路线更新（宝物）  load_route_at
@@ -71,9 +72,9 @@ extern u8 door1route[100];
 uint8_t door_pass[5] = {0, 0, 0, 0, 0};
 #if DEBUG
 uint8_t debug_door_pass[5] = {ONE_WAY_PASS, CAN_PASS, CAN_PASS, NO_PASS, NO_PASS}; // 0:D2、1:D3、2:D4、3:D5、4:D1
-volatile uint8_t flag_line_clue    = 4;
+volatile uint8_t flag_line_clue    = 3;
 volatile uint8_t flag_clue_stage_A = 5;
-volatile uint8_t flag_clue_stage_B = 8;
+volatile uint8_t flag_clue_stage_B = 7;
 // OCR 线索：P5/P6读clue_A，P7/P8读clue_B，treasure=clue_A+clue_B → 宝物平台编号
 uint8_t flag_clue_A       = 2;
 uint8_t flag_clue_B       = 0;
@@ -134,25 +135,37 @@ static void Stage_CollectTreasure(void)
  * @param reset_angle 输出：重置时的角度
  * @return 1=已重置, 0=未达到条件
  */
-static uint8_t GyroStableReset(uint8_t required, float *reset_angle)
+static uint8_t GyroStableReset(uint16_t required, float *reset_angle)
 {
 	static uint8_t stable_times = 0;
-	static float total_angle = 0.0f;
+	static float total_angle = 0.0f;	/* 展开后样本值之和 */
+	static float unwrapped_angle = 0.0f;	/* 当前帧的展开角度 */
+	static float last_angle = 0.0f;	/* 上一帧角度，增量展开用 */
+	float angle_now = 0.0f;
 	Cross_getline(&Cross_Scaner);
 	if ((Cross_Scaner.detail & 0X0180) == 0X0180 ||(Cross_Scaner.detail & 0X0180 && Cross_Scaner.ledNum<=1) )
 	{
+		/* 把样本展开成连续角度再加和求均值（跨 ±180 时直接加原始值会让均值塌向 0） */
+		angle_now = getAngleZ();
+		if (stable_times == 0)
+			unwrapped_angle = angle_now;
+		else
+			unwrapped_angle += need2turn(last_angle, angle_now);
+		last_angle = angle_now;
+		total_angle += unwrapped_angle;
 		stable_times++;
-		total_angle += getAngleZ();
 		if (stable_times >= required)
 		{
-			*reset_angle = total_angle / stable_times;
+			*reset_angle = need2turn(0.0f, total_angle / stable_times);	/* 均值归一化回 (-180,180] */
 			stable_times = 0;
+			total_angle = 0.0f;
 			send_play_specified_command(32);
 			return 1;
 		}
 	}
 	else
 	{
+		total_angle = 0.0f;
 		stable_times = 0;
 	}
 	return 0;
@@ -161,11 +174,43 @@ static uint8_t GyroStableReset(uint8_t required, float *reset_angle)
 static uint8_t Stage_DetectedRamp(float distance ,float *reset_angle)
 {
 	uint8_t state = 0;
-	while(1){
-	if(state == 0){
-		if(GyroStableReset(100, reset_angle)){state = 1;}
-	}
+	uint16_t stable_times = 0;
+	float total_angle = 0.0f;	/* 展开后样本值之和 */
+	float unwrapped_angle = 0.0f;	/* 当前帧的展开角度 */
+	float last_angle = 0.0f;	/* 上一帧角度，增量展开用 */
+	float angle_now = 0.0f;
+	while(1){	
 	Cross_getline(&Cross_Scaner);
+	if(state == 0){
+		if ((Cross_Scaner.detail & 0X0180) == 0X0180 ||(Cross_Scaner.detail & 0X0180 && Cross_Scaner.ledNum<=1) )
+		{
+			/* 同 GyroStableReset：展开成连续角度后累加，跨 ±180 求均值不塌 */
+			angle_now = getAngleZ();
+			if (stable_times == 0)
+				unwrapped_angle = angle_now;
+			else
+				unwrapped_angle += need2turn(last_angle, angle_now);
+			last_angle = angle_now;
+			total_angle += unwrapped_angle;
+			stable_times++;
+			if (stable_times >= 260)
+			{
+				*reset_angle = need2turn(0.0f, total_angle / stable_times);
+				stable_times = 0;
+				total_angle = 0.0f;
+				state = 1;
+				send_play_specified_command(32);
+			}
+		}
+		else
+		{
+			total_angle = 0.0f;
+			stable_times = 0;
+		}
+	
+	}
+	
+
 	if(fabsf(Chassis_GetMileage()) >= distance||
 		//imu.pitch >= Begin_up + 4 ||
 		Cross_Scaner.ledNum >= 7 ||
@@ -178,7 +223,7 @@ static uint8_t Stage_DetectedRamp(float distance ,float *reset_angle)
 	
 }
 
-static void Stage_Correct(float back_distance){
+void Stage_Correct(float back_distance){
 	uint8_t state =0;
 	uint16_t break_time = 0;	// case2 无线形重试计数，防卡死
 	Chassis_DriveDistance_Blocking(is_Gyro, back_distance, -GoStage_Speed, nodes.nextNode.angle, 0);
@@ -424,8 +469,9 @@ static void Stage_Action(float original_angle)
 			{
 				if(WaitFor_QR()){
 					update_route_at_P1();
-					stage_state = 3;
+					send_play_specified_command(32);
 					again_required = 0;
+					stage_state = 3;
 				}
 				else{//再撞再扫描
 					again_required = 1;
@@ -437,6 +483,7 @@ static void Stage_Action(float original_angle)
 			{
 				if(WaitFor_OCR()){
 					stage_state = 3;
+					
 					again_required = 0;
 				}
 				else{
@@ -468,7 +515,7 @@ void Stage(void)
 	Chassis_EnableAntiSnake();
 	Chassis_MotorControl(is_Line, 15, 15, 0);//25
 	Chassis_OverrideLinePid(24, 0, 140, 30);
-	Chassis_OverrideGyroPid(5, 0, 60, 50);
+	Chassis_OverrideGyroPid(5, 0, 50, 50);
 	Chassis_ClearMileage();
 
 	while (state != STAGE_DONE)
@@ -499,7 +546,7 @@ void Stage(void)
 
 			if(Stage_HasTreasure())
 				Stage_CollectTreasure();
-			//if(nodes.nowNode.nodenum != P3 && nodes.nowNode.nodenum != P4 && nodes.nowNode.nodenum != P5)
+
 			Stage_Correct(4);
 
 			Robot_Work(BODY, DOWN); 	//人躺下
@@ -510,7 +557,7 @@ void Stage(void)
 			original_angle  = need2turn(0.0f, nodes.nowNode.angle + 180.0f);
 			
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, original_angle,
-				Begin_down, UpDownStage_Speed_low, down_pitch, UpDownStage_Speed_high, After_down-8, 0.1, 15.0f, 40.0f);
+				Begin_down, UpDownStage_Speed_low, down_pitch, UpDownStage_Speed_high, After_down, 0.1, 5.0f, 40.0f);
 
 			Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
 			Chassis_RestoreGyroPid();
@@ -548,7 +595,7 @@ void Stage_Home(void)
 		switch (state)
 		{
 		case P2_ASCEND:
-			if (Stage_DetectedRamp(36 , &original_angle))
+			if (Stage_DetectedRamp(40 , &original_angle))
 			{
 				if(original_angle == 0)
 				{
@@ -728,20 +775,20 @@ void Barrier_Bridge(void)
 
 		case BRIDGE_ON_BRIDGE:
 
-			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, getAngleZ(),
+			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
 				Begin_down, UpDownStage_Speed_low, down_pitch, SPEED0, down_pitch-20,0, 0, 0.0f);//下坡下一半
 
 			//加一点修正
 			Chassis_ClearMileage();
 			get_Infrared();
-			while (fabsf(Chassis_GetMileage()) < 18)
+			while (fabsf(Chassis_GetMileage()) < 10)
 			{	
 				Chassis_CorrectByInfrared(0.04f, 1.0f, 1.0f);
 				vTaskDelay(5);
 			}
 
 			//下坡结束检测
-			RampCtrl_Blocking(RAMP_DESCEND, SPEED0, getAngleZ(),
+			RampCtrl_Blocking(RAMP_DESCEND, SPEED0, origin_angle,
 				0, SPEED0, 0, SPEED0, After_down,0, 0, 0.0f);
 
 			Chassis_MotorControl(is_Line, SPEED1, SPEED1, 0);
@@ -773,14 +820,13 @@ void Barrier_Hill(void)
 	Chassis_MotorControl(is_Line, 15, 15, 0);
 	Chassis_OverrideLinePid(30, 0, 180, 30);
 	//vTaskDelay(10);//刚进入is_line,scanner可能还没数据，先等motortask
-	Chassis_OverrideGyroPid(4,0,70,50);//上坡陀螺参数，增加kp和kd提高陀螺响应，防止上坡时姿态失稳//780
+	Chassis_OverrideGyroPid(4,0,80,50);//上坡陀螺参数，增加kp和kd提高陀螺响应，防止上坡时姿态失稳//780
 	Chassis_ClearMileage();
 	while (state != HILL_DONE)
 	{
 		switch (state)
 		{
 		case HILL_APPROACH:
-			GyroStableReset(50, &origin_angle);
 				
 			if (Stage_DetectedRamp(60.0f, &origin_angle))
 			{
@@ -802,7 +848,7 @@ void Barrier_Hill(void)
 
 		case HILL_DESCEND:
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, getAngleZ(),
-				basic_p, UpDownStage_Speed_high, basic_p-10, UpDownStage_Speed_high, basic_p-3, 0.10f, 10.0f, 42);
+				basic_p, UpDownStage_Speed_high, basic_p-10, UpDownStage_Speed_high, basic_p-3, 0.12f, 0.0f, 42);
   
 			state = HILL_DONE;
 			break;
@@ -860,7 +906,7 @@ void Sword_Mountain(void)
 			// 连续 50 次中心传感器确认 → 记录角度
 			if (!angle_recorded)
 			{
-				if(GyroStableReset(100, &recorded_angle))
+				if(GyroStableReset(250, &recorded_angle))
 				{
 					angle_recorded = 1;
 				}
@@ -978,7 +1024,7 @@ void Barrier_HighMountain(void)
 			break;
 
 		case HM_FLAT:
-			Chassis_MotorControl(is_Gyro,UpDownStage_Speed_high , UpDownStage_Speed_high, getAngleZ());
+			Chassis_MotorControl(is_Gyro,UpDownStage_Speed_high , UpDownStage_Speed_high, origin_angle);
 			if (imu.pitch >= Begin_up)
 			{
 				state = HM_ASCEND_2;
@@ -1334,7 +1380,7 @@ void QQB_1(void)
 				Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ());	
 				while(imu.pitch <= basic_p-20){vTaskDelay(2);}		
 				Chassis_Turn_By_Gyro_Blocking(getAngleZ()>0?100:-80, getAngleZ(), 15.0f);
-				while(imu.pitch <= basic_p-2){vTaskDelay(2);}	
+				while(imu.pitch <= basic_p){vTaskDelay(2);}	
 				Chassis_Brake();
 				state = QQB_RECOVERY;
 			}					
@@ -1793,7 +1839,7 @@ uint8_t WaitFor_OCR(void)
 		Clue_Num = 0;
 		return OCR_SCAN_FAILED;
 	}
-
+	send_play_specified_command(32);
 	/* 必须先保存成功结果，再清接收标志 */
 	clue_value = Clue_Num;
 	K210_Rece = 0;
@@ -1806,7 +1852,7 @@ uint8_t WaitFor_OCR(void)
 		clue_A_collected = 1;
 		
 		send_play_specified_command(16 + flag_clue_A);
-		vTaskDelay(1500);
+		vTaskDelay(2000);
 		
 	}
 	else
@@ -1814,7 +1860,7 @@ uint8_t WaitFor_OCR(void)
 		flag_clue_B = clue_value;
 		clue_B_collected = 1;
 		send_play_specified_command(23 + flag_clue_B);
-		vTaskDelay(1500);
+		vTaskDelay(2000);
 	}
 	return OCR_SCAN_SUCCESS;
 #endif
@@ -1919,7 +1965,53 @@ void zhunbei(void)
 		//printf("Finished crossing the bridge\n");
 }
 
+void upright_Set_node(uint8_t a, uint8_t b)
+{
+	uint8_t idx = getNextConnectNode(a, b);
+	/* ⚠️ 必须写 View：map_function() 只处理 case View，写别的值（如原 Upright）会 fallthrough 到 default 静默不触发 */
+	Node[idx].function = View;
+}
 
+void upright_Reset_node(uint8_t a, uint8_t b)
+{
+	uint8_t idx = getNextConnectNode(a, b);
+	Node[idx].function = NONE;
+}
+void upright_Set()
+{
+	upright_Set_node(N12,N16);
+	upright_Set_node(N18,N16);
+	upright_Set_node(C3,N14);
+	upright_Set_node(B10,N14);
+}
+
+void do_Upright()
+{
+	float TurnAngle = 0;
+	while(Scaner.ledNum < 5)
+		vTaskDelay(2);
+	Chassis_DriveDistance_Blocking(is_Line,19,15,0,0);
+	if(nodes.nowNode.nodenum==N16) {
+		TurnAngle=getAngleZ()>0?-90:90;
+		upright_Reset_node(N12,N16);
+		upright_Reset_node(N18,N16);
+	}
+	if(nodes.nowNode.nodenum==N14) {
+		TurnAngle=getAngleZ()>0?90:-90;
+		upright_Reset_node(C3,N14);
+		upright_Reset_node(B10,N14);
+	}
+	Chassis_Brake();
+	Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+TurnAngle,getAngleZ(),30);
+	Chassis_DriveDistance_Blocking(is_Gyro,15,Gyro_Speed,getAngleZ(),0);
+	Chassis_Brake(); 
+	Chassis_DriveDistance_Blocking(is_Gyro,19,-Gyro_Speed,getAngleZ(),0);
+	Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-TurnAngle,getAngleZ(),30);
+	Chassis_MotorControl(is_Line,15,15,0);
+	
+	nodes.nowNode.function = 0;
+	cross_event |= CROSS_EVENT_ARRIVED;
+}
 
 
 
