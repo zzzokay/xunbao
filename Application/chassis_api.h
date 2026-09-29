@@ -228,7 +228,22 @@ void Chassis_OverrideGyroPid(float kp, float ki, float kd, float gyroSpeedMax);
  */
 void Chassis_RestoreGyroPid(void);
 
-void Chassis_Turn_By_StopGyro_Blocking(float target_angle, float current_angle, float turn_speed_max);
+/* ===== 原地转向“放手”判据：固定容差 + 超时兜底 =====
+ * 等待循环 Chassis_TurnToAngle_Blocking() 的出路只有两条：
+ *   ① 角度到位：|目标角 - 当前角| <= 固定容差 2.0 度（与 turn.c: Turn_Angle_Base() 的判据同源，见 chassis_api.c 的 TURN_TOL_RELEASE）
+ *   ② 超时兜底：等待超过 timeout_ms 仍未进容差 ⇒ 强制放手，并打 [HANG] turn timeout（带实测耗时）
+ * 为什么要有 ②：若物理上到不了 2 度（静摩擦 > Turn_Angle_Base 死区补偿的固定 ±7 输出 / 车被顶住 /
+ *   getAngleZ() 读数卡住），只靠 ① 就是静止死等 —— 轮子不动、不出声、串口全空，事后无法定位。
+ * ⚠️ 容差是**固定值、不是形参**（历史 `TURN_TOL_DEFAULT` / `TURN_TOL_UPRIGHT` 已删）：放宽它会让
+ *   **每一次**转向都留下 ≈容差 的朝向偏差（直行 15cm 横向偏 ≈ 15*sin(容差)），比“只在卡住时触发”的超时更亏。
+ * ⚠️ 超时只是退出等待循环，**不会**让电机停 —— 靠调用方紧接着切模式/停车来接管
+ *   （do_Upright 后面紧跟 is_Gyro 直行 / is_Line；Nav_TurnAndAdvance 下一拍 Nav_SegmentInit 切 is_Line）。
+ * 调法：正常 90 度转 < 1.5s、180 度 < 3s ⇒ 超时值要留余量，别让正常转向也触发；
+ *   现场跑一次看串口打的实测耗时，再按实测调这个值（唯一超时宏，24 处调用点共用）。 */
+#define TURN_TIMEOUT_DEFAULT  2500u   /* 全部 24 处转向的超时(ms)：正常永不触发，仅卡住时兜底 */
+
+
+void Chassis_Turn_By_StopGyro_Blocking(float target_angle, float current_angle, float turn_speed_max, uint32_t timeout_ms);
 
 void Chassis_Turn360_Blocking(void);
 

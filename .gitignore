@@ -1,0 +1,14 @@
+# Python 编译缓存（运行时再生，不进版本库）
+__pycache__/
+*.pyc
+
+# 临时目录 / 中间产物
+.pip-tmp/
+_battest_tmp/
+
+# 编辑器自测/冒烟测试留下的沙箱目录（跑完 _guismoke.py / _selftest.py 会再生）
+地图修改上位机/map_editor/_smoke_*/
+地图修改上位机/map_editor/_pt_*/
+
+# 说明：AI 的诊断脚本进 地图修改上位机/tools/，过程产物进 地图修改上位机/reports/；
+#       一次性垃圾（.bak / __pycache__ / 临时 patch 脚本）用完即删，不提交。

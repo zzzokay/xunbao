@@ -186,7 +186,7 @@ u8 getNextConnectNode(u8 nownode,u8 nextnode)
 /* 兜底停车：查找路线失败直接死停车（打印出错节点对，方便定位写错的节点） */
 void Route_Error_Stop(u8 from, u8 to)
 {
-	printf("ROUTE ERROR: no connection %d -> %d, STOP!\r\n", from, to);
+	printf("[HARD-STOP] ROUTE ERROR: no connection %d -> %d\r\n", from, to);
     send_play_specified_command(33);
 	CarBrake_Stop();   /* 卡死停车：内部 while(1) 持续刹车，不返回 */
        /* 播报“路线错误” */
@@ -195,7 +195,7 @@ void Route_Error_Stop(u8 from, u8 to)
 
 
 /* ============ 转弯前补偿距离：实测表 + "能算就算"公式 ============
- * 背景与验证见 project_reference.md §14、项目讲解文档/转弯补偿_能算就算方案.md
+ * 背景与验证见 project_reference.md §14、地图修改上位机/analyze/reports/转弯补偿_能算就算方案.md
  *
  * 结论：这一列历史上同时表达了两件事 ——
  *   ① 真·转弯几何 Δ = L(1-cosφ) + d(判据)（L = 旋转中心→传感器板中心纵向距离 ≈19cm）
@@ -236,7 +236,7 @@ static const struct { u8 last, now, next; float dist; } kTurnTbl[] = {
 	{ B8, N9, C3, 0 },
     { B11, C4, N20, 19 },
 	{ N10, N9, B9, 48 },
-	{ B2, N1, P1, 30 },
+	{ B2, N1, P1, 35 },
 };
 /* 编译期护栏：kTurnTbl 里的节点号不能超过实际建表的节点数（写错节点号只会在车上才发现）。
  * 50 = map.h 里 enum MapNode 的真实成员数（C1/C2 是注释状态不占编号），
@@ -527,7 +527,7 @@ static void Nav_TurnAndAdvance(void)
                 Chassis_DriveDistance_Blocking(is_Gyro, forwardDist, Stop_T_Speed, getAngleZ(), 0);
                 CarBrake();
                 //转弯
-                Chassis_Turn_By_StopGyro_Blocking(nodes.nextNode.angle, getAngleZ(), 35.0f);
+                Chassis_Turn_By_StopGyro_Blocking(nodes.nextNode.angle, getAngleZ(), 35.0f, TURN_TIMEOUT_DEFAULT);
             }
             //陀螺仪不停车转弯
             else

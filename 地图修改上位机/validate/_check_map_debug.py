@@ -16,7 +16,7 @@
   4) 生成的 route 相邻节点在边表里**有向连通**（执行层可解析），且 route[0]/nowNode 不重复；
   5) 直接对 `Mission/config.h` 的**当前值**跑一遍，报告当前配置会生成什么路线。
 
-用法（仓库根）：python3 scripts/validate/_check_map_debug.py
+用法（仓库根）：python3 地图修改上位机/validate/_check_map_debug.py
 exit：0=全部通过，1=有差异
 """
 import os, re, sys

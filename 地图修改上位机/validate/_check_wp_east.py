@@ -19,7 +19,7 @@ _check_wp_east.py — 过门后（东区）必经点"精简 vs 全锚点"等价�
             ⚠️ 只删 C9/N20 而不做该交接修正 → 平台推进时 nowNode/nextNode 错位 →
                getNextConnectNode 找不到边 → Route_Error_Stop 死停车（状态机仿真 4/4 复现）。
 
-用法：python3 scripts/validate/_check_wp_east.py
+用法：python3 地图修改上位机/validate/_check_wp_east.py
 依赖：_weight_calib.py（同目录，提供 parse_graph/build_adj/plan_via_waypoints/NODE_IDX）
 注意：⚠️ 这些"冗余"结论是在**当前权重模型**下成立的（NAV_W_TURN / 障碍表 / 门惩罚）。
       动权重后必须重跑本脚本 + _weight_calib.py，否则可能悄悄改路。

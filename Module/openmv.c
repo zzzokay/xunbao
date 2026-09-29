@@ -24,6 +24,8 @@ void Open_COLOR_R()
 	uint8_t retry = 3;
 	while(retry--) {
 		HAL_UART_Transmit(&huart6, cmd, sizeof(cmd), 100);
+		/* 满1字节后HAL会自动关闭本口接收；若本次发送把它错过，这里补回来（幂等，已在接收则返回BUSY） */
+		HAL_UART_Receive_IT(&huart6, (uint8_t *)&Maxicam_Rx, 1);
 		HAL_Delay(20);
 		if(	open_COLOR_R_mode_sign==0)  break;
 		HAL_Delay(30);
@@ -41,6 +43,8 @@ void Open_COLOR_L()
 	uint8_t retry = 3;
 	while(retry--) {
 		HAL_UART_Transmit(&huart6, cmd, sizeof(cmd), 100);
+		/* 满1字节后HAL会自动关闭本口接收；若本次发送把它错过，这里补回来（幂等，已在接收则返回BUSY） */
+		HAL_UART_Receive_IT(&huart6, (uint8_t *)&Maxicam_Rx, 1);
 		HAL_Delay(20);
 		if(open_COLOR_L_mode_sign == 0) break;
 		HAL_Delay(30);

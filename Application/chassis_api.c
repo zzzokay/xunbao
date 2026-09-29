@@ -403,13 +403,37 @@ float Chassis_GetMileage(void)
 }
 
 // 封装等待逻辑，避免 map.c 到处都是 while(fabsf) 循环
-static  void Chassis_TurnToAngle_Blocking(float target_angle, float origin_angle, float wait_ratio)
+/* 原地转向“放手”的到位容差：固定 2.0 度，**不是形参**。
+   ⚠️ 必须与 turn.c: Turn_Angle_Base() 内部的 2.0f 判据保持一致 —— 两边同源（都用 need2turn），
+      否则会出现“等待循环说到位、Turn_Angle_Base 说没到”的错位。改这里就要同步改 turn.c。 */
+#define TURN_TOL_RELEASE   2.0f
+
+static  void Chassis_TurnToAngle_Blocking(float target_angle, float origin_angle, float wait_ratio, uint32_t timeout_ms)
 {
     // 调用实际控制（如果需要发送给底层状态机的话）
-    while (fabsf(need2turn(target_angle, getAngleZ())) > 2.0f)
+    uint32_t wait_cnt = 0;   /* 仅用于打印证据，不参与任何判断 */
+    while (fabsf(need2turn(target_angle, getAngleZ())) > TURN_TOL_RELEASE)
     {
         vTaskDelay(2); // RTOS 延时交出 CPU 权限
         Cross_getline(&Cross_Scaner);
+        /* 全工程最安静的等待点：曾无超时、无打印 —— 一旦 getAngleZ() 进不了目标 ±TURN_TOL_RELEASE
+           （机械顶住 / 静摩擦推不动 / IMU 读数卡住），车会静止、不出声、串口全空。
+           到位容差固定 TURN_TOL_RELEASE(2.0 度)，超时由 timeout_ms 兜底。
+           卡住 ≥1s 才打印（正常转弯 <1.5s ⇒ 正常路径零输出）；每 5s 再报一次。*/
+        if (++wait_cnt >= 500u && (wait_cnt - 500u) % 2500u == 0u)
+            printf("[HANG] turn stuck need=%.1f tol=%.1f tgt=%.1f now=%.1f origin=%.1f ratio=%.2f\r\n",
+                   need2turn(target_angle, getAngleZ()), TURN_TOL_RELEASE, target_angle, getAngleZ(), origin_angle, wait_ratio);
+
+        /* 超时兜底：wait_cnt*2 ≈ 已等待 ms（沿用上面“1 拍 ≈ 2ms”的口径）。
+           触发即放手 —— 电机不会自己停，靠调用方紧接着切模式/停车接管（见 chassis_api.h 注释）。
+           timeout_ms = 0 表示不启用（旧行为）。 */
+        if (timeout_ms != 0u && (wait_cnt * 2u) >= timeout_ms)
+        {
+            printf("[HANG] turn timeout %ums need=%.1f tol=%.1f tgt=%.1f now=%.1f\r\n",
+                   (unsigned int)(wait_cnt * 2u),
+                   need2turn(target_angle, getAngleZ()), TURN_TOL_RELEASE, target_angle, getAngleZ());
+            break;
+        }
         if (Cross_Scaner.lineNum == 1 && ((Cross_Scaner.detail & 0x180) != 0) &&
             (fabsf(need2turn(target_angle, getAngleZ())) < fabsf(need2turn(target_angle, origin_angle)) * wait_ratio))
         {
@@ -560,7 +584,7 @@ void Chassis_Turn_By_LeftLine_Blocking(float target_angle, float current_angle, 
     
     Chassis_SetTrackMode(TRACK_LEFT_EDGE); // 设置左边缘跟踪，忽略右侧
 
-    Chassis_TurnToAngle_Blocking(target_angle, current_angle, 0.25f);
+    Chassis_TurnToAngle_Blocking(target_angle, current_angle, 0.25f, TURN_TIMEOUT_DEFAULT);
     
     Chassis_SetTrackMode(TRACK_ALL); // 恢复默认模式，重新检测左右两侧
 
@@ -573,7 +597,7 @@ void Chassis_Turn_By_RightLine_Blocking(float target_angle, float current_angle,
 
     Chassis_SetTrackMode(TRACK_RIGHT_EDGE); // 设置右边缘跟踪，忽略左侧
 
-    Chassis_TurnToAngle_Blocking(target_angle, current_angle, 0.25f);
+    Chassis_TurnToAngle_Blocking(target_angle, current_angle, 0.25f, TURN_TIMEOUT_DEFAULT);
     
     Chassis_SetTrackMode(TRACK_ALL); // 恢复默认模式，重新检测左右两侧
 
@@ -581,7 +605,7 @@ void Chassis_Turn_By_RightLine_Blocking(float target_angle, float current_angle,
 
 }
 //用之前先停车，turn_speed_max 控制转弯最大角速度（传入 Chassis_OverrideTurnPid）
-void Chassis_Turn_By_StopGyro_Blocking(float target_angle, float current_angle, float turn_speed_max)
+void Chassis_Turn_By_StopGyro_Blocking(float target_angle, float current_angle, float turn_speed_max, uint32_t timeout_ms)
 {
     //如果没停车
     if(fabsf(motor_all.Lspeed) > 1.0f || fabsf(motor_all.Rspeed) > 1.0f)
@@ -595,7 +619,7 @@ void Chassis_Turn_By_StopGyro_Blocking(float target_angle, float current_angle, 
 
     Chassis_SetMode(is_Turn);//进入转弯模式
 
-    Chassis_TurnToAngle_Blocking(target_angle, current_angle, 0.01f);
+    Chassis_TurnToAngle_Blocking(target_angle, current_angle, 0.01f, timeout_ms);
 
     Chassis_RestoreTurnPid();
 }
@@ -622,7 +646,7 @@ void Chassis_Turn_By_Gyro_Blocking(float target_angle, float current_angle, floa
 
     Chassis_SetMode(is_Gyro); // 进入陀螺仪转弯模式
 
-    Chassis_TurnToAngle_Blocking(target_g, current_angle, 0.2f);
+    Chassis_TurnToAngle_Blocking(target_g, current_angle, 0.2f, TURN_TIMEOUT_DEFAULT);
 
     Chassis_RestoreGyroPid();
 
@@ -703,7 +727,9 @@ void Chassis_Periodic_Update_5ms(void)
     {
         CarBrake();
         send_play_specified_command(31);    
-        //printf("ROLL OVER! roll=%.1f basic_r=%.1f, emergency stop!\n", imu.roll, basic_r);
+        /* 现场排查用：静默死停会让"卡在哪一步"完全无从判断，这里必须留一条串口痕迹 */
+        printf("[PROTECT] ROLL-STOP roll=%.1f basic_r=%.1f pitch=%.1f\r\n",
+               imu.roll, basic_r, imu.pitch);
         while (1);
     }
 
@@ -786,7 +812,10 @@ void Chassis_Periodic_Update_5ms(void)
                     
                     CarBrake(); // 紧急刹车
                     send_play_specified_command(30);
-                    //printf("Line lost! Emergency brake activated.\n");
+                    /* 30 号语音没有录音 ⇒ 现场"无声停住"。这里补串口痕迹，
+                       下次跑车 [PROTECT] LINE-LOST-STOP 一出现即可确认是丢线保护。*/
+                    printf("[PROTECT] LINE-LOST-STOP ledNum=%d detail=0x%04X Cspeed=%.0f\r\n",
+                           Scaner.ledNum, Scaner.detail, motor_all.Cspeed);
                     while(1){};
                 }
             }
@@ -808,6 +837,8 @@ void Chassis_Periodic_Update_5ms(void)
             chassis.stall_protect_enabled = 0;
             CarBrake();
             send_play_specified_command(33);
+            printf("[PROTECT] PWM-OVER-STOP L0=%.0f L1=%.0f R0=%.0f R1=%.0f\r\n",
+                   motor_L0.output, motor_L1.output, motor_R0.output, motor_R1.output);
             while (1);
         }
     }
@@ -836,6 +867,8 @@ void Chassis_Periodic_Update_5ms(void)
                 chassis.stall_protect_enabled = 0;
                 CarBrake();
                 send_play_specified_command(33);
+                printf("[PROTECT] STALL-STOP motor=%d out=%.0f tgt=%.0f\r\n",
+                       i, motors[i]->output, motors[i]->target);
                 while (1);
             }
         }
@@ -846,8 +879,16 @@ void Chassis_Periodic_Update_5ms(void)
 void Want2Go(float Dis)
 {
 	float num = motor_all.Distance;
+	uint32_t stuck = 0;   /* 仅用于打印证据：连续不涨里程的 2ms 计数，不改变等待行为 */
 	while (fabsf(motor_all.Distance - num) < Dis)
+	{
+		if (stuck < 0x80000000u) stuck++;
+		/* 连续约 1.5s(750×2ms) 里程不涨 ⇒ 轮子没转 / 被顶住：打印一次现场快照后继续等 */
+		if (stuck == 750u)
+			printf("[HANG] Want2Go no-move Dis=%.1f moved=%.1f L0=%.1f R0=%.1f mode=%d ledNum=%d\r\n",
+			       Dis, motor_all.Distance - num, motor_L0.measure, motor_R0.measure, PIDMode, Scaner.ledNum);
 		vTaskDelay(2);
+	}
 }
 
 
@@ -906,6 +947,8 @@ void gradual_cal(float *gradual, float target, float increment1, float increment
 void CarBrake_Stop(void)
 {
 	//buzzer_on();
+	/* 这是全工程唯一"不出声就停死"的停车原语：调用点必须自带原因打印 */
+	printf("[HARD-STOP] CarBrake_Stop entered (reason tag printed by caller)\r\n");
 	while(1)
 	{
 		Chassis_Brake();

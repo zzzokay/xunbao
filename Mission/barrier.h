@@ -46,7 +46,8 @@ void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
 #define NO_PASS       1   /* 黑：不能过 */
 
 
-extern uint8_t treasure;
+extern uint8_t treasure;		/* 宝物平台编号（线索算出的"该去哪个平台"，≠已取宝） */
+extern uint8_t treasure_taken;	/* 1 = 宝藏已取到手（Stage_CollectTreasure 置位，取宝门控用） */
 
 /*调试：预设5个门颜色（无传感器时）*/
 

@@ -225,7 +225,8 @@ static uint8_t Stage_DetectedRamp(float distance ,float *reset_angle)
 
 void Stage_Correct(float back_distance){
 	uint8_t state =0;
-	uint16_t break_time = 0;	// case2 无线形重试计数，防卡死
+	uint16_t break_time = 0,stable_time = 0;	// case2 无线形重试计数，防卡死
+	
 	Chassis_DriveDistance_Blocking(is_Gyro, back_distance, -GoStage_Speed, nodes.nextNode.angle, 0);
 	Chassis_MotorControl(is_Gyro, GoStage_Speed, GoStage_Speed, nodes.nextNode.angle);
 	while(state!=3)
@@ -243,9 +244,22 @@ void Stage_Correct(float back_distance){
 		case 1:
 			if((Cross_Scaner.ledNum<15))
 			{
-				state = 2;
-				vTaskDelay(10);
-				CarBrake();
+				if(Cross_Scaner.ledNum<=3){stable_time++;}
+				if(stable_time>=10)
+				{
+					if(Cross_Scaner.ledNum>=1)
+					{
+						state = 2;
+						vTaskDelay(10);
+						CarBrake();
+					}
+					else
+					{
+						state = 0;
+						stable_time = 0;
+					}
+				}
+						
 			}
 			break;
 		case 2:
@@ -254,36 +268,36 @@ void Stage_Correct(float back_distance){
 			{
 				send_play_specified_command(33);
 				Chassis_DriveDistance_Blocking(is_Gyro, 10, -GoStage_Speed, getAngleZ(), 0);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+30, getAngleZ(), 20.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+30, getAngleZ(), 20.0f, TURN_TIMEOUT_DEFAULT);
 				Chassis_DriveDistance_Blocking(is_Gyro, 12, GoStage_Speed, getAngleZ(), 0);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-30, getAngleZ(), 20.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-30, getAngleZ(), 20.0f, TURN_TIMEOUT_DEFAULT);
 				state = 3;
 			}
 			else if(Cross_Scaner.detail & 0x0007)
 			{
 				send_play_specified_command(33);
 				Chassis_DriveDistance_Blocking(is_Gyro, 10, -GoStage_Speed, getAngleZ(), 0);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-30, getAngleZ(), 20.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-30, getAngleZ(), 20.0f, TURN_TIMEOUT_DEFAULT);
 				Chassis_DriveDistance_Blocking(is_Gyro, 12 , GoStage_Speed, getAngleZ(), 0);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+30, getAngleZ(), 20.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+30, getAngleZ(), 20.0f, TURN_TIMEOUT_DEFAULT);
 				state = 3;
 			}
 			else if(Cross_Scaner.detail & 0x1C00)
 			{
 				send_play_specified_command(33);
 				Chassis_DriveDistance_Blocking(is_Gyro, 10, -GoStage_Speed, getAngleZ(), 0);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+15, getAngleZ(), 20.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+15, getAngleZ(), 20.0f, TURN_TIMEOUT_DEFAULT);
 				Chassis_DriveDistance_Blocking(is_Gyro, 12, GoStage_Speed, getAngleZ(), 0);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-15, getAngleZ(), 20.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-15, getAngleZ(), 20.0f, TURN_TIMEOUT_DEFAULT);
 				state = 3;
 			}
 			else if(Cross_Scaner.detail & 0x0038)
 			{
 				send_play_specified_command(33);
 				Chassis_DriveDistance_Blocking(is_Gyro, 10, -GoStage_Speed, getAngleZ(), 0);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-15, getAngleZ(), 20.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-15, getAngleZ(), 20.0f, TURN_TIMEOUT_DEFAULT);
 				Chassis_DriveDistance_Blocking(is_Gyro, 12, GoStage_Speed, getAngleZ(), 0);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+15, getAngleZ(), 20.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+15, getAngleZ(), 20.0f, TURN_TIMEOUT_DEFAULT);
 				state = 3;
 			}
 			// else if(Cross_Scaner.detail & 0x1E00)
@@ -423,7 +437,7 @@ static void Arrived_Stage(void)
 	case P8: send_play_specified_command(14); break;
 	default: break;
 	}
-	Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 180, getAngleZ(), 20.0f);
+	Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 180, getAngleZ(), 20.0f, TURN_TIMEOUT_DEFAULT);
 	Robot_Work(LARM, DOWN);
 	Robot_Work(RARM, DOWN);
 }
@@ -624,7 +638,7 @@ void Stage_Home(void)
 			break;
 
 		case P2_TURN:
-			Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 180, getAngleZ(),20.0f);
+			Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 180, getAngleZ(),20.0f, TURN_TIMEOUT_DEFAULT);
 			CarBrake();
 			state = P2_DONE;
 			break;
@@ -1134,12 +1148,20 @@ void Barrier_WavedPlate(float lenght)
 			break;
 
 		default:
-			Chassis_RestoreGyroPid();
 			state = WP_DONE;
 			break;
 		}
 		vTaskDelay(2);
 	}
+
+	/* ⚠️ 出板必须还原 gyro PID：
+	 *   原先唯一的 Chassis_RestoreGyroPid() 挂在上面"不可达"的 default: 分支上，
+	 *   正常出口 WP_APPROACH→WP_DRIVE→WP_DONE 永不还原，
+	 *   (4,0,50,50) 与 GyroG_speedMax=50 会一路泄漏到后面的动作 ——
+	 *   回程 C7→B10 长波动板之后紧接 B10→N14 直立景点 do_Upright()，
+	 *   其中 Go_Angle 驱动的两段陀螺直行(15 / -19cm)吃的就是这组参数。
+	 *   与 Barrier_Hill / Sword_Mountain / South_Pole 统一：循环外还原。*/
+	Chassis_RestoreGyroPid();
 
 	/*出板清理*/
 	nodes.nowNode.function = 0;
@@ -1287,7 +1309,7 @@ void QQB_1(void)
 			{
 				Chassis_ClearMileage();	
 				CarBrake();	
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()>0?90:-90, getAngleZ(), 30.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()>0?90:-90, getAngleZ(), 30.0f, TURN_TIMEOUT_DEFAULT);
 				is_emergency=1;
 				Cross_getline(&Cross_Scaner);				
 				state = QQB_GYRO;
@@ -1311,9 +1333,9 @@ void QQB_1(void)
 				is_emergency++;
 				send_play_specified_command(33);
 				send_play_specified_command(33);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 20, getAngleZ(), 15.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 20, getAngleZ(), 15.0f, TURN_TIMEOUT_DEFAULT);
 				Chassis_DriveDistance_Blocking(is_Gyro, 12, -SPEED0, getAngleZ(), 0);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 20, getAngleZ(), 15.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 20, getAngleZ(), 15.0f, TURN_TIMEOUT_DEFAULT);
 				Chassis_DriveDistance_Blocking(is_Gyro, 23, SPEED0, getAngleZ(), 0);
 			}
 			else if ((Cross_Scaner.detail & 0x0038)&&is_emergency==1)
@@ -1321,18 +1343,18 @@ void QQB_1(void)
 				is_emergency++;
 				send_play_specified_command(33);
 				send_play_specified_command(33);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 20, getAngleZ(), 15.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 20, getAngleZ(), 15.0f, TURN_TIMEOUT_DEFAULT);
 				Chassis_DriveDistance_Blocking(is_Gyro, 12, -SPEED0, getAngleZ(), 0);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 20, getAngleZ(), 15.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 20, getAngleZ(), 15.0f, TURN_TIMEOUT_DEFAULT);
 				Chassis_DriveDistance_Blocking(is_Gyro, 23, SPEED0, getAngleZ(), 0);
 			}
 			else if ((Cross_Scaner.detail & 0xF000)&&is_emergency==1)
 			{	
 				is_emergency++;
 				send_play_specified_command(33);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 10, getAngleZ(), 15.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 10, getAngleZ(), 15.0f, TURN_TIMEOUT_DEFAULT);
 				Chassis_DriveDistance_Blocking(is_Gyro, 12, -SPEED0, getAngleZ(), 0);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 10, getAngleZ(), 15.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 10, getAngleZ(), 15.0f, TURN_TIMEOUT_DEFAULT);
 				Chassis_DriveDistance_Blocking(is_Gyro, 23, SPEED0, getAngleZ(), 0);
 				
 			}
@@ -1340,9 +1362,9 @@ void QQB_1(void)
 			{			
 				is_emergency++;
 				send_play_specified_command(33);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 10, getAngleZ(), 15.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() - 10, getAngleZ(), 15.0f, TURN_TIMEOUT_DEFAULT);
 				Chassis_DriveDistance_Blocking(is_Gyro, 12, -SPEED0, getAngleZ(), 0);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 10, getAngleZ(), 15.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ() + 10, getAngleZ(), 15.0f, TURN_TIMEOUT_DEFAULT);
 				Chassis_DriveDistance_Blocking(is_Gyro, 23, SPEED0, getAngleZ(), 0);
 				
 			}
@@ -1375,7 +1397,7 @@ void QQB_1(void)
 				vTaskDelay(300);	
 				while(imu.pitch <= basic_p-40){vTaskDelay(2);}	
 				vTaskDelay(100);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()>0?90:-90, getAngleZ(), 15.0f);
+				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()>0?90:-90, getAngleZ(), 15.0f, TURN_TIMEOUT_DEFAULT);
 				Chassis_RestoreGyroPid();
 				Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ());	
 				while(imu.pitch <= basic_p-20){vTaskDelay(2);}		
@@ -1533,7 +1555,7 @@ static NODE door_retreat(uint8_t a, uint8_t b, float dis)
 	if (idx == ROUTE_NOT_FOUND) return (NODE){0};  /* 兜底：找不到，返回全零结构体 */
 	NODE newNode = Node[idx];
 	Chassis_Brake();
-	Chassis_Turn_By_StopGyro_Blocking(newNode.angle, getAngleZ(), 30.0f);
+	Chassis_Turn_By_StopGyro_Blocking(newNode.angle, getAngleZ(), 30.0f, TURN_TIMEOUT_DEFAULT);
 	return newNode;  /* 返回目标节点状态 */
 }
 /*看红绿灯 — 状态机*/
@@ -1548,10 +1570,19 @@ void door()
 	else if(nodes.lastNode.nodenum == N10 && nodes.nowNode.nodenum == N3){state = DOOR_D5_BACK;}	/* 回家过D5: N10→N3 */
 
 
-	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
+	Chassis_MotorControl(is_Line, 15, 15, 0);
 
-	while (Scaner.ledNum < 8)
-		vTaskDelay(2);
+	{
+		/* 等门口斑马线的 8 灯：无超时。约 4s(2000×2ms) 仍不足则打印一次证据，不改变等待行为 */
+		uint32_t door_wait = 0;
+		while (Scaner.ledNum < 8)
+		{
+			if (++door_wait == 2000u)
+				printf("[HANG] door wait-ledNum>=8 state=%d ledNum=%d detail=0x%04X\r\n",
+				       state, Scaner.ledNum, Scaner.detail);
+			vTaskDelay(2);
+		}
+	}
 
 	if(state != DOOR_D5_BACK && state != DOOR_D4_BACK)
 	{
@@ -1573,6 +1604,8 @@ void door()
 		// 兜底：摄像头读不到颜色时按“不能通过”处理
 		pass_state = NO_PASS;
 	}
+	printf("[DOOR] state=%d last=%d now=%d read=%d\r\n",
+	       state, nodes.lastNode.nodenum, nodes.nowNode.nodenum, pass_state);
 
 	/*公共初始化*/
 	map.point = 0;
@@ -1656,6 +1689,7 @@ void door()
 		else if (door_pass[2] == NO_PASS)
 		{
 			// 兜底：D4读不到时停车，避免被当成蓝灯
+			printf("[HARD-STOP] barrier.c DOOR_D4 read NO_PASS ledNum=%d\r\n", Scaner.ledNum);
 			CarBrake_Stop();
 		}
 		else // ONE_WAY_PASS
@@ -1985,9 +2019,25 @@ void upright_Set()
 	upright_Set_node(B10,N14);
 }
 
+
+
 void do_Upright()
 {
 	float TurnAngle = 0;
+
+	/* 【取宝门控】一轮去程还没拿到宝藏（treasure==0）时不执行直立景点动作：
+	   东区入口边 N12->N16 的 func=View，取宝前就会经过它，此时应当只当普通节点直穿，
+	   动作留到"取宝后的回程"与"第二轮"再做（开关 UPRIGHT_NEED_TREASURE，见 config.h）。
+	   ⚠️ 这里只 return：不写 cross_event、不清 function —— 到达判定交回 ArriveDetect_task，
+	   与"这条边本来就没有景点"的行为一致。
+	   ⚠️ 故意不用 #if：宏名写错 / 头文件没包含时 #if 会**静默当 0**，护栏白写；
+	      写成运行期常量判断，宏没定义会直接编译报错。 */
+	if (UPRIGHT_NEED_TREASURE && treasure == 0)
+	{
+		printf("[UPRIGHT] skipped: treasure not taken yet\r\n");
+		return;
+	}
+
 	while(Scaner.ledNum < 5)
 		vTaskDelay(2);
 	Chassis_DriveDistance_Blocking(is_Line,19,15,0,0);
@@ -2001,12 +2051,20 @@ void do_Upright()
 		upright_Reset_node(C3,N14);
 		upright_Reset_node(B10,N14);
 	}
-	Chassis_Brake();
-	Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+TurnAngle,getAngleZ(),30);
+	CarBrake();
+	/* 现场排查用：目标是能分辨“停住”到底停在哪一步。
+	   4 条 [UPRIGHT] 与转向函数内部的 [HANG] turn stuck 配合：
+	   正常时前后句成对出现；只见前半句、没有 done ⇒ 就卡在该步。*/
+	printf("[UPRIGHT] turn#1 tgt=%.1f now=%.1f\r\n", getAngleZ()+TurnAngle, getAngleZ());
+	Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+TurnAngle,getAngleZ(),30, TURN_TIMEOUT_DEFAULT);
+	printf("[UPRIGHT] turn#1 done now=%.1f\r\n", getAngleZ());
 	Chassis_DriveDistance_Blocking(is_Gyro,15,Gyro_Speed,getAngleZ(),0);
 	Chassis_Brake(); 
 	Chassis_DriveDistance_Blocking(is_Gyro,19,-Gyro_Speed,getAngleZ(),0);
-	Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-TurnAngle,getAngleZ(),30);
+	printf("[UPRIGHT] turn#2 tgt=%.1f now=%.1f\r\n", getAngleZ()-TurnAngle, getAngleZ());
+	Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-TurnAngle,getAngleZ(),30, TURN_TIMEOUT_DEFAULT);
+	printf("[UPRIGHT] turn#2 done now=%.1f\r\n", getAngleZ());
+	CarBrake();
 	Chassis_MotorControl(is_Line,15,15,0);
 	
 	nodes.nowNode.function = 0;

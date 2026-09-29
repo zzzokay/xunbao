@@ -8,7 +8,7 @@
 """
 import os, re, math, sys, heapq, collections
 
-BASE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))   # 仓库根（脚本位于 scripts/validate/，上溯两级）
+BASE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))   # 仓库根（脚本位于 地图修改上位机/validate/，上溯两级）
 # 数据现为单一来源：map_message.c 的 NavEdgeTbl[]（自描述，含 from）。改读它。
 GRAPH_C = os.path.join(BASE, "Navigation", "map_message.c")
 

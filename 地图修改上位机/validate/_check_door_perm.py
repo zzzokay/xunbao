@@ -18,7 +18,7 @@ _check_door_perm.py — 门回程"边禁用 + 极简必经点"表驱动校验（
   [3] 改造前还能顺便核对：从 mission_planner.c 现存的 12 条数组字面量转录是否与 golden 一致
       （改造后数组已删，本项自动跳过并提示）
 
-用法：python3 scripts/validate/_check_door_perm.py
+用法：python3 地图修改上位机/validate/_check_door_perm.py
 依赖：_weight_calib.py（同目录，提供 parse_graph/build_adj/plan_via_waypoints/NODE_IDX 等）
 """
 import sys

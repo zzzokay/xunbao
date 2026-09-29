@@ -13,7 +13,7 @@
   3) 该代码块自身语法/类型合法（u8/uint8_t 混用在 Keil 下也编得过）。
 
 抽的是**真实源码文本**（不是手抄），所以 map.c 改了这里会自动跟着查。
-用法（仓库根）：python3 scripts/validate/_syntax_map_debug.py
+用法（仓库根）：python3 地图修改上位机/validate/_syntax_map_debug.py
 exit：0=通过或本机没有 arm-none-eabi-gcc（跳过），1=有编译错误
 """
 import os, re, shutil, subprocess, sys, tempfile
@@ -63,7 +63,8 @@ def main():
         "static void probe_map_debug_block(void)\n{\n" + body + "\n}\n"
     )
     # 临时目录放在仓库内（不用 tempfile.mkdtemp：Windows 下它的 0700 ACL 会让随后的写入失败），用完即删
-    tmpdir = os.path.join(BASE, "scripts", "validate", "_tmp_probe")
+    # ⚠️ 别再用仓库根的 scripts/validate/：那目录 2026-09 已移除，老路径会把空壳目录重新建回来
+    tmpdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_tmp_probe")
     os.makedirs(tmpdir, exist_ok=True)
     try:
         src = os.path.join(tmpdir, "probe_map_debug.c")

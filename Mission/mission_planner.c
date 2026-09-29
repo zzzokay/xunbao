@@ -77,6 +77,7 @@ static uint8_t plan_route_at(uint8_t offset, const u8 *waypoints, uint8_t waypoi
 
 	if (offset >= sizeof(route))
 	{
+		printf("[HARD-STOP] mp:plan_route_at offset overflow\r\n");
 		CarBrake_Stop();
 		return 0;
 	}
@@ -86,6 +87,7 @@ static uint8_t plan_route_at(uint8_t offset, const u8 *waypoints, uint8_t waypoi
 	if (written == 0)
 	{
 		route[offset] = 0xFF;
+		printf("[HARD-STOP] mp:plan_route_at no path found\r\n");
 		CarBrake_Stop();
 		return 0;
 	}
@@ -112,6 +114,7 @@ static uint8_t plan_treasure_return(uint8_t start)
 	case 5: target = P5; break;
 	case 6: target = P6; break;
 	default:
+		printf("[HARD-STOP] mp:plan_treasure_return treasure id invalid\r\n");
 		CarBrake_Stop();
 		return 0;
 	}
@@ -156,6 +159,7 @@ static uint8_t plan_treasure_return(uint8_t start)
 	}
 	else
 	{
+		printf("[HARD-STOP] mp:plan_treasure_return no door passable\r\n");
 		CarBrake_Stop();
 		return 0;
 	}
@@ -317,7 +321,10 @@ void update_route_at_door_for_stageAB(void)
 		(void)plan_route_at(0, wp, sizeof(wp) / sizeof(wp[0]));
 	}
 	else
+	{
+		printf("[HARD-STOP] mp:update_route_at_P7_* clue combo unmatched\r\n");
 		CarBrake_Stop();
+	}
 	return;
 #endif
 #if !USE_PLANNER_ROUTE
@@ -446,6 +453,7 @@ void get_newroute(void)
 		}
 		else
 		{
+			printf("[HARD-STOP] mp:return combo unmatched\r\n");
 			CarBrake_Stop();
 			return;
 		}
@@ -510,6 +518,7 @@ void get_newroute(void)
 		}
 		else
 		{
+			printf("[HARD-STOP] mp:round1 return combo unmatched\r\n");
 			CarBrake_Stop();
 			return;
 		}
@@ -580,6 +589,7 @@ void get_newroute(void)
 	}
 	else
 	{
+		printf("[HARD-STOP] mp:round2 combo unmatched\r\n");
 		CarBrake_Stop();
 	}
 #endif /* !USE_PLANNER_ROUTE */

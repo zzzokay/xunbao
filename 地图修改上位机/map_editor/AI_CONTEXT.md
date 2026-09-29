@@ -262,14 +262,14 @@ K=0.5 → 0 条违规；**K=0.63 → 1 条**（`C2→C1`）；K=0.884 → 3 条�
 
 ```bash
 # 在仓库根执行
-python scripts/map_editor/_selftest.py     # 期望：全部通过，exit 0
-python scripts/map_editor/_guismoke.py     # 期望：185 项 [OK] / 0 FAIL
+python 地图修改上位机/map_editor/_selftest.py     # 期望：全部通过，exit 0
+python 地图修改上位机/map_editor/_guismoke.py     # 期望：185 项 [OK] / 0 FAIL
 
 # 改 map_model.py 后额外跑（确认没碰坏既有工具链）
-python scripts/validate/_weight_calib.py   # 15/15
-python scripts/validate/_check_csr.py
-python scripts/validate/_check_map_debug.py
-python scripts/validate/_check_door_perm.py
+python 地图修改上位机/validate/_weight_calib.py   # 15/15
+python 地图修改上位机/validate/_check_csr.py
+python 地图修改上位机/validate/_check_map_debug.py
+python 地图修改上位机/validate/_check_door_perm.py
 ```
 
 **`_selftest.py` 覆盖**：解析（节点/边/悬空端点/重复 typedef）→ 往返零差异 → 宏求值 →
@@ -345,7 +345,7 @@ Delete 删边、校验面板、规划、6 类导出、节点增删/恢复、滚�
 ## 11. 数据来源与可追溯性
 
 - **出厂节点坐标**：`map_model.SEED_POSITIONS`（原图像素系），
-  来源是仓库既有的 `scripts/analyze/analyze_turn_comp_map_geom.py` 里的 `P{}` 像素表 + 换算。
+  来源是当时那份节点图像素几何分析里的 `P{}` 像素表 + 换算（该脚本已随过程产物于 2026-09-26 清理）。
 - **角度/长度真值**：只来自 `NavEdgeTbl[]` 与 `config.h`，**没有任何第二份数据源**。
 - **布局文件**：用户拖拽的结果，存 `Node.x/y` + 底图标定 + 约束设置；**不影响固件**。
-- 想要"程序算出来的路线"和固件一致 → 对照 `scripts/validate/_check_map_debug.py`。
+- 想要"程序算出来的路线"和固件一致 → 对照 `地图修改上位机/validate/_check_map_debug.py`。

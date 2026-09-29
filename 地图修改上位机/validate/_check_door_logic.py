@@ -17,7 +17,7 @@ _check_door_logic.py — 门逻辑 表驱动校验（主机侧，只读，不参
   3) D4 回程黑灯(N8→N3→退N5)：断言退到 N5 后回家路线的下一跳是 N4，且转角
      need2turn(N8→N5 航向, N5→N4 航向) 应为 +145°（路线与角度定义正确）。
 
-用法：python3 scripts/validate/_check_door_logic.py
+用法：python3 地图修改上位机/validate/_check_door_logic.py
 依赖：_weight_calib.py（同目录，提供 parse_graph/build_adj/plan_via_waypoints/need2turn 等）
 """
 import sys

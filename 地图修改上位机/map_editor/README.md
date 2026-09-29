@@ -1,4 +1,4 @@
-# scripts/map_editor/ — 地图图形化编辑器
+# 地图修改上位机/map_editor/ — 地图图形化编辑器
 
 > **一句话**：把固件里的地图（`Navigation/map.h` 的 `enum MapNode` + `Navigation/map_message.c`
 > 的 `NavEdgeTbl[]`）画成一张可拖拽的图，改完直接导出成 C 代码 —— 不用再手抠 124 行边表。
@@ -13,10 +13,10 @@
 
 ```bash
 # 在仓库根执行（Tkinter 是 Python 自带，无需装任何东西）
-python scripts/map_editor/map_editor.py
+python 地图修改上位机/map_editor/map_editor.py
 ```
 
-**更省事的办法：双击启动器**（在 `scripts/map_editor/` 目录里）
+**更省事的办法：双击启动器**（在 `地图修改上位机/map_editor/` 目录里）
 - `run_editor.bat` —— 双击就开，不弹命令行窗口
 - `run_editor_console.bat` —— 带窗口版，出错时能看到报错（排查用）
 
@@ -31,8 +31,8 @@ python scripts/map_editor/map_editor.py
 
 可选参数：
 ```bash
-python scripts/map_editor/map_editor.py --bg 寻宝地图/场地规则图.png
-python scripts/map_editor/map_editor.py --layout scripts/map_editor/layouts/default.json
+python 地图修改上位机/map_editor/map_editor.py --bg 寻宝地图/场地规则图.png
+python 地图修改上位机/map_editor/map_editor.py --layout 地图修改上位机/map_editor/layouts/default.json
 ```
 
 依赖：Python 3（自带 tkinter）。换底图/用 jpg 需要 `pillow`（本机已装 12.3.0）：
@@ -42,8 +42,8 @@ pip install pillow
 
 自检（不需要人看）：
 ```bash
-python scripts/map_editor/_selftest.py     # 解析/往返/导出/编辑/规划，全过 exit 0
-python scripts/map_editor/_guismoke.py     # 界面能建、能画、能选中、布局能存能读
+python 地图修改上位机/map_editor/_selftest.py     # 解析/往返/导出/编辑/规划，全过 exit 0
+python 地图修改上位机/map_editor/_guismoke.py     # 界面能建、能画、能选中、布局能存能读
 ```
 
 ---
@@ -151,7 +151,7 @@ python scripts/map_editor/_guismoke.py     # 界面能建、能画、能选中�
 右栏「**底图对齐**」面板的下拉框会列出 `寻宝地图/` 下所有图片，点「浏览…」可以选
 **任意目录的任意图片**（jpg 需要 pillow）。也可以用命令行：
 ```bash
-python scripts/map_editor/map_editor.py --bg D:\我的图.png
+python 地图修改上位机/map_editor/map_editor.py --bg D:\我的图.png
 ```
 
 ### 3.2 对齐（三种办法，任选）
@@ -273,19 +273,19 @@ python scripts/map_editor/map_editor.py --bg D:\我的图.png
 ### 目录约定
 
 ```
-scripts/map_editor/layouts/
+地图修改上位机/map_editor/layouts/
   default.json              <- 「保存布局」目标，启动自动载入
   layout_0907_1530.json     <- 「布局另存为」存的多套布局
   snapshots/                <- 每次保存前的自动快照（保留最近 30 份）
     default.20260913_012033.json
 ```
 
-命令行指定：`python scripts/map_editor/map_editor.py --layout <路径>.json`
+命令行指定：`python 地图修改上位机/map_editor/map_editor.py --layout <路径>.json`
 
 ### 分析你的布局
 
 ```bash
-python scripts/map_editor/analyze_layout.py
+python 地图修改上位机/map_editor/analyze_layout.py
 ```
 
 输出：挪动过哪些节点、位置精度（对照图上实测地标）、单位长度 K 的建议与违规边、
@@ -326,7 +326,7 @@ python scripts/map_editor/analyze_layout.py
 
 > 实测（**当前地图 109 条边**）：**104 条有反向边**，共 **52 条双向线段**；单向边只剩 **5 条**：
 > `N7→B8`、`B8→N9`、`B9→N7`、`N9→B9`、`N10→N12`。
-> （地图精简前的旧数据 124 边 / 114 有反向 / 67 线段 / 10 单向，见 `项目讲解文档/README.md` 修改日志。）
+> （地图精简前的旧数据 124 边 / 114 有反向 / 67 线段 / 10 单向。）
 
 **左栏下 = 路线规划**：
 
@@ -485,7 +485,7 @@ Navigation/map_message.h  <- NAV_EDGE_COUNT
 > ⚠️ 写回**只替换边表表体**，文件尾部的编译期检查（`NavEdgeTbl_size_check`）与说明注释**沿用原文件**。
 > 曾经因为把"自带尾部的导出块"整段拼进去，导致 `size_check` 变成两份、**每写回一次多一份**（已修，
 > `_guismoke.py` 有断言守着）。
-- **先自动备份**到 `scripts/map_editor/backups/<文件名>.<时间戳>.bak`；
+- **先自动备份**到 `地图修改上位机/map_editor/backups/<文件名>.<时间戳>.bak`；
 - 有 `error` 级校验问题时**拒绝写回**；
 - ⚠️ 写回后请 `git diff` 复核（本工程工作树常带未提交改动，见 project_reference §12.1）。
 
@@ -553,7 +553,7 @@ Navigation/map_message.h  <- NAV_EDGE_COUNT
 4. **底图会画到视野外**（它比节点范围大），属正常；适配是按节点包围盒算的。
 5. 「用节点反推最佳位置」对**非等比例**的原图只能拟合出平均最优（残差会偏大）；
    这时改用滑条手调，或把 `缩放 X`/`缩放 Y` 调成不同值。
-6. 写回固件后仍**必须**：跑 `scripts/validate/` 的 7 个脚本 → Keil V5.32 编译 0 error → 实车复核。
+6. 写回固件后仍**必须**：跑 `地图修改上位机/validate/` 的 8 个脚本 → Keil V5.32 编译 0 error → 实车复核。
 7. `S1 = 0`，而 `VIA_POINT=0` 是"不用途径点"哨兵 —— 所以 **S1 不能当途径点**（同 project_reference §9.6）。
 
 ---

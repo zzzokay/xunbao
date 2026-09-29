@@ -344,7 +344,13 @@ static void handle_mode_switch(uint8_t target_mode)
 		{
 			line_pid_obj = (struct P_pid_obj){0, 0, 0, 0, 0, 0, 0};
 			TC_speed = 0;
-			motor_all.Cspeed = 0;
+			/* 不清 motor_all.Cspeed（09-26 删掉原来那句）：Cspeed 是**调用方的意图**，
+			   由 Chassis_SetTargetSpeed 在进入 is_Line 时设好 —— Chassis_MotorControl 与
+			   Nav_SegmentInit 都是「先 Chassis_SetMode(is_Line) 再设速」。
+			   与上面的 Turn->Gyro 分支一致：迁移只清「离开模式」的渐变/给速状态。
+			   ⚠️ 曾清它 ⇒ 调用方刚设的速度被抹成 0：车静止、无声、串口全空，
+			      且边内里程不涨 ⇒ 导航事件永不触发（边内死锁）。
+			   护栏：进 is_Line 的路径必须紧跟一次设速。详见 项目讲解文档/README.md §2.16 */
 		}
 		else if (last_pid_mode == is_Turn && current_pid_mode == is_Gyro)
 		{

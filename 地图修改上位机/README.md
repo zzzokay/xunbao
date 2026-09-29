@@ -12,17 +12,21 @@
 ```
 地图修改上位机/
 ├── run_editor.bat          ← 启动编辑器（可复制到桌面）
-├── run_editor_console.bat  ← 带命令行窗口版（出错时看报错）
 ├── map_editor/             ← 编辑器主体
 │   ├── README.md           ← 使用说明
 │   ├── AI_CONTEXT.md       ← AI 参考文档
 │   ├── map_editor.py       ← 主程序
 │   ├── map_model.py        ← 核心模型
+│   ├── run_editor.bat / run_editor_console.bat  ← 启动器（带 / 不带控制台窗口两种）
 │   ├── layouts/            ← 保存的布局
 │   └── backups/            ← 写回固件时的自动备份
-├── validate/               ← 上真车前的校验脚本
-└── analyze/                ← 诊断/分析脚本
+├── validate/               ← 上真车前的校验脚本（改边/改门逻辑后必跑）
+├── tools/                  ← 可复用诊断脚本（按需跑；清单与用途见 tools/README.md）
+└── reports/                ← AI 过程产物（分析报告/方案/日志；可随时清空，平时不用看）
 ```
+
+> 本目录原先在仓库根 `scripts/` 下，后整体迁移到这里（见 git 提交"新增地图修改器"）。
+> `项目讲解文档/README.md` §9 里 2026-09-26 之前的日志条目仍写旧路径，实际路径以上表为准。
 
 ## 相关文件
 
