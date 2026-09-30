@@ -32,5 +32,8 @@
 
 编辑器读取/修改的固件文件：
 - `Navigation/map_message.c` — 边表 `NavEdgeTbl[]`
-- `Mission/config.h` — 宏定义（`LEN_*`、`ANGLE_*`、`DOOR_LEN_*`）
-- `Mission/map.h` — 节点枚举 `enum MapNode`
+- `Navigation/map.h` — 节点枚举 `enum MapNode`
+- `Mission/config.h` — 宏定义（`LEN_*`、`ANGLE_*`、`DOOR_LEN_*`、`TURN_CALC_ENABLE`）
+- `Navigation/map.c` — **转弯前补偿**两张表（`kTurnTbl[]` / `GetForwardDistanceBeforeGyroTurn`）
+  + 公式参数 `TURN_L_PIVOT` / `TURN_GATE_CM` / `TURN_D_*`。入口：编辑器左栏
+  「⟲ 转弯补偿…」（原理见 `项目讲解文档/project_reference.md` §14）

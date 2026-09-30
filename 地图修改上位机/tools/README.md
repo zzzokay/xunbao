@@ -13,7 +13,7 @@
 
 | 脚本 | 干什么 | 什么时候用 | 跑法 |
 |---|---|---|---|
-| `sim_route_bookkeeping.py` | 状态机仿真：逐跳复刻固件 `route[]` / `map.point` / `nodes` 的推进，每一步校验不变量 `route[map.point-1] == nodes.nextNode.nodenum`，破了就报第一次破的位置 | 怀疑**路线记账错位**（`Route_Error_Stop` 死停、车莫名停住）时第一个跑 | `python3 地图修改上位机/tools/sim_route_bookkeeping.py` |
+| `sim_route_bookkeeping.py` | 状态机仿真：逐跳复刻固件 `route[]` / `map.point` / `nodes` 的推进，每一步校验不变量 `route[map.point-1] == nodes.nextNode.nodenum`，破了就报第一次破的位置。**开机先读 `Mission/config.h` 的 `UPRIGHT_TOUR_ENABLE` 并对 `mission_planner.c` 自检**（三处 `S` 插点 / 开关取值 / `wp` 容量），对不上就报「镜像已过期」并 exit 1；另校验红线「`S1`/`S2` 不得排在宝物平台之前」 | 怀疑**路线记账错位**（`Route_Error_Stop` 死停、车莫名停住）时第一个跑；⚠️ **改了 `mission_planner.c` 的 `wp` 或 `config.h` 的开关之后必跑** | `python3 地图修改上位机/tools/sim_route_bookkeeping.py` |
 | `trace_round1.py` | 第一轮逐跳 trace：每跳打印 `edge / map.point / route[point-1] / nextNode / func` | 想知道"某一跳到底走的哪条边、func 是什么" | 直接运行 |
 | `trace_rounds.py` | 第一轮 + 第二轮逐跳 trace，标出 `View` / 门 / 波动板等关键 func 的落点 | 定位"经过某个关键点后卡住"（如 N14 直立景点） | 直接运行 |
 | `route_sim.py` | 只读镜像 `nav_planner.c` 的 Dijkstra + 门回程，按当前 `config.h` 场次算 `route[]`，并列出 N14 的进出边 | 想核对"规划器**应该**选出哪条路" | 直接运行 |
@@ -29,3 +29,6 @@
 - `_weight_calib.py` 顶部场地常量默认 `FIELD_COMP`，脚本会按 `Mission/config.h` 的真实场次覆盖；
   不同场地 `LEN_*` / `DOOR_LEN_*` 不同，选路结论可能相反 —— 别跳过这一步。
 - 2026-09-26 从 `analyze/` 与仓库根 `_battest_tmp/` 迁入，迁入时已修正脚本内的路径硬编码并逐个跑通（exit=0）。
+- ⚠️ **本目录脚本是「手抄镜像」，不会自动跟着 C 代码变**。`sim_route_bookkeeping.py` 已内置源同步自检
+  （读 `config.h` 开关 + 比 `mission_planner.c` 的插点，对不上 exit 1），`trace_rounds.py` 复用它所以也跟着同步；
+  其余脚本仍靠人工 —— **改 `wp` / 加开关之后，先跑 `sim_route_bookkeeping.py` 看自检过不过**。

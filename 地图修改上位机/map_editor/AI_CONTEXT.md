@@ -23,10 +23,10 @@
 
 | 文件 | 职责 | 改动风险 |
 |------|------|---------|
-| `map_model.py` | **核心（无 GUI）**：解析固件源码、数据模型、校验、Dijkstra、C 代码导出、出厂坐标 | 改这里**必须重跑** `_selftest.py`（有"往返零差异"护栏） |
+| `map_model.py` | **核心（无 GUI）**：解析固件源码、数据模型、校验、Dijkstra、C 代码导出、出厂坐标、**转弯补偿表（`map.c`）解析/覆盖度/写回** | 改这里**必须重跑** `_selftest.py`（有"往返零差异"护栏） |
 | `map_editor.py` | tkinter 界面：画布绘制/交互、面板、对话框、布局存取、写回固件 | 改这里重跑 `_guismoke.py` |
 | `_selftest.py` | 无界面自检：解析 / **往返一致** / 宏求值 / 导出格式 / 编辑 / 规划 | — |
-| `_guismoke.py` | 界面冒烟测试（185 项），**全程沙箱，绝不碰真实布局** | 见 §7 隔离规则 |
+| `_guismoke.py` | 界面冒烟测试（206 项），**全程沙箱，绝不碰真实布局 / 真实 `map.c`** | 见 §7 隔离规则 |
 | `analyze_layout.py` | 只读分析：位置精度、单位长度 K、角度一致性 | — |
 | `analyze_unit_length.py` | 只读分析：`图上px ÷ step` 分布，定 K 上界 | — |
 | `solve_missing_nodes.py` | 用边表角度反解"图上没画"的节点坐标（离线工具） | — |
@@ -42,6 +42,7 @@
   Navigation/map.h          -> parse_map_enum()      -> [Node(name,comment,index)]
   Navigation/map_message.c  -> parse_edge_table()    -> [Edge(from,to,flag,angle,step,speed,func,comment)]
   Mission/config.h          -> parse_config_macros() -> {宏名: 表达式}  （按 USE_FIELD 展开分支）
+  Navigation/map.c          -> parse_turn_tables()   -> 转弯补偿两张表 + TURN_* 宏 + 开关
                                    |
                                    v
                         MapModel（内存模型）
@@ -51,7 +52,13 @@
                                    |
                                    v
                   （可选）patch_firmware_dialog() 写回固件（先备份）
+                  （可选）turn_comp_dialog() 写回 map.c 的两张转弯补偿表（先备份）
 ```
+
+**转弯补偿单独一条线**（不在边表里、也不是所有编辑都整体重排）：`MapModel.turn` →
+`turn_coverage()`（地图里每个转弯当前生效多少 cm）/ `turn_table_status()`（表里这一行会不会生效）
+/ `splice_turn_tables()`（只替换三处：表1 表体、表2 函数体、`kTurnTbl_node_check` 护栏）。
+语义与参数可信度见 `项目讲解文档/project_reference.md` §14。
 
 **关键点：`Edge` 的 `flag/angle/step/speed/func` 都存"文本"**（如 `ANGLE_N3N8`、`LEN_B7C6/1`，
 甚至 `DOOR_LEN_N3N8/2`），求值走 `eval_c_expr(expr, macros)`。
@@ -212,6 +219,20 @@ K=0.5 → 0 条违规；**K=0.63 → 1 条**（`C2→C1`）；K=0.884 → 3 条�
    画布"画布显示"过滤（`ROUTE_VIEW_MODES` / `App.route_view`）**只影响绘制**，不改 `self.route`；
    `_route_split_ok()` 为假（路线未分色）时只看单段 ⇒ **一段都不画** + 状态栏说明，不许瞎画。
 
+14. **转弯补偿写回只能动三处，且"没编辑就不重排"**（`map_model.splice_turn_tables()`）：
+   `kTurnTbl[]` 表体 / `GetForwardDistanceBeforeGyroTurn()` 函数体 / `kTurnTbl_node_check` 表达式。
+   - **护栏 typedef 必须跟着表项重生成**：它把表里用到的节点名逐个列出、比 `< MAP_NODE_LIMIT`；
+     新增一个表里没有的节点却忘了改它，护栏就漏了那个节点（**编译照样过**，只在车上才发现写错节点号）。
+   - **`App._patch_turn_tables()` 先比对再写**：表项与源码逐项相同（`turn_rows_equal`）就整段跳过，
+     否则缩进归一化会让"点一次写回 = 一堆无意义 diff"。公式参数同样**只改真的变了的** `#define`。
+   - **写回不是幂等格式**：第一次带编辑写回会把整段表按统一格式重排（值不变）；
+     之后 `splice(parse(x)) == x` 是固定点（`_selftest` 第 12 节守着）。
+   - **分支判定是静态近似**：固件那条 `STOPTURN` 判据用陀螺实测航向 `getAngleZ()`；
+     表里"会不会生效"只能按边表角度算（`turn_branch()`），所以"停车转"档里混着"还得陀螺也偏够"的分支。
+     别把工具判的 'ok' 当成实车一定走这条 —— 与 §10 第 7 条一起看。
+   - **Tier2 的 d 由运行时 `arrive_method` 决定**（会残留上一次的值）⇒ 覆盖总览里公式档给的是
+     `值 min~max`，不是一个确定数；`TURN_CALC_ENABLE=1` 时公式是**静默生效**的。
+
 ---
 
 ## 7. 安全规则（血的教训，务必保持）
@@ -255,6 +276,10 @@ K=0.5 → 0 条违规；**K=0.63 → 1 条**（`C2→C1`）；K=0.884 → 3 条�
    `winfo_ismapped()`。
    顺带：**工具栏行宽要按 `minsize` 宽度（1200）判**，不是按当前窗口宽 —— 窗口能拉大，
    但缩到最小时溢出的行会把右侧控件挤到屏幕外（加「平台交换」到工具栏第 1 行就让该行变成 1254px）。
+10. **测试里绝不能写真实固件文件**：`map.c` 的转弯补偿写回路径靠"**改 `M.PATH_MAP_C` 指向沙箱副本
+   + 真实文件 SHA256 前后比对**"来测（`_guismoke.py` 的 turn 段）。别为了省事直接跑真写回 ——
+   本工程工作树里常年有用户未提交的 WIP，写错一次就找不回来了（§6 里那条 `git checkout --` 事故同理）。
+   注意 `M.PATH_MAP_C` 是**模块级变量**，测完必须在 `finally` 里还原。
 
 ---
 
@@ -263,7 +288,7 @@ K=0.5 → 0 条违规；**K=0.63 → 1 条**（`C2→C1`）；K=0.884 → 3 条�
 ```bash
 # 在仓库根执行
 python 地图修改上位机/map_editor/_selftest.py     # 期望：全部通过，exit 0
-python 地图修改上位机/map_editor/_guismoke.py     # 期望：185 项 [OK] / 0 FAIL
+python 地图修改上位机/map_editor/_guismoke.py     # 期望：206 项 [OK] / 0 FAIL
 
 # 改 map_model.py 后额外跑（确认没碰坏既有工具链）
 python 地图修改上位机/validate/_weight_calib.py   # 15/15
@@ -278,6 +303,8 @@ python 地图修改上位机/validate/_check_door_perm.py
 **第二轮 wp 巡游顺序与 `mission_planner.c` 的 `if (p6_first)…else…` 块源码对拍**（第 11 节）。
 
 **`_guismoke.py` 覆盖**：画布尺寸/缩放、**工具栏三行且不溢出**、底图载入、
+**转弯前补偿（两张表解析 / 覆盖总览分档 / 分支判定逐条对拍 / 写回幂等 + 只动三处 /
+真写回路径走沙箱副本 + 真实 `map.c` SHA256 不变 / 对话框四页签 / 画布高亮）**、
 布局保存/载入（沙箱 + 真实 SHA256 不变）、底图反推标定、拖动约束（引导线角度 =
 表里 angle + 偏移、矛盾时放开不吸附）、**点图形选边（命中区）**、**连线模式点两下建边**、
 Delete 删边、校验面板、规划、6 类导出、节点增删/恢复、滚轮缩放、
@@ -314,6 +341,8 @@ Delete 删边、校验面板、规划、6 类导出、节点增删/恢复、滚�
 | 改默认视图旋转 | `ROT_DEFAULT` | 0°=恒等；底图会跟着转 |
 | 改拖动约束 | `solve_drag_position()` / `_allowed_dirs()` / `DRAG_ANGLE_OFFSET` | 见 §4.3、§5；**角度判据两处要同源** |
 | **改新建边/算角度的规则** | `App._auto_edge_angle()`（`create_edge_quick()` / `calc_angle_geo()` 单选 / `_calc_angle_geo_batch()` 框选批量共用）；`calc_step_geo()` / `_calc_step_geo_batch()`；常量 `DRAG_ANGLE_OFFSET` / `ANGLE_ANCHOR_TOL` / `ANGLE_SNAP_TOL`；辅助 `_norm180` / `_angdiff` / `_snap90` | 见 §6.11。**必须写"边表约定"**（水平=0/180、竖直=±90），不能直接用图上几何角；**批量必须整批先算后写、批内互不锚定**（确定性，见 §6.11）；改完跑 `_guismoke` 的角度断言 |
+| **改转弯补偿表 / 公式参数（`map.c`）** | `map_model.parse_turn_tables()` / `turn_coverage()` / `turn_table_status()` / `turn_branch()` / `export_turn_*()` / `splice_turn_tables()` / `turn_rows_equal()`；界面 `App.turn_comp_dialog()` + `_patch_turn_tables()` + `_draw_turn_focus()` | 见 §6.14 与 §7.10：写回**只动三处**、护栏 typedef 要跟着重生成、没编辑就整段跳过；测试必须走沙箱副本（改 `M.PATH_MAP_C`）。改完跑 `_selftest` 第 12 节 + `_guismoke` 的 turn 段 |
+| **改「转弯补偿」对话框的页签/控件** | `App.turn_comp_dialog()`（`build_table_tab()` / `redraw_cov()` / `apply_consts()`） | 入口在**左栏「边显示」那一行**（不是工具栏 —— 那里宽度吃紧，见 §7.9）；`_guismoke` 有"入口 `winfo_ismapped()`"断言 |
 | 改出厂节点坐标 | `map_model.SEED_POSITIONS` / `MISSING_SEED` | 但**用户保存的布局优先级更高**，会覆盖它 |
 | **改障碍惩罚/成本模型** | `MapModel.OBS` / `NAV_W_TURN`（`map_model.py`） | ⚠️ 必须与 `nav_planner.c` 的 `NavObsPenalty[]` 一致，见 §6.7；`_selftest` 第 8 节守着 |
 | **改「线索路线」分支** | `map_model` 的 `p1_route` / `stageab_waypoints` / `stageab_enter_node` / `door_read_flow` / `door_back_flow` / `treasure_return_waypoints` / `door_return_home_waypoints` / `round2_waypoints`；UI 在 `map_editor._clue_route_sections`（**纯计算，无 Tk**）+ `plan_clue_route_dialog`（只搭界面） | 逐条镜像固件，见 §6.8/§6.9；改完跑 `_selftest` 第 9 节 + `_guismoke` 的线索检查。**别把计算塞回对话框里**，否则冒烟测试覆盖不到 |
@@ -339,6 +368,12 @@ Delete 删边、校验面板、规划、6 类导出、节点增删/恢复、滚�
 5. **`S1 = 0`** 而 `VIA_POINT=0` 是"不用途径点"哨兵 → `S1` 不能当途径点。
 6. 实际地图改动（切 `C9↔P7`、加 `C10`、挪 `P7` 等）**尚未做** —— 等拓扑确定；
    工具只保证"导出文本正确"，**不保证业务自洽**。
+7. **转弯补偿的"会不会生效"是静态结论**（只用边表角度）：固件那条 `STOPTURN` 判据依赖
+   陀螺实测航向 `getAngleZ()`，运行时才算得准。所以工具标 'ok' 的行**不等于**实车一定走这条；
+   `project_reference.md` §14.1 里那份手写的"死值清单"已经和当前源码对不上了，
+   **以编辑器/`_selftest` 从源码实时算出来的为准**。
+8. 覆盖总览里"生效值"是**模型口径**：Tier2 公式档给的是 `值 min~max`（d 取决于运行时
+   `arrive_method`，见 §6.14），不是实车实测值。任何补偿值最终都要实车复核。
 
 ---
 

@@ -236,7 +236,8 @@ static const struct { u8 last, now, next; float dist; } kTurnTbl[] = {
 	{ B8, N9, C3, 0 },
     { B11, C4, N20, 19 },
 	{ N10, N9, B9, 48 },
-	{ B2, N1, P1, 35 },
+	{ B2, N1, P1, 25 },
+    { B3, N2, P2, 25 },
 };
 /* 编译期护栏：kTurnTbl 里的节点号不能超过实际建表的节点数（写错节点号只会在车上才发现）。
  * 50 = map.h 里 enum MapNode 的真实成员数（C1/C2 是注释状态不占编号），

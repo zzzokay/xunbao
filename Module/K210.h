@@ -18,6 +18,12 @@ extern volatile uint32_t Maxicam_F3Mask;
 extern volatile uint32_t Maxicam_ColorWrites;
 extern volatile uint32_t Maxicam_Resends;
 
+/* 进模式确认重试次数 +「0x94 归属」观测（纯观测，不参与任何判定） */
+#define MAXICAM_OPEN_RETRY   3   /* 单次进模式的确认重试次数；跨轮的重发节奏由 barrier.c 的 MAIXCAM_RESEND_TICKS_* 决定 */
+extern volatile uint8_t  Maxicam_WaitMode;  /* 0=无 1=QR 2=OCR 3=COLOR_L 4=COLOR_R */
+extern volatile uint8_t  Maxicam_AckMode;   /* 最近一个 0x94 抵达时，正在等的是哪个模式 */
+extern volatile uint32_t Maxicam_AckCount;  /* 收到的 0x94 总数（本次开机累计） */
+
 //切换成功标志位
 extern volatile uint8_t open_QR_mode_sign;
 extern volatile uint8_t open_OCR_mode_sign;

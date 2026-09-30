@@ -48,7 +48,7 @@ extern u8 door1route[100];
  *  楼梯              Barrier_Hill
  *  刀山              Sword_CorrectByScanner / Sword_Mountain
  *  珠峰              Barrier_HighMountain
- *  直立景点          view / view1 
+ *  直立景点          do_Upright / do_Upright1 
  *  波浪板            Barrier_WavedPlate
  *  南极              South_Pole
  *  路线更新（宝物）  load_route_at
@@ -95,6 +95,12 @@ uint8_t treasure = 0;			// 宝物平台编号 = flag_clue_A + flag_clue_B，自�
 								// 调用：update_route_at_P7_for_treasure/8() → door() 确定宝物平台后回家路线
 								//       Stage_HasTreasure() → Stage () 判断当前平台是否是宝物平台
 
+/* ⚠️ treasure 有值 ≠ 已经拿到宝藏！treasure 是"线索算出的宝物平台编号"，在 P7/P8 读线索时
+ *    （South_Pole 的 SP_IMPACT / 的 HM_IMPACT）就赋值了；
+ *    之后还要沿回程路线走到那个平台，由 Stage_HasTreasure() → Stage_CollectTreasure() 才真正取到手。
+ *    所以"是否已取宝"必须看本标志，不能拿 treasure != 0 代替（do_Upright() 的取宝门控裁过这坑）。 */
+uint8_t treasure_taken = 0;		// 1 = 宝藏已取到手（Stage_CollectTreasure() 结尾置位）
+
 volatile uint8_t get_cude = 0;
 uint8_t head_right_left = 0;
 
@@ -102,6 +108,10 @@ uint8_t head_right_left = 0;
 #define MAIXCAM_QR_WAIT_TICKS     800U  /* 1000 × 3ms ≈ 2.4s */
 #define MAIXCAM_OCR_WAIT_TICKS    800U  /* 1500 × 3ms ≈ 2.4s */
 #define MAIXCAM_COLOR_WAIT_TICKS  1000U  /* 2000 × 2ms ≈ 4.0s */
+/* 进模式指令（0x11/0x22/0x33）在「一轮等待」内的重发间隔：
+   改前一轮只发一次（≈2.4s / 2.0s 才重开一次），现在约 0.48s 重发一次。 */
+#define MAIXCAM_RESEND_TICKS_3MS  160U   /* 160 × 3ms = 480ms：QR / OCR 用 */
+#define MAIXCAM_RESEND_TICKS_2MS  240U   /* 240 × 2ms = 480ms：颜色用 */
 
 static uint8_t Stage_HasTreasure(void)
 {
@@ -125,6 +135,7 @@ static void Stage_CollectTreasure(void)
 	Chassis_Turn360_Blocking();
 	Robot_Work(LARM, DOWN);		//左手放下
 	Robot_Work(RARM, DOWN);		//右手放下
+	treasure_taken = 1;			//⭐ 取宝完成：置"已取到手"标志（do_Upright() 的取宝门控读它）
 
 
 }
@@ -193,7 +204,7 @@ static uint8_t Stage_DetectedRamp(float distance ,float *reset_angle)
 			last_angle = angle_now;
 			total_angle += unwrapped_angle;
 			stable_times++;
-			if (stable_times >= 260)
+			if (stable_times >= 250)
 			{
 				*reset_angle = need2turn(0.0f, total_angle / stable_times);
 				stable_times = 0;
@@ -451,10 +462,10 @@ static void Stage_Action(float original_angle)
 		//撞击
 		if (stage_state == 0 || again_required)
 		{
-			if(again_required){Chassis_DriveDistance_Blocking(is_Gyro,40,GoStage_Speed,getAngleZ(),0);
+			if(again_required){Chassis_DriveDistance_Blocking(is_Gyro,26,GoStage_Speed,getAngleZ(),0);
 				//Chassis_DriveDistance_Blocking(is_Free, 8,2000, 0, 0);
 				}
-			else {Chassis_DriveDistance_Blocking(is_Gyro,40,GoStage_Speed,original_angle,0);
+			else {Chassis_DriveDistance_Blocking(is_Gyro,26,GoStage_Speed,original_angle,0);
 				//Chassis_DriveDistance_Blocking(is_Free, 8,2000, 0, 0);
 				}
 			CarBrake();
@@ -472,7 +483,6 @@ static void Stage_Action(float original_angle)
 		if(stage_state == 1 && treasure == 0 )
 		{
 			Robot_Work(CAMERA, HEAD_MID);
-			vTaskDelay(300);	
 			stage_state = 2;
 		}
 		//扫描
@@ -555,7 +565,7 @@ void Stage(void)
 
 		case STAGE_TOP:
 			Robot_Work(BODY, UP); 	//人站起来
-			
+			Robot_Work(CAMERA, HEAD_MID);
 			Stage_Action(original_angle);
 
 			if(Stage_HasTreasure())
@@ -789,7 +799,7 @@ void Barrier_Bridge(void)
 
 		case BRIDGE_ON_BRIDGE:
 
-			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
+			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, getAngleZ(),
 				Begin_down, UpDownStage_Speed_low, down_pitch, SPEED0, down_pitch-20,0, 0, 0.0f);//下坡下一半
 
 			//加一点修正
@@ -802,7 +812,7 @@ void Barrier_Bridge(void)
 			}
 
 			//下坡结束检测
-			RampCtrl_Blocking(RAMP_DESCEND, SPEED0, origin_angle,
+			RampCtrl_Blocking(RAMP_DESCEND, SPEED0, getAngleZ(),
 				0, SPEED0, 0, SPEED0, After_down,0, 0, 0.0f);
 
 			Chassis_MotorControl(is_Line, SPEED1, SPEED1, 0);
@@ -1007,7 +1017,7 @@ void Barrier_HighMountain(void)
 	Chassis_OverrideGyroPid(5, 0, 50, 10);
 	Chassis_EnableAntiSnake();
 	Chassis_MotorControl(is_Line, 15, 15, 0);
-	Chassis_OverrideLinePid(30, 0, 180, 30);
+	Chassis_OverrideLinePid(30, 0, 120, 30);
 	Chassis_SetTrackMode(TRACK_NEAR_CENTER);
 	Chassis_ClearMileage();
 	while (state != HM_DONE)
@@ -1030,9 +1040,9 @@ void Barrier_HighMountain(void)
 			RampCtrl_Blocking(RAMP_ASCEND, 10, origin_angle,
 				Begin_up, 15, up_pitch, 20, up_pitch+30, 0.07f, 10.0f, 24);
 			//用循迹走
-			Chassis_DriveDistance_Blocking(is_Line, 50, 20, 0, 3);
+			Chassis_DriveDistance_Blocking(is_Line, 60, 20, 0, 3);
 			//检测上坡结束
-			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, origin_angle,
+			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
 				Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up-3, 0.07f, 10.0f, 0.0f);
 			state = HM_FLAT;
 			break;
@@ -1048,19 +1058,19 @@ void Barrier_HighMountain(void)
 		case HM_ASCEND_2:
 			RampCtrl_Blocking(RAMP_ASCEND, 20, getAngleZ(),
 				Begin_up, 20, up_pitch, 20, up_pitch+30, 0.07f, 10.0f, 24);
-			Chassis_DriveDistance_Blocking(is_Line, 50, 20, 0, 3);
+			Chassis_DriveDistance_Blocking(is_Line, 60, 20, 0, 3);
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
 				Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up-3, 0.03f, 10.0f, 0.0f);
 			state = HM_IMPACT;
 			break;
 
 		case HM_IMPACT:
+			Chassis_RestoreLinePid();
 			Robot_Work(BODY, UP); 	//人站起来
+			Robot_Work(CAMERA, HEAD_MID);
 			//平台动作
 			Stage_Action(getAngleZ());
-			/* 下坡参考航向 = "进平台那条边的反向"（平台是死胡同支路，进出同一条边、方向相反）。
-			 * 原先读 nodes.nextNode.angle（= 出平台边），依赖"路线里还有下一跳"；
-			 * 改成从 nowNode 反推后与路线内容解耦，值不变：N20→P8=0 → 得 180 ✓ */
+
 			origin_angle = need2turn(0.0f, nodes.nowNode.angle + 180.0f);
 			if (treasure == 0)
 			{
@@ -1078,7 +1088,7 @@ void Barrier_HighMountain(void)
 		case HM_DESCEND_1:
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low-5, origin_angle,
 				Begin_down, UpDownStage_Speed_low-5, down_pitch-7, 20, down_pitch-30, 0.07f, 10.0f, 0.0f);
-			Chassis_DriveDistance_Blocking(is_Line, 55, 20, 0, 3);
+			Chassis_DriveDistance_Blocking(is_Line, 60, 20, 0, 3);
 			RampCtrl_Blocking(RAMP_DESCEND, 20, origin_angle,
 				Begin_down, 20, down_pitch, 20, After_down, 0.07f, 10.0f, 0.0f);
 			state = HM_DESCEND_FLAT;
@@ -1093,7 +1103,7 @@ void Barrier_HighMountain(void)
 		case HM_DESCEND_2:
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low-5, origin_angle,
 				Begin_down, UpDownStage_Speed_low-5, down_pitch-7, 20, down_pitch-30, 0.07f, 10.0f, 0.0f);
-			Chassis_DriveDistance_Blocking(is_Line, 55, 20, 0, 3);
+			Chassis_DriveDistance_Blocking(is_Line, 60, 20, 0, 3);
 			RampCtrl_Blocking(RAMP_DESCEND, 20, origin_angle,
 				Begin_down, 20, down_pitch, 20, After_down, 0.07f, 10.0f, 0.0f);
 
@@ -1205,6 +1215,7 @@ void South_Pole(void)
 
 		case SP_IMPACT:
 			Robot_Work(BODY, UP);
+			Robot_Work(CAMERA, HEAD_MID);
 			//平台动作
 			Stage_Action(getAngleZ());
 
@@ -1492,16 +1503,14 @@ static uint8_t Door_ReadPass(uint8_t door_state)
         Color_Left = 0;
 
         /*
-         * 发送0x33并等待MaixCam返回0x94。
-         */
-        Open_COLOR_L();
-
-        /*
          * 等待Process_COLOR_Data()连续收到3次相同颜色，
          * 然后写入Color_Left。MaixCam识别较慢，单轮保持4秒。
+         * 轮内每 MAIXCAM_RESEND_TICKS_2MS 拍（≈0.48s）重发一次 0x33，提高进模式频率。
          */
         while (Color_Left == 0 && timeout < MAIXCAM_COLOR_WAIT_TICKS)
         {
+            if ((timeout % MAIXCAM_RESEND_TICKS_2MS) == 0)
+                Open_COLOR_L();
             vTaskDelay(2);
             timeout++;
         }
@@ -1569,7 +1578,8 @@ void door()
 	else if(nodes.lastNode.nodenum == N8 && nodes.nowNode.nodenum == N3){state = DOOR_D4_BACK;}	/* 回家过D4: N8→N3 */
 	else if(nodes.lastNode.nodenum == N10 && nodes.nowNode.nodenum == N3){state = DOOR_D5_BACK;}	/* 回家过D5: N10→N3 */
 
-
+	if(state != DOOR_D5_BACK && state != DOOR_D4_BACK)Robot_Work(CAMERA, HEAD_RIGHT);
+	else Robot_Work(CAMERA, HEAD_LEFT);
 	Chassis_MotorControl(is_Line, 15, 15, 0);
 
 	{
@@ -1587,15 +1597,11 @@ void door()
 	if(state != DOOR_D5_BACK && state != DOOR_D4_BACK)
 	{
 		Chassis_Brake();
-		Robot_Work(CAMERA, HEAD_RIGHT);
-   		vTaskDelay(500);
 	}
 	else
 	{
 		Chassis_DriveDistance_Blocking(is_Line, 28, 15, 0, 0);
 		Chassis_Brake();
-		Robot_Work(CAMERA, HEAD_LEFT);
-   		vTaskDelay(500);
 	}
 	
 	uint8_t pass_state = Door_ReadPass(state);
@@ -1818,12 +1824,12 @@ uint8_t WaitFor_OCR(void)
 	for (retry = 0; retry < 6; retry++)
 	{
 		uint16_t timeout = 0;
-		/* 每轮开始时立即发送0x22，不能先空等 */
-		open_OCR_mode();
-
-		/* MaixCam识别较慢，保持OCR模式约2.4秒；收到有效结果立即退出 */
+		/* MaixCam识别较慢，保持OCR模式约2.4秒；收到有效结果立即退出。
+		   轮内每 MAIXCAM_RESEND_TICKS_3MS 拍（≈0.48s）重发一次 0x22，提高进模式频率。 */
 		while (!K210_Rece && timeout < MAIXCAM_OCR_WAIT_TICKS)
 		{
+			if ((timeout % MAIXCAM_RESEND_TICKS_3MS) == 0)
+				open_OCR_mode();
 			vTaskDelay(3);
 			timeout++;
 		}
@@ -1930,12 +1936,12 @@ uint8_t WaitFor_QR(void)
 		if (get_cude)
 			return 1;
 
-		/* 每轮重试都重新发送0x11并等待0x94确认 */
-		open_QR_mode();
-
-		/* 阻塞等待，最长保持QR模式约2.4s；收到有效结果立即退出 */
+		/* 阻塞等待，最长保持QR模式约2.4s；收到有效结果立即退出。
+		   轮内每 MAIXCAM_RESEND_TICKS_3MS 拍（≈0.48s）重发一次 0x11，提高进模式频率。 */
 		while (!get_cude && timeout < MAIXCAM_QR_WAIT_TICKS)
 		{
+			if ((timeout % MAIXCAM_RESEND_TICKS_3MS) == 0)
+				open_QR_mode();
 			vTaskDelay(3);
 			timeout++;
 		}
@@ -1991,7 +1997,7 @@ void zhunbei(void)
 	vTaskDelay(500);
 	Robot_Work(BODY, DOWN);		//人躺下
 
-	//if(map.routetime==2)Stage_Correct(5);
+	if(map.routetime==2)Stage_Correct(0);
 
 	RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, getAngleZ(),
 				Begin_down, UpDownStage_Speed_low, down_pitch, UpDownStage_Speed_high, After_down-10, 0.04, 10.0f, 0.0f);
@@ -2025,16 +2031,9 @@ void do_Upright()
 {
 	float TurnAngle = 0;
 
-	/* 【取宝门控】一轮去程还没拿到宝藏（treasure==0）时不执行直立景点动作：
-	   东区入口边 N12->N16 的 func=View，取宝前就会经过它，此时应当只当普通节点直穿，
-	   动作留到"取宝后的回程"与"第二轮"再做（开关 UPRIGHT_NEED_TREASURE，见 config.h）。
-	   ⚠️ 这里只 return：不写 cross_event、不清 function —— 到达判定交回 ArriveDetect_task，
-	   与"这条边本来就没有景点"的行为一致。
-	   ⚠️ 故意不用 #if：宏名写错 / 头文件没包含时 #if 会**静默当 0**，护栏白写；
-	      写成运行期常量判断，宏没定义会直接编译报错。 */
-	if (UPRIGHT_NEED_TREASURE && treasure == 0)
+	if (!treasure_taken)
 	{
-		printf("[UPRIGHT] skipped: treasure not taken yet\r\n");
+		printf("[UPRIGHT] skipped: treasure not collected yet\r\n");
 		return;
 	}
 
@@ -2052,18 +2051,11 @@ void do_Upright()
 		upright_Reset_node(B10,N14);
 	}
 	CarBrake();
-	/* 现场排查用：目标是能分辨“停住”到底停在哪一步。
-	   4 条 [UPRIGHT] 与转向函数内部的 [HANG] turn stuck 配合：
-	   正常时前后句成对出现；只见前半句、没有 done ⇒ 就卡在该步。*/
-	printf("[UPRIGHT] turn#1 tgt=%.1f now=%.1f\r\n", getAngleZ()+TurnAngle, getAngleZ());
 	Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+TurnAngle,getAngleZ(),30, TURN_TIMEOUT_DEFAULT);
-	printf("[UPRIGHT] turn#1 done now=%.1f\r\n", getAngleZ());
 	Chassis_DriveDistance_Blocking(is_Gyro,15,Gyro_Speed,getAngleZ(),0);
 	Chassis_Brake(); 
 	Chassis_DriveDistance_Blocking(is_Gyro,19,-Gyro_Speed,getAngleZ(),0);
-	printf("[UPRIGHT] turn#2 tgt=%.1f now=%.1f\r\n", getAngleZ()-TurnAngle, getAngleZ());
 	Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-TurnAngle,getAngleZ(),30, TURN_TIMEOUT_DEFAULT);
-	printf("[UPRIGHT] turn#2 done now=%.1f\r\n", getAngleZ());
 	CarBrake();
 	Chassis_MotorControl(is_Line,15,15,0);
 	

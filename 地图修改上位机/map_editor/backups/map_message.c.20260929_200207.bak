@@ -84,7 +84,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { B8, N9, MUL2MUL|MUL2SING|STOPTURN|CLEFT, 160, 1, 15, NONE },
 
     /* ========== B9 ========== */
-    { B9, N7, DLEFT|STOPTURN, -80, 5, 15, NONE },
+    { B9, N7, DLEFT|CLEFT|STOPTURN, -80, 5, 15, NONE },
 
     /* ========== N8 ========== */
     { N8, N3, CLEFT|CRIGHT|NEAR_CENTER|MUL2MUL, ANGLE_N8N3, DOOR_LEN_N3N8/2, SPEED0, DOOR },

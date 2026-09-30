@@ -47,7 +47,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { P3, N3, DRIGHT|RIGHT_LINE, 180, 246, SPEED4, NONE },
 
     /* ========== N3 ========== */
-    { N3, S1, NO, -25, 216, SPEED4, View1 },             /* N3->S1 直立景点巡回用：View1 通道，动作待 do_Upright1() */
+    { N3, S1, NO, -25, 216, SPEED4, View1 },  /* 直立景点巡回用：View1 通道，动作待 do_Upright1() */
     { N3, P3, LEFT_LINE, 0, 320, SPEED4, UpStage },
     { N3, N4, CLEFT|LEFT_LINE|Temp_R, 180, 130, SPEED3, NONE },
     { N3, N8, DRIGHT|DLEFT|NEAR_CENTER, ANGLE_N3N8, DOOR_LEN_N3N8/2, SPEED1, DOOR },
@@ -66,7 +66,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { N5, N12, AWHITE|LEFT_LINE, 90, DOOR_LEN_N5N12/2, SPEED1, DOOR },
 
     /* ========== N6 ========== */
-    { N6, S2, NO, -140, 120, SPEED4, View1 },            /* N6->S2 直立景点巡回用：View1 通道，动作待 do_Upright1() */
+    { N6, S2, NO, -140, 120, SPEED4, View1 },  /* 直立景点巡回用：View1 通道，动作待 do_Upright1() */
     { N6, N5, DLEFT|RIGHT_LINE, 0, 114, SPEED3, NONE },
     { N6, P4, NEAR_CENTER, 180, 50, SPEED1, UpStage },
 
@@ -84,7 +84,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { B8, N9, MUL2MUL|MUL2SING|STOPTURN|CLEFT, 160, 1, 15, NONE },
 
     /* ========== B9 ========== */
-    { B9, N7, DLEFT|STOPTURN, -80, 5, 15, NONE },
+    { B9, N7, DLEFT|CLEFT|STOPTURN, -80, 5, SPEED1, NONE },
 
     /* ========== N8 ========== */
     { N8, N3, CLEFT|CRIGHT|NEAR_CENTER|MUL2MUL, ANGLE_N8N3, DOOR_LEN_N3N8/2, SPEED0, DOOR },

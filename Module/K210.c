@@ -21,6 +21,11 @@ volatile uint8_t open_OCR_mode_sign=2;
 volatile uint8_t open_COLOR_L_mode_sign=2;
 volatile uint8_t open_COLOR_R_mode_sign=2;
 
+/* 进模式诊断变量（纯观测，不参与任何判定） */
+volatile uint8_t  Maxicam_WaitMode = 0;
+volatile uint8_t  Maxicam_AckMode  = 0;
+volatile uint32_t Maxicam_AckCount = 0;
+
 #define REQUIRED_CONSECUTIVE 2  // 需要连续相同的次数（QR/OCR/颜色共用；3→2 让识别更快被接受）
 
 
@@ -34,10 +39,13 @@ void Maxicam_Enable(void)
 void open_QR_mode(void)
 {
     uint8_t cmd = 0x11;  // QR模式指令码
-    uint8_t retry = 3;//有限次数的确认
+    uint8_t retry = MAXICAM_OPEN_RETRY;//有限次数的确认
+    uint8_t try_idx = 0;
     open_QR_mode_sign = 1;
+    Maxicam_WaitMode = 1;
     while(retry--) {
         // 发送指令
+        try_idx++;
         HAL_UART_Transmit(&huart6, &cmd, 1, 100);
         /* 满1字节后HAL会自动关闭本口接收；若本次发送把它错过，这里补回来（幂等，已在接收则返回BUSY） */
         HAL_UART_Receive_IT(&huart6, (uint8_t *)&Maxicam_Rx, 1);
@@ -45,17 +53,23 @@ void open_QR_mode(void)
         if(open_QR_mode_sign == 0) break;
         HAL_Delay(30); // 短间隔重试
     }
-
+    Maxicam_WaitMode = 0;
+    printf("[MODE] QR %s try=%u ack=%u n=%lu\r\n",
+           (open_QR_mode_sign == 0) ? "ok" : "FAIL",
+           (unsigned)try_idx, Maxicam_AckMode, (unsigned long)Maxicam_AckCount);
 }
 
 /* 打开OCR模式（带0x94确认）*/
 void open_OCR_mode(void)
 {
     uint8_t cmd[] = {0x22};
-    uint8_t retry = 3;
+    uint8_t retry = MAXICAM_OPEN_RETRY;
 		open_OCR_mode_sign=1;
+    uint8_t try_idx = 0;
+    Maxicam_WaitMode = 2;
     
     while(retry--) {
+		try_idx++;
 		HAL_UART_Transmit(&huart6, cmd, sizeof(cmd), 100);
 		/* 满1字节后HAL会自动关闭本口接收；若本次发送把它错过，这里补回来（幂等，已在接收则返回BUSY） */
 		HAL_UART_Receive_IT(&huart6, (uint8_t *)&Maxicam_Rx, 1);
@@ -63,6 +77,10 @@ void open_OCR_mode(void)
         if(open_OCR_mode_sign==0) break;       
         HAL_Delay(30);
     }
+    Maxicam_WaitMode = 0;
+    printf("[MODE] OCR %s try=%u ack=%u n=%lu\r\n",
+           (open_OCR_mode_sign == 0) ? "ok" : "FAIL",
+           (unsigned)try_idx, Maxicam_AckMode, (unsigned long)Maxicam_AckCount);
 }
 
 
@@ -175,6 +193,10 @@ void Maxicam_ProcessRxByte(uint8_t rx_byte)
     /* 模式切换确认字节不参与帧解析 */
     if (rx_byte == 0x94)
     {
+        /* 诊断：记录这个 0x94 抵达时「正在等哪个模式」，用于识别假成功（纯观测） */
+        Maxicam_AckMode = Maxicam_WaitMode;
+        Maxicam_AckCount++;
+
         if (open_QR_mode_sign == 1)
             open_QR_mode_sign = 0;
         if (open_OCR_mode_sign == 1)

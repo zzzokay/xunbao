@@ -167,6 +167,16 @@ static uint8_t plan_treasure_return(uint8_t start)
 	/* 添加非特殊平台的宝物目标 */
 	if (treasure != 5 && treasure != 6)
 		wp[n++] = target;
+
+	/* 直立景点巡回（S1/S2，见 config.h 的 UPRIGHT_TOUR_ENABLE）：
+	 * 一轮【取宝之后】顺路去近的那一个 —— 宝物在 P3 绕 S1，在 P4 绕 S2。
+	 * ⚠️ 必须插在宝物平台【之后】：取宝之前去任何平台/直立景点 = 走错即结束比赛。
+	 * ⚠️ S1/S2 进边 func 是 View1（不是 View），动作待 do_Upright1()；本开关只管走位。 */
+	if (UPRIGHT_TOUR_ENABLE)
+	{
+		if (treasure == 3)      wp[n++] = S1;
+		else if (treasure == 4) wp[n++] = S2;
+	}
 	wp[n++] = P2;
 
 	/* 交接（stageAB 段不再写尾锚点 C9/N20 后必须做）：
@@ -257,7 +267,7 @@ static void door_block_all(void)
  */
 static void route_return_home(uint8_t allow_N8_N3)
 {
-	u8 wp[3];
+	u8 wp[6];   /* ⚠️ 原为 wp[3]：插直立景点后最多 4 个点，3 会溢出（踩栈） */
 	uint8_t n = 0;
 
 	door_block_all();
@@ -269,6 +279,14 @@ static void route_return_home(uint8_t allow_N8_N3)
 	else if (treasure == 3)  wp[n++] = P3;
 	else if (treasure == 4)  wp[n++] = P4;
 	/* 宝物在 P5/P6 时本轮已到过，回程直接回家 */
+	/* 直立景点巡回：条件与位置同 plan_treasure_return()（取宝之后）。
+	 * ⚠️ 两处都要插：回程过门时 door() 会重规划后半段，但若该门边去程已被
+	 *    door_set_pass_node() 改成 func=NONE，则不进 door()，只有本函数生效。 */
+	if (UPRIGHT_TOUR_ENABLE)
+	{
+		if (treasure == 3)      wp[n++] = S1;
+		else if (treasure == 4) wp[n++] = S2;
+	}
 	wp[n++] = P2;
 
 	(void)plan_route_at(0, wp, n);
@@ -433,7 +451,9 @@ void get_newroute(void)
 		wp[n++] = N2;
 		wp[n++] = P1;
 		wp[n++] = P3;
+		if (UPRIGHT_TOUR_ENABLE) wp[n++] = S1;   /* 二轮固定绕 S1（N3 支路，往返 518cm） */
 		wp[n++] = P4;
+		if (UPRIGHT_TOUR_ENABLE) wp[n++] = S2;   /* 二轮固定绕 S2（N6 支路，往返 288cm） */
 		wp[n++] = N5;
 
 		/* 进门：只留"真正要过的那扇门"；环上入口(N8 之后的 N12、N3 之后的 N8)由最短路自动选

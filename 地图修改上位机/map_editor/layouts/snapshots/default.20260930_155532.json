@@ -6,8 +6,8 @@
   "MAP_DEBUG": "0",
   "STEP_DEBUG": "0",
   "MAIN_DEBUG": "0",
-  "DEBUG": "1",
-  "TURN_CALC_ENABLE": "1",
+  "DEBUG": "0",
+  "TURN_CALC_ENABLE": "0",
   "UPRIGHT_NEED_TREASURE": "1",
   "UPRIGHT_TOUR_ENABLE": "0",
   "USE_PLANNER_ROUTE": "1",
@@ -29,7 +29,7 @@
   "DOOR_LEN_N3N10": "170",
   "DOOR_LEN_N3N8": "170",
   "DOOR_LEN_N8N12": "170",
-  "DOOR_RETREAT_N5N8": "67",
+  "DOOR_RETREAT_N5N8": "63",
   "DOOR_RETREAT_N5N4": "67",
   "DOOR_RETREAT_N10N8": "90",
   "DOOR_RETREAT_N8N5": "65",
@@ -73,316 +73,315 @@
    "p1clue": "线索=3：经过 P3",
    "stg": "A=5,B=7：P5 -> P7",
    "doors": [
-    "黑(不能过)",
     "绿(能过)",
+    "黑(不能过)",
     "黑(不能过)",
     "黑(不能过)"
    ],
-   "treasure": "4 · P4",
-   "back": "door_1：D5 绿（起点 N3）"
+   "treasure": "3 · P3"
   },
   "round2_route": {}
  },
  "nodes": [
   {
    "name": "S1",
-   "comment": "0\t0",
+   "comment": "0\t0\t0\t0",
    "x": 197.0,
    "y": 77.0
   },
   {
    "name": "P1",
-   "comment": "1\t1",
+   "comment": "1\t1\t1\t1",
    "x": 554.1580049898791,
    "y": 55.579545745725596
   },
   {
    "name": "N1",
-   "comment": "2\t2",
+   "comment": "2\t2\t2\t2",
    "x": 671.4204542542743,
    "y": 55.5795457457256
   },
   {
    "name": "B1",
-   "comment": "3\t3",
+   "comment": "3\t3\t3\t3",
    "x": 860.5240875623832,
    "y": 55.57954574572559
   },
   {
    "name": "B2",
-   "comment": "4\t4",
+   "comment": "4\t4\t4\t4",
    "x": 743.7886941908347,
    "y": 141.79004058848386
   },
   {
    "name": "B3",
-   "comment": "5\t5",
+   "comment": "5\t5\t5\t5",
    "x": 967.9959608070524,
    "y": 135.58008117696775
   },
   {
    "name": "N2",
-   "comment": "6\t6",
+   "comment": "6\t6\t6\t6",
    "x": 1043.997847848973,
    "y": 55.579545745725575
   },
   {
    "name": "P2",
-   "comment": "7\t7",
+   "comment": "7\t7\t7\t7",
    "x": 1169.000535431242,
    "y": 55.57954574572557
   },
   {
    "name": "S2",
-   "comment": "8\t8",
+   "comment": "8\t8\t8\t8",
    "x": 1538.3162855149233,
    "y": 98.42126522068145
   },
   {
    "name": "P3",
-   "comment": "9\t9",
+   "comment": "9\t9\t9\t9",
    "x": 171.0,
    "y": 243.0
   },
   {
    "name": "N3",
-   "comment": "10\t10",
+   "comment": "10\t10\t10\t10",
    "x": 626.895020294242,
    "y": 242.99999999999997
   },
   {
    "name": "N4",
-   "comment": "11\t11",
-   "x": 830.2637956620446,
-   "y": 238.7375507356048
+   "comment": "11\t11\t11\t11",
+   "x": 876.9304623287112,
+   "y": 238.73755073560483
   },
   {
    "name": "N5",
-   "comment": "12\t12",
+   "comment": "12\t12\t12\t12",
    "x": 1090.2637956620445,
    "y": 238.73755073560483
   },
   {
    "name": "N6",
-   "comment": "13\t13",
+   "comment": "13\t13\t13\t13",
    "x": 1280.8411840437136,
    "y": 233.26244926439517
   },
   {
    "name": "P4",
-   "comment": "14\t14",
+   "comment": "14\t14\t14\t14",
    "x": 1506.2113058091654,
    "y": 233.26244926439517
   },
   {
    "name": "N7",
-   "comment": "15\t15",
-   "x": 357.4486835352139,
-   "y": 718.2030107413278
+   "comment": "15\t15\t15\t15",
+   "x": 362.4339559227512,
+   "y": 338.69813223174657
   },
   {
    "name": "P6",
-   "comment": "16\t16",
-   "x": 357.4486835352139,
-   "y": 856.9216068976075
+   "comment": "16\t16\t16\t16",
+   "x": 367.01269070206973,
+   "y": 472.69947862939574
   },
   {
    "name": "B8",
-   "comment": "17\t17",
-   "x": 214.61019228679862,
-   "y": 852.307990447086
+   "comment": "17\t17\t17\t17",
+   "x": 219.59546467433591,
+   "y": 472.80311193750464
   },
   {
    "name": "B9",
-   "comment": "18\t18",
-   "x": 493.92511562436005,
-   "y": 848.1533360457216
+   "comment": "18\t18\t18\t18",
+   "x": 498.9103880118974,
+   "y": 468.64845753614026
   },
   {
    "name": "N8",
-   "comment": "19\t19",
+   "comment": "19\t19\t19\t19",
    "x": 864.2637956620443,
    "y": 428.2637956620444
   },
   {
    "name": "C3",
-   "comment": "20\t22",
-   "x": -135.03990149241554,
-   "y": 982.3027959524134
+   "comment": "20\t20\t20\t22",
+   "x": 160.26244926439514,
+   "y": 603.2099594115161
   },
   {
    "name": "N9",
-   "comment": "21\t23",
-   "x": 368.77510076507605,
-   "y": 982.0518593757992
+   "comment": "21\t21\t21\t23",
+   "x": 384.76728925608467,
+   "y": 604.1193974524281
   },
   {
    "name": "N10",
-   "comment": "22\t24",
+   "comment": "22\t22\t22\t24",
    "x": 633.0,
    "y": 599.4212652206814
   },
   {
    "name": "N12",
-   "comment": "23\t25",
+   "comment": "23\t23\t23\t25",
    "x": 1087.2113058091654,
    "y": 598.6312246321976
   },
   {
    "name": "N13",
-   "comment": "24\t26",
+   "comment": "24\t24\t24\t26",
    "x": 1299.961344107029,
    "y": 598.6312246321976
   },
   {
    "name": "P5",
-   "comment": "25\t27",
-   "x": 1510.0607239319334,
+   "comment": "25\t25\t25\t27",
+   "x": 1501.6325710298468,
    "y": 598.6312246321976
   },
   {
    "name": "N14",
-   "comment": "26\t28",
-   "x": -135.03990149241557,
-   "y": 725.2194230352746
+   "comment": "26\t26\t26\t28",
+   "x": 160.26244926439514,
+   "y": 695.947510147121
   },
   {
    "name": "S3",
-   "comment": "27\t29",
-   "x": -28.948168779401044,
-   "y": 725.2194230352746
+   "comment": "27\t27\t27\t29",
+   "x": 263.26326023080225,
+   "y": 695.947510147121
   },
   {
    "name": "S4",
-   "comment": "28\t30",
-   "x": 523.3010814185012,
+   "comment": "28\t28\t28\t30",
+   "x": 541.0530357101796,
    "y": 690.0013463976492
   },
   {
    "name": "N15",
-   "comment": "29\t31",
+   "comment": "29\t29\t29\t31",
    "x": 631.4737550735604,
    "y": 690.0013463976492
   },
   {
    "name": "S5",
-   "comment": "30\t32",
+   "comment": "30\t30\t30\t32",
    "x": 1009.4783349107794,
    "y": 679.7927333837823
   },
   {
    "name": "C4",
-   "comment": "31\t33",
-   "x": 55.509899274974515,
-   "y": 745.6250847729493
+   "comment": "31\t31\t31\t33",
+   "x": 349.05114345522986,
+   "y": 715.1076725010565
   },
   {
    "name": "C5",
-   "comment": "32\t34",
+   "comment": "32\t32\t32\t34",
    "x": 629.947510147121,
    "y": 762.4226116183307
   },
   {
    "name": "B5",
-   "comment": "33\t36",
+   "comment": "33\t33\t33\t36",
    "x": 1343.0,
    "y": 767.0
   },
   {
    "name": "B6",
-   "comment": "34\t37",
+   "comment": "34\t34\t34\t37",
    "x": 859.2113058091653,
    "y": 854.110365296355
   },
   {
    "name": "B7",
-   "comment": "35\t38",
+   "comment": "35\t35\t35\t38",
    "x": 1343.0,
    "y": 856.0
   },
   {
    "name": "N16",
-   "comment": "36\t39",
+   "comment": "36\t36\t36\t39",
    "x": 1087.2113058091654,
    "y": 679.7927333837823
   },
   {
    "name": "N18",
-   "comment": "37\t40",
+   "comment": "37\t37\t37\t40",
    "x": 1088.5432927448496,
    "y": 765.4737550735605
   },
   {
    "name": "N19",
-   "comment": "38\t41",
+   "comment": "38\t38\t38\t41",
    "x": 1523.0,
    "y": 762.0
   },
   {
    "name": "P7",
-   "comment": "39\t42",
-   "x": 1500.1548178180533,
+   "comment": "39\t39\t39\t42",
+   "x": 1494.0538414635575,
    "y": 976.8452232366614
   },
   {
    "name": "N20",
-   "comment": "40\t43",
-   "x": 221.10609019011267,
-   "y": 560.4282325899751
+   "comment": "40\t40\t40\t43",
+   "x": 565.4279972089274,
+   "y": 854.110365296355
   },
   {
    "name": "N22",
-   "comment": "41\t44",
+   "comment": "41\t41\t41\t44",
    "x": 1012.9461637494717,
    "y": 854.110365296355
   },
   {
    "name": "C6",
-   "comment": "42\t45 [坐标估计] [坐标估计]",
+   "comment": "42\t42\t42\t45 [坐标估计] [坐标估计] [坐标估计] [坐标估计]",
    "x": 1516.0497970575807,
    "y": 854.4199188230323
   },
   {
    "name": "C7",
-   "comment": "43\t46 [坐标估计] [坐标估计]",
-   "x": -138.062110935717,
-   "y": 385.069675966887
+   "comment": "43\t43\t43\t46 [坐标估计] [坐标估计] [坐标估计] [坐标估计]",
+   "x": 159.0013463976492,
+   "y": 1006.3176319125727
   },
   {
    "name": "C8",
-   "comment": "44\t47 [坐标估计] [坐标估计]",
-   "x": 53.407604944895894,
-   "y": 385.069675966887
+   "comment": "44\t44\t44\t47 [坐标估计] [坐标估计] [坐标估计] [坐标估计]",
+   "x": 350.4710622782621,
+   "y": 1006.3176319125727
   },
   {
    "name": "C9",
-   "comment": "45\t48",
+   "comment": "45\t45\t45\t48",
    "x": 1010.6419958133913,
    "y": 976.8452232366614
   },
   {
    "name": "P8",
-   "comment": "46\t49",
-   "x": -135.24932025966035,
-   "y": 560.4282325899751
+   "comment": "46\t46\t46\t49",
+   "x": 160.05303049715042,
+   "y": 854.110365296355
   },
   {
    "name": "N11",
-   "comment": "47\t50",
+   "comment": "47\t47\t47\t50",
    "x": 868.5248985287903,
    "y": 599.4212652206814
   },
   {
    "name": "B10",
-   "comment": "48\t52\t波动板节点：N14-C7段，位于板尾(C7侧)",
-   "x": -135.0399014924156,
-   "y": 554.904150240621
+   "comment": "48\t48\t48\t52\t波动板节点：N14-C7段，位于板尾(C7侧)",
+   "x": 160.26244926439517,
+   "y": 848.5862829470009
   },
   {
    "name": "B11",
-   "comment": "49\t53\t波动板节点：C8-C4段，位于板尾(C4侧)",
-   "x": 53.74879269841909,
-   "y": 572.7918874762871
+   "comment": "49\t49\t49\t53\t波动板节点：C8-C4段，位于板尾(C4侧)",
+   "x": 349.05114345522986,
+   "y": 866.474020182667
   }
  ],
  "edges": [
@@ -457,7 +456,7 @@
    "to": "N2",
    "flag": "LEFT_LINE|CRIGHT|MUL2SING",
    "angle": "180",
-   "step": "40",
+   "step": "20",
    "speed": "SPEED0",
    "func": "NONE",
    "comment": "",
@@ -580,8 +579,8 @@
    "angle": "-25",
    "step": "216",
    "speed": "SPEED4",
-   "func": "View",
-   "comment": "",
+   "func": "View1",
+   "comment": "直立景点巡回用：View1 通道，动作待 do_Upright1()",
    "tag": "e19"
   },
   {
@@ -723,8 +722,8 @@
    "angle": "-140",
    "step": "120",
    "speed": "SPEED4",
-   "func": "View",
-   "comment": "",
+   "func": "View1",
+   "comment": "直立景点巡回用：View1 通道，动作待 do_Upright1()",
    "tag": "e32"
   },
   {
@@ -807,10 +806,10 @@
   {
    "frm": "B9",
    "to": "N7",
-   "flag": "DLEFT|CLEFT|STOPTURN",
+   "flag": "DLEFT|STOPTURN",
    "angle": "-80",
    "step": "5",
-   "speed": "SPEED1",
+   "speed": "15",
    "func": "NONE",
    "comment": "",
    "tag": "e40"
@@ -861,12 +860,23 @@
   },
   {
    "frm": "C3",
-   "to": "N14",
-   "flag": "DRIGHT|CRIGHT|MCLEFT",
-   "angle": "-90",
-   "step": "0",
-   "speed": "SPEED0",
+   "to": "N9",
+   "flag": "RIGHT_LINE|MUL2SING|NOTURN",
+   "angle": "180",
+   "step": "20",
+   "speed": "SPEED1",
    "func": "NONE",
+   "comment": "",
+   "tag": "e45"
+  },
+  {
+   "frm": "C3",
+   "to": "N14",
+   "flag": "DLEFT|MCLEFT|CLEFT",
+   "angle": "90",
+   "step": "10",
+   "speed": "SPEED0",
+   "func": "View",
    "comment": "",
    "tag": "e46"
   },
@@ -880,6 +890,28 @@
    "func": "QQB",
    "comment": "",
    "tag": "e47"
+  },
+  {
+   "frm": "N9",
+   "to": "C3",
+   "flag": "DLEFT|LEFT_LINE",
+   "angle": "0",
+   "step": "48",
+   "speed": "SPEED2",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e48"
+  },
+  {
+   "frm": "N9",
+   "to": "N10",
+   "flag": "DLEFT|DRIGHT|NEAR_CENTER",
+   "angle": "180",
+   "step": "180",
+   "speed": "SPEED3",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e49"
   },
   {
    "frm": "N10",
@@ -905,14 +937,14 @@
   },
   {
    "frm": "N10",
-   "to": "N12",
-   "flag": "DRIGHT|RIGHT_LINE",
-   "angle": "-180",
-   "step": "264",
-   "speed": "SPEED1",
+   "to": "N9",
+   "flag": "LEFT_LINE|CRIGHT|MUL2SING|STOPTURN",
+   "angle": "0",
+   "step": "156",
+   "speed": "SPEED3",
    "func": "NONE",
    "comment": "",
-   "tag": "e53"
+   "tag": "e52"
   },
   {
    "frm": "N10",
@@ -923,18 +955,18 @@
    "speed": "SPEED2",
    "func": "NONE",
    "comment": "",
-   "tag": "e54"
+   "tag": "e53"
   },
   {
    "frm": "N10",
    "to": "N11",
    "flag": "NO",
    "angle": "180",
-   "step": "70",
+   "step": "100",
    "speed": "SPEED1",
    "func": "SM",
    "comment": "",
-   "tag": "e55"
+   "tag": "e54"
   },
   {
    "frm": "N12",
@@ -945,7 +977,7 @@
    "speed": "SPEED4",
    "func": "NONE",
    "comment": "",
-   "tag": "e56"
+   "tag": "e55"
   },
   {
    "frm": "N12",
@@ -956,7 +988,7 @@
    "speed": "60",
    "func": "1",
    "comment": "",
-   "tag": "e57"
+   "tag": "e56"
   },
   {
    "frm": "N12",
@@ -967,7 +999,7 @@
    "speed": "SPEED4",
    "func": "NONE",
    "comment": "",
-   "tag": "e58"
+   "tag": "e57"
   },
   {
    "frm": "N12",
@@ -976,9 +1008,9 @@
    "angle": "90",
    "step": "18",
    "speed": "SPEED0",
-   "func": "NONE",
+   "func": "View",
    "comment": "",
-   "tag": "e59"
+   "tag": "e58"
   },
   {
    "frm": "N12",
@@ -989,7 +1021,7 @@
    "speed": "SPEED1",
    "func": "SM",
    "comment": "",
-   "tag": "e60"
+   "tag": "e59"
   },
   {
    "frm": "N13",
@@ -1000,7 +1032,7 @@
    "speed": "SPEED25",
    "func": "NONE",
    "comment": "",
-   "tag": "e61"
+   "tag": "e60"
   },
   {
    "frm": "N13",
@@ -1011,7 +1043,7 @@
    "speed": "SPEED2",
    "func": "UpStage",
    "comment": "",
-   "tag": "e62"
+   "tag": "e61"
   },
   {
    "frm": "P5",
@@ -1022,51 +1054,51 @@
    "speed": "SPEED2",
    "func": "NONE",
    "comment": "",
-   "tag": "e63"
+   "tag": "e62"
   },
   {
    "frm": "N14",
    "to": "C3",
    "flag": "DRIGHT|STOPTURN",
-   "angle": "90",
+   "angle": "-90",
    "step": "18",
    "speed": "SPEED0",
    "func": "NONE",
    "comment": "",
-   "tag": "e64"
+   "tag": "e63"
   },
   {
    "frm": "N14",
    "to": "S3",
    "flag": "NO",
-   "angle": "180",
+   "angle": "-180",
    "step": "2",
    "speed": "SPEED1",
    "func": "View1",
    "comment": "",
-   "tag": "e65"
+   "tag": "e64"
   },
   {
    "frm": "N14",
    "to": "B10",
    "flag": "NO",
-   "angle": "-90",
+   "angle": "90",
    "step": "100",
    "speed": "SPEED3",
    "func": "BLBL",
    "comment": "",
-   "tag": "e66"
+   "tag": "e65"
   },
   {
    "frm": "S3",
    "to": "N14",
    "flag": "INGNORE",
-   "angle": "0",
+   "angle": "180",
    "step": "2",
    "speed": "-SPEED0",
    "func": "BACK",
    "comment": "",
-   "tag": "e67"
+   "tag": "e66"
   },
   {
    "frm": "S4",
@@ -1077,7 +1109,7 @@
    "speed": "-SPEED0",
    "func": "BACK",
    "comment": "",
-   "tag": "e68"
+   "tag": "e67"
   },
   {
    "frm": "N15",
@@ -1088,7 +1120,7 @@
    "speed": "SPEED2",
    "func": "NONE",
    "comment": "",
-   "tag": "e69"
+   "tag": "e68"
   },
   {
    "frm": "N15",
@@ -1099,7 +1131,7 @@
    "speed": "SPEED1",
    "func": "View1",
    "comment": "",
-   "tag": "e70"
+   "tag": "e69"
   },
   {
    "frm": "N15",
@@ -1110,7 +1142,7 @@
    "speed": "SPEED2",
    "func": "NONE",
    "comment": "",
-   "tag": "e71"
+   "tag": "e70"
   },
   {
    "frm": "S5",
@@ -1121,29 +1153,29 @@
    "speed": "-SPEED0",
    "func": "BACK",
    "comment": "",
-   "tag": "e72"
+   "tag": "e71"
   },
   {
    "frm": "C4",
    "to": "N20",
    "flag": "CRIGHT|MUL2MUL",
-   "angle": "-131.8",
+   "angle": "155",
    "step": "170",
    "speed": "SPEED4",
    "func": "NONE",
    "comment": "",
-   "tag": "e73"
+   "tag": "e72"
   },
   {
    "frm": "C4",
    "to": "B11",
    "flag": "NO",
-   "angle": "-90",
+   "angle": "90",
    "step": "50",
    "speed": "SPEED2",
    "func": "BLBL",
    "comment": "",
-   "tag": "e74"
+   "tag": "e73"
   },
   {
    "frm": "C5",
@@ -1154,7 +1186,7 @@
    "speed": "SPEED2",
    "func": "NONE",
    "comment": "",
-   "tag": "e75"
+   "tag": "e74"
   },
   {
    "frm": "B5",
@@ -1165,7 +1197,7 @@
    "speed": "SPEED1",
    "func": "NONE",
    "comment": "（与 N18->B5 同长，取大=LEN_N18B5）",
-   "tag": "e76"
+   "tag": "e75"
   },
   {
    "frm": "B5",
@@ -1174,6 +1206,17 @@
    "angle": "180",
    "step": "LEN_B5N19",
    "speed": "SPEED25",
+   "func": "NONE",
+   "comment": "",
+   "tag": "e76"
+  },
+  {
+   "frm": "B6",
+   "to": "N20",
+   "flag": "CRIGHT|DRIGHT|RESTMPUZ|LEFT_LINE",
+   "angle": "0",
+   "step": "36",
+   "speed": "SPEED2",
    "func": "NONE",
    "comment": "",
    "tag": "e77"
@@ -1187,7 +1230,7 @@
    "speed": "SPEED3",
    "func": "NONE",
    "comment": "",
-   "tag": "e79"
+   "tag": "e78"
   },
   {
    "frm": "B7",
@@ -1198,7 +1241,7 @@
    "speed": "SPEED3",
    "func": "NONE",
    "comment": "（与 N22->B7 同长，取大=LEN_N22B7）",
-   "tag": "e80"
+   "tag": "e79"
   },
   {
    "frm": "B7",
@@ -1209,7 +1252,7 @@
    "speed": "SPEED25",
    "func": "NONE",
    "comment": "",
-   "tag": "e81"
+   "tag": "e80"
   },
   {
    "frm": "N16",
@@ -1220,7 +1263,7 @@
    "speed": "SPEED2",
    "func": "NONE",
    "comment": "",
-   "tag": "e82"
+   "tag": "e81"
   },
   {
    "frm": "N16",
@@ -1231,7 +1274,7 @@
    "speed": "SPEED1",
    "func": "View1",
    "comment": "",
-   "tag": "e83"
+   "tag": "e82"
   },
   {
    "frm": "N16",
@@ -1242,7 +1285,7 @@
    "speed": "SPEED0",
    "func": "NONE",
    "comment": "",
-   "tag": "e84"
+   "tag": "e83"
   },
   {
    "frm": "N18",
@@ -1253,7 +1296,7 @@
    "speed": "SPEED0",
    "func": "Hill",
    "comment": "",
-   "tag": "e85"
+   "tag": "e84"
   },
   {
    "frm": "N18",
@@ -1262,9 +1305,9 @@
    "angle": "-90",
    "step": "20",
    "speed": "SPEED2",
-   "func": "NONE",
+   "func": "View",
    "comment": "",
-   "tag": "e86"
+   "tag": "e85"
   },
   {
    "frm": "N19",
@@ -1275,7 +1318,7 @@
    "speed": "SPEED3",
    "func": "Hill",
    "comment": "（与 B5->N19 同长，取大=LEN_B5N19）",
-   "tag": "e87"
+   "tag": "e86"
   },
   {
    "frm": "N19",
@@ -1286,7 +1329,7 @@
    "speed": "SPEED2",
    "func": "NONE",
    "comment": "",
-   "tag": "e88"
+   "tag": "e87"
   },
   {
    "frm": "P7",
@@ -1297,16 +1340,27 @@
    "speed": "SPEED25",
    "func": "NONE",
    "comment": "",
-   "tag": "e89"
+   "tag": "e88"
   },
   {
    "frm": "N20",
    "to": "C4",
    "flag": "CLEFT|MCLEFT|STOPTURN|RIGHT_LINE",
-   "angle": "48.2",
+   "angle": "-35",
    "step": "180",
    "speed": "SPEED4",
    "func": "NONE",
+   "comment": "",
+   "tag": "e89"
+  },
+  {
+   "frm": "N20",
+   "to": "B6",
+   "flag": "NO",
+   "angle": "180",
+   "step": "24",
+   "speed": "SPEED1",
+   "func": "SM",
    "comment": "",
    "tag": "e90"
   },
@@ -1319,7 +1373,7 @@
    "speed": "SPEED0",
    "func": "BHM",
    "comment": "",
-   "tag": "e92"
+   "tag": "e91"
   },
   {
    "frm": "N22",
@@ -1330,7 +1384,7 @@
    "speed": "SPEED1",
    "func": "SM",
    "comment": "",
-   "tag": "e93"
+   "tag": "e92"
   },
   {
    "frm": "N22",
@@ -1341,7 +1395,7 @@
    "speed": "SPEED2",
    "func": "Hill",
    "comment": "",
-   "tag": "e94"
+   "tag": "e93"
   },
   {
    "frm": "N22",
@@ -1352,7 +1406,7 @@
    "speed": "SPEED0",
    "func": "NONE",
    "comment": "",
-   "tag": "e95"
+   "tag": "e94"
   },
   {
    "frm": "C6",
@@ -1363,7 +1417,7 @@
    "speed": "SPEED25",
    "func": "Hill",
    "comment": "（与 B7->C6 同长，取大=LEN_B7C6）",
-   "tag": "e96"
+   "tag": "e95"
   },
   {
    "frm": "C6",
@@ -1374,51 +1428,51 @@
    "speed": "SPEED2",
    "func": "NONE",
    "comment": "",
-   "tag": "e97"
+   "tag": "e96"
   },
   {
    "frm": "C7",
    "to": "C8",
-   "flag": "DRIGHT|STOPTURN",
+   "flag": "DLEFT|STOPTURN",
    "angle": "180",
    "step": "108",
    "speed": "SPEED25",
    "func": "NONE",
    "comment": "",
-   "tag": "e98"
+   "tag": "e97"
   },
   {
    "frm": "C7",
    "to": "B10",
    "flag": "NO",
-   "angle": "90",
-   "step": "45",
+   "angle": "-90",
+   "step": "15",
    "speed": "SPEED1",
    "func": "BLBL",
    "comment": "",
-   "tag": "e99"
+   "tag": "e98"
   },
   {
    "frm": "C8",
    "to": "C7",
-   "flag": "DLEFT|CLEFT|STOPTURN",
+   "flag": "DRIGHT|CRIGHT|STOPTURN",
    "angle": "0",
    "step": "96",
    "speed": "SPEED2",
    "func": "NONE",
    "comment": "",
-   "tag": "e100"
+   "tag": "e99"
   },
   {
    "frm": "C8",
    "to": "B11",
    "flag": "NO",
-   "angle": "90",
+   "angle": "-90",
    "step": "30",
    "speed": "SPEED3",
    "func": "BLBL",
    "comment": "",
-   "tag": "e101"
+   "tag": "e100"
   },
   {
    "frm": "C9",
@@ -1429,7 +1483,7 @@
    "speed": "SPEED2",
    "func": "BSoutPole",
    "comment": "",
-   "tag": "e102"
+   "tag": "e101"
   },
   {
    "frm": "C9",
@@ -1440,7 +1494,7 @@
    "speed": "SPEED0",
    "func": "NONE",
    "comment": "",
-   "tag": "e103"
+   "tag": "e102"
   },
   {
    "frm": "P8",
@@ -1451,7 +1505,7 @@
    "speed": "SPEED0",
    "func": "NONE",
    "comment": "",
-   "tag": "e104"
+   "tag": "e103"
   },
   {
    "frm": "N11",
@@ -1462,7 +1516,7 @@
    "speed": "SPEED25",
    "func": "NONE",
    "comment": "",
-   "tag": "e105"
+   "tag": "e104"
   },
   {
    "frm": "N11",
@@ -1473,222 +1527,51 @@
    "speed": "SPEED3",
    "func": "NONE",
    "comment": "",
-   "tag": "e106"
+   "tag": "e105"
   },
   {
    "frm": "B10",
    "to": "N14",
-   "flag": "DLEFT|CLEFT|STOPTURN",
-   "angle": "90",
+   "flag": "DRIGHT|STOPTURN",
+   "angle": "-90",
    "step": "100",
+   "speed": "SPEED1",
+   "func": "View",
+   "comment": "",
+   "tag": "e106"
+  },
+  {
+   "frm": "B10",
+   "to": "C7",
+   "flag": "DLEFT|CLEFT",
+   "angle": "90",
+   "step": "20",
    "speed": "SPEED1",
    "func": "NONE",
    "comment": "",
    "tag": "e107"
   },
   {
-   "frm": "B10",
-   "to": "C7",
-   "flag": "DRIGHT|CRIGHT",
+   "frm": "B11",
+   "to": "C4",
+   "flag": "CRIGHT",
    "angle": "-90",
-   "step": "20",
-   "speed": "SPEED1",
+   "step": "40",
+   "speed": "SPEED2",
    "func": "NONE",
    "comment": "",
    "tag": "e108"
   },
   {
    "frm": "B11",
-   "to": "C4",
-   "flag": "CRIGHT",
-   "angle": "90",
-   "step": "40",
-   "speed": "SPEED2",
-   "func": "NONE",
-   "comment": "",
-   "tag": "e109"
-  },
-  {
-   "frm": "B11",
    "to": "C8",
-   "flag": "DLEFT|CLEFT",
-   "angle": "-90",
+   "flag": "DRIGHT|CRIGHT",
+   "angle": "90",
    "step": "10",
    "speed": "SPEED1",
    "func": "NONE",
    "comment": "",
-   "tag": "e110"
+   "tag": "e109"
   }
- ],
- "turn": {
-  "stop": [
-   {
-    "last": "B9",
-    "now": "N7",
-    "next": "P6",
-    "dist": 25.0
-   },
-   {
-    "last": "P6",
-    "now": "N7",
-    "next": "B8",
-    "dist": 20.0
-   },
-   {
-    "last": "C4",
-    "now": "N20",
-    "next": "P8",
-    "dist": 35.0
-   },
-   {
-    "last": "N20",
-    "now": "C4",
-    "next": "B11",
-    "dist": 25.0
-   },
-   {
-    "last": "N3",
-    "now": "N4",
-    "next": "B2",
-    "dist": 30.0
-   },
-   {
-    "last": "P8",
-    "now": "N20",
-    "next": "C4",
-    "dist": 30.0
-   },
-   {
-    "last": "N8",
-    "now": "N5",
-    "next": "N4",
-    "dist": 36.0
-   },
-   {
-    "last": "N5",
-    "now": "N8",
-    "next": "N12",
-    "dist": 20.0
-   },
-   {
-    "last": "N8",
-    "now": "N3",
-    "next": "N4",
-    "dist": 30.0
-   },
-   {
-    "last": "N4",
-    "now": "N3",
-    "next": "N8",
-    "dist": 20.0
-   },
-   {
-    "last": "B8",
-    "now": "N9",
-    "next": "C3",
-    "dist": 0.0
-   },
-   {
-    "last": "B11",
-    "now": "C4",
-    "next": "N20",
-    "dist": 19.0
-   },
-   {
-    "last": "N10",
-    "now": "N9",
-    "next": "B9",
-    "dist": 48.0
-   },
-   {
-    "last": "B2",
-    "now": "N1",
-    "next": "P1",
-    "dist": 25.0
-   },
-   {
-    "last": "B3",
-    "now": "N2",
-    "next": "P2",
-    "dist": 25.0
-   }
-  ],
-  "gyro": [
-   {
-    "last": "B2",
-    "now": "N4",
-    "next": "N5",
-    "dist": 8.0
-   },
-   {
-    "last": "B3",
-    "now": "N2",
-    "next": "P2",
-    "dist": 18.0
-   },
-   {
-    "last": "B2",
-    "now": "N1",
-    "next": "P1",
-    "dist": 18.0
-   },
-   {
-    "last": "P3",
-    "now": "N3",
-    "next": "N8",
-    "dist": 6.0
-   },
-   {
-    "last": "C4",
-    "now": "N20",
-    "next": "B6",
-    "dist": 24.0
-   },
-   {
-    "last": "N3",
-    "now": "N4",
-    "next": "B3",
-    "dist": 12.0
-   },
-   {
-    "last": "N5",
-    "now": "N12",
-    "next": "N11",
-    "dist": 5.0
-   },
-   {
-    "last": "N8",
-    "now": "N12",
-    "next": "N13",
-    "dist": 10.0
-   },
-   {
-    "last": "N4",
-    "now": "N5",
-    "next": "N12",
-    "dist": 6.0
-   },
-   {
-    "last": "N8",
-    "now": "N3",
-    "next": "P3",
-    "dist": 24.0
-   },
-   {
-    "last": "P1",
-    "now": "N1",
-    "next": "B2",
-    "dist": 3.0
-   }
-  ],
-  "consts": {
-   "TURN_L_PIVOT": 19.0,
-   "TURN_GATE_CM": 5.0,
-   "TURN_D_CRIGHT": 11.0,
-   "TURN_D_CLEFT": -4.0,
-   "TURN_D_DLEFT": -5.0,
-   "TURN_D_DEFAULT": -4.0
-  },
-  "calc_enable": 0
- }
+ ]
 }

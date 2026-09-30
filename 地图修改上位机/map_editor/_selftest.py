@@ -17,6 +17,7 @@ _selftest.py — 地图编辑器自检（无界面）
   9. 门回程：门区禁用 + 极简 wp 复现 validate/_check_door_perm.py 的 12 条 golden
  10. config.h 写回：宏替换保留行尾注释（含多行 /* 开头），真实文件干跑逐字节不变
  11. 第二轮 wp：默认顺序 == 固件源码里写死的两套；自定义巡游顺序只换巡游段
+12. 转弯前补偿：解析 map.c 两张表 / 覆盖度 / 分支判定 / 写回幂等与护栏
 只读源码，不写任何固件文件。
 """
 import os
@@ -237,12 +238,22 @@ def main():
         for name, want, got in bad[:12]:
             print("        %-14s 固件=%s 上位机=%s" % (name, want, got))
 
-    sec("9. 门回程镜像 == 固件 golden（真值来源：scripts/validate/_check_door_perm.py）")
+    sec("9. 门回程镜像 == 固件 golden（真值来源：地图修改上位机/validate/_check_door_perm.py）")
     try:
-        vdir = os.path.join(M.ROOT, "scripts", "validate")
+        # ⚠️ 这个目录**搬过家**：早期在仓库根 `scripts/validate/`，现在在
+        #    `地图修改上位机/validate/`。以前这里硬编码旧路径 ⇒ 导入失败被静默跳过，
+        #    整整一节断言形同虚设（只在输出里留一行"跳过"）。两个位置都试一遍。
+        vdir = None
+        for cand in (os.path.join(M.ROOT, "地图修改上位机", "validate"),
+                     os.path.join(M.ROOT, "scripts", "validate")):
+            if os.path.isfile(os.path.join(cand, "_check_door_perm.py")):
+                vdir = cand
+                break
+        if vdir is None:
+            raise ImportError("找不到 validate/_check_door_perm.py")
         if vdir not in sys.path:
             sys.path.insert(0, vdir)
-        # 不往 scripts/validate/ 写 __pycache__（保持工作树干净；本目录的 .pyc 是被跟踪的）
+        # 不往 validate/ 写 __pycache__（保持工作树干净；该目录的 .pyc 是被跟踪的）
         _prev_bc = sys.dont_write_bytecode
         sys.dont_write_bytecode = True
         try:
@@ -354,6 +365,98 @@ def main():
     # ⑤ 三条门都不通 ⇒ 固件会停车
     check(M.round2_waypoints([M.NO_PASS] * 4, 4)[0] is None,
           "D2/D3/D4 都不能过 返回 None（固件会 CarBrake_Stop）")
+
+    sec("12. 转弯前补偿（map.c：kTurnTbl / 陀螺 if 链 / Tier2 参数）")
+    # ① 解析：两张表都能从源码里读出来，且**注释掉的条目不算**（§14.5 的维护注意）
+    turn = M.parse_turn_tables()
+    check(not turn["warnings"] and len(turn["stop"]) > 0 and len(turn["gyro"]) > 0,
+          "解析 map.c 两张补偿表：表1 停车转 %d 条 / 表2 陀螺转 %d 条（警告 %d 条）"
+          % (len(turn["stop"]), len(turn["gyro"]), len(turn["warnings"])))
+    _mapc = open(M.PATH_MAP_C, encoding="utf-8").read()
+    check(all(isinstance(r["dist"], float) for r in turn["stop"] + turn["gyro"]),
+          "表项都是 (last, now, next, 数值) 四元组")
+    # 表体行数 == 解析条数 ⇒ 说明一行没漏、也没把注释行/花括号注释算进来
+    _blk = re.search(r"kTurnTbl\s*\[\s*\]\s*=\s*\{(.*?)\n\};", _mapc, re.S)
+    _rows_in_src = (len(re.findall(r"^\s*\{\s*[A-Za-z_]\w*\s*,", _blk.group(1), re.M))
+                    if _blk else -1)
+    _cmm_in_src = (len(re.findall(r"^\s*//.*\{\s*[A-Za-z_]\w*\s*,", _blk.group(1), re.M))
+                   if _blk else 0)
+    check(_rows_in_src == len(turn["stop"]),
+          "表1 表体里的行数 == 解析出来的条数（%d == %d；被 // 注释掉的 %d 条没算进来）"
+          % (_rows_in_src, len(turn["stop"]), _cmm_in_src))
+    # ② 公式参数 + 开关
+    for key in ("TURN_L_PIVOT", "TURN_GATE_CM", "TURN_D_CRIGHT", "TURN_D_CLEFT",
+                "TURN_D_DLEFT", "TURN_D_DEFAULT"):
+        check(key in turn["consts"], "公式参数 %s = %g" % (key, turn["consts"][key]))
+    check(turn["calc_enable"] in (0, 1, None),
+          "TURN_CALC_ENABLE 从 config.h 读到了：%s" % turn["calc_enable"])
+    _ce = re.search(r"^\s*#define\s+TURN_CALC_ENABLE\s+(\d+)",
+                    open(M.PATH_CONFIG, encoding="utf-8").read(), re.M)
+    check(_ce and turn["calc_enable"] == int(_ce.group(1)),
+          "开关值与 config.h 源码一致（%s）" % (_ce.group(1) if _ce else "?"))
+    # ③ 覆盖度：枚举全部转弯组合，且三个分支都有
+    model = M.MapModel.load_from_sources()
+    cov = model.turn_coverage()
+    s = cov["stats"]
+    check(s["total"] == s["straight"] + s["stop"] + s["gyro"] + s["unknown"]
+          and s["total"] > 100,
+          "覆盖总览 = %d 个组合（直行 %d / 停车转 %d / 陀螺转 %d）"
+          % (s["total"], s["straight"], s["stop"], s["gyro"]))
+    check(len(cov["rows"]) == s["total"]
+          and all(r["source"] for r in cov["rows"]),
+          "每一行都给出了「当前生效值」的来源（含吃默认值的那批）")
+    check(s["stop_meas"] + s["stop_calc"] + s["stop_default"] == s["stop"],
+          "停车转的 %d 个组合被完整分档（实测 %d / 公式 %d / 默认 19 %d）"
+          % (s["stop"], s["stop_meas"], s["stop_calc"], s["stop_default"]))
+    # ④ 分支判定 == 固件公式（照抄 map.c: Nav_TurnAndAdvance 的判据独立算一遍）
+    for r in cov["rows"]:
+        d = r["delta"]
+        ie = model.edge(r["last"], r["now"])
+        want = ("straight" if (d is None or abs(d) < 10.0
+                               or ie.func in ("UpStage", "UpStageHome", "BSoutPole")
+                               or "NOTURN" in M.flag_set(ie.flag))
+                else "stop" if (abs(d) >= 90.0
+                                or ("STOPTURN" in M.flag_set(ie.flag) and abs(d) > 20.0))
+                else "gyro")
+        if r["branch"] != want:
+            break
+    else:
+        check(True, "分支判定与 map.c 的 (STOPTURN&&|Δ|>20)|||Δ|>=90 逐条一致")
+    # ⑤ 表项状态：「会不会生效」必须能判出来，且死值一定给了原因
+    for table, key in (("stop", "stop"), ("gyro", "gyro")):
+        st = model.turn_status(model.turn[key], table)
+        ok = [x for x in st if x[0] == "ok"]
+        check(len(st) == len(model.turn[key]) and all(x[1] for x in st),
+              "表「%s」%d 行都判出了是否生效（生效 %d / 死值 %d）"
+              % (table, len(st), len(ok), len(st) - len(ok)))
+    # ⑥ 写回是纯函数 + 幂等 + 不重复护栏 + 没编辑就不动
+    out = M.splice_turn_tables(_mapc, model.turn["stop"], model.turn["gyro"])
+    back = M.parse_turn_tables(source_text=out)
+    check(M.turn_rows_equal(back["stop"], model.turn["stop"])
+          and M.turn_rows_equal(back["gyro"], model.turn["gyro"]),
+          "写回后重新解析，两张表逐项不变（往返一致）")
+    check(out == M.splice_turn_tables(out, model.turn["stop"], model.turn["gyro"]),
+          "写回幂等（对结果再写一次逐字节相同）")
+    check(out.count("kTurnTbl_node_check") == _mapc.count("kTurnTbl_node_check") == 1
+          and out.count("void ") == _mapc.count("void ")
+          and out.count("GetForwardDistanceBeforeGyroTurn") == 2,
+          "写回只动三处，不重复护栏/不吞别的函数")
+    check(back["consts"] == model.turn["consts"],
+          "写回不影响公式参数（参数由 #define 单独控制）")
+    # ⑦ 编辑一行 → 写回 → 再解析，改的只有那一行
+    edit = [dict(r) for r in model.turn["stop"]]
+    edit[0]["dist"] = 12.5
+    out2 = M.splice_turn_tables(_mapc, edit, model.turn["gyro"])
+    back2 = M.parse_turn_tables(source_text=out2)
+    check(back2["stop"][0]["dist"] == 12.5
+          and M.turn_rows_equal(back2["stop"][1:], model.turn["stop"][1:]),
+          "改一行的值 → 写回 → 只有那一行变了（12.5）")
+    check(not M.turn_rows_equal(back2["stop"], model.turn["stop"]),
+          "「改过 / 没改过」能被区分出来（写回据此决定要不要重排格式）")
+    # ⑧ 节点号护栏跟着表项重生成
+    more = edit + [{"last": "N8", "now": "N5", "next": "P4", "dist": 7.0}]
+    out3 = M.splice_turn_tables(_mapc, more, model.turn["gyro"])
+    check("(P4 " in out3, "新增表项后，kTurnTbl_node_check 自动带上新节点（P4）")
 
     sec("结果")
     if FAIL:

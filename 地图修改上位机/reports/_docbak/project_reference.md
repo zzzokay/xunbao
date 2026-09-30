@@ -167,25 +167,6 @@ typedef enum { is_No=0, is_Free, is_Line, is_Turn, is_Gyro };
 **IMU**：USART3 DMA + IDLE 中断 → `imu.c` 0x55 协议 10 字节校验 → `imu.yaw/roll/pitch`(±180°)；`IMU_CalibrateZero` 10 次采样归零，`getAngleZ()=yaw+imu.compensateZ`。
 **视觉**：USART6 → `K210.c`（`WaitFor_QR`→`flag_line_clue`/`flag_clue_stage_A/B`；`Door_ReadPass`→`door_pass[5]`；OCR→`flag_clue_A/B`→`treasure`）。三条链路各自「一轮干等 `MAIXCAM_QR/OCR/COLOR_WAIT_TICKS`(800/800/1000)」，但**轮内每约 0.48s 重发一次模式指令**（`barrier.c` 顶部的 `MAIXCAM_RESEND_TICKS_3MS`/`_2MS`）⇒ 轮内 open 次数 1→5，见 `README.md` §2.20。
 
-**16 路灯位 ↔ 到达判据（`deal_arrive()`）** —— 循迹板装在**车头**，`detail` 的 **bit15 = 最左（1 号灯）… bit0 = 最右（16 号灯）**（依据：`scaner.c` 的 `line_weight_default[16]` 从左到右是 −3…+3，`calc_track_all()` 用 `line_weight[i]` 配 `detail >> (sensorNum-1-i)`）。
-
-| 判据位 | 掩码 | 看的灯（左→右 1~16） | 触发条件 |
-|---|---|---|---|
-| `DLEFT` | `0xFC00` | 1~6（左 6） | 这 6 里 ≥5 亮 且 `ledNum ≥ 5` |
-| `DRIGHT` | `0x003F` | 11~16（右 6） | 这 6 里 ≥5 亮 且 `ledNum ≥ 5` |
-| `CLEFT` | `0x6000` | **2 或 3** | 任一亮 且 `4 ≤ ledNum ≤ 7` |
-| `MCLEFT` | `0x8000` | **1（最左单灯）** | 亮 且 `4 ≤ ledNum ≤ 7` |
-| `MCRIGHT` | `0x0001` | **16（最右单灯）** | 亮 且 `4 ≤ ledNum ≤ 7` |
-| `CRIGHT` | `0x000C` | **13 或 14** | 任一亮 且 `4 ≤ ledNum ≤ 7` |
-| `MORELED` | — | 不挑位置 | `ledNum ≥ 5` |
-| `AWHITE` | `0x1FF8` | **4~13（正中间 10 灯）全亮** | `ledNum ≥ 10` |
-| `MUL2SING` | — | 时序（看 `lineNum`） | 连续 >4 帧 `lineNum>1 && ledNum≥4` → 再变 `lineNum==1` |
-| `MUL2MUL` | — | 时序（看 `lineNum`） | 多 → 单 → 多，三段各 >4 帧 |
-
-⚠️ `CRIGHT` 的源码注释写「右起 2 和 3 灯」，但掩码 `0xc` = bit2/bit3 = **左起 13/14 号** —— **注释与代码差一位，以代码为准**。
-⚠️ `MC*`/`C*` 这四条都带 `4 ≤ ledNum ≤ 7`：**先要求「车确实压着主线」** 才认岔路。这条是踩出来的 —— `DLEFT`/`DRIGHT` 曾在 P6 被放宽，现场把「斜线亮 4 灯」当成右直线 ⇒ 提前转弯（见 `交接专用文档（新人先看我）.md` 开头第 2 条）。
-⚠️ **命中顺序 = `deal_arrive()` 的 if 链顺序 = 优先级**：`DLEFT → DRIGHT → CLEFT → MCLEFT → MCRIGHT → CRIGHT → MORELED → AWHITE → MUL2SING → MUL2MUL`（多判据同时成立时，先命中的才写进 `arrive_method`，§14 的补偿 `d` 就按它选档）。
-
 ---
 
 ## 7. Navigation() 执行流程（map.c）

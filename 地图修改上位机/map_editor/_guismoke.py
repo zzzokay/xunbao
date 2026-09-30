@@ -591,6 +591,11 @@ def main():
           "「二轮路线…」入口在界面上真的可见（找到 %d 个，mapped=%s）"
           % (len(_entry2), [bool(b.winfo_ismapped()) for b in _entry2]))
 
+    _entry3 = _widgets_with_text(app, "转弯补偿")
+    check(_entry3 and all(b.winfo_ismapped() for b in _entry3),
+          "「转弯补偿…」入口在界面上真的可见（找到 %d 个，mapped=%s）"
+          % (len(_entry3), [bool(b.winfo_ismapped()) for b in _entry3]))
+
     def _widgets_with_var(root, var):
         """按 textvariable 找控件（下拉框没有 text，只能这样找）。"""
         got = []
@@ -1305,6 +1310,118 @@ def main():
     app._on_wheel(type("Ev", (), {"x": 400, "y": 300, "delta": -120})())
     app.update()
     check(True, "滚轮缩放正常")
+
+    # --- 转弯前补偿（map.c 的 kTurnTbl / 陀螺 if 链）：解析 / 覆盖度 / 写回纯函数 / 高亮 ---
+    step("turn compensation tables (Navigation/map.c)")
+    _t = app.model.turn
+    _src_t = E.M.parse_turn_tables()
+    check(len(_t["stop"]) == len(_src_t["stop"]) and len(_t["gyro"]) == len(_src_t["gyro"])
+          and len(_t["stop"]) > 0 and len(_t["gyro"]) > 0,
+          "模型里读到了 map.c 的两张补偿表（表1 停车转 %d 条 / 表2 陀螺转 %d 条）"
+          % (len(_t["stop"]), len(_t["gyro"])))
+    _cov = app.model.turn_coverage()
+    check(_cov["stats"]["total"] > 100 and _cov["stats"]["stop"] > 0
+          and _cov["stats"]["gyro"] > 0,
+          "覆盖总览枚举出全部转弯组合（%d 个：直行 %d / 停车转 %d / 陀螺转 %d）"
+          % (_cov["stats"]["total"], _cov["stats"]["straight"],
+             _cov["stats"]["stop"], _cov["stats"]["gyro"]))
+    _st = app.model.turn_status(_t["stop"], "stop")
+    check(len(_st) == len(_t["stop"])
+          and all(s[0] in ("ok", "branch", "edge", "unknown") for s in _st),
+          "表1 每行都判出了「会不会生效」（生效 %d / 判不出分支的不算生效 %d）"
+          % (sum(1 for s in _st if s[0] == "ok"), sum(1 for s in _st if s[0] != "ok")))
+    # 写回走纯函数：**不碰真文件**
+    _mapc = open(E.M.PATH_MAP_C, encoding="utf-8").read()
+    _out = E.M.splice_turn_tables(_mapc, _t["stop"], _t["gyro"])
+    check(E.M.turn_rows_equal(E.M.parse_turn_tables(source_text=_out)["stop"], _t["stop"])
+          and E.M.turn_rows_equal(E.M.parse_turn_tables(source_text=_out)["gyro"], _t["gyro"]),
+          "写回（纯函数）后重新解析，两张表逐项不变")
+    check(_out == E.M.splice_turn_tables(_out, _t["stop"], _t["gyro"]),
+          "写回是幂等的（对结果再写一次逐字节相同）")
+    check(E.M.turn_rows_equal(_src_t["stop"], _t["stop"])
+          and E.M.turn_rows_equal(_src_t["gyro"], _t["gyro"]),
+          "没编辑过 ⇒ 表项与源码逐项相同（所以「写回」会整段跳过，不产生格式 diff）")
+    check(_out.count("kTurnTbl_node_check") == _mapc.count("kTurnTbl_node_check")
+          and _out.count("GetForwardDistanceBeforeGyroTurn") == 2,
+          "写回不重复护栏 typedef、陀螺函数头尾各一次")
+    # 「写回」真路径（App._patch_turn_tables）—— 全程只动沙箱副本，真实 map.c 用 SHA256 守着
+    _real_mapc = E.M.PATH_MAP_C
+    _real_hash = hashlib.sha256(open(_real_mapc, "rb").read()).hexdigest()
+    _tmp = os.path.join(HERE, "_smoke_turn_%d" % os.getpid())
+    shutil.rmtree(_tmp, ignore_errors=True)
+    os.makedirs(_tmp, exist_ok=True)
+    _orig_row0 = dict(_t["stop"][0])
+    _orig_gate = _t["consts"]["TURN_GATE_CM"]
+    try:
+        _copy = os.path.join(_tmp, "map.c")
+        shutil.copyfile(_real_mapc, _copy)
+        E.M.PATH_MAP_C = _copy
+        _t["stop"][0] = dict(_t["stop"][0])
+        _t["stop"][0]["dist"] = 33.0
+        _t["consts"]["TURN_GATE_CM"] = 6.0
+        _res = app._patch_turn_tables(_tmp, "20260929_000000")
+        _txt = open(_copy, encoding="utf-8").read()
+        _re = E.M.parse_turn_tables(source_text=_txt)
+        check(_re["stop"][0]["dist"] == 33.0 and len(_re["stop"]) == len(_t["stop"]),
+              "写回真路径：表1 第一行变成 33，条数不变（%s）" % _res)
+        check(abs(_re["consts"]["TURN_GATE_CM"] - 6.0) < 1e-9 and "闸门" in _txt,
+              "写回真路径：公式参数 TURN_GATE_CM→6，且 #define 的行尾注释原样保留")
+        check(_txt.count("NavEdgeTbl") == _mapc.count("NavEdgeTbl")
+              and _txt.count("GetForwardDistanceBeforeGyroTurn") == 2,
+              "写回真路径：没碰别的函数/表")
+        _h1 = hashlib.sha256(open(_copy, "rb").read()).hexdigest()
+        _res2 = app._patch_turn_tables(_tmp, "20260929_000001")
+        _h2 = hashlib.sha256(open(_copy, "rb").read()).hexdigest()
+        check(_h1 == _h2 and "无改动" in _res2,
+              "没再改 ⇒ 第二次写回一个字节都不动（%s）" % _res2)
+        check(os.path.isfile(os.path.join(_tmp, "map.c.20260929_000000.bak")),
+              "写回前自动备份到了沙箱（map.c.<时间戳>.bak）")
+    finally:
+        E.M.PATH_MAP_C = _real_mapc
+        _t["stop"][0] = _orig_row0
+        _t["consts"]["TURN_GATE_CM"] = _orig_gate
+        shutil.rmtree(_tmp, ignore_errors=True)
+    check(hashlib.sha256(open(_real_mapc, "rb").read()).hexdigest() == _real_hash,
+          "真实 Navigation/map.c 未被冒烟测试改动（SHA256 一致）")
+    # 画布高亮（对话框里"点一行 → 画布高亮"走的就是这条路径）
+    app.turn_focus = (_t["stop"][0]["last"], _t["stop"][0]["now"], _t["stop"][0]["next"])
+    app.redraw()
+    app.update()
+    check(len(app.canvas.find_withtag("turn_focus")) >= 4,
+          "选中三元组在画布上高亮（%d 个图元）" % len(app.canvas.find_withtag("turn_focus")))
+    app.turn_focus = None
+    app.redraw()
+    app.update()
+    check(not app.canvas.find_withtag("turn_focus"), "清掉高亮后画布干净")
+    # 对话框能构建（全程无模态：只 build 再销毁）
+    _dlg = None
+    try:
+        app.turn_comp_dialog()
+        _dlg = app._turn_dlg
+        app.update()
+        from tkinter import ttk as _ttk
+
+        def _find_notebook(root):
+            stack = list(root.winfo_children())
+            while stack:
+                w = stack.pop()
+                if isinstance(w, _ttk.Notebook):
+                    return w
+                stack.extend(w.winfo_children())
+            return None
+
+        _nb = _find_notebook(_dlg) if _dlg is not None else None
+        check(_nb is not None and len(_nb.tabs()) == 4,
+              "「转弯补偿」对话框建起来了、四个页签齐全")
+        check(set(getattr(app, "_turn_table_redraw", {})) == {"stop", "gyro"},
+              "两张表的 Treeview 都挂上了刷新回调（可编辑）")
+    finally:
+        if _dlg is not None and _dlg.winfo_exists():
+            _dlg.destroy()
+        app._turn_dlg = None
+        app.turn_focus = None
+        app.redraw()
+        app.update()
 
     app.destroy()
 

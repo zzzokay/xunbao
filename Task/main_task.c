@@ -55,7 +55,7 @@ void main_task(void *pvParameters)
 	//ScanerMode_Switch(Gray);
 #else
 	/*正常模式：完整初始化流程*/
-	//Clear_door();treasure = 5;
+	//Clear_door();treasure = 5;   /* 历史遗留的临时改法，别照抄这个 5；常用调试预设见下面 #if SKIP_ROUND1 块 */
 	mapInit();
 	IMU_CalibrateZero(&basic_y, &basic_p, &basic_r);
 	vTaskDelay(100);
@@ -68,7 +68,9 @@ void main_task(void *pvParameters)
 	door_pass[2] = CAN_PASS;  /* D4 */
 	door_pass[3] = NO_PASS;  /* D5 */
 	door_pass[4] = NO_PASS;  /* D1 */
-	treasure = 2; /* 预设宝物平台编号 = 5 */
+	treasure = 2; /* 预设宝物平台编号：2 → 宝物平台 P1
+	                 ⚠️ 改这里要连同上面 door_pass 预设一起看（两者共同决定 get_newroute() 选哪条二轮路线）；
+	                    2026-09-29 统一记载：行末原来写 5、README §2.4 原写 6，均与代码不符，以代码为准 */
 	map.routetime = 1;
 	#elif !MAP_DEBUG
 	zhunbei(); // 启动流程（红外等待）

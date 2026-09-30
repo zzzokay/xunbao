@@ -162,6 +162,11 @@ EDGE_COLOR_SEL = "#e67e22"
 BATCH_COLOR = "#8e44ad"          # 框选批量选中（节点/边通用）：紫，不撞单选橙、路线蓝/青、告警红
 ROUTE_COLOR = "#1e88e5"           # 路线·去程（蓝）
 ROUTE_COLOR_BACK = "#00897b"      # 路线·回程（青绿）—— 与去程区分，且不撞边的红/橙/选中色
+TURN_FOCUS_COLOR = "#d81b60"      # 「转弯补偿…」选中三元组的高亮色（洋红，不撞蓝/青/橙/紫/红）
+# 补偿表里"这一行到底会不会生效"的三档配色（画面上必须一眼分开）
+TURN_OK_COLOR = "#2e7d32"         # 生效
+TURN_DEAD_COLOR = "#c62828"       # 死值（分支不成立 / 边不存在）
+TURN_WAIT_COLOR = "#ef6c00"       # 吃默认值（没实测、没算出来）
 # 画布显示过滤：去程/回程叠在一起看不清时，只画其中一段
 ROUTE_VIEW_MODES = ("去程+回程", "只看去程", "只看回程")
 ROUND2_CRUISE_PF = ("P5", "P6", "P7", "P8")   # 第二轮巡游的 4 个东区平台
@@ -400,6 +405,8 @@ class App(tk.Tk):
         self.route = []               # 规划出来的路线（节点名列表）
         self.route_split = None       # 回程起始下标（仅"第一轮完整路线"用；其余为 None）
         self.route_view = tk.StringVar(value=ROUTE_VIEW_MODES[0])   # 画布只画哪段（去程/回程分开看）
+        # 「转弯补偿…」对话框里选中的三元组 (last, now, next)：在画布上高亮出来（None=不画）
+        self.turn_focus = None
         self.clue_route_cfg = {}      # 「线索路线…」对话框上次用的配置（随布局一起保存/恢复）
         self.round2_cfg = {}          # 「二轮路线…」对话框上次用的配置（随布局一起保存/恢复）
         self.waypoints = []           # 必经点
@@ -738,6 +745,9 @@ class App(tk.Tk):
         #    父容器已被两个 expand 的 Treeview 占满，结果整块 frame 根本没被映射（看不到）。
         ttk.Button(mrow, text="⇄ 平台交换…",
                    command=self.platform_swap_dialog).pack(side="left", padx=(8, 0))
+        # 转弯前补偿（map.c 的两张表 + 公式参数）：同样必须挂在这一行（见上面的 pack 说明）
+        ttk.Button(mrow, text="⟲ 转弯补偿…",
+                   command=self.turn_comp_dialog).pack(side="left", padx=(6, 0))
 
         self._edge_cols = ("a1", "s1", "a2", "s2")
         self.tree_edges = ttk.Treeview(top, columns=self._edge_cols,
@@ -1262,6 +1272,7 @@ class App(tk.Tk):
         self._draw_edges()
         self._draw_nodes()
         self._draw_route()
+        self._draw_turn_focus()
         self._draw_drag_overlay()
         self._draw_bg_handles()
         self.zoom_var.set("%d%%" % round(self.scale * 100))
@@ -1555,6 +1566,40 @@ class App(tk.Tk):
                 self.canvas.create_text(lx + 32, yy, anchor="w",
                                         text="%s（%d 跳）" % (tag, n - 1),
                                         font=self._font(8), fill=col)
+
+    def _draw_turn_focus(self):
+        """把「转弯补偿…」对话框里选中的三元组 (last → now → next) 画在画布上。
+
+        只按**节点位置**画示意折线（不依赖边本身画得出来），并把真正拐弯的那个节点
+        （`now`）套一圈 + 标出转弯角 —— 一眼看清"这一项管的是哪个弯"。
+        """
+        if not self.turn_focus:
+            return
+        last, now, nxt = self.turn_focus
+        nl, nn, nx = self.model.node(last), self.model.node(now), self.model.node(nxt)
+        if not (nl and nn and nx):
+            return
+        col = TURN_FOCUS_COLOR
+        pts = []
+        for nd in (nl, nn, nx):
+            pts.extend(self.w2s(nd.x, nd.y))
+        self.canvas.create_line(*pts, fill=col, width=5, dash=(8, 4),
+                                arrow="last", arrowshape=(12, 14, 5), tags="turn_focus")
+        for nd, name in ((nl, last), (nx, nxt)):
+            x, y = self.w2s(nd.x, nd.y)
+            self.canvas.create_oval(x - 9, y - 9, x + 9, y + 9,
+                                    outline=col, width=2, tags="turn_focus")
+            self.canvas.create_text(x, y - 19, text=name, font=self._font(8),
+                                    fill=col, tags="turn_focus")
+        x, y = self.w2s(nn.x, nn.y)
+        self.canvas.create_oval(x - 15, y - 15, x + 15, y + 15,
+                                outline=col, width=3, tags="turn_focus")
+        e_in, e_out = self.model.edge(last, now), self.model.edge(now, nxt)
+        d = M.need2turn(self.model.ang(e_in) if e_in else None,
+                        self.model.ang(e_out) if e_out else None)
+        self.canvas.create_text(x, y + 24,
+                                text="转弯 %s" % (("%+.1f°" % d) if d is not None else "?"),
+                                font=self._font(8), fill=col, tags="turn_focus")
 
     def _draw_drag_overlay(self):
         """拖动时：把被拖节点的相邻边标出状态（角度/长度是否达标）。"""
@@ -4527,6 +4572,450 @@ class App(tk.Tk):
         self._backup(path, backup_dir, ts)
         open(path, "w", encoding="utf-8", newline="").write(new_src)
         return "Navigation/map_message.h（NAV_EDGE_COUNT=%d）" % len(self.model.edges)
+
+    # ================================================================ 转弯前补偿（map.c）
+    def _patch_turn_tables(self, backup_dir, ts):
+        """把两张补偿表 + 公式参数写回 `Navigation/map.c`（先备份）。
+
+        ⚠️ **"没改就不重排格式"**：表项与源码逐项相同 ⇒ 整段不动。否则缩进/空格一旦被
+        归一化，每点一次写回都会产生一堆无意义 diff（本工程工作树常年带未提交改动，
+        这种噪声会让 `git diff` 复核失效）。只有新增/编辑表项时才整段重排。
+        """
+        path = M.PATH_MAP_C
+        src = open(path, encoding="utf-8").read()
+        src_turn = M.parse_turn_tables()
+        cur = self.model.turn
+        same = (M.turn_rows_equal(src_turn["stop"], cur.get("stop")) and
+                M.turn_rows_equal(src_turn["gyro"], cur.get("gyro")))
+        new_src = src if same else self.model.splice_turn_tables(src)
+        n_const = 0
+        for name, val in (cur.get("consts") or {}).items():
+            old = src_turn["consts"].get(name)
+            if old is None or abs(float(old) - float(val)) > 1e-9:
+                new_src, n = self._rewrite_config_macro(new_src, name, "( %.1ff)" % float(val))
+                n_const += n
+        if new_src == src and not n_const:
+            return "Navigation/map.c：无改动（表项与公式参数都与源码一致）"
+        self._backup(path, backup_dir, ts)
+        open(path, "w", encoding="utf-8", newline="").write(new_src)
+        return ("Navigation/map.c（表1 %d 条 / 表2 %d 条 / 公式参数改了 %d 个）"
+                % (len(cur.get("stop") or []), len(cur.get("gyro") or []), n_const))
+
+    def turn_comp_dialog(self):
+        """「转弯前补偿」可视化编辑器 —— 把 map.c 里两张**硬编码表**搬进界面。
+
+        对应固件（`Navigation/map.c`，原理见 `项目讲解文档/project_reference.md` §14）：
+          ① `kTurnTbl[]`                       停车原地转分支（走补偿距离→停车→原地转）
+          ② `GetForwardDistanceBeforeGyroTurn` 陀螺不停车转分支
+          ③ `TURN_L_PIVOT / TURN_GATE_CM / TURN_D_*`（Tier2 公式）与 config.h 的 `TURN_CALC_ENABLE`
+
+        四个页签：两张表可增删改、覆盖总览（地图里每个转弯当前生效多少 cm）、公式参数。
+        改完必须点「写回 map.c」才动源码（自动备份）；只改内存随时可撤销。
+        """
+        old = getattr(self, "_turn_dlg", None)
+        if old is not None and old.winfo_exists():
+            old.lift()
+            old.focus_set()
+            return
+        dlg = tk.Toplevel(self)
+        self._turn_dlg = dlg
+        dlg.title("转弯前补偿（Navigation/map.c）")
+        dlg.geometry("1060x720")
+        dlg.transient(self)
+
+        outer = ttk.Frame(dlg, padding=8)
+        outer.pack(fill="both", expand=True)
+        head = ttk.Label(outer, text="", justify="left", foreground="#0d47a1")
+        head.pack(anchor="w", pady=(0, 6))
+
+        nb = ttk.Notebook(outer)
+        nb.pack(fill="both", expand=True)
+        tab_stop = ttk.Frame(nb)
+        tab_gyro = ttk.Frame(nb)
+        tab_cov = ttk.Frame(nb)
+        tab_cst = ttk.Frame(nb)
+        nb.add(tab_stop, text="① 停车原地转（kTurnTbl）")
+        nb.add(tab_gyro, text="② 陀螺不停车转（if 链）")
+        nb.add(tab_cov, text="③ 覆盖总览（地图里全部转弯）")
+        nb.add(tab_cst, text="④ 公式参数 / 开关")
+        self._turn_nb = nb
+        self._turn_head = head
+
+        def rows_of(table):
+            return self.model.turn.setdefault(table, [])
+
+        def refresh_head():
+            cov = self.model.turn_coverage()
+            self._turn_cov = cov
+            s = cov["stats"]
+            head.configure(text=(
+                "map.c 里两张表：表1 停车转 %d 条 / 表2 陀螺转 %d 条　｜　"
+                "「能算就算」Tier2：%s　｜　L=%.1fcm 闸门=%.1fcm\n"
+                "地图里共 %d 个转弯组合：直行 %d / 停车转 %d / 陀螺转 %d"
+                "（停车转里实测 %d、公式 %d、吃默认 19 的 %d；陀螺转里实测 %d、默认 0 的 %d）"
+                % (len(rows_of("stop")), len(rows_of("gyro")),
+                   "开" if self.model.turn.get("calc_enable") else
+                   ("关" if self.model.turn.get("calc_enable") is not None else "?"),
+                   float(self.model.turn["consts"].get("TURN_L_PIVOT", 19.0)),
+                   float(self.model.turn["consts"].get("TURN_GATE_CM", 5.0)),
+                   s["total"], s["straight"], s["stop"], s["gyro"],
+                   s["stop_meas"], s["stop_calc"], s["stop_default"],
+                   s["gyro_meas"], s["gyro_default"])))
+
+        ST_COL = {"ok": TURN_OK_COLOR, "branch": TURN_DEAD_COLOR,
+                  "edge": TURN_DEAD_COLOR, "unknown": TURN_WAIT_COLOR}
+
+        # ------------------------------------------------ 通用：可编辑的表
+        def build_table_tab(parent, table):
+            hint = ("表里每一行 = 一个 (上一步, 当前, 下一步) 三元组 → 补偿距离(cm)。"
+                    "「状态」列标出它**当前会不会生效**：绿色=生效、红色=死值、橙色=判不出来。"
+                    "改完记得点「写回 map.c」。" if table == "stop" else
+                "这是“陀螺不停车转”分支的 if 链（末尾固定 return 0）。"
+                "同理，红字行表示当前地图根本不走这个组合。")
+            ttk.Label(parent, text=hint, justify="left", foreground="#37474f").pack(
+                anchor="w", padx=6, pady=(6, 2))
+            cols = ("last", "now", "next", "dist", "delta", "branch", "status")
+            tree = ttk.Treeview(parent, columns=cols, show="headings", height=13)
+            for c, txt, w, anc in (("last", "上一步", 70, "center"), ("now", "当前", 70, "center"),
+                                   ("next", "下一步", 70, "center"), ("dist", "补偿值cm", 80, "e"),
+                                   ("delta", "转弯角", 76, "e"), ("branch", "分支", 92, "center"),
+                                   ("status", "状态", 300, "w")):
+                tree.heading(c, text=txt)
+                tree.column(c, width=w, anchor=anc, stretch=(c == "status"))
+            tree.pack(fill="both", expand=True, padx=6, pady=(0, 2))
+            tree.tag_configure("ok", foreground=TURN_OK_COLOR)
+            tree.tag_configure("dead", foreground=TURN_DEAD_COLOR)
+            tree.tag_configure("wait", foreground=TURN_WAIT_COLOR)
+
+            edit = ttk.Frame(parent)
+            edit.pack(fill="x", padx=6, pady=(0, 2))
+            ttk.Label(edit, text="上一步").pack(side="left")
+            cb_last = ttk.Combobox(edit, width=6, values=self.model.names())
+            cb_last.pack(side="left", padx=(2, 6))
+            ttk.Label(edit, text="当前").pack(side="left")
+            cb_now = ttk.Combobox(edit, width=6, values=self.model.names())
+            cb_now.pack(side="left", padx=(2, 6))
+            ttk.Label(edit, text="下一步").pack(side="left")
+            cb_next = ttk.Combobox(edit, width=6, values=self.model.names())
+            cb_next.pack(side="left", padx=(2, 6))
+            ttk.Label(edit, text="值(cm)").pack(side="left")
+            ent = ttk.Entry(edit, width=8)
+            ent.pack(side="left", padx=(2, 8))
+
+            state = {"sel": None, "iid": None}
+
+            def fill_edit(row):
+                for cb, key in ((cb_last, "last"), (cb_now, "now"), (cb_next, "next")):
+                    cb.set(row.get(key, "") if row else "")
+                ent.delete(0, "end")
+                if row is not None:
+                    ent.insert(0, "%g" % float(row.get("dist", 0)))
+
+            def redraw(sync_pending=False):
+                rows = rows_of(table)
+                tree.delete(*tree.get_children())
+                stat = self.model.turn_status(rows, table)
+                for i, (r, (st, det)) in enumerate(zip(rows, stat)):
+                    ie, oe = self.model.edge(r["last"], r["now"]), self.model.edge(r["now"], r["next"])
+                    d = M.need2turn(self.model.ang(ie) if ie else None,
+                                    self.model.ang(oe) if oe else None)
+                    br = M.turn_branch(d, ie.flag if ie else "",
+                                       ie.func if ie else "NONE")
+                    tree.insert("", "end", iid=str(i), tags=(ST_COL.get(st, "wait"),),
+                                values=(r["last"], r["now"], r["next"], "%g" % float(r["dist"]),
+                                        "-" if d is None else "%+.1f°" % d,
+                                        M.TURN_BRANCH_NAME.get(br, br), det))
+                if state["iid"] is not None and tree.exists(state["iid"]):
+                    tree.selection_set(state["iid"])
+                if not sync_pending:
+                    refresh_head()
+
+            def on_select(_e=None):
+                sel = tree.selection()
+                if not sel:
+                    return
+                i = int(sel[0])
+                rows = rows_of(table)
+                if i >= len(rows):
+                    return
+                state["iid"] = str(i)
+                fill_edit(rows[i])
+                r = rows[i]
+                self.turn_focus = (r["last"], r["now"], r["next"])
+                self.redraw()
+
+            def on_double(_e=None):
+                """双击直接改值：选中行 → 只弹一个数字框（最常用操作，别让它点三下）。"""
+                on_select()
+                try:
+                    cur = float(ent.get() or 0)
+                except ValueError:
+                    cur = 0.0
+                v = simpledialog.askfloat("改补偿值", "该三元组的补偿距离（cm）：",
+                                          initialvalue=cur, parent=dlg)
+                if v is None:
+                    return
+                ent.delete(0, "end")
+                ent.insert(0, "%g" % v)
+                apply_row()
+
+            def apply_row():
+                r = {"last": cb_last.get().strip(), "now": cb_now.get().strip(),
+                     "next": cb_next.get().strip()}
+                if not (r["last"] and r["now"] and r["next"]):
+                    messagebox.showwarning("参数不全", "三个节点都要选。", parent=dlg)
+                    return
+                try:
+                    r["dist"] = float(ent.get().strip())
+                except ValueError:
+                    messagebox.showwarning("值不对", "补偿距离要填数字（cm）。", parent=dlg)
+                    return
+                rows = rows_of(table)
+                sel = tree.selection()
+                if state["iid"] is not None and sel and int(sel[0]) < len(rows):
+                    rows[int(sel[0])] = r
+                else:
+                    rows.append(r)
+                    state["iid"] = str(len(rows) - 1)
+                self.model.dirty = True
+                redraw()
+
+            def add_row():
+                rows_of(table).append({"last": cb_last.get().strip() or self.model.names()[0],
+                                       "now": cb_now.get().strip() or self.model.names()[0],
+                                       "next": cb_next.get().strip() or self.model.names()[0],
+                                       "dist": 0.0})
+                state["iid"] = str(len(rows_of(table)) - 1)
+                self.model.dirty = True
+                redraw()
+
+            def del_row():
+                sel = tree.selection()
+                if not sel:
+                    return
+                i = int(sel[0])
+                if 0 <= i < len(rows_of(table)):
+                    del rows_of(table)[i]
+                state["iid"] = None
+                self.model.dirty = True
+                redraw()
+
+            def move(delta):
+                sel = tree.selection()
+                if not sel:
+                    return
+                i, rows = int(sel[0]), rows_of(table)
+                j = i + delta
+                if 0 <= i < len(rows) and 0 <= j < len(rows):
+                    rows[i], rows[j] = rows[j], rows[i]
+                    state["iid"] = str(j)
+                    self.model.dirty = True
+                    redraw()
+
+            def apply_to_canvas():
+                on_select()
+
+            btns = ttk.Frame(parent)
+            btns.pack(fill="x", padx=6, pady=(0, 6))
+            ttk.Button(btns, text="＋ 新增一行", command=add_row).pack(side="left")
+            ttk.Button(btns, text="改这一行", command=apply_row).pack(side="left", padx=4)
+            ttk.Button(btns, text="删除选中", command=del_row).pack(side="left", padx=4)
+            ttk.Button(btns, text="↑", width=3, command=lambda: move(-1)).pack(side="left", padx=2)
+            ttk.Button(btns, text="↓", width=3, command=lambda: move(1)).pack(side="left", padx=2)
+            ttk.Button(btns, text="在画布上高亮", command=apply_to_canvas).pack(side="left", padx=4)
+            self._turn_table_redraw[table] = redraw
+            tree.bind("<<TreeviewSelect>>", on_select)
+            tree.bind("<Double-1>", on_double)
+            return tree
+
+        self._turn_table_redraw = {}
+        build_table_tab(tab_stop, "stop")
+        build_table_tab(tab_gyro, "gyro")
+
+        # ------------------------------------------------ ③ 覆盖总览
+        ttk.Label(tab_cov, justify="left", foreground="#37474f", text=(
+            "地图里**所有** (入边, 出边) 转弯组合，以及它当前实际生效的补偿值（单位 cm）。\n"
+            "「来源」= 表1 实测 / Tier2 公式 / Tier3 默认 19 / 表2 实测 / 默认 0 —— "
+            "橙色那些就是“没数据、只能吃默认值”的弯（占绝大多数）。"
+            "点一行 → 画布上高亮这个弯。")).pack(anchor="w", padx=6, pady=(6, 2))
+        covbar = ttk.Frame(tab_cov)
+        covbar.pack(fill="x", padx=6)
+        only_def = tk.BooleanVar(value=False)
+        ttk.Checkbutton(covbar, text="只看“吃默认值/没数据”的", variable=only_def).pack(side="left")
+        cov_stat = ttk.Label(covbar, text="", foreground="#0d47a1")
+        cov_stat.pack(side="left", padx=10)
+        ccols = ("last", "now", "next", "delta", "branch", "value", "source", "note")
+        ctree = ttk.Treeview(tab_cov, columns=ccols, show="headings", height=15)
+        for c, txt, w, anc in (("last", "上一步", 60, "center"), ("now", "当前", 60, "center"),
+                               ("next", "下一步", 60, "center"), ("delta", "转弯角", 74, "e"),
+                               ("branch", "分支", 90, "center"), ("value", "生效值cm", 74, "e"),
+                               ("source", "来源", 100, "w"), ("note", "说明", 260, "w")):
+            ctree.heading(c, text=txt)
+            ctree.column(c, width=w, anchor=anc, stretch=(c == "note"))
+        ctree.pack(fill="both", expand=True, padx=6, pady=(2, 6))
+        ctree.tag_configure("wait", foreground=TURN_WAIT_COLOR)
+
+        def redraw_cov():
+            cov = getattr(self, "_turn_cov", None) or self.model.turn_coverage()
+            ctree.delete(*ctree.get_children())
+            rows = [r for r in cov["rows"]
+                    if (not only_def.get()) or r["source"] in ("Tier3 默认 19", "默认 0",
+                                                               "角度求不出（宏没定义）")]
+            for i, r in enumerate(rows):
+                val = "" if r["value"] is None else "%g" % r["value"]
+                ctree.insert("", "end", iid=str(i),
+                             tags=("wait",) if r["source"] in ("Tier3 默认 19", "默认 0") else (),
+                             values=(r["last"], r["now"], r["next"],
+                                     "-" if r["delta"] is None else "%+.1f°" % r["delta"],
+                                     M.TURN_BRANCH_NAME.get(r["branch"], r["branch"]),
+                                     val, r["source"], r["note"]))
+            cov_stat.configure(text="显示 %d / %d 条" % (len(rows), cov["stats"]["total"]))
+            self._turn_cov_rows = rows
+
+        def on_cov_select(_e=None):
+            sel = ctree.selection()
+            if not sel:
+                return
+            r = self._turn_cov_rows[int(sel[0])]
+            self.turn_focus = (r["last"], r["now"], r["next"])
+            self.redraw()
+
+        ctree.bind("<<TreeviewSelect>>", on_cov_select)
+        only_def.trace_add("write", lambda *_a: redraw_cov())
+
+        # ------------------------------------------------ ④ 公式参数 / 开关
+        ttk.Label(tab_cst, justify="left", foreground="#37474f", text=(
+            "「能算就算」Tier2 的公式：  Δ = TURN_L_PIVOT × (1 − cosφ) + d(判据)\n"
+            "命中条件：入边 func ∈ {NONE, DOOR} 且 step ≥ 20cm 且 100° ≤ |转弯| < 178°；"
+            "表1 里已有实测值且 |公式−实测| > 闸门 ⇒ 一律用实测（机制自保护）。\n"
+            "⚠️ 各判据的 d 可信度差别极大（DLEFT 5/5 最可信；CLEFT 只 9 条里过 5 条），"
+            "改之前先看 project_reference.md §14.3。")).pack(anchor="w", padx=6, pady=(6, 4))
+        cform = ttk.Frame(tab_cst)
+        cform.pack(fill="x", padx=6)
+        const_entries = {}
+        cnames = [("TURN_L_PIVOT", "旋转中心→传感器板中心 纵向距离 L"),
+                  ("TURN_GATE_CM", "5cm 闸门：公式与实测差超过它就不用公式"),
+                  ("TURN_D_CRIGHT", "判据 CRIGHT 的检测滞后 d"),
+                  ("TURN_D_CLEFT", "判据 CLEFT 的检测滞后 d"),
+                  ("TURN_D_DLEFT", "判据 DLEFT 的检测滞后 d"),
+                  ("TURN_D_DEFAULT", "其它判据回退用的缺省 d")]
+        for i, (name, desc) in enumerate(cnames):
+            ttk.Label(cform, text=name, width=16).grid(row=i, column=0, sticky="w", pady=2)
+            e = ttk.Entry(cform, width=10)
+            e.insert(0, "%g" % float(self.model.turn["consts"].get(name, 0.0)))
+            e.grid(row=i, column=1, sticky="w", pady=2)
+            const_entries[name] = e
+            ttk.Label(cform, text=desc).grid(row=i, column=2, sticky="w", padx=8)
+
+        calc_var = tk.BooleanVar(value=bool(self.model.turn.get("calc_enable")))
+        ttk.Checkbutton(cform, text="TURN_CALC_ENABLE（config.h）：启用“能算就算”Tier2 公式",
+                        variable=calc_var).grid(row=len(cnames), column=0, columnspan=3,
+                                                sticky="w", pady=(8, 2))
+
+        def apply_consts():
+            for name, e in const_entries.items():
+                try:
+                    self.model.turn["consts"][name] = float(e.get().strip())
+                except ValueError:
+                    messagebox.showwarning("值不对", "%s 要填数字。" % name, parent=dlg)
+                    return
+            self.model.turn["calc_enable"] = 1 if calc_var.get() else 0
+            self.model.dirty = True
+            refresh_head()
+            redraw_cov()
+            self.status("转弯补偿参数已记到当前模型（点「写回」才动源码）")
+
+        def write_config_switch():
+            path = M.PATH_CONFIG
+            try:
+                src = open(path, encoding="utf-8").read()
+                new_src, n = self._rewrite_config_macro(
+                    src, "TURN_CALC_ENABLE", "1" if calc_var.get() else "0")
+                if not n:
+                    messagebox.showwarning("没找到", "config.h 里没有 TURN_CALC_ENABLE。", parent=dlg)
+                    return
+                backup_dir = os.path.join(HERE, "backups")
+                os.makedirs(backup_dir, exist_ok=True)
+                ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                self._backup(path, backup_dir, ts)
+                open(path, "w", encoding="utf-8", newline="").write(new_src)
+                self.model.turn["calc_enable"] = 1 if calc_var.get() else 0
+                refresh_head()
+                redraw_cov()
+                self.status("已写回 Mission/config.h（TURN_CALC_ENABLE=%d）" % int(calc_var.get()))
+            except Exception as ex:                                # noqa: BLE001
+                messagebox.showerror("写回失败", "%s" % ex, parent=dlg)
+
+        cbtns = ttk.Frame(tab_cst)
+        cbtns.pack(fill="x", padx=6, pady=8)
+        ttk.Button(cbtns, text="应用到当前模型", command=apply_consts).pack(side="left")
+        ttk.Button(cbtns, text="只把开关写回 config.h", command=write_config_switch).pack(
+            side="left", padx=6)
+
+        # ------------------------------------------------ 底部
+        def reload_from_source():
+            try:
+                t = M.parse_turn_tables()
+            except Exception as ex:                                # noqa: BLE001
+                messagebox.showerror("重读失败", "%s" % ex, parent=dlg)
+                return
+            self.model.turn.update(t)
+            self.model.turn["consts_src"] = dict(t["consts"])
+            state_reset()
+            self.status("已从 Navigation/map.c 重新读取转弯补偿表")
+
+        def state_reset():
+            for name, e in const_entries.items():
+                e.delete(0, "end")
+                e.insert(0, "%g" % float(self.model.turn["consts"].get(name, 0.0)))
+            calc_var.set(bool(self.model.turn.get("calc_enable")))
+            for redraw in self._turn_table_redraw.values():
+                redraw()
+            refresh_head()
+            redraw_cov()
+
+        def writeback():
+            msg = ("即将把转弯补偿写回固件源码：\n\n"
+                   "  Navigation/map.c  ← 表1 kTurnTbl[]（%d 条）\n"
+                   "                    ← 表2 GetForwardDistanceBeforeGyroTurn（%d 条）\n"
+                   "                    ← kTurnTbl_node_check 的节点号护栏（跟随表项重生成）\n"
+                   "                    ← TURN_* 公式参数（只改真的变了的）\n\n"
+                   "⚠️ 会先自动备份到 backups/。\n"
+                   "⚠️ 若表项有改动，整段表会按统一格式重排（值不变，只是缩进归一化）。\n"
+                   "⚠️ 工作树里本来就有未提交改动，写回后请用 git diff 复核。\n\n"
+                   "确认继续？" % (len(rows_of("stop")), len(rows_of("gyro"))))
+            if not messagebox.askyesno("写回 map.c", msg, parent=dlg, icon="warning"):
+                return
+            try:
+                backup_dir = os.path.join(HERE, "backups")
+                os.makedirs(backup_dir, exist_ok=True)
+                ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                res = self._patch_turn_tables(backup_dir, ts)
+                messagebox.showinfo("写回完成", "已写回：\n" + res + "\n\n备份目录：\n" + backup_dir,
+                                    parent=dlg)
+                self.status("转弯补偿已写回 " + res)
+            except Exception as ex:                                # noqa: BLE001
+                messagebox.showerror("写回失败", "%s" % ex, parent=dlg)
+
+        def clear_focus():
+            self.turn_focus = None
+            self.redraw()
+
+        def on_close():
+            self.turn_focus = None
+            self._turn_dlg = None
+            dlg.destroy()
+            self.redraw()
+
+        foot = ttk.Frame(outer)
+        foot.pack(fill="x", pady=(8, 0))
+        ttk.Button(foot, text="从 map.c 重读", command=reload_from_source).pack(side="left")
+        ttk.Button(foot, text="在画布上清掉高亮", command=clear_focus).pack(side="left", padx=6)
+        ttk.Button(foot, text="写回 map.c…", command=writeback).pack(side="right")
+        ttk.Button(foot, text="关闭", command=on_close).pack(side="right", padx=6)
+        dlg.protocol("WM_DELETE_WINDOW", on_close)
+
+        state_reset()
 
     # ---- JSON / 布局 ----
     def _layouts_dir(self):

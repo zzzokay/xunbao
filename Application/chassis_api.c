@@ -709,7 +709,7 @@ float Chassis_GetLineGyroComp(void)
 
 /* ========= 翘头保护阈值 ========= */
 #define WHEELIE_PITCH_THRESHOLD      7.0f    /* pitch > basic_p + 8° 视为翘头 */
-#define WHEELIE_CINCREMENT_REDUCED   0.0f   /* 翘头保护时的加速度 */
+#define WHEELIE_CINCREMENT_REDUCED   0.05f   /* 翘头保护时的加速度 */
 
 #define LINE_LOST_THRESHOLD  80   // 80 * 5ms = 0.4秒
 

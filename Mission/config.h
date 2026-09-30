@@ -8,26 +8,23 @@
  * ===================================================================== */
 
  /* ===================== 调试开关 ===================== */
-#define MAP_DEBUG      0
+#define MAP_DEBUG      0        
 #define STEP_DEBUG     0
 #define MAIN_DEBUG     0
-#define DEBUG          0
+#define DEBUG          0        //摄像头
 
 /* ===================== 转弯前补偿距离"能算就算" =====================
- * 1 = 平地(func=NONE/DOOR) + 入边 step>=20cm + 转弯 100°~178° 的节点，距离由
- *     Δ = 19*(1-cosφ) + d(判据) 算出，而不是吃默认值 19；
+ * 1 = 距离由Δ = 19*(1-cosφ) + d(判据) 算出，而不是吃默认值 19；    
  *     但若该三元组已有实测值且公式与它相差 >5cm，则仍用实测值（5cm 闸门，自保护）。
- * 0 = 完全保持原行为（只用实测表 + 默认值）。
- * 依据与验证见 project_reference.md §14、地图修改上位机/analyze/reports/转弯补偿_能算就算方案.md */
+ * 0 = 完全保持原行为（只用实测表 + 默认值）。*/
 #define TURN_CALC_ENABLE   0
 
-/* ===================== 直立景点（View，N14/N16）触发条件 =====================
- * 1 = 只有"已经拿到宝藏"之后才做直立景点动作（一轮取宝后的回程 + 第二轮）；
- *     一轮去程（treasure==0）经过 N12->N16 时不做动作，当普通节点直穿。
- * 0 = 恢复旧行为（边表 func=View 就做，含一轮去程）。
- * 依据：一轮去程 N5->N12->N13->P5->N13->N12->N16 会在取宝前经过 N16。
- * 落点与验证见 project_reference.md §11 / README.md §2.14 */
-#define UPRIGHT_NEED_TREASURE  1
+
+/* ===================== 直立景点巡回 S1/S2（View1 通道）=====================
+ * 1 = 一轮【取宝之后】的回家腿顺路绕近的那个景点（宝物 P3->S1、P4->S2）；
+ *     二轮去 P3/P4 时固定两个都绕。
+ * 0 = 完全不进 S1/S2*/
+#define UPRIGHT_TOUR_ENABLE  0
 
 /* ===================== 路线生成 ===================== */
 #define USE_PLANNER_ROUTE  1
@@ -134,16 +131,13 @@
 #define OCR_HEAD_MID         1500
 #define OCR_HEAD_FAR_RIGHT   1350
 #define OCR_HEAD_FAR_LEFT    1650
-#define OCR_HEAD_NEAR_RIGHT  1320
-#define OCR_HEAD_NEAR_LEFT   1680
+#define OCR_HEAD_NEAR_RIGHT  1300
+#define OCR_HEAD_NEAR_LEFT   1700
 
 
 /* ===================== 底盘长度标定 =====================
  * LEN_SCALE = 每 1 个"代码长度单位"对应的厘米数。
  * 实测：车走 100 代码单位 ≈ 120cm  → LEN_SCALE = 120/100 = 1.2。
- * 各处距离阈值已按 cm=round(代码单位×LEN_SCALE) 内联为整数厘米，只有
- * motor_task.c 的里程公式(运行时连续累加)才用本宏做比例补偿。
- * 重新标定：改这里 + 重算各处内联值(见 project_reference.md §7.4)。
  */
 #define LEN_SCALE  1.2f
 

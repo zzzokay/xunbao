@@ -12,6 +12,7 @@ map_model.py — 寻宝地图「源码解析 / 数据模型 / 校验 / 规划 / 
 import os
 import re
 import json
+import math
 import datetime
 
 # ---------------------------------------------------------------- 仓库路径
@@ -32,6 +33,8 @@ PATH_MAP_H = os.path.join(ROOT, "Navigation", "map.h")
 PATH_EDGE_C = os.path.join(ROOT, "Navigation", "map_message.c")
 PATH_MSG_H = os.path.join(ROOT, "Navigation", "map_message.h")
 PATH_CONFIG = os.path.join(ROOT, "Mission", "config.h")
+# 「转弯前补偿」两张表都写在 map.c 里（不像边表那样单独一个文件）
+PATH_MAP_C = os.path.join(ROOT, "Navigation", "map.c")
 
 
 # ---------------------------------------------------------------- flag / func 名字表
@@ -393,6 +396,448 @@ def parse_edge_table(path=PATH_EDGE_C):
             "step": step, "speed": speed, "func": func, "comment": cmt,
         })
     return rows, declared
+
+
+# ---------------------------------------------------------------- 转弯前补偿（map.c）
+# 语义 / 背景 / 参数可信度见 `项目讲解文档/project_reference.md` §14。
+#
+# 固件里"转弯前补偿距离"由**两张表**决定（都在 Navigation/map.c，不在边表里）：
+#   ① kTurnTbl[]                        停车原地转分支（GetForwardDistanceBeforeTurn）
+#   ② GetForwardDistanceBeforeGyroTurn  陀螺不停车转分支（一条 if 链 + 默认 return 0）
+# 外加"能算就算"（Tier2）公式的 4 个参数，也是 map.c 顶部的 #define：
+#   TURN_L_PIVOT / TURN_GATE_CM / TURN_D_{CRIGHT,CLEFT,DLEFT,DEFAULT}
+#
+# ⚠️ 两张表的**分支判定不在表里**：`Nav_TurnAndAdvance()` 按
+#      (STOPTURN 标志 && |转弯|>20°) || |转弯|>=90°
+#    选分支 ⇒ 表里存着、但当前地图走不到那个分支的条目就是**死值**
+#    （project_reference §14.1 列的 8 条就是这么来的）。
+#    所以编辑器必须把"表项会不会生效"算出来给用户看，不能只列表面值。
+
+TURN_STOP_DEFAULT = 19.0     # 停车转分支都没命中时的兜底（map.c 的 `return 19`）
+TURN_GYRO_DEFAULT = 0.0      # 陀螺转分支的兜底（map.c 的 `return 0`）
+
+# 公式参数的默认值（解析不到就用它，保证界面不炸）
+TURN_CONST_DEFAULTS = {
+    "TURN_L_PIVOT": 19.0,      # 旋转中心→传感器板中心 纵向距离
+    "TURN_GATE_CM": 5.0,       # 5cm 闸门：|公式-实测| > 它就不用公式
+    "TURN_D_CRIGHT": 11.0,
+    "TURN_D_CLEFT": -4.0,
+    "TURN_D_DLEFT": -5.0,
+    "TURN_D_DEFAULT": -4.0,
+}
+# 判据 → 该判据用的 d。map.c 只区分 CRIGHT / CLEFT / DLEFT 三种，其余一律走 DEFAULT。
+# 判据编号见 Navigation/map.h 的 enum ARRIVE_*（ArriveDetect_task.c 写、map.c 只读）。
+TURN_ARRIVE_D = {
+    "ARRIVE_CRIGHT": "TURN_D_CRIGHT",
+    "ARRIVE_CLEFT": "TURN_D_CLEFT",
+    "ARRIVE_DLEFT": "TURN_D_DLEFT",
+}
+
+# 分支判据（镜像 map.c: Nav_TurnAndAdvance 里那三个魔数）
+TURN_STRAIGHT_TOL = 10.0     # |Δ| < 10° ⇒ 直行通过，不走任何补偿
+TURN_STOPTURN_TOL = 20.0     # 带 STOPTURN 且 |Δ| > 20° ⇒ 停车原地转
+TURN_ANGLE_STOP = 90.0       # |Δ| >= 90° ⇒ 一律停车原地转
+TURN_NOTURN_FUNCS = ("UpStage", "UpStageHome", "BSoutPole")   # 平台类：结束时朝向已对准
+
+
+def _blank_block_comments(text):
+    """把 `/* ... */` 挖成空白，但**保留其中的换行数**。
+
+    ⚠️ 不能用 `_strip_block_comments()`（它把整块替换成一个空格 ⇒ 跨行注释会把后面的行
+    并到前一行上），本模块后面要**按行**解析表项，行结构必须保住。
+    """
+    return re.sub(r"/\*.*?\*/",
+                  lambda m: " " * (0 if "\n" in m.group(0) else 1)
+                            + "\n" * m.group(0).count("\n"),
+                  text, flags=re.S)
+
+
+def flag_set(flag):
+    """把边表里的 flag 文本切成集合（`A|B|C` 或历史笔误 `A, B` 都吃得下）。"""
+    return {p.strip() for p in re.split(r"[|,]", flag or "") if p.strip()}
+
+
+def need2turn(a, b):
+    """镜像固件 `nav_planner.c: nav_need2turn()` —— 从 a 转到 b 需要转多少度，归一化到 (-180,180]。"""
+    if a is None or b is None:
+        return None
+    d = b - a
+    while d > 180.0:
+        d -= 360.0
+    while d < -180.0:
+        d += 360.0
+    return d
+
+
+def turn_branch(delta, flag="", func="NONE"):
+    """静态判定转弯分支（镜像 map.c: Nav_TurnAndAdvance 的判据）。
+
+    ⚠️ 固件第一条 STOPTURN 判据用的是**陀螺实测航向** `getAngleZ()`，静态算不出来 ——
+    这里只用边表角度（`nodes.nowNode.angle` vs `nextNode.angle`），所以判成 'stop' 里
+    混了"要陀螺也偏称"的那一支。返回：
+      'straight' 直行（|Δ|<10 ／ NOTURN ／ 平台类 function）
+      'stop'     停车原地转 → 查表1（kTurnTbl）
+      'gyro'     陀螺不停车转 → 查表2（if 链）
+      'unknown'  角度求值失败
+    """
+    if delta is None:
+        return "unknown"
+    if abs(delta) < TURN_STRAIGHT_TOL:
+        return "straight"
+    if func in TURN_NOTURN_FUNCS:
+        return "straight"
+    if "NOTURN" in flag_set(flag):
+        return "straight"
+    if abs(delta) >= TURN_ANGLE_STOP:
+        return "stop"
+    if "STOPTURN" in flag_set(flag) and abs(delta) > TURN_STOPTURN_TOL:
+        return "stop"
+    return "gyro"
+
+
+_STOP_ROW_RE = re.compile(
+    r"\{\s*([A-Za-z_]\w*)\s*,\s*([A-Za-z_]\w*)\s*,\s*([A-Za-z_]\w*)\s*,\s*"
+    r"(-?\d+(?:\.\d+)?)[fF]?\s*\}\s*,?")
+_GYRO_ROW_RE = re.compile(
+    r"if\s*\(\s*last\s*==\s*([A-Za-z_]\w*)\s*&&\s*now\s*==\s*([A-Za-z_]\w*)\s*&&\s*"
+    r"next\s*==\s*([A-Za-z_]\w*)\s*\)\s*return\s+(-?\d+(?:\.\d+)?)[fF]?\s*;")
+
+
+def parse_turn_tables(path=None, source_text=None):
+    """解析 map.c 的「转弯前补偿」两张表 + 公式参数 + 开关。
+
+    返回 dict:
+      stop / gyro      [{last, now, next, dist}]（**按源码顺序**，未做去重）
+      consts           {TURN_*: 数值}（解析不到的键用 TURN_CONST_DEFAULTS 补齐）
+      calc_enable      0 / 1（config.h 的 TURN_CALC_ENABLE；读不到为 None）
+      stop_default / gyro_default
+      warnings         [str]
+      raw              {"stop_block": 原表体文本, "gyro_block": 原函数体文本}
+
+    ⚠️ **必须先剥注释再匹配**：map.c 里注释掉的条目（如 `// { N13, N18, B5, 60 },`）
+       会被简单正则当成生效项 —— 这正是 project_reference §14.5 记的那条维护注意。
+    """
+    path = path or PATH_MAP_C
+    text = source_text if source_text is not None else open(path, encoding="utf-8").read()
+    lines = [_strip_line_comment(l) for l in _blank_block_comments(text).splitlines()]
+    joined = "\n".join(lines)
+
+    out = {"stop": [], "gyro": [], "consts": {}, "calc_enable": None,
+           "stop_default": TURN_STOP_DEFAULT, "gyro_default": TURN_GYRO_DEFAULT,
+           "warnings": [], "raw": {}}
+
+    # ---- 表1：kTurnTbl[] ----
+    m = re.search(r"kTurnTbl\s*\[\s*\]\s*=\s*\{", joined)
+    if not m:
+        out["warnings"].append("map.c 里找不到 kTurnTbl[] 的初始化")
+    else:
+        close = _match_brace(joined, joined.index("{", m.start()))
+        body = joined[m.end():close] if close > 0 else ""
+        out["raw"]["stop_block"] = body
+        for ln in body.splitlines():
+            mm = _STOP_ROW_RE.search(ln)
+            if mm:
+                out["stop"].append({"last": mm.group(1), "now": mm.group(2),
+                                    "next": mm.group(3), "dist": float(mm.group(4))})
+
+    # ---- 表2：GetForwardDistanceBeforeGyroTurn() 的 if 链 ----
+    m2 = re.search(r"GetForwardDistanceBeforeGyroTurn\s*\([^)]*\)\s*\{", joined)
+    if not m2:
+        out["warnings"].append("map.c 里找不到 GetForwardDistanceBeforeGyroTurn()")
+    else:
+        close = _match_brace(joined, joined.index("{", m2.start()))
+        body = joined[m2.end():close] if close > 0 else ""
+        out["raw"]["gyro_block"] = body
+        for ln in body.splitlines():
+            r = _GYRO_ROW_RE.search(ln)
+            if r:
+                out["gyro"].append({"last": r.group(1), "now": r.group(2),
+                                    "next": r.group(3), "dist": float(r.group(4))})
+
+    # ---- 公式参数（map.c 顶部的 #define）----
+    for name, dflt in TURN_CONST_DEFAULTS.items():
+        dm = re.search(r"^[ \t]*#define[ \t]+" + name + r"[ \t]+([^\r\n]*)", joined, re.M)
+        val = dflt
+        if dm:
+            vm = re.search(r"-?\d+(?:\.\d+)?", dm.group(1))
+            if vm:
+                val = float(vm.group(0))
+            else:
+                out["warnings"].append("#define %s 的值解析不出来，用默认 %g" % (name, dflt))
+        out["consts"][name] = val
+
+    # ---- 开关（在 Mission/config.h，不在 map.c）----
+    try:
+        macros, _field = parse_config_macros()
+        expr = macros.get("TURN_CALC_ENABLE")
+        if expr is not None:
+            out["calc_enable"] = int(float(eval_c_expr(str(expr), macros)))
+    except Exception:                                              # noqa: BLE001
+        out["calc_enable"] = None
+
+    return out
+
+
+def _match_brace(text, i):
+    """text[i] == '{' ⇒ 返回与它配对的 '}' 的下标；找不到返回 -1。
+
+    比"非贪婪匹配到第一个 `}`"可靠：将来有人给 if 链加了大括号也不会截错。
+    （本文件这两段里没有字符串字面量/字符常量，纯计数足够。）
+    """
+    if i < 0 or i >= len(text) or text[i] != "{":
+        return -1
+    depth = 0
+    for j in range(i, len(text)):
+        ch = text[j]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return j
+    return -1
+
+
+def _fmt_num(v):
+    """数字 → C 文本：整数写整数（`25`），小数最少位（`12.5`）。"""
+    f = float(v)
+    if abs(f - round(f)) < 1e-9:
+        return str(int(round(f)))
+    return ("%.4f" % f).rstrip("0").rstrip(".")
+
+
+def export_turn_stop_rows(rows, eol="\r\n", indent="\t"):
+    """生成 kTurnTbl[] 的**表体**（不含 `{` 与 `};`）：每行 `\\t{ A, B, C, 25 },`。"""
+    body = eol.join("%s{ %s, %s, %s, %s },"
+                    % (indent, r["last"], r["now"], r["next"], _fmt_num(r["dist"]))
+                    for r in rows)
+    return eol + body + eol
+
+
+def export_turn_gyro_chain(rows, eol="\r\n", indent="\t"):
+    """生成 GetForwardDistanceBeforeGyroTurn() 的**函数体**（if 链 + 末尾默认 return）。"""
+    lines = ["%sif (last == %s && now == %s && next == %s) return %s;"
+             % (indent, r["last"], r["now"], r["next"], _fmt_num(r["dist"]))
+             for r in rows]
+    lines.append("%sreturn %s; // 默认不前进，走原逻辑未修改"
+                 % (indent, _fmt_num(TURN_GYRO_DEFAULT)))
+    return eol + eol.join(lines) + eol
+
+
+def export_turn_node_check(names, eol="\r\n", per_line=3, name_width=3):
+    """生成 kTurnTbl_node_check 的表达式体（节点号 < MAP_NODE_LIMIT 的编译期护栏）。
+
+    ⚠️ **必须一起重生成**：guard 里逐个列出表里用到的节点名，新增了一个表里没有的节点
+    却忘了改这里，护栏就漏了那个节点（编译照样过，只在车上才发现写错节点号）。
+    """
+    names = list(names)
+    if not names:
+        return "1"
+    parts = ["(%s < MAP_NODE_LIMIT)" % n.ljust(name_width) for n in names]
+    lines = []
+    for i in range(0, len(parts), per_line):
+        chunk = parts[i:i + per_line]
+        head = (i == 0)
+        lines.append(("" if head else " ") + " && ".join(chunk) +
+                     (" &&" if i + per_line < len(parts) else ""))
+    body = eol.join("\t" + l for l in lines)
+    return body + " ? 1 : -1"
+
+
+def splice_turn_tables(src, stop_rows, gyro_rows, eol=None, node_names=None):
+    """把两张表写回 map.c 源码（**纯函数**，便于自检干跑）。
+
+    只替换三处，其余（注释、宏、别的函数）一律沿用原文件：
+      ① `kTurnTbl[] = {` … `};`  的**表体**
+      ② `typedef char kTurnTbl_node_check[` … `];` 的**表达式体**（护栏跟随表项）
+      ③ `GetForwardDistanceBeforeGyroTurn()` 的**函数体**
+    表外的注释块（含"2026-09-12 清掉 4 条…"那段说明）原样保留。
+    """
+    if eol is None:
+        eol = "\r\n" if "\r\n" in src else "\n"
+    out = src
+
+    # ① 停车转表体
+    m = re.search(r"kTurnTbl\s*\[\s*\]\s*=\s*\{", out)
+    if not m:
+        raise ParseError("map.c 里找不到 kTurnTbl[] 的初始化")
+    open_i = out.index("{", m.start())
+    close_i = _match_brace(out, open_i)
+    if close_i < 0:
+        raise ParseError("kTurnTbl[] 的花括号不配对")
+    out = out[:open_i + 1] + export_turn_stop_rows(stop_rows, eol) + out[close_i:]
+
+    # ② 节点号护栏（跟着表里用到的节点名走）
+    m2 = re.search(r"typedef\s+char\s+kTurnTbl_node_check\s*\[", out)
+    if m2:
+        open_i = out.index("[", m2.start())
+        close_i = out.index("]", open_i)
+        if node_names is None:
+            node_names = []
+            for r in list(stop_rows) + list(gyro_rows or []):
+                for k in ("last", "now", "next"):
+                    if r.get(k) and r[k] not in node_names:
+                        node_names.append(r[k])
+        out = (out[:open_i + 1]
+               + eol + export_turn_node_check(node_names, eol)
+               + out[close_i:])
+
+    # ③ 陀螺转 if 链
+    m3 = re.search(r"GetForwardDistanceBeforeGyroTurn\s*\([^)]*\)\s*\{", out)
+    if not m3:
+        raise ParseError("map.c 里找不到 GetForwardDistanceBeforeGyroTurn()")
+    open_i = out.index("{", m3.start())
+    close_i = _match_brace(out, open_i)
+    if close_i < 0:
+        raise ParseError("GetForwardDistanceBeforeGyroTurn() 的花括号不配对")
+    out = out[:open_i + 1] + export_turn_gyro_chain(gyro_rows, eol) + out[close_i:]
+    return out
+
+
+def turn_rows_equal(a, b):
+    """两串表项是否逐项相同（顺序 + 三元组 + 值）。"""
+    a, b = a or [], b or []
+    if len(a) != len(b):
+        return False
+    for x, y in zip(a, b):
+        if (x.get("last"), x.get("now"), x.get("next")) != \
+           (y.get("last"), y.get("now"), y.get("next")):
+            return False
+        if abs(float(x.get("dist", 0) or 0) - float(y.get("dist", 0) or 0)) > 1e-9:
+            return False
+    return True
+
+
+def turn_table_status(model, rows, table, turn=None):
+    """判断表里每一行在**当前地图**上到底会不会生效（画面上必须能看出来）。
+
+    返回 [(status, detail)]，status ∈
+      'ok'      会生效（三元组存在 且 分支正好落在本表）
+      'branch'  死值：三元组存在，但当前地图走的是**另一个**分支
+      'edge'    死值：边表里根本没有 last→now 或 now→next 这条边
+      'unknown' 角度/长度求不出来（宏没定义等）
+    """
+    out = []
+    for r in rows:
+        last, now, nxt = r.get("last"), r.get("now"), r.get("next")
+        ie = model.edge(last, now)
+        oe = model.edge(now, nxt)
+        if ie is None or oe is None:
+            out.append(("edge", "边表里没有 %s→%s" % (last, now) if ie is None
+                        else "边表里没有 %s→%s" % (now, nxt)))
+            continue
+        delta = need2turn(model.ang(ie), model.ang(oe))
+        br = turn_branch(delta, ie.flag, ie.func)
+        if br == "unknown":
+            out.append(("unknown", "角度求不出来（宏没定义？）"))
+        elif br != table:
+            out.append(("branch", "当前走「%s」分支 ⇒ 本表不生效（%s）"
+                        % (TURN_BRANCH_NAME.get(br, br),
+                           "直行" if br == "straight" else "另一张表")))
+        else:
+            out.append(("ok", "Δ=%.1f°" % delta))
+    return out
+
+
+TURN_BRANCH_NAME = {"straight": "直行", "stop": "停车原地转", "gyro": "陀螺不停车转",
+                    "unknown": "未知"}
+
+
+def turn_coverage(model, turn=None):
+    """枚举地图里所有 (入边, 出边) 转弯组合，算出**当前生效的补偿值**。
+
+    与固件的对应关系：
+      入边 = `nodes.nowNode`（`last→now` 那条边，flag/step/function 都取它）
+      出边 = `nodes.nextNode`，Δ = need2turn(入边.angle, 出边.angle)
+    返回 dict(rows=[...], stats={...})；每行：
+      last/now/next/delta/branch/in_step/in_func/value/source/note
+    ⚠️ 与固件一样，**补偿值只由三元组 + 入边属性决定**，与出边的 step 无关。
+    """
+    turn = turn if turn is not None else (getattr(model, "turn", None) or {})
+    stop_rows = turn.get("stop") or []
+    gyro_rows = turn.get("gyro") or []
+    consts = dict(TURN_CONST_DEFAULTS)
+    consts.update(turn.get("consts") or {})
+    calc_on = bool(turn.get("calc_enable"))
+    stop_map = {(r["last"], r["now"], r["next"]): r["dist"] for r in stop_rows}
+    gyro_map = {(r["last"], r["now"], r["next"]): r["dist"] for r in gyro_rows}
+    L = float(consts["TURN_L_PIVOT"])
+    dvals = sorted({float(consts[k]) for k in
+                    ("TURN_D_CRIGHT", "TURN_D_CLEFT", "TURN_D_DLEFT", "TURN_D_DEFAULT")})
+
+    rows = []
+    for now in model.names():
+        ins = [e for e in model.edges if e.to == now]
+        outs = [e for e in model.edges if e.frm == now]
+        if not ins or not outs:
+            continue
+        for ie in ins:
+            a_in = model.ang(ie)
+            for oe in outs:
+                delta = need2turn(a_in, model.ang(oe))
+                br = turn_branch(delta, ie.flag, ie.func)
+                row = {"last": ie.frm, "now": now, "next": oe.to, "delta": delta,
+                       "branch": br, "in_step": model.step(ie), "in_func": ie.func,
+                       "value": None, "source": "", "note": ""}
+                if br == "unknown":
+                    row["source"] = "角度求不出（宏没定义）"
+                elif br == "straight":
+                    row["source"] = "直行（不走补偿）"
+                elif br == "stop":
+                    key = (ie.frm, now, oe.to)
+                    if key in stop_map:
+                        row["value"] = stop_map[key]
+                        row["source"] = "表1 实测"
+                    elif (calc_on and ie.func in ("NONE", "DOOR")
+                          and row["in_step"] is not None and row["in_step"] >= 20
+                          and delta is not None and 100.0 <= abs(delta) < 178.0):
+                        base = L * (1.0 - math.cos(math.radians(abs(delta))))
+                        vals = sorted(round(base + d, 1) for d in dvals)
+                        row["source"] = "Tier2 公式"
+                        row["value"] = vals[0] if vals[0] == vals[-1] else None
+                        row["note"] = ("判据 d∈[%.1f,%.1f] ⇒ 值 %.1f~%.1f"
+                                       % (dvals[0], dvals[-1], vals[0], vals[-1]))
+                    else:
+                        row["value"] = TURN_STOP_DEFAULT
+                        row["source"] = "Tier3 默认 19"
+                else:                                   # gyro
+                    key = (ie.frm, now, oe.to)
+                    if key in gyro_map:
+                        row["value"] = gyro_map[key]
+                        row["source"] = "表2 实测"
+                    else:
+                        row["value"] = TURN_GYRO_DEFAULT
+                        row["source"] = "默认 0"
+                rows.append(row)
+
+    def cnt(pred):
+        return sum(1 for r in rows if pred(r))
+
+    stats = {
+        "total": len(rows),
+        "straight": cnt(lambda r: r["branch"] == "straight"),
+        "stop": cnt(lambda r: r["branch"] == "stop"),
+        "gyro": cnt(lambda r: r["branch"] == "gyro"),
+        "unknown": cnt(lambda r: r["branch"] == "unknown"),
+        "stop_meas": cnt(lambda r: r["source"] == "表1 实测"),
+        "stop_calc": cnt(lambda r: r["source"] == "Tier2 公式"),
+        "stop_default": cnt(lambda r: r["source"] == "Tier3 默认 19"),
+        "gyro_meas": cnt(lambda r: r["source"] == "表2 实测"),
+        "gyro_default": cnt(lambda r: r["source"] == "默认 0"),
+    }
+    return {"rows": rows, "stats": stats}
+
+
+def turn_coverage_text(cov):
+    """把覆盖度统计写成给人看的一段话（对话框与自检共用）。"""
+    s = cov["stats"]
+    return ("地图里共有 %d 个 (入边,出边) 转弯组合：直行 %d / 停车转 %d / 陀螺转 %d%s。\n"
+            "停车转里：表1 实测 %d、公式 Tier2 %d、吃默认 19 的有 %d 个。\n"
+            "陀螺转里：表2 实测 %d、吃默认 0 的有 %d 个。"
+            % (s["total"], s["straight"], s["stop"], s["gyro"],
+               "、无法判定 %d" % s["unknown"] if s["unknown"] else "",
+               s["stop_meas"], s["stop_calc"], s["stop_default"],
+               s["gyro_meas"], s["gyro_default"]))
 
 
 # ---------------------------------------------------------------- 数据模型
@@ -789,6 +1234,10 @@ class MapModel:
         self.declared_count = None
         self.dirty = False
         self._tag_seq = 1
+        # 转弯前补偿：map.c 的两张表 + 公式参数（与边表一样，是"可编辑 + 可写回"的数据）
+        self.turn = {"stop": [], "gyro": [], "consts": dict(TURN_CONST_DEFAULTS),
+                     "calc_enable": None, "warnings": [],
+                     "stop_default": TURN_STOP_DEFAULT, "gyro_default": TURN_GYRO_DEFAULT}
 
     # -------------------------------------------------- 载入
     @staticmethod
@@ -808,8 +1257,29 @@ class MapModel:
             m.edges.append(Edge(r["from"], r["to"], r["flag"], r["angle"], r["step"],
                                 r["speed"], r["func"], r["comment"], tag=m._new_tag()))
         m.declared_count = declared
+        try:
+            m.turn = parse_turn_tables()
+        except Exception as ex:                                    # noqa: BLE001
+            m.turn = {"stop": [], "gyro": [], "consts": dict(TURN_CONST_DEFAULTS),
+                      "calc_enable": None, "stop_default": TURN_STOP_DEFAULT,
+                      "gyro_default": TURN_GYRO_DEFAULT,
+                      "warnings": ["解析 map.c 的转弯补偿失败：%s" % ex]}
         m.dirty = False
         return m
+
+    # -------------------------------------------------- 转弯前补偿（map.c）
+    def turn_status(self, rows, table):
+        """表里每一行在当前地图上会不会生效 → [(status, detail)]（见 turn_table_status）。"""
+        return turn_table_status(self, rows, table, self.turn)
+
+    def turn_coverage(self):
+        """枚举地图里所有 (入边,出边) 转弯组合 + 当前生效值。"""
+        return turn_coverage(self, self.turn)
+
+    def splice_turn_tables(self, src, eol=None):
+        """把 self.turn 的两张表写回 map.c 源码（纯函数；不落盘）。"""
+        return splice_turn_tables(src, self.turn.get("stop") or [],
+                                  self.turn.get("gyro") or [], eol=eol)
 
     def _new_tag(self):
         self._tag_seq += 1
@@ -941,6 +1411,10 @@ class MapModel:
             "constraints": dict(getattr(self, "constraints", {}) or {}),
             "nodes": [n.to_dict() for n in self.nodes],
             "edges": [e.to_dict() for e in self.edges],
+            "turn": {"stop": [dict(r) for r in self.turn.get("stop") or []],
+                     "gyro": [dict(r) for r in self.turn.get("gyro") or []],
+                     "consts": dict(self.turn.get("consts") or {}),
+                     "calc_enable": self.turn.get("calc_enable")},
         }, ensure_ascii=False, indent=1)
 
     def load_json(self, text):
@@ -952,6 +1426,15 @@ class MapModel:
                 e.tag = self._new_tag()
         self.field_name = d.get("field", self.field_name)
         self.macros.update(d.get("macros", {}))
+        # 转弯补偿表（老布局里没有这个键 ⇒ 保持从源码读到的值）
+        t = d.get("turn")
+        if isinstance(t, dict):
+            for k in ("stop", "gyro", "consts", "calc_enable"):
+                if k in t and t[k] is not None:
+                    if k == "consts":
+                        self.turn["consts"].update(t[k])
+                    else:
+                        self.turn[k] = t[k]
         # 底图标定 / 拖动约束（界面写、界面读；核心层不解释其内容）
         self.background = d.get("background", {}) or {}
         self.constraints = d.get("constraints", {}) or {}
