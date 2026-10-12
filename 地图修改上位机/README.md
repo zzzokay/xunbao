@@ -33,7 +33,13 @@
 编辑器读取/修改的固件文件：
 - `Navigation/map_message.c` — 边表 `NavEdgeTbl[]`
 - `Navigation/map.h` — 节点枚举 `enum MapNode`
-- `Mission/config.h` — 宏定义（`LEN_*`、`ANGLE_*`、`DOOR_LEN_*`、`TURN_CALC_ENABLE`）
+- `Mission/config.h` — 宏定义（`LEN_*`、`ANGLE_*`、`DOOR_LEN_*`、`TURN_CALC_ENABLE`、
+  **`ROUND2_CRUISE_CW_*` / `ROUND2_CRUISE_CCW_*`** = 第二轮巡游顺序，宝物≠6 / =6 各一组）
 - `Navigation/map.c` — **转弯前补偿**两张表（`kTurnTbl[]` / `GetForwardDistanceBeforeGyroTurn`）
   + 公式参数 `TURN_L_PIVOT` / `TURN_GATE_CM` / `TURN_D_*`。入口：编辑器左栏
-  「⟲ 转弯补偿…」（原理见 `项目讲解文档/project_reference.md` §14）
+  「转弯补偿 / 显示:」那一行的「⟲ 转弯补偿…」（原理见 `项目讲解文档/project_reference.md` §14）
+  ⚠️ 这两张表 + 公式参数**随「保存布局 / 另存为」存进布局 JSON**；点「重新载入源码」会重置回上面的源码值。
+
+> 📌 **2026-10-07：编辑器左栏不再有节点表和边表**（原节点表 → 转弯补偿表，边表 → 整块删除）。
+> 选节点/选边都在**画布上点**或用**右键菜单**；`⇄ 平台交换…` / `⟲ 转弯补偿…` 挪到了
+> 左栏「转弯补偿 / 显示:」那一行。详见 `map_editor/README.md` §5。

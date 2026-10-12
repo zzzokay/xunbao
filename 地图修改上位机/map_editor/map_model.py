@@ -324,6 +324,40 @@ def parse_config_macros(path=PATH_CONFIG, source_text=None):
     return defines, field_name
 
 
+def _norm_macro(v):
+    """宏值比较用：压掉多余空白（宏是**文本**，不解释成数字）。"""
+    return " ".join(str(v).split())
+
+
+def macros_diff(cur, src):
+    """比较「当前模型的宏」与「config.h 源码的宏」（只读；给「查看代码差异」用）。
+
+    cur / src 均为 {名字: 值文本}（如 {"LEN_B5N19": "150"}）。值按**去空白后的文本**比，
+    不拆成数字 —— 因为宏可以是表达式（`(LEN_N22B7 - 20)`）、带后缀（`1.2f`）、甚至是别的宏名。
+    返回 dict: add [(名, 当前值)] / dele [(名, 源码值)] / chg [(名, 源码值, 当前值)] / same
+    """
+    cur = {k: _norm_macro(v) for k, v in (cur or {}).items()}
+    src = {k: _norm_macro(v) for k, v in (src or {}).items()}
+    add = sorted((k, cur[k]) for k in cur if k not in src)
+    dele = sorted((k, src[k]) for k in src if k not in cur)
+    chg = sorted((k, src[k], cur[k]) for k in cur if k in src and cur[k] != src[k])
+    return {"add": add, "dele": dele, "chg": chg, "same": not (add or dele or chg)}
+
+
+def macros_diff_lines(td):
+    """把 `macros_diff()` 的结果写成差异报告里的几行（纯字符串、无 Tk，便于自检）。"""
+    if td.get("same"):
+        return ["宏定义差异：无（config.h 里的宏与当前模型一致）"]
+    out = ["宏定义差异（config.h，左=源码值，右=当前模型值）："]
+    for k, v in td["add"]:
+        out.append("  + 新增 %s = %s" % (k, v))
+    for k, v in td["dele"]:
+        out.append("  - 删除 %s（源码 %s）" % (k, v))
+    for k, sv, cv in td["chg"]:
+        out.append("  ~ 改值 %s：%s → %s" % (k, sv, cv))
+    return out
+
+
 def write_use_field(new_field, path=PATH_CONFIG):
     """切换 config.h 的 USE_FIELD（FIELD_COMP / FIELD_SCHOOL）。
 
@@ -467,6 +501,229 @@ def need2turn(a, b):
     while d < -180.0:
         d += 360.0
     return d
+
+
+# ---------------------------------------------------------------- 路口判断标志位（多维分类）
+#
+# 到达路口时，固件 `ArriveDetect_task.c: deal_arrive()` 依据**循迹板 16 灯的「灯位图案」**
+# （bit15 = 最左 1 号灯 … bit0 = 最右 16 号灯，板装车头）来区分路口类型 —— 本质是**路口几何
+# 形状**，与车「接下来往哪转」无关（用户 2026-10-02 澄清）。
+#
+# 10 条判据的灯位图案 ↔ 路口几何（固件真相）：
+#   DLEFT  (0xFC00) 左 6 灯 ≥5 亮   → 车头**左侧整片横向白线**   → 左**直角**弯（横线，⊥ 行进方向）
+#   DRIGHT (0x003F) 右 6 灯 ≥5 亮   → 车头**右侧整片横向白线**   → 右**直角**弯
+#   CLEFT  (0x6000) 左 2/3 灯亮      → 左前**斜线**               → 左**斜岔路**（斜线 45°）
+#   CRIGHT (0x000C) 左 13/14 灯亮    → 右前**斜线**               → 右**斜岔路**
+#   MCLEFT (0x8000) 最左 1 灯亮      → 岔线**极靠外**             → 左**急弯/小半径**
+#   MCRIGHT(0x0001) 最右 1 灯亮      → 岔线**极靠外**             → 右**急弯/小半径**
+#   MUL2SING        lineNum 多→单    → 线数**由多变一**           → 汇入/收窄
+#   MUL2MUL         lineNum 多→单→多 → 线数**多→多**             → 十字/多岔
+#   AWHITE (0x1FF8) 正中 10 灯全亮    → 整幅**全白横带**          → 门区/全横线（特殊）
+#   MORELED         不挑位置 ≥5 亮    → 兜底「很多灯」             → 非特异性
+#
+# 静态几何能可靠反推的只有「灯位图案」里**由角度决定**的那部分：岔线方向与行进方向的夹角
+# θ = |need2turn(入边角, 出边角)| 决定岔线是「斜线 / 横线 / 急弯靠边」。据此分档（见下方
+# 常量，分界依据 = 边表真实角度分布聚类 + 灯位几何推导，project_reference §6）：
+
+# 有「特殊到达检测语义」的 flag 组合：即使 func=NONE，只要 flag 里带这些位，就说明这条边的
+# 到达检测不是标准路口（例：P6→N7 func=NONE 但带 AWHITE=门区全白横带 + STOPTURN 停车转，
+# 它的 DLEFT|DRIGHT 组合是作者有意写「双向都检测」——车头朝向不定，不该按普通路口套左右直角弯）。
+JUNCTION_SPECIAL_FLAGS = {"AWHITE", "MUL2SING", "MUL2MUL"}
+
+# 有「特殊到达检测语义」的 func：这些边的到达判据不是标准路口（门区用 AWHITE/多判据、
+# 直立景点 View/回家 BACK、跷跷板 QQB/SM、平台类靠 map_function 内部动作），
+# 一键修复默认**跳过**它们，避免误改。用户主动框选时仍可强制处理。
+JUNCTION_SPECIAL_FUNCS = {
+    "DOOR", "DOOR1", "View", "View1", "BACK", "QQB", "SM", "BHM", "BLBL", "BLBS",
+    "BSoutPole", "UpStage", "UpStageHome", "Bridge", "Hill", "LBHill",
+    "IGNORE", "Special_node",
+}
+
+
+def is_plain_edge(edge):
+    """是否为「普通路口边」：func 不在特殊列表，且 flag 里不带特殊到达检测位。
+
+    例：P6→N7 的 func=NONE，但 flag 带 AWHITE（门区检测），到达判据另有用途，跳过。
+    """
+    if (edge.func or "") in JUNCTION_SPECIAL_FUNCS:
+        return False
+    if flag_set(edge.flag) & JUNCTION_SPECIAL_FLAGS:
+        return False
+    return True
+
+
+# ---- 弯道分档阈值（°），θ = |need2turn(入边角, 出边角)| --------------------------------
+# 依据：边表真实转角分布聚类 —— 0°(31 条，直行) / 90°(41 条主峰，直角) / 125~145°(19 条，
+# 大角度急弯) / 30~70°(散落，斜线) / 15~25°(2~5 条，缓弯)。灯位几何：斜线点亮中段 2/3 灯、
+# 横线铺满半幅 6 灯、越靠边的岔线点亮的灯越靠外。
+JUNCTION_STRAIGHT_TOL = 20.0    # θ ≤ 20°：直行/缓弯，不产生横向路口线，无路口标志
+JUNCTION_DIAG_MIN = 20.0        # 20° < θ ≤ 70°：斜线岔路 → CLEFT/CRIGHT（点亮中段灯）
+JUNCTION_DIAG_MAX = 70.0
+JUNCTION_RIGHT_MIN = 70.0       # 70° < θ ≤ 110°：直角弯 → DLEFT/DRIGHT（横线铺满半幅）
+JUNCTION_RIGHT_MAX = 110.0
+JUNCTION_SHARP_MIN = 110.0      # 110° < θ ≤ 150°：大角度急弯 → MCLEFT/MCRIGHT（岔线极靠外）
+JUNCTION_SHARP_MAX = 150.0
+JUNCTION_UTURN_TOL = 150.0      # θ > 150°：原路折返（平台/景点内部转身），不算路口，排除
+
+# MUL 系列（线数变化）无法从单个角度静态判出，用**拓扑**近似：
+#   出边数 ≥ 3 且主线延续 → 十字/多岔 → 倾向 MUL2MUL
+#   出边数 2~4 且存在直行延续 → 汇入 → 倾向 MUL2SING
+JUNCTION_MUL2MUL_BRANCHES = 3   # 终点非折返出边 ≥ 该数，判为多岔（MUL2MUL 的拓扑特征）
+JUNCTION_MUL2SING_BRANCHES = 2  # 终点非折返出边 ≥ 该数且主线延续，判为汇入（MUL2SING）
+
+
+def classify_turn_angle(d):
+    """把单个转弯角 d（need2turn，带符号方向）分类成弯道类型。
+
+    返回 (category, side)：
+      category ∈ {'straight','diag','right','sharp','uturn'} —— 直行/斜线/直角/急弯/折返
+      side     ∈ {'left','right',None} —— 转向侧（d>0 左、d<0 右、0 无）
+    这是「角度 → 灯位图案」的核心映射，见模块头注释的分档依据。
+    """
+    ad = abs(d)
+    side = "left" if d > 0 else ("right" if d < 0 else None)
+    if ad <= JUNCTION_STRAIGHT_TOL:
+        return "straight", None
+    if ad <= JUNCTION_DIAG_MAX:
+        return "diag", side
+    if ad <= JUNCTION_RIGHT_MAX:
+        return "right", side
+    if ad <= JUNCTION_SHARP_MAX:
+        return "sharp", side
+    return "uturn", None
+
+
+def junction_turns(model, edge):
+    """返回 `edge` 终点处所有「非折返出边」的转弯角列表 [(出边对象, need2turn), ...]。
+
+    折返（≈180°，原路返回进平台/景点）不产生横向路口线，予以排除；
+    也排除回 `edge.frm` 的原路反向边（`door_retreat` 那类）。
+    角度求值失败的出边一并排除（返回 None 的条目不出现）。
+    """
+    out = []
+    ang_in = model.ang(edge)
+    if ang_in is None:
+        return out
+    for o in model.edges_of(edge.to, True):
+        if o.to == edge.frm:
+            continue
+        a = model.ang(o)
+        if a is None:
+            continue
+        d = need2turn(ang_in, a)
+        if d is None or abs(d) >= JUNCTION_UTURN_TOL:
+            continue
+        out.append((o, d))
+    return out
+
+
+def junction_flags_needed(model, edge, include_mul=True):
+    """根据 `edge` 终点处的路口几何，算出「应该写哪几个**到达判据标志**」（多维）。
+
+    覆盖全部角度类判据（DLEFT/DRIGHT/CLEFT/CRIGHT/MCLEFT/MCRIGHT）+ 拓扑类（MUL2SING/MUL2MUL）。
+    返回 dict，键 = 标志名，值 = 触发它的证据（(出边名, 转角) 或拓扑说明），无需要的键不出现。
+    这是旧版「只返回 (need_dleft, need_dright)」的升级 —— 每类弯道各有判定条件。
+
+    include_mul=False 时**不算 MUL2SING/MUL2MUL**（线数时序判据，拓扑近似可靠性低，
+    默认让用户显式开启才写，见 project_reference §6「到达判据的几何语义」）。
+    """
+    turns = junction_turns(model, edge)
+    need = {}
+    # 角度类：一条出边 → 一个判据（按 classify_turn_angle 分档）
+    for o, d in turns:
+        cat, side = classify_turn_angle(d)
+        if cat == "straight" or cat == "uturn":
+            continue
+        if cat == "right":
+            flag = "DLEFT" if side == "left" else "DRIGHT"
+        elif cat == "diag":
+            flag = "CLEFT" if side == "left" else "CRIGHT"
+        elif cat == "sharp":
+            flag = "MCLEFT" if side == "left" else "MCRIGHT"
+        else:
+            continue
+        need.setdefault(flag, []).append((o.to, round(d, 1)))
+    # 拓扑类：线数变化（多岔 / 汇入）—— 用终点非折返出边数近似（可选，可靠性低）
+    if include_mul:
+        n_branch = len(turns)
+        if n_branch >= JUNCTION_MUL2MUL_BRANCHES:
+            need.setdefault("MUL2MUL", []).append(("多岔%d" % n_branch, None))
+        elif n_branch >= JUNCTION_MUL2SING_BRANCHES:
+            need.setdefault("MUL2SING", []).append(("汇入%d" % n_branch, None))
+    return need
+
+
+# 与路口几何强相关的「到达判据」标志名（angle 类 + 拓扑类）。
+# 不含寻线/转弯/陀螺等非到达判据（LEFT_LINE/RIGHT_LINE/STOPTURN/RESTMPUZ/Temp_* 等）。
+JUNCTION_ARRIVE_FLAGS = ("DLEFT", "DRIGHT", "CLEFT", "CRIGHT", "MCLEFT", "MCRIGHT",
+                         "MUL2SING", "MUL2MUL")
+
+
+def analyze_junction_flags(model, only_plain=False, include_mul=True, right_only=False):
+    """全图路口判据一致性检查（多维）。
+
+    only_plain=True 时只检查「普通路口边」（func 是 NONE），跳过门区/景点/跷跷板等特殊边
+    —— 那些边的到达判据可能另有用途（检测组合），自动判断不可靠。
+
+    include_mul=False 时**不检查 MUL2SING/MUL2MUL**（线数时序判据，拓扑近似可靠性低），
+    与 junction_flags_needed 同口径 —— 否则「关掉 MUL 自动写」后校验仍会报 MUL 缺失，自相矛盾。
+
+    right_only=True 时**只检查 DLEFT/DRIGHT（直角左右）**，忽略 CLEFT/CRIGHT/MCLEFT/MCRIGHT
+    （斜线/急弯的精细分档）—— 这是唯一能静态可靠判出的确定性信号；C/MC 是岔线方向的细分，
+    固件作者手写时不会精确到这种程度，把它们当 warn 会大面积误报（用户 2026-10-02 反馈）。
+
+    返回 [{
+        edge, func, need, has, extra, missing,
+        status: 'extra' | 'missing' | 'wrong',
+    }, ...]，只包含 status != 'ok' 的边。
+    `need` 是 junction_flags_needed 的完整结果（含证据），`has` 是边表现在写的判据集合。
+    """
+    if right_only:
+        check_flags = ("DLEFT", "DRIGHT")
+    else:
+        check_flags = JUNCTION_ARRIVE_FLAGS
+    out = []
+    for e in model.edges:
+        if only_plain and not is_plain_edge(e):
+            continue
+        fs = flag_set(e.flag)
+        has = {n for n in check_flags if n in fs}
+        need = {n: v for n, v in junction_flags_needed(model, e, include_mul=include_mul).items()
+                if n in check_flags}
+        extra = sorted(has - set(need))
+        missing = sorted(set(need) - has)
+        if not extra and not missing:
+            continue
+        status = "wrong" if (extra and missing) else ("extra" if extra else "missing")
+        out.append({"edge": e, "func": e.func,
+                    "need": need, "has": has,
+                    "status": status, "extra": extra, "missing": missing})
+    return out
+
+
+def suggest_junction_flags(model, edge, include_mul=True, right_only=False):
+    """给定边，返回「修正到达判据之后的 flag 文本」。
+
+    对角度类 + 拓扑类判据（JUNCTION_ARRIVE_FLAGS）按几何重写；其它 flag（寻线/转弯/陀螺/
+    斜线以外的特殊位）原样保留。顺序按 FLAG_ORDER 重排，保证确定性。
+
+    include_mul=False 时**不写 MUL2SING/MUL2MUL**（这两个是线数时序判据，静态只能拓扑近似、
+    可靠性低，默认让用户显式勾选才写）。角度类（D/C/MC 系列）始终按几何写。
+
+    right_only=True 时**只重写 DLEFT/DRIGHT**，CLEFT/CRIGHT/MCLEFT/MCRIGHT 与 MUL 类
+    原样保留（它们的静态推断可靠性低，改起来容易把能跑通的地图改坏）。
+    """
+    fs = flag_set(edge.flag)
+    if right_only:
+        rewrite = ("DLEFT", "DRIGHT")
+    else:
+        rewrite = JUNCTION_ARRIVE_FLAGS
+    for n in rewrite:
+        fs.discard(n)
+    need = junction_flags_needed(model, edge, include_mul=include_mul)
+    fs |= {n for n in need if n in rewrite}
+    ordered = [n for n in FLAG_ORDER if n in fs]
+    return "|".join(ordered) if ordered else "NO"
 
 
 def turn_branch(delta, flag="", func="NONE"):
@@ -708,6 +965,115 @@ def turn_rows_equal(a, b):
     return True
 
 
+def turn_diff(cur, src):
+    """比较「当前模型的补偿」与「map.c 源码的补偿」（只读；给「查看代码差异」用）。
+
+    cur / src 均为 {"stop": [...], "gyro": [...], "consts": {...}, "calc_enable": 0/1}。
+    按 (last, now, next) 三元组配对 —— **不看行序**（生效值由三元组查表决定，与表里行序无关）。
+    返回 dict:
+      stop_add / stop_del          [(三元组, 值)]（新增 / 删除）
+      stop_chg                     [(三元组, 源码值, 当前值)]
+      gyro_add / gyro_del / gyro_chg   同上（表2）
+      const_chg                    [(名字, 源码值, 当前值)]（TURN_* 公式参数）
+      calc_chg                     None 或 (源码, 当前)（TURN_CALC_ENABLE 开关）
+      same                         以上全空 ⇒ True
+    """
+    cur = cur or {}
+    src = src or {}
+
+    def index(rows):
+        out = {}
+        for r in rows or []:
+            out[(r.get("last"), r.get("now"), r.get("next"))] = float(r.get("dist", 0) or 0)
+        return out
+
+    def cmp_one(cur_rows, src_rows):
+        ci, si = index(cur_rows), index(src_rows)
+        add = sorted((k, ci[k]) for k in ci if k not in si)
+        dele = sorted((k, si[k]) for k in si if k not in ci)
+        chg = sorted((k, si[k], ci[k]) for k in ci
+                     if k in si and abs(ci[k] - si[k]) > 1e-9)
+        return add, dele, chg
+
+    s_add, s_del, s_chg = cmp_one(cur.get("stop"), src.get("stop"))
+    g_add, g_del, g_chg = cmp_one(cur.get("gyro"), src.get("gyro"))
+
+    sc = dict(src.get("consts") or {})
+    cc = dict(cur.get("consts") or {})
+    const_chg = []
+    for name in sorted(TURN_CONST_DEFAULTS):
+        sv, cv = sc.get(name), cc.get(name)
+        if sv is None or cv is None:
+            continue
+        if abs(float(sv) - float(cv)) > 1e-9:
+            const_chg.append((name, float(sv), float(cv)))
+
+    sce, cce = src.get("calc_enable"), cur.get("calc_enable")
+    calc_chg = None
+    if sce is not None and cce is not None and int(sce) != int(cce):
+        calc_chg = (int(sce), int(cce))
+
+    same = not (s_add or s_del or s_chg or g_add or g_del or g_chg
+                or const_chg or calc_chg)
+    return {"stop_add": s_add, "stop_del": s_del, "stop_chg": s_chg,
+            "gyro_add": g_add, "gyro_del": g_del, "gyro_chg": g_chg,
+            "const_chg": const_chg, "calc_chg": calc_chg, "same": same}
+
+
+def turn_diff_lines(td):
+    """把 `turn_diff()` 的结果写成差异报告里的几行（纯字符串、无 Tk，便于自检）。"""
+    if td.get("same"):
+        return ["转弯补偿差异：无（表1/表2、公式参数、TURN_CALC_ENABLE 都与 map.c 一致）"]
+
+    def tri(k):
+        return "%s→%s→%s" % tuple(k)
+
+    out = ["转弯补偿差异（左=map.c 源码值，右=当前模型值）："]
+    for tag, label, add, dele, chg in (
+            ("表1", "停车转", td["stop_add"], td["stop_del"], td["stop_chg"]),
+            ("表2", "陀螺转", td["gyro_add"], td["gyro_del"], td["gyro_chg"])):
+        for k, v in add:
+            out.append("  + 新增 %s %s：%s = %g" % (tag, label, tri(k), v))
+        for k, v in dele:
+            out.append("  - 删除 %s %s：%s（源码 %g）" % (tag, label, tri(k), v))
+        for k, sv, cv in chg:
+            out.append("  ~ 改值 %s %s：%s  %g → %g" % (tag, label, tri(k), sv, cv))
+    for name, sv, cv in td["const_chg"]:
+        out.append("  ~ 公式参数 %s：%g → %g" % (name, sv, cv))
+    if td["calc_chg"]:
+        sv, cv = td["calc_chg"]
+        out.append("  ~ 开关 TURN_CALC_ENABLE：%d → %d（%s）"
+                   % (sv, cv, "启用「能算就算」公式" if cv else "关闭，回到原行为"))
+    return out
+
+
+# 左栏「转弯补偿」表的显示档（像「边显示」那样只显示一类；默认第一档 = 不显示全部）
+TURN_LIST_MODES = ("只看要补偿的", "只看实测", "只看实测停车转", "只看吃默认",
+                   "只看停车转", "只看陀螺转", "全部")
+_TURN_DEFAULT_SRCS = ("Tier3 默认 19", "默认 0", "角度求不出（宏没定义）")
+
+
+def turn_filter(rows, mode):
+    """按显示档过滤 `turn_coverage()` 的行（纯函数，界面与自检共用）。
+
+    ⚠️ 「只看吃默认」的口径 = 对话框第③页那个勾选框：默认 19 / 默认 0 / 角度求不出。
+    """
+    rows = rows or []
+    if mode == "只看要补偿的":
+        return [r for r in rows if r["branch"] != "straight"]
+    if mode == "只看实测":
+        return [r for r in rows if r["source"] in ("表1 实测", "表2 实测")]
+    if mode == "只看实测停车转":
+        return [r for r in rows if r["source"] == "表1 实测"]      # 仅表1 kTurnTbl（停车转）
+    if mode == "只看吃默认":
+        return [r for r in rows if r["source"] in _TURN_DEFAULT_SRCS]
+    if mode == "只看停车转":
+        return [r for r in rows if r["branch"] == "stop"]
+    if mode == "只看陀螺转":
+        return [r for r in rows if r["branch"] == "gyro"]
+    return list(rows)                      # 「全部」或未知档 ⇒ 不过滤
+
+
 def turn_table_status(model, rows, table, turn=None):
     """判断表里每一行在**当前地图**上到底会不会生效（画面上必须能看出来）。
 
@@ -915,6 +1281,97 @@ DOOR_ZONE = [("N5", "N12"), ("N12", "N5"), ("N5", "N8"), ("N8", "N5"),
 # 宝物编号 -> 回程前要绕去取的平台（5/6 在东区已取过，见 plan_treasure_return）
 TREASURE_PF = {2: "P1", 3: "P3", 4: "P4", 5: "P5", 6: "P6"}
 
+# ---------------------------------------------------------------- 第二轮巡游顺序（config.h 可读写）
+# 固件 get_newroute() 的巡游段顺序**不再写死在 mission_planner.c**，而是读 config.h 的
+# 8 个宏（CW = 宝物!=6 / CCW = 宝物==6）；上位机「二轮路线…」可读源码 + 写回。
+ROUND2_CRUISE_PF = ("P5", "P6", "P7", "P8")          # 东区 4 个巡游平台
+ROUND2_CW_MACROS = ("ROUND2_CRUISE_CW_1", "ROUND2_CRUISE_CW_2",
+                    "ROUND2_CRUISE_CW_3", "ROUND2_CRUISE_CW_4")
+ROUND2_CCW_MACROS = ("ROUND2_CRUISE_CCW_1", "ROUND2_CRUISE_CCW_2",
+                     "ROUND2_CRUISE_CCW_3", "ROUND2_CRUISE_CCW_4")
+ROUND2_CW_DEFAULT = ("P5", "P7", "P8", "P6")          # 出厂/缺宏时的顺时针（宝物 != 6）
+ROUND2_CCW_DEFAULT = ("P6", "P8", "P7", "P5")         # 出厂/缺宏时的逆时针（宝物 == 6）
+
+
+def round2_cruise_defaults():
+    """出厂（config.h 缺宏时）的两组巡游顺序。"""
+    return {"cw": list(ROUND2_CW_DEFAULT), "ccw": list(ROUND2_CCW_DEFAULT),
+            "warnings": []}
+
+
+def parse_round2_cruise(path=None, source_text=None):
+    """从 `Mission/config.h` 读第二轮巡游顺序（ROUND2_CRUISE_CW_* / _CCW_*）。
+
+    返回 {"cw": [4 平台名], "ccw": [4 平台名], "warnings": [str]}。
+    ⚠️ 缺宏 / 值不是平台名 / 组内有重复 ⇒ 记 warning 并**整组退回出厂默认**（不抛异常，
+       因为是只读展示 + 写回前预览；真出错时用户能看见 warnings）。
+    """
+    out = round2_cruise_defaults()
+    try:
+        macros, _field = parse_config_macros(path or PATH_CONFIG, source_text)
+    except Exception as ex:                                        # noqa: BLE001
+        out["warnings"].append("读取 config.h 失败：%s" % ex)
+        return out
+    for key, names, dflt in (("cw", ROUND2_CW_MACROS, ROUND2_CW_DEFAULT),
+                             ("ccw", ROUND2_CCW_MACROS, ROUND2_CCW_DEFAULT)):
+        vals, ok = [], True
+        for i, mac in enumerate(names):
+            v = macros.get(mac)
+            if v is None:
+                out["warnings"].append("config.h 里没有 %s ⇒ 该组用出厂默认 %s"
+                                       % (mac, "→".join(dflt)))
+                ok = False
+                break
+            v = str(v).strip()
+            if v not in ROUND2_CRUISE_PF:
+                out["warnings"].append("%s = %r 不是平台名（只认 %s）⇒ 该组用出厂默认"
+                                       % (mac, v, "/".join(ROUND2_CRUISE_PF)))
+                ok = False
+                break
+            vals.append(v)
+        if ok and len(set(vals)) != len(ROUND2_CRUISE_PF):
+            out["warnings"].append("%s 组里 4 个平台有重复（%s）⇒ 该组用出厂默认"
+                                   % (key.upper(), "→".join(vals)))
+            ok = False
+        if ok:
+            out[key] = vals
+    return out
+
+
+def _rewrite_define_value(src, name, value):
+    """把 `#define name <value>` 的 value 换掉，**保留行尾注释**。返回 (新源码, 替换处数)。
+
+    与 `map_editor.App._rewrite_config_macro` 同一套正则（那边是实例方法，这里做成纯函数
+    便于自检干跑）。⚠️ 中间那段必须是非贪婪且**把行尾注释单独成组**，否则
+    `#define X  1 /* 说明…` 会把注释一起吃掉、留下孤立 `*/`（2026-09-15 编挂整份工程）。
+    """
+    pattern = re.compile(r"^(\s*#define\s+" + re.escape(name) + r"\s+)" +
+                         r"([^\r\n]*?)" +
+                         r"([ \t]*(?:/\*|//)[^\r\n]*)?" +
+                         r"(\r?\n|$)", re.M)
+    return pattern.subn(lambda m: m.group(1) + value + (m.group(3) or "") + m.group(4),
+                        src, count=1)
+
+
+def splice_round2_cruise(src, cw, ccw):
+    """把两组巡游顺序写回 config.h 源码（**纯函数**，不落盘，便于自检干跑）。
+
+    只改 ROUND2_CRUISE_CW_* / _CCW_* 这 8 个 `#define` 的值（其余一字不动，行尾注释原样保留）。
+    返回 (新源码, 替换处数)。值为平台名文本（如 `P5`）。
+    """
+    cw, ccw = list(cw or []), list(ccw or [])
+    if len(cw) != 4 or len(ccw) != 4:
+        raise ParseError("两组巡游顺序各需 4 个平台，收到 cw=%r ccw=%r" % (cw, ccw))
+    for grp in (cw, ccw):
+        if sorted(grp) != sorted(ROUND2_CRUISE_PF):
+            raise ParseError("巡游组必须是 %s 各一次，收到 %r" % ("/".join(ROUND2_CRUISE_PF), grp))
+    total = 0
+    for names, vals in ((ROUND2_CW_MACROS, cw), (ROUND2_CCW_MACROS, ccw)):
+        for mac, val in zip(names, vals):
+            src, n = _rewrite_define_value(src, mac, val)
+            total += n
+    return src, total
+
 
 def can_pass(state):
     """镜像 Can_Pass()：绿或蓝都算可通行。"""
@@ -1065,14 +1522,21 @@ def door_back_flow(doors):
 
 
 def door_read_hops(doors):
-    """进门读灯时，**除了直接过门之外还要多走的节点**（退回重读），只挑边表里真实存在的边。
+    """进门读灯时，**退回重读那一段真正开过的节点**（全部是边表里的真实边）。
 
-    第一轮 P1 之后的手写数组一律以 N12 结尾（= 在 N5→N12 上读 D2），所以这里返回的 hops
-    直接接在 N12 后面即可拼成连续路径：
-      D2 能过      → []                          （过门落在 N12）
-      D2 黑、D3 能过 → ["N8"]                      （N12→N8 是真实边；物理上是退回后重走 N5→N8）
-      D2 黑、D3 黑、D4 能过 → ["N8","N5","N4","N3","N8"]（N8→N5→N4→N3→N8 全是真实边）
-    返回 (hops, enter_node, err)。
+    ⚠️ 物理事实（barrier.c: DOOR_D2 → NO_PASS → door_retreat(N5,N8,DOOR_RETREAT_N5N8)）：
+    车沿 P1 手写数组开到**N5→N12 这条 DOOR 边的中点**（step = DOOR_LEN_N5N12/2）就停下读 D2，
+    **从来没真正到过 N12**；读出黑就 `Chassis_DriveDistance_Blocking(-SPEED2)` 倒车 63cm 退回 N5 一侧，
+    转身面向 N5→N8，再沿 **N5→N8** 去读 D3。所以"退回去"的真实路径是 **N5→N8**，不是 N12→N8。
+    （旧实现为了让 hops 能直接接在 P1 数组末尾的 N12 后面，用 N12→N8 近似 ——
+      图上就会凭空多画一条车没走过的 N12→N8 斜线，而真正的 N5→N8 反而没画出来。）
+
+    返回 (hops, enter_node, err)，**hops 不含 N5**（调用方已经站在 N5 上，直接接即可）：
+      D2 能过→ []                                  （过门落在 N12）
+      D2 黑、D3 能过        → ["N8"]（N5→N8 读 D3）
+      D2 黑、D3 黑、D4 能过  → ["N8","N5","N4","N3","N8"]
+                             （N5→N8 读 D3 → 退 N5 → door1route={N3,N8} 走 N5→N4→N3→N8 读 D4）
+      D2/D3/D4 全不能过 → 固件 CarBrake_Stop()
     """
     d2, d3, d4 = doors[0], doors[1], doors[2]
     if can_pass(d2):
@@ -1082,6 +1546,25 @@ def door_read_hops(doors):
     if can_pass(d4):
         return ["N8", "N5", "N4", "N3", "N8"], "N8", None
     return [], None, "D2/D3/D4 全不能过 → 固件 barrier.c:door() 会 CarBrake_Stop()"
+
+
+def door_read_dim_edges(doors):
+    """门区里"只开半程去读灯、没真正走过去"的边，供界面画成淡色（不进 self.route）。
+
+    D2 的灯装在 N5→N12 这条边的中点（DOOR_LEN_N5N12/2）：D2 能过时车**确实**开过去了，
+    那时 N5→N12 就是主线的一部分，不需要单独画；只有 **D2 不能过**时，车开到中点读完就得倒车退回，
+    这一趟是"探灯"而不是"过门"，画成淡色才不会和真正的路线混淆。
+    同理 D3 黑时，N5→N8 也只是"开到中点读 D3"（读完还要退 N5 走 door1route）⇒ 同样淡色。
+
+    返回 [(from, to)]，画布上按这些边补淡色虚线。
+    """
+    d2, d3, d4 = doors[0], doors[1], doors[2]
+    out = []
+    if not can_pass(d2):
+        out.append(("N5", "N12"))        # 开到 D2 门中点读灯，读不到 → 倒车退回
+    if not can_pass(d2) and not can_pass(d3):
+        out.append(("N5", "N8"))         # 开到 D3 门中点读灯，读不到 → 还要退 N5 走 door1route
+    return out
 
 
 def door_back_chain(doors, door_edge):
@@ -1120,8 +1603,127 @@ def door_back_chain(doors, door_edge):
             "D4 回程非绿 ⇒ 放行 N8↔N5、退回 N5 ⇒ update_route_by_door_4()（起点 N5）")
 
 
-def treasure_return_waypoints(start, doors, treasure):
-    """镜像 plan_treasure_return()：在 P7/P8 读到宝物编号后的回程 wp。"""
+def p3p4_punch_waypoints(treasure, line_clue):
+    """镜像 mission_planner.c 的 `P3P4_PUNCH_ENABLE` 段：一轮回程要"补打卡"的平台。
+
+    **缺哪个补哪个**：QR 百位 = 3 ⇒ 去程已去过 P3、= 4 ⇒ 已去过 P4、
+    0 / None ⇒ 两个都没去；宝物平台正好是它时也不重复加（回程本来就要去那儿打卡）。
+    顺序固定 P3 -> P4。返回平台名列表（可能为空）。
+    """
+    out = []
+    if line_clue != 3 and treasure != 3:
+        out.append("P3")
+    if line_clue != 4 and treasure != 4:
+        out.append("P4")
+    return out
+
+
+def upright_tour_waypoints(treasure, line_clue=None, punch=False):
+    """镜像 mission_planner.c 一轮回程的 `UPRIGHT_TOUR_ENABLE`：这次回程**【会绕哪些直立景点】**。
+
+    判据（2026-10-07 改）：**跟着"这次回程会不会去 P3/P4"走**，不再只看宝物值 ——
+      会去 P3 ⇒ 绕 S1；会去 P4 ⇒ 绕 S2。其中
+        "会去 P3" = 宝物平台就是 P3，或 补打卡（punch）开着且 QR 百位没走过 P3。
+      ⇒ punch 开着时两个景点都绕（3/4 都去）；punch 关则退回旧行为（宝物 P3→S1、P4→S2）。
+    返回 ["S1"] / ["S2"] / ["S1","S2"] / []（S1 恒在 S2 之前，与 P3->S1->P4->S2 同序）。
+    ⚠️ S1/S2 的进边 `func` 是 `View1`、`map_function()` 里没有 `case View1`
+       ⇒ **只走位、不做动作、不得分**。
+    ⚠️ 二轮"固定两个都绕"由 round2_waypoints() 自己插，不走本函数。
+    """
+    go_p3 = (treasure == 3) or (punch and line_clue != 3 and treasure != 3)
+    go_p4 = (treasure == 4) or (punch and line_clue != 4 and treasure != 4)
+    out = []
+    if go_p3:
+        out.append("S1")
+    if go_p4:
+        out.append("S2")
+    return out
+
+
+def round1_return_extra_waypoints(treasure, line_clue, punch=False, tour=False,
+                                  elapsed_s=None, exit_node=None):
+    """镜像一轮回程（plan_treasure_return / route_return_home）**宝物平台之后、P2 之前**的交错段。
+
+    基础序 **P3 -> S1 -> P4 -> S2**（与二轮 get_newroute() 一致，避免交叉绕路）。
+    S1/S2 跟着"会去 P3/P4"走（同 upright_tour_waypoints()），所以**不再依赖宝物值**：
+    补打卡开着时两个景点都绕，关掉则退回旧行为（宝物 P3→S1、P4→S2）。
+    宝物=4（2026-10-11）：尾段按沿途岔口重排 **S2 -> P3 -> S1**。
+    ⚠️ 景点与平台一律在拿完宝藏之后（用户确认规则）。
+    elapsed_s/exit_node（2026-10-11）：出门时刻分级贪分，阈值同步 config.h 的 TB_*
+    （<2:25 全跑；≥2:25 不跑 S1/S2；≥2:35 只跑一个平台；≥2:40 直接回家）；
+    elapsed_s=None = 不启用时间裁剪（现行为）。
+    返回列表**不含宝物平台本身**（调用方已在更前面加过）。
+    """
+    punch_list = p3p4_punch_waypoints(treasure, line_clue) if punch else []
+    tours = upright_tour_waypoints(treasure, line_clue, punch) if tour else []
+    # 出门时刻分级（阈值同步 config.h 的 TB_*：2:25 / 2:35 / 2:40）
+    # elapsed_s 语义 = 出门时刻已用时（含出门惩罚，由调用方计算；
+    # 固件两个口径：BACK 重规划 = 已用时+TB_EXIT_PENALTY_S；绿灯穿门 = 平台已用时+行驶估计+惩罚）
+    tier = 0
+    if elapsed_s is not None:
+        if elapsed_s >= 160:
+            tier = 3
+        elif elapsed_s >= 155:
+            tier = 2
+        elif elapsed_s >= 145:
+            tier = 1
+    exit_n3 = (exit_node == "N3")
+    out = []
+    if tier == 3:                      # ≥2:40 直接回家
+        return out
+    if tier == 2:                      # ≥2:35 只跑一个平台：出门 N3 选 P3，其余选 P4
+        if exit_n3:
+            if "P3" in punch_list:
+                out.append("P3")
+            elif "P4" in punch_list:
+                out.append("P4")
+        else:
+            if "P4" in punch_list:
+                out.append("P4")
+            elif "P3" in punch_list:
+                out.append("P3")
+        return out
+    if tier == 1:                      # ≥2:25 不跑 S1/S2：只补平台（出门侧优先）
+        if exit_n3:
+            if "P3" in punch_list:
+                out.append("P3")
+            if "P4" in punch_list:
+                out.append("P4")
+        else:
+            if "P4" in punch_list:
+                out.append("P4")
+            if "P3" in punch_list:
+                out.append("P3")
+        return out
+    if treasure == 4:                  # 全跑：沿途岔口重排
+        if "S2" in tours:
+            out.append("S2")
+        if "P3" in punch_list:
+            out.append("P3")
+        if "S1" in tours:
+            out.append("S1")
+        return out
+    if "P3" in punch_list:
+        out.append("P3")
+    if "S1" in tours:
+        out.append("S1")
+    if "P4" in punch_list:
+        out.append("P4")
+    if "S2" in tours:
+        out.append("S2")
+    return out
+
+
+def treasure_return_waypoints(start, doors, treasure, line_clue=None, punch=False,
+                              tour=False, elapsed_s=None):
+    """镜像 plan_treasure_return()：在 P7/P8 读到宝物编号后的回程 wp。
+
+    punch=True ⇒ 按 `P3P4_PUNCH_ENABLE` 追加"补打卡"平台；
+    tour=True ⇒ 按 `UPRIGHT_TOUR_ENABLE` 追加 S1/S2。
+    两者都在**宝物平台之后、P2 之前**，且按 **P3 -> S1 -> P4 -> S2 交错**
+    （见 round1_return_extra_waypoints()；S1/S2 跟着"会去 P3/P4"走，不再依赖宝物值）。
+    line_clue = QR 百位（0/3/4/None）。
+    """
     if treasure not in TREASURE_PF:
         return None, "宝物线索未定/非法（固件会 CarBrake_Stop）"
     wp = [start]
@@ -1144,19 +1746,29 @@ def treasure_return_waypoints(start, doors, treasure):
         return None, "D2/D3/D4 都不能过（固件会 CarBrake_Stop）"
     if treasure not in (5, 6):
         wp.append(TREASURE_PF[treasure])
+    wp += round1_return_extra_waypoints(treasure, line_clue, punch, tour,
+                                        elapsed_s=elapsed_s, exit_node=wp[-1])
     wp.append("P2")
     return wp, None
 
 
-def door_return_home_waypoints(start, treasure, allow_N8_N3=False):
+def door_return_home_waypoints(start, treasure, allow_N8_N3=False,
+                               line_clue=None, punch=False, tour=False,
+                               elapsed_s=None):
     """镜像 mission_planner.c:route_return_home()：门区 8 条边全禁 + wp={当前节点,[宝物平台],P2}。
 
     返回 (wp, blocked)，blocked 是规划时需封闭的 (from,to) 集合。
     allow_N8_N3=True 对应 door_2（D5 黑且 D3 蓝已用尽）额外放行 N8→N3，退回去重读 D4。
+    punch=True ⇒ 按 `P3P4_PUNCH_ENABLE` 追加"补打卡"平台；tour=True ⇒ 按
+    `UPRIGHT_TOUR_ENABLE` 追加 S1/S2（两者在宝物平台之后、P2 之前，按
+    P3->S1->P4->S2 交错；S1/S2 跟着"会去 P3/P4"走）。
+    line_clue = QR 百位（0/3/4/None）。
     """
     wp = [start]
     if treasure in (2, 3, 4):
         wp.append(TREASURE_PF[treasure])
+    wp += round1_return_extra_waypoints(treasure, line_clue, punch, tour,
+                                        elapsed_s=elapsed_s, exit_node=start)
     wp.append("P2")
     blocked = set(DOOR_ZONE)
     if allow_N8_N3:
@@ -1164,27 +1776,44 @@ def door_return_home_waypoints(start, treasure, allow_N8_N3=False):
     return wp, blocked
 
 
-def round2_firmware_cruise(treasure):
-    """固件 get_newroute() 里写死的第二轮巡游顺序（宝物=6 时反向 ⇒ 逆时针）。"""
-    return ["P6", "P8", "P7", "P5"] if treasure == 6 else ["P5", "P7", "P8", "P6"]
+def round2_firmware_cruise(treasure, cfg=None):
+    """固件 get_newroute() 的第二轮巡游顺序：宝物=6 走 CCW 组，否则走 CW 组。
+
+    cfg = `parse_round2_cruise()` 的结果（或 MapModel.round2）；None ⇒ 用出厂默认。
+    ⚠️ 顺序来自 **config.h 的 ROUND2_CRUISE_* 宏**（2026-10-07 起，不再写死在
+       mission_planner.c 里），所以传 cfg 才能反映车上真实走法。
+    """
+    cfg = cfg or {}
+    if treasure == 6:
+        return list(cfg.get("ccw") or ROUND2_CCW_DEFAULT)
+    return list(cfg.get("cw") or ROUND2_CW_DEFAULT)
 
 
-def round2_waypoints(doors, treasure, cruise=None):
+def round2_waypoints(doors, treasure, cruise=None, cfg=None, tour=False):
     """镜像 get_newroute()（USE_PLANNER_ROUTE=1）：第二轮完整 wp。
 
     doors = door_pass[0..3]（D2/D3/D4/D5）；treasure 只用来定巡游方向（6=逆时针）。
-    cruise = 自定义巡游顺序（P5~P8 各一次，顺序就是走法）；None = 固件默认顺序。
-    ⚠️ 门区那个"多保留的 N8"跟的是**巡游首站**：固件里就是 p6_first（首站=P6）才留，
+    cruise = 自定义巡游顺序（P5~P8 各一次，顺序就是走法）；None = 固件当前顺序
+             （由 cfg 的 CW/CCW 组按宝物值选，cfg=None 用出厂默认）。
+    tour=True ⇒ 按 UPRIGHT_TOUR_ENABLE 在 P3 后插 S1、P4 后插 S2。
+    cfg = `parse_round2_cruise()` 的结果（固件 config.h 里的两组顺序）。
+    ⚠️ 门区那个"多保留的 N8"跟的是**巡游首站**：固件里就是首站=P6 才留，
        自定义顺序首站是 P6 时同理（平台交换后改顺序，门节点跟着变）。
     固件在这些组合下会 CarBrake_Stop，此时返回 (None, 原因)。
     """
     d2, d3, d4, d5 = doors[0], doors[1], doors[2], doors[3]
     if cruise is None:
-        cruise = round2_firmware_cruise(treasure)
+        cruise = round2_firmware_cruise(treasure, cfg)
     else:
         cruise = list(cruise)
     tour_from_p6 = (cruise[0] == "P6")
-    wp = ["N2", "P1", "P3", "P4", "N5"]
+    wp = ["N2", "P1", "P3"]
+    if tour:                       # ← 镜像 mission_planner.c 二轮那两处 UPRIGHT_TOUR_ENABLE
+        wp.append("S1")            #   二轮固定两个都绕（N3 支路）
+    wp.append("P4")
+    if tour:
+        wp.append("S2")            #   N6 支路
+    wp.append("N5")
     # 进门：只留真正要过的那扇门
     if can_pass(d2):
         wp.append("N12")
@@ -1238,6 +1867,8 @@ class MapModel:
         self.turn = {"stop": [], "gyro": [], "consts": dict(TURN_CONST_DEFAULTS),
                      "calc_enable": None, "warnings": [],
                      "stop_default": TURN_STOP_DEFAULT, "gyro_default": TURN_GYRO_DEFAULT}
+        # 第二轮巡游顺序：config.h 的 ROUND2_CRUISE_* 两组（也是"可读 + 可写回"的数据）
+        self.round2 = round2_cruise_defaults()
 
     # -------------------------------------------------- 载入
     @staticmethod
@@ -1264,6 +1895,11 @@ class MapModel:
                       "calc_enable": None, "stop_default": TURN_STOP_DEFAULT,
                       "gyro_default": TURN_GYRO_DEFAULT,
                       "warnings": ["解析 map.c 的转弯补偿失败：%s" % ex]}
+        try:
+            m.round2 = parse_round2_cruise()
+        except Exception as ex:                                    # noqa: BLE001
+            m.round2 = round2_cruise_defaults()
+            m.round2["warnings"].append("解析 config.h 的二轮巡游顺序失败：%s" % ex)
         m.dirty = False
         return m
 
@@ -1490,6 +2126,22 @@ class MapModel:
                 out.append(("warn", "节点 %s 只有入边没有出边（车到这儿没路走）" % n.name))
             if outs == 1 and ins == 0:
                 out.append(("warn", "节点 %s 只有出边没有入边" % n.name))
+
+        # 路口判断标志位（到达判据）与终点路口几何的一致性。
+        # 只查普通边（func=NONE）；门区/景点/跷跷板等特殊边另有到达检测语义，不套此规则。
+        # 默认保守口径 right_only=True + include_mul=False：只报 DLEFT/DRIGHT（直角左右）的
+        # 确定性错误 —— 这是唯一能静态可靠判出的信号。C/MC（斜线/急弯精细分档）与 MUL（线数
+        # 时序判据）要么固件作者手写时本就不会精确匹配、要么靠 if 链优先级覆盖，把它们当 warn
+        # 会大面积误报（用户 2026-10-02 反馈「地图能跑通却有 50 条警告」）。
+        for it in analyze_junction_flags(self, only_plain=True, include_mul=False,
+                                         right_only=True):
+            e = it["edge"]
+            detail = "、".join(
+                (["多余 " + "+".join(it["extra"])] if it["extra"] else [])
+                + (["缺失 " + "+".join(it["missing"])] if it["missing"] else []))
+            out.append(("warn", "边 %s：路口标志与几何不符（%s）；建议 %s" % (
+                e.label(), detail, suggest_junction_flags(self, e, include_mul=False,
+                                                          right_only=True))))
         if not out:
             out.append(("info", "校验通过：%d 个节点 / %d 条边" % (len(self.nodes), len(self.edges))))
         return out

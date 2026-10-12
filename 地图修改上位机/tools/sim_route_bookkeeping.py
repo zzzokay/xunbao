@@ -70,6 +70,7 @@ _ROOT = os.path.join(_here, "..", "..")
 CONFIG_C = os.path.join(_ROOT, "Mission", "config.h")
 MP_C = os.path.join(_ROOT, "Mission", "mission_planner.c")
 TOUR_MACRO = "UPRIGHT_TOUR_ENABLE"
+PUNCH_MACRO = "P3P4_PUNCH_ENABLE"      # 一轮回程补打卡 P3/P4（缺哪个补哪个）
 
 
 def _read(p):
@@ -138,8 +139,34 @@ def read_config_flag(name, default=None):
 
 _TOUR_RAW = read_config_flag(TOUR_MACRO)
 TOUR = 0 if _TOUR_RAW is None else _TOUR_RAW      # 开关真值（0 = 与现状一致）
+_PUNCH_RAW = read_config_flag(PUNCH_MACRO)
+PUNCH = 0 if _PUNCH_RAW is None else _PUNCH_RAW
 
 SYNC_PROBLEMS = []
+
+
+def read_config_text(name, default=None):
+    """按名字读 Mission/config.h 的 #define（返回**文本值**，如 "P5"）。"""
+    m = re.search(r"^\s*#define\s+" + re.escape(name) + r"\s+(\S+)", CONFIG_TXT, re.M)
+    return m.group(1) if m else default
+
+
+# 第二轮巡游顺序：2026-10-07 起由 config.h 的 ROUND2_CRUISE_CW_*/_CCW_* 给出（不再写死在 C 里）。
+ROUND2_PF = ("P5", "P6", "P7", "P8")
+ROUND2 = {"cw": list(("P5", "P7", "P8", "P6")), "ccw": list(("P6", "P8", "P7", "P5"))}
+
+
+def _load_round2():
+    """把 config.h 的两组巡游顺序读进来；缺宏 / 非法名 / 有重复 ⇒ 用出厂默认并记一条同步问题。"""
+    for key, dflt in (("cw", ("P5", "P7", "P8", "P6")), ("ccw", ("P6", "P8", "P7", "P5"))):
+        vals = [read_config_text("ROUND2_CRUISE_%s_%d" % (key.upper(), i)) for i in range(1, 5)]
+        if None in vals or any(v not in ROUND2_PF for v in vals) or len(set(vals)) != 4:
+            SYNC_PROBLEMS.append(
+                "config.h 的 ROUND2_CRUISE_%s_* 不是合法顺序 %s ⇒ 镜像用出厂默认"
+                % (key.upper(), vals))
+            ROUND2[key] = list(dflt)
+        else:
+            ROUND2[key] = vals
 
 
 def _sync_check():
@@ -152,21 +179,42 @@ def _sync_check():
     if read_config_flag("USE_PLANNER_ROUTE") != 1:
         SYNC_PROBLEMS.append("USE_PLANNER_ROUTE != 1：本镜像只复刻 =1 的规划器分支")
 
-    # ① 一轮两处：开关块里必须是 treasure==3 给 S1 / treasure==4 给 S2
+    # ① 一轮交错段的**唯一落点** = 辅助函数 append_round1_return_tail()。
+    #    2026-10-07 起 S1/S2 的判据改成"跟着会去 P3/P4 走"，两个回程函数不再各写一份。
+    _helper = _fn_body(MP_CODE, "append_round1_return_tail")
+    _r2 = _fn_body(MP_CODE, "get_newroute") or ""
+    if _helper is None:
+        SYNC_PROBLEMS.append(
+            "append_round1_return_tail() 找不到了 —— 一轮 P3/S1/P4/S2 交错段应集中在这里")
+    else:
+        for need in ("goP3", "goP4", "treasure == 3", "treasure == 4",
+                     "flag_line_clue != 3", "flag_line_clue != 4",
+                     PUNCH_MACRO, TOUR_MACRO):
+            if need not in _helper:
+                SYNC_PROBLEMS.append(
+                    "append_round1_return_tail() 里缺 %s（S1/S2 判据应跟着 P3/P4 走）" % need)
+        if "if (treasure == 4) {" not in _helper:
+            SYNC_PROBLEMS.append(
+                "append_round1_return_tail() 缺 宝物=4 沿途重排分支（S2 -> P3 -> S1）")
+        # 基础序只查 P3/S1/P4（宝物=4 分支里 S2 先出现是预期的）
+        _order = [_helper.find("wp[n++] = P3;"), _helper.find("wp[n++] = S1;"),
+                  _helper.find("wp[n++] = P4;")]
+        if -1 in _order or _order != sorted(_order):
+            SYNC_PROBLEMS.append(
+                "append_round1_return_tail() 基础插点顺序不是 P3 -> S1 -> P4（偏移 %s）"
+                % _order)
     for fn in ("plan_treasure_return", "route_return_home"):
         body = _fn_body(MP_CODE, fn)
         if body is None:
             SYNC_PROBLEMS.append("%s() 找不到了" % fn)
             continue
-        blks = _guarded(body, TOUR_MACRO)
-        if len(blks) != 1:
-            SYNC_PROBLEMS.append("%s() 里 if (%s) 块有 %d 个，镜像假设 1 个"
-                                 % (fn, TOUR_MACRO, len(blks)))
-            continue
-        for cond, stmt in (("treasure == 3", "wp[n++] = S1;"),
-                           ("treasure == 4", "wp[n++] = S2;")):
-            if cond not in blks[0] or stmt not in blks[0]:
-                SYNC_PROBLEMS.append("%s() 的开关块里缺 %s + %s" % (fn, cond, stmt))
+        if "append_round1_return_tail(wp, n, tier)" not in body:
+            SYNC_PROBLEMS.append("%s() 没调用 append_round1_return_tail()" % fn)
+        for macro in (TOUR_MACRO, PUNCH_MACRO):
+            if _guarded(body, macro):
+                SYNC_PROBLEMS.append(
+                    "%s() 里还留着 if (%s) 块 —— 应改走 append_round1_return_tail()"
+                    % (fn, macro))
 
     # ② 二轮那处：不带 treasure 条件，固定绕两个
     body = _fn_body(MP_CODE, "get_newroute")
@@ -181,23 +229,53 @@ def _sync_check():
             SYNC_PROBLEMS.append(
                 "get_newroute() 的开关块带了 treasure 条件（镜像假设二轮无条件绕两个）")
 
-    # ③ 反向：源码里每一处 S 赋值都必须落在我们认得的开关块内，多出来 = 镜像过期
-    guarded_all = " ".join(_guarded(MP_CODE, TOUR_MACRO))
+    # ③ 反向：源码里每一处 S 赋值都必须和 UPRIGHT_TOUR_ENABLE 写在同一行
+    #    （裸 if (UPRIGHT_TOUR_ENABLE) 或 if (goPx && UPRIGHT_TOUR_ENABLE)），
+    #    多出来 = 开关外的插点，镜像覆盖不到。
     for stmt in ("wp[n++] = S1;", "wp[n++] = S2;"):
-        if MP_CODE.count(stmt) != guarded_all.count(stmt):
+        n_all = MP_CODE.count(stmt)
+        n_ok = sum(1 for ln in MP_CODE.splitlines() if stmt in ln and TOUR_MACRO in ln)
+        if n_all != n_ok:
             SYNC_PROBLEMS.append(
-                "mission_planner.c 里有 %d 处 %s，只有 %d 处在 if (%s) 块里"
-                "（开关外的插点，镜像覆盖不到）"
-                % (MP_CODE.count(stmt), stmt, guarded_all.count(stmt), TOUR_MACRO))
+                "mission_planner.c 里有 %d 处 %s，只有 %d 处与 %s 同行"
+                "（开关外的插点，镜像覆盖不到）" % (n_all, stmt, n_ok, TOUR_MACRO))
 
-    # ④ wp 容量：nowNode + 宝物平台 + S + P2 = 4
-    body = _fn_body(MP_CODE, "route_return_home") or ""
-    m = re.search(r"u8\s+wp\s*\[\s*(\d+)\s*\]", body)
-    if not m:
-        SYNC_PROBLEMS.append("route_return_home() 里找不到 u8 wp[N]")
-    elif int(m.group(1)) < 4:
+    # ④ 反向：除二轮 get_newroute()（本来就固定走 P3/P4）以外，一轮里的 P3/P4 赋值
+    #    必须与 goP3/goP4 同行 —— 而 goP3/goP4 的定义受 P3P4_PUNCH_ENABLE 管（见 ①）。
+    if _PUNCH_RAW is None:
+        SYNC_PROBLEMS.append("config.h 里找不到 #define %s" % PUNCH_MACRO)
+    _mp_no_r2 = MP_CODE.replace(_r2, " ") if _r2 else MP_CODE
+    #    P3 赋值只允许两种：跟 goP3 同行（补打卡），或宝物平台行（treasure == 3）。
+    for stmt, var, plat_cond in (("wp[n++] = P3;", "goP3", "treasure == 3"),
+                                 ("wp[n++] = P4;", "goP4", "treasure == 4")):
+        n_all = _mp_no_r2.count(stmt)
+        n_ok = sum(1 for ln in _mp_no_r2.splitlines()
+                   if stmt in ln and (var in ln or plat_cond in ln))
+        if n_all != n_ok:
+            SYNC_PROBLEMS.append(
+                "一轮里有 %d 处 %s 既没跟 %s 同行、也不是宝物平台行（补打卡判据漏了）"
+                % (n_all - n_ok, stmt, var))
+    if _guarded(_r2, PUNCH_MACRO):
         SYNC_PROBLEMS.append(
-            "route_return_home() 的 wp[%s] 装不下 nowNode+平台+S+P2（需 >=4）" % m.group(1))
+            "get_newroute() 里出现 %s —— 二轮本来就固定走 P3/P4，不该再插" % PUNCH_MACRO)
+
+    # ⑤ wp 容量：route_return_home 需 7（nowNode + 平台 + P3 + S1 + P4 + S2 + P2）；
+    #    plan_treasure_return 需 9（start + P5/P6 + 门×2 + 平台 + P3 + S1 + P4 + S2 + P2）。
+    for fn, need in (("route_return_home", 7), ("plan_treasure_return", 9)):
+        m = re.search(r"u8\s+wp\s*\[\s*(\d+)\s*\]", _fn_body(MP_CODE, fn) or "")
+        if not m:
+            SYNC_PROBLEMS.append("%s() 里找不到 u8 wp[N]" % fn)
+        elif int(m.group(1)) < need:
+            SYNC_PROBLEMS.append(
+                "%s() 的 wp[%s] 装不下交错后的 %d 个点" % (fn, m.group(1), need))
+
+    # ⑥ 第二轮巡游顺序：正文里必须是 cruise[i]（常量在 config.h 的 ROUND2_CRUISE_*），
+    #    并读回那 8 个宏；镜像里再用 ROUND2 走 wp（见 get_newroute 镜像）。
+    if re.search(r"wp\[n\+\+\]\s*=\s*P\d\s*;\s*\n\s*\}?\s*else", _r2):
+        SYNC_PROBLEMS.append(
+            "get_newroute() 里还把巡游顺序写成 wp[n++] = P# 死值；"
+            "2026-10-07 起应改成 wp[n++] = cruise[i] + config.h 的 ROUND2_CRUISE_*")
+    _load_round2()
 
 
 _sync_check()
@@ -213,7 +291,8 @@ class RouteError(Exception):
 
 class Sim:
     def __init__(self, clue=3, stage_a=5, stage_b=7, door_true=None, treasure=0,
-                 tour=None, treasure_at_clue=None):
+                 tour=None, treasure_at_clue=None, punch=None,
+                 exit_elapsed_s=None):
         # 固件 map.c: u8 route[100] = {B1,N1,P1,N1,B2,N4,N5,0XFF}; 其余为 0（= S1）
         self.route = [0] * ROUTE_LEN
         for i, nm in enumerate(["B1", "N1", "P1", "N1", "B2", "N4", "N5"]):
@@ -231,6 +310,8 @@ class Sim:
         self.door_pass = [0, 0, 0, 0, 0]
         self.treasure = treasure
         self.tour = TOUR if tour is None else int(bool(tour))
+        self.punch = PUNCH if punch is None else int(bool(punch))
+        self.exit_elapsed_s = exit_elapsed_s   # 出门(回程到 N3/N5)时刻已用时；None=不启用时间裁剪
         # 固件里 treasure 由 P7/P8 的 SP_IMPACT/HM_IMPACT 现场算出，本仿真原先写死 =2；
         # 做成参数，才能覆盖「宝物=P3/P4 的回程腿」（默认 2 = 原行为不变）。
         self.treasure_at_clue = 2 if treasure_at_clue is None else treasure_at_clue
@@ -312,21 +393,27 @@ class Sim:
         return ok
 
     def check_redline(self, tag, offset, written):
-        """红线：S1/S2 必须排在宝物平台之后。
+        """红线：非宝物平台必须排在宝物平台之后（取宝前去平台 = 结束比赛）。
 
-        规则原文：取宝之前走到其他平台或直立景点 = 直接结束比赛。
+        2026-10-11 恢复：景点 S1/S2 也必须在宝物平台之后
+        （用户确认规则：拿完宝藏才能撞直立景点）。
         offset/written 是 build_route_at() 刚才的写入区间（written 含 0xFF 哨兵）。
         """
         seg = [NAME.get(x, x) for x in self.route[offset:offset + written - 1]]
-        for s, plat in (("S1", "P3"), ("S2", "P4")):
-            if s not in seg:
+        tpf = {2: "P1", 3: "P3", 4: "P4", 5: "P5", 6: "P6"}.get(self.treasure)
+        for plat in ("P3", "P4"):
+            if plat == tpf or plat not in seg:
                 continue
-            if plat not in seg:
+            if tpf is None or tpf not in seg or seg.index(plat) < seg.index(tpf):
                 self.redline_bad.append(
-                    (tag, "%s 在路线里，但宝物平台 %s 不在" % (s, plat)))
-            elif seg.index(s) < seg.index(plat):
+                    (tag, "%s 排在宝物平台 %s 之前（取宝前去平台 = 结束比赛）"
+                     % (plat, tpf or "?")))
+        # 景点红线：拿完宝藏才能撞直立景点（2026-10-11 恢复）
+        for s in ("S1", "S2"):
+            if s in seg and tpf and tpf in seg and seg.index(s) < seg.index(tpf):
                 self.redline_bad.append(
-                    (tag, "%s 排在 %s 之前（取宝前去 = 结束比赛）" % (s, plat)))
+                    (tag, "%s 排在宝物平台 %s 之前（拿完宝藏才能撞景点）"
+                     % (s, tpf)))
         return seg
 
     # ---------------------------------------------------------------- map.c 镜像
@@ -379,6 +466,73 @@ class Sim:
     def update_route_at_door_for_stageAB(self):
         self.build_route_at(0, [NAME[self.now["to"]], "P%d" % self.stage_a, "P%d" % self.stage_b])
 
+    def round1_return_tail(self, exit_node=None):
+        """镜像固件 append_round1_return_tail()：宝物平台之后、P2 之前的交错段。
+
+        判据（2026-10-07 改）：会去 P3 = 平台就是 P3 或（补打卡开着且百位没走过 P3）；
+        会去 P4 同理。⇒ S1/S2 不再依赖宝物值。
+        宝物=4（2026-10-11）：尾段按沿途岔口重排 S2 -> P3 -> S1。
+        ⚠️ 景点与平台一律在拿完宝藏之后（用户确认规则）。
+        出门时刻分级（2026-10-11，阈值同步 config.h 的 TB_*）：
+        <2:25 全跑；≥2:25 不跑 S1/S2；≥2:35 只跑一个平台；≥2:40 直接回家。
+        """
+        go_p3 = (self.treasure == 3) or (self.punch and self.clue != 3
+                                         and self.treasure != 3)
+        go_p4 = (self.treasure == 4) or (self.punch and self.clue != 4
+                                         and self.treasure != 4)
+        # 出门时刻分级（阈值同步 config.h 的 TB_*：2:25 / 2:35 / 2:40）
+        # exit_elapsed_s 语义 = 出门时刻已用时（含出门惩罚，由案例给；
+        # 同步固件：BACK 重规划 = 已用时+TB_EXIT_PENALTY_S；绿灯穿门 = 平台已用时+行驶估计+惩罚）
+        tier = 0
+        if self.exit_elapsed_s is not None:
+            t = self.exit_elapsed_s
+            tier = 3 if t >= 160 else 2 if t >= 155 else 1 if t >= 145 else 0
+        exit_n3 = (exit_node == "N3")
+        out = []
+        if tier == 3:                      # ≥2:40 直接回家
+            return out
+        if tier == 2:                      # ≥2:35 只跑一个平台：出门 N3 选 P3，其余选 P4
+            if exit_n3:
+                if go_p3 and self.treasure != 3:
+                    out.append("P3")
+                elif go_p4 and self.treasure != 4:
+                    out.append("P4")
+            else:
+                if go_p4 and self.treasure != 4:
+                    out.append("P4")
+                elif go_p3 and self.treasure != 3:
+                    out.append("P3")
+            return out
+        if tier == 1:                      # ≥2:25 不跑 S1/S2：只补平台（出门侧优先）
+            if exit_n3:
+                if go_p3 and self.treasure != 3:
+                    out.append("P3")
+                if go_p4 and self.treasure != 4:
+                    out.append("P4")
+            else:
+                if go_p4 and self.treasure != 4:
+                    out.append("P4")
+                if go_p3 and self.treasure != 3:
+                    out.append("P3")
+            return out
+        if self.treasure == 4:
+            if go_p4 and self.tour:
+                out.append("S2")
+            if go_p3 and self.treasure != 3:
+                out.append("P3")
+            if go_p3 and self.tour:
+                out.append("S1")
+            return out
+        if go_p3 and self.treasure != 3:   # 宝物平台那一次已在更前面加过
+            out.append("P3")
+        if go_p3 and self.tour:
+            out.append("S1")
+        if go_p4 and self.treasure != 4:
+            out.append("P4")
+        if go_p4 and self.tour:
+            out.append("S2")
+        return out
+
     def plan_treasure_return(self, start):
         wp = [start]
         if self.treasure == 5:
@@ -398,9 +552,7 @@ class Sim:
             raise RouteError("D2/D3/D4 都不能过 → 固件 CarBrake_Stop")
         if self.treasure not in (5, 6):
             wp.append({2: "P1", 3: "P3", 4: "P4"}[self.treasure])
-        if self.tour:      # ← 镜像 mission_planner.c 的 UPRIGHT_TOUR_ENABLE 块
-            if self.treasure == 3:      wp.append("S1")
-            elif self.treasure == 4:    wp.append("S2")
+        wp += self.round1_return_tail(exit_node=wp[-1])   # ← 镜像 append_round1_return_tail()
         wp.append("P2")
         # ★ 关键：写 offset = map.point - 1，且不碰 map.point
         written = self.build_route_at(self.point - 1, wp)
@@ -422,9 +574,7 @@ class Sim:
             wp.append("P3")
         elif self.treasure == 4:
             wp.append("P4")
-        if self.tour:      # ← 镜像 mission_planner.c 的 UPRIGHT_TOUR_ENABLE 块
-            if self.treasure == 3:      wp.append("S1")
-            elif self.treasure == 4:    wp.append("S2")
+        wp += self.round1_return_tail(exit_node=wp[-1])   # ← 镜像 append_round1_return_tail()
         wp.append("P2")
         written = self.build_route_at(0, wp)  # ★ offset = 0
         self.check_redline("route_return_home", 0, written)
@@ -458,8 +608,7 @@ class Sim:
         else:
             raise RouteError("二轮进门：D2/D3/D4 都不可过 → CarBrake_Stop")
 
-        wp += (["P6", "P8", "P7", "P5"] if self.treasure == 6
-               else ["P5", "P7", "P8", "P6"])
+        wp += (ROUND2["ccw"] if self.treasure == 6 else ROUND2["cw"])
 
         d0, d1, d2, d3 = self.door_pass[0], self.door_pass[1], self.door_pass[2], self.door_pass[3]
         if d0 == CAN_PASS:
@@ -593,14 +742,17 @@ class Sim:
             s, e, p, got, exp, "" if ok else "★不变量破!")
 
 
-def run_case(title, clue, stage_a, stage_b, door_true, treasure,
-             tour=None, treasure_at_clue=None):
+def run_case(title, clue, stage_a, stage_b, door_true, treasure, exit_elapsed_s=None,
+             tour=None, treasure_at_clue=None, punch=None):
     eff = TOUR if tour is None else int(bool(tour))
+    eff_p = PUNCH if punch is None else int(bool(punch))
     print("=" * 78)
-    print("%s   （线索=%s 平台=%s/%s 物理灯色 D2..D5=%s 宝物=%s 巡回开关=%s）"
-          % (title, clue, stage_a, stage_b, door_true, treasure, eff))
+    print("%s   （线索=%s 平台=%s/%s 物理灯色 D2..D5=%s 宝物=%s 巡回开关=%s 补打卡开关=%s）"
+          % (title, clue, stage_a, stage_b, door_true, treasure, eff, eff_p))
     sim = Sim(clue=clue, stage_a=stage_a, stage_b=stage_b, door_true=door_true,
-              treasure=treasure, tour=tour, treasure_at_clue=treasure_at_clue)
+              exit_elapsed_s=exit_elapsed_s,
+              treasure=treasure, tour=tour, treasure_at_clue=treasure_at_clue,
+              punch=punch)
     rnd = "第一轮"
     try:
         sim.map_init()
@@ -636,13 +788,16 @@ def run_case(title, clue, stage_a, stage_b, door_true, treasure,
 
 if __name__ == "__main__":
     print("=" * 78)
-    print("UPRIGHT_TOUR_ENABLE = %s   （读自 Mission/config.h；不用改本脚本）" % TOUR)
+    print("UPRIGHT_TOUR_ENABLE = %s ｜ P3P4_PUNCH_ENABLE = %s"
+          "   （读自 Mission/config.h；不用改本脚本）" % (TOUR, PUNCH))
     if SYNC_PROBLEMS:
         print("★ 源同步自检：不通过 —— 本镜像是旧版，下面的结论不可信：")
         for p in SYNC_PROBLEMS:
             print("   - %s" % p)
     else:
-        print("源同步自检：通过（三处 wp 插点 / 开关取值 / wp 容量 均与 mission_planner.c 一致）")
+        print("源同步自检：通过（一轮交错段 append_round1_return_tail + 二轮 S1/S2 插点 /"
+              " 两个开关取值 / wp 容量 / ROUND2_CRUISE_* 巡游顺序 均与"
+              " mission_planner.c + config.h 一致）")
 
     # 现场配置：DEBUG 预设门色 D2蓝 D3绿 D4绿 D5黑；QR/clue 预设 3/5/7；
     # treasure 初值为 0（固件 barrier.c:94），到 P7/P8 平台才由 clue_A+clue_B 算出 = 2 → 宝物在 P1
@@ -656,6 +811,25 @@ if __name__ == "__main__":
         run_case("巡回预演（宝物=P%d → 一轮回家腿绕 %s）" % (_tre, _tag), 3, 5, 7,
                  [ONE_WAY_PASS, CAN_PASS, CAN_PASS, NO_PASS, NO_PASS], 0,
                  tour=True, treasure_at_clue=_tre)
+
+    # 补打卡开关：一轮「门回程」wp 直出（只调镜像函数，不跑状态机 ——
+    # 上面 run_case 的预设本身就会复现 Route_Error_Stop，从日志里看不出 wp 差异）
+    print("=" * 78)
+    print("一轮「门回程」wp 对比（补打卡关 → 开）※ 巡回开关开着时交错成"
+          " P3->S1->P4->S2，都在宝物平台之后、P2 之前")
+    for _clue, _tre in ((3, 2), (4, 2), (0, 2), (0, 3), (0, 4)):
+        _row = []
+        for _p in (0, 1):
+            _s = Sim(clue=_clue, treasure=_tre, punch=_p, tour=1)
+            try:
+                _s.map_init()
+                _row.append(" ".join(_s.route_return_home()))
+            except RouteError as _ex:
+                _row.append("★ %s" % _ex)
+        print("  线索=%s 宝物=%s  关: %-38s 开: %s"
+              % (_clue, {2: "P1", 3: "P3", 4: "P4", 5: "P5", 6: "P6"}[_tre],
+                 _row[0], _row[1]))
+    print()
 
     if SYNC_PROBLEMS:
         sys.exit(1)

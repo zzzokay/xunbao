@@ -17,6 +17,7 @@
 #include "nav_planner.h"
 #include "chassis_api.h"
 #include "barrier.h"
+#include "task_create.h"      /* xTaskGetTickCount/configTICK_RATE_HZ（比赛计时器） */
 #include "stdio.h"
 
 /* ==================== 外部依赖 ==================== */
@@ -94,6 +95,164 @@ static uint8_t plan_route_at(uint8_t offset, const u8 *waypoints, uint8_t waypoi
 	return 1;
 }
 
+/**
+ * @brief 一轮回程中"宝物平台之后、P2 之前"的那一段：交错安排补打卡 P3/P4 与直立景点 S1/S2
+ * @param wp 必经点数组（调用方已写入宝物平台等前段）
+ * @param n  当前已填数量
+ * @return 追加后的 n
+ * @note  2026-10-07 起 S1/S2 的判据**跟着"这次回程会不会去 P3/P4"走**，不再看宝物值：
+ *          会去 P3 = 宝物平台就是 P3，或 补打卡开着且 QR 百位没走过 P3；会去 P4 同理。
+ *          ⇒ 补打卡开着时两个景点都绕（3/4 都去）；关掉补打卡自动退回旧行为
+ *            （宝物 P3→S1、P4→S2）。
+ *        基础序 P3 -> S1 -> P4 -> S2；宝物=4 时尾段按沿途岔口重排 S2 -> P3 -> S1。
+ *        ⚠️ 景点与平台一律在拿完宝藏之后（2026-10-11 确认规则）。
+ *        ⚠️ 必须在宝物平台【之后】调用：取宝之前去任何平台 = 走错即结束比赛。
+ *        ⚠️ 宝物平台本身（treasure==3/4）由调用方在其前面已加，这里只补另一个。
+ */
+/* 宝物=4：宝物平台（P4，N6 岔口）之后按沿途岔口顺序
+ * S2（N6，出平台顺便）→ P3 → S1（N3 岔口，回头补）。
+ * ⚠️ 景点 S1/S2 也必须在拿完宝藏之后（2026-10-11 用户确认规则），
+ *    不能再提前到宝物前；这里只在宝物后重排。 */
+/* ==================== 比赛时间预算（出门分级贪分，2026-10-11） ====================
+ * 计时起点 = zhunbei() 两个红外 while 退出（Match_Timer_Start，一/二轮各一次 → 各自 180s）。
+ * 出门（回程到达 N3/N5，即本函数被调的时刻）已用时分级：
+ *   < 2:25 全跑（含 S1/S2）；≥ 2:25 不跑 S1/S2；≥ 2:35 只跑一个平台；≥ 2:40 直接回家。
+ * 阈值在 config.h 的 TB_*；裁剪顺序 S1 → S2 →（不够再裁）补打卡平台。 */
+uint32_t match_start_tick = 0;   /* 0 = 未启动（视为时间充足，保护调试路径） */
+
+void Match_Timer_Start(void)
+{
+	if (!TIME_BUDGET_ENABLE) return;   /* 总开关关闭时不计时 */
+	match_start_tick = xTaskGetTickCount();
+}
+
+uint32_t Match_Elapsed_S(void)
+{
+	if (match_start_tick == 0) return 0;
+	return (xTaskGetTickCount() - match_start_tick) * 1000u / configTICK_RATE_HZ;
+}
+
+/* 尾段档位 */
+enum { TB_ALL = 0, TB_NO_SIGHTS, TB_ONE_PLAT, TB_HOME_ONLY };
+
+static uint8_t round1_tail_tier_of(uint32_t exit_elapsed_s)
+{
+	/* 唯一调用方 = round1_exit_recheck()（到达 N3/N5 那一刻真实定档）。
+	 * exit_elapsed_s = 出门时刻已用时（节点触发，车已在 N3/N5 点上）。
+	 * TIME_BUDGET_ENABLE=0 时恒返 TB_ALL（全量尾段，即无时间预算行为）。 */
+	if (!TIME_BUDGET_ENABLE) return TB_ALL;
+	if (exit_elapsed_s < TB_NO_SIGHTS_AT_S)  return TB_ALL;
+	if (exit_elapsed_s < TB_ONE_PLAT_AT_S)   return TB_NO_SIGHTS;
+	if (exit_elapsed_s < TB_HOME_ONLY_AT_S)  return TB_ONE_PLAT;
+	return TB_HOME_ONLY;
+}
+
+/* 前置声明：round1_exit_recheck 用到（本体在后） */
+static uint8_t append_round1_return_tail(u8 *wp, uint8_t n, uint8_t tier, uint8_t exit_n3);
+static void door_block_all(void);
+
+static uint8_t s_exit_checked = 0;   /* 本轮是否已出门定档（get_newroute 复位） */
+
+/* 出门定档检查站（时间预算的唯一决策点，2026-10-12）：
+ * 一轮完成出门边（N10→N3 / N8→N3 / N12→N5 / N8→N5）、
+ * 到达 N3/N5 节点那一刻，用真实已用时+惩罚给尾段定档并重写后续路线。
+ * 无论回程走 door() BACK（D5/D4 首读）还是绿灯穿门（门边
+ * func=NONE，door() 不触发），都会在这里汇合——前者的预案被覆盖，
+ * 后者完全靠这里。每轮只做一次（s_exit_checked）。
+ * 由 Navigation() 的 Nav_TurnAndAdvance() 入口调用（到达判定后、节点推进前）。 */
+void round1_exit_recheck(void)
+{
+	u8 wp[8];
+	uint8_t n = 0;
+	uint8_t i;
+	u8 arr = nodes.nowNode.nodenum;    /* 刚到达的节点（当前边的目标） */
+	u8 from = nodes.lastNode.nodenum;  /* 门的另一侧节点 */
+
+	if (!TIME_BUDGET_ENABLE) return;
+	if (map.routetime != 0) return;         /* 只管一轮（二轮=2） */
+	if (s_exit_checked) return;
+	/* 只认四条出门边的到达（去程的 N4→N5、N4→N3 不会误触发） */
+	if (!((arr == N3 && (from == N10 || from == N8)) ||
+	      (arr == N5 && (from == N12 || from == N8)))) return;
+
+	/* 前方还有可选加分项（S1/S2/补打卡平台）才值得重排 */
+	{
+		uint8_t has_opt = 0;
+		for (i = map.point; route[i] != 0xFF && i < (u8)sizeof(route); i++) {
+			if (route[i] == S1 || route[i] == S2
+				|| (route[i] == P3 && treasure != 3)
+				|| (route[i] == P4 && treasure != 4)) { has_opt = 1; break; }
+		}
+		if (!has_opt) { s_exit_checked = 1; return; }
+	}
+
+	door_block_all();   /* 与 route_return_home 同口径：门区不再进 */
+	wp[n++] = arr;
+	if (treasure == 2)       wp[n++] = P1;
+	else if (treasure == 3)  wp[n++] = P3;
+	else if (treasure == 4)  wp[n++] = P4;
+	n = append_round1_return_tail(wp, n,
+		round1_tail_tier_of(Match_Elapsed_S()),
+		(arr == N3));
+	wp[n++] = P2;
+	/* 交接同 plan_treasure_return：从 route[point-1] 起重写，并把 nextNode 
+	 * 对齐到新路线的第一跳（推进随后正常进行） */
+	if (plan_route_at(map.point - 1, wp, n)) {
+		u8 first = route[map.point - 1];
+		if (first != 0xFF)
+			nodes.nextNode = Node[getNextConnectNode(arr, first)];
+	}
+	s_exit_checked = 1;
+}
+
+static uint8_t append_round1_return_tail(u8 *wp, uint8_t n, uint8_t tier, uint8_t exit_n3)
+{
+	uint8_t goP3 = (treasure == 3) ||
+		(P3P4_PUNCH_ENABLE && flag_line_clue != 3 && treasure != 3);
+	uint8_t goP4 = (treasure == 4) ||
+		(P3P4_PUNCH_ENABLE && flag_line_clue != 4 && treasure != 4);
+	/* tier 由调用方按出门时刻算好传入（route_return_home / plan_treasure_return） */
+	/* exit_n3 由调用方显式传入（出门节点是否 N3） */
+
+	if (tier == TB_HOME_ONLY)   return n;               /* ≥2:40 直接回家 */
+
+	if (tier == TB_ONE_PLAT) {                          /* ≥2:35 只跑一个平台 */
+		/* 出门 N3 选 P3（就近）；其余出门选 P4（在前方顺路） */
+		if (exit_n3) {
+			if (goP3 && treasure != 3) { wp[n++] = P3; return n; }
+			if (goP4 && treasure != 4) { wp[n++] = P4; return n; }
+			return n;
+		}
+		if (goP4 && treasure != 4) { wp[n++] = P4; return n; }
+		if (goP3 && treasure != 3) { wp[n++] = P3; return n; }
+		return n;
+	}
+
+	if (tier == TB_NO_SIGHTS) {                         /* ≥2:25 不跑 S1/S2 */
+		if (exit_n3) {
+			if (goP3 && treasure != 3) wp[n++] = P3;
+			if (goP4 && treasure != 4) wp[n++] = P4;
+			return n;
+		}
+		if (goP4 && treasure != 4) wp[n++] = P4;
+		if (goP3 && treasure != 3) wp[n++] = P3;
+		return n;
+	}
+
+	/* 全跑：宝物=4 按沿途岔口重排 S2 -> P3 -> S1；其余基础序 */
+	if (treasure == 4) {
+		if (goP4 && UPRIGHT_TOUR_ENABLE) wp[n++] = S2;
+		if (goP3 && treasure != 3)       wp[n++] = P3;
+		if (goP3 && UPRIGHT_TOUR_ENABLE) wp[n++] = S1;
+		return n;
+	}
+	if (goP3 && treasure != 3)       wp[n++] = P3;
+	if (goP3 && UPRIGHT_TOUR_ENABLE) wp[n++] = S1;
+	if (goP4 && treasure != 4)       wp[n++] = P4;
+	if (goP4 && UPRIGHT_TOUR_ENABLE) wp[n++] = S2;
+	return n;
+}
+
 #if USE_PLANNER_ROUTE
 /**
  * @brief P7/P8 得到宝物编号后规划回程（含宝物平台）
@@ -102,7 +261,7 @@ static uint8_t plan_route_at(uint8_t offset, const u8 *waypoints, uint8_t waypoi
  */
 static uint8_t plan_treasure_return(uint8_t start)
 {
-	u8 wp[10];
+	u8 wp[10];   /* 补打卡 + 巡回交错后最多 9 个点（start + P5/P6 + 门×2 + 宝物平台 + P3 + S1 + P4 + S2 + P2），10 够 */
 	uint8_t n = 0;
 	uint8_t target;
 
@@ -168,15 +327,11 @@ static uint8_t plan_treasure_return(uint8_t start)
 	if (treasure != 5 && treasure != 6)
 		wp[n++] = target;
 
-	/* 直立景点巡回（S1/S2，见 config.h 的 UPRIGHT_TOUR_ENABLE）：
-	 * 一轮【取宝之后】顺路去近的那一个 —— 宝物在 P3 绕 S1，在 P4 绕 S2。
-	 * ⚠️ 必须插在宝物平台【之后】：取宝之前去任何平台/直立景点 = 走错即结束比赛。
-	 * ⚠️ S1/S2 进边 func 是 View1（不是 View），动作待 do_Upright1()；本开关只管走位。 */
-	if (UPRIGHT_TOUR_ENABLE)
-	{
-		if (treasure == 3)      wp[n++] = S1;
-		else if (treasure == 4) wp[n++] = S2;
-	}
+	/* 一轮回程：宝物平台之后，交错安排"补打卡 P3/P4"与"直立景点 S1/S2 巡回"。
+	 * 判据与顺序见 append_round1_return_tail()（S1/S2 不再依赖宝物值；宝物=4 时尾段按沿途岔口重排 S2 -> P3 -> S1，景点也全在宝物后）。 */
+	/* 尾段预案恒为全量（TB_ALL）：到达 N3/N5 时由
+	 * round1_exit_recheck() 用真实已用时重定档（时间预算总开关 TIME_BUDGET_ENABLE）。 */
+	n = append_round1_return_tail(wp, n, TB_ALL, (n > 0 && wp[n - 1] == N3));
 	wp[n++] = P2;
 
 	/* 交接（stageAB 段不再写尾锚点 C9/N20 后必须做）：
@@ -267,7 +422,7 @@ static void door_block_all(void)
  */
 static void route_return_home(uint8_t allow_N8_N3)
 {
-	u8 wp[6];   /* ⚠️ 原为 wp[3]：插直立景点后最多 4 个点，3 会溢出（踩栈） */
+	u8 wp[8];   /* ⚠️ 原为 wp[3]：插直立景点 + 补打卡交错后最多 7 个点 —— 留到 8 */
 	uint8_t n = 0;
 
 	door_block_all();
@@ -279,14 +434,11 @@ static void route_return_home(uint8_t allow_N8_N3)
 	else if (treasure == 3)  wp[n++] = P3;
 	else if (treasure == 4)  wp[n++] = P4;
 	/* 宝物在 P5/P6 时本轮已到过，回程直接回家 */
-	/* 直立景点巡回：条件与位置同 plan_treasure_return()（取宝之后）。
-	 * ⚠️ 两处都要插：回程过门时 door() 会重规划后半段，但若该门边去程已被
-	 *    door_set_pass_node() 改成 func=NONE，则不进 door()，只有本函数生效。 */
-	if (UPRIGHT_TOUR_ENABLE)
-	{
-		if (treasure == 3)      wp[n++] = S1;
-		else if (treasure == 4) wp[n++] = S2;
-	}
+	/* 一轮回程：补打卡 P3/P4 + 直立景点 S1/S2 交错，判据与顺序同 plan_treasure_return()。
+	 * ⚠️ 两处都要插：回程过门时 door() 会重规划后半段，与本函数各管一段；
+	 *    若该门边去程已被 door_set_pass_node() 改成 func=NONE，则不进 door()，只有本函数生效。 */
+	/* 尾段预案恒为全量：到达 N3/N5 时由 round1_exit_recheck() 重定档 */
+	n = append_round1_return_tail(wp, n, TB_ALL, (n > 0 && wp[n - 1] == N3));
 	wp[n++] = P2;
 
 	(void)plan_route_at(0, wp, n);
@@ -433,6 +585,8 @@ void Clear_door(void)
 void get_newroute(void)
 {
 	extern void mapInit(void);  /* 前向声明 */
+	Match_Timer_Start();   /* 二轮自己的 180s：重置本轮计时（2026-10-11） */
+	s_exit_checked = 0;    /* 二轮复位出门定档检查站 */
 
 	const u8 r[] = {B1, N1, P1, 0XFF};
 	load_route_at(0, r);
@@ -445,7 +599,14 @@ void get_newroute(void)
 	{
 		u8 wp[24];
 		uint8_t n = 0;
-		uint8_t p6_first = (treasure == 6);
+		/* 第二轮巡游顺序（CW = 宝物!=6 / CCW = 宝物==6）：来自 config.h 的 ROUND2_CRUISE_*
+		 * —— 上位机「二轮路线…」可读写；两组填成一样即与宝物值无关。 */
+		const u8 cruise_cw[4]  = {ROUND2_CRUISE_CW_1,  ROUND2_CRUISE_CW_2,
+		                          ROUND2_CRUISE_CW_3,  ROUND2_CRUISE_CW_4};
+		const u8 cruise_ccw[4] = {ROUND2_CRUISE_CCW_1, ROUND2_CRUISE_CCW_2,
+		                          ROUND2_CRUISE_CCW_3, ROUND2_CRUISE_CCW_4};
+		const u8 *cruise = (treasure == 6) ? cruise_ccw : cruise_cw;
+		uint8_t p6_first = (cruise[0] == P6);   /* 首站=P6（逆时针）⇒ 过 D4 后两个门节点都保留 */
 
 		/* 第一轮已回到 P2；第二轮固定完成 P1/P3/P4，再按门状态进入东区 */
 		wp[n++] = N2;
@@ -469,7 +630,7 @@ void get_newroute(void)
 		else if (Can_Pass(door_pass[2]))
 		{
 			wp[n++] = N3;
-			if (p6_first) wp[n++] = N8;   /* 宝物=P6 逆时针时，这两个门节点都要保留 */
+			if (p6_first) wp[n++] = N8;   /* 巡游首站=P6（逆时针）时，这两个门节点都要保留 */
 		}
 		else
 		{
@@ -478,23 +639,11 @@ void get_newroute(void)
 			return;
 		}
 
-		/* 巡游：只写 P5~P8，顺时针/逆时针由顺序决定（其余 N 全部交给最短路） */
-		if (p6_first)
-		{
-			/* 逆时针：P6 -> P8 -> P7 -> P5 */
-			wp[n++] = P6;
-			wp[n++] = P8;
-			wp[n++] = P7;
-			wp[n++] = P5;
-		}
-		else
-		{
-			/* 顺时针：P5 -> P7 -> P8 -> P6 */
-			wp[n++] = P5;
-			wp[n++] = P7;
-			wp[n++] = P8;
-			wp[n++] = P6;
-		}
+		/* 巡游：只写 P5~P8，顺序由 cruise[] 决定（其余 N 全部交给最短路） */
+		wp[n++] = cruise[0];
+		wp[n++] = cruise[1];
+		wp[n++] = cruise[2];
+		wp[n++] = cruise[3];
 
 		/* 回程：只留"要过的那扇门"；⚠️ N8,N5 里的 N5 必须保留
 		 * （删掉后规划器会改走 N8->N3 穿 D4 出西侧，实测路线会变） */
@@ -550,7 +699,8 @@ void get_newroute(void)
 #endif
 
 #if !USE_PLANNER_ROUTE
-	/* USE_PLANNER_ROUTE=0 时的手工拼接路线（兜底）：数组都在本文件内，不依赖已删除的 rout_* */
+	/* USE_PLANNER_ROUTE=0 时的手工拼接路线（兜底）：数组都在本文件内，不依赖已删除的 rout_*。
+	 * ⚠️ config.h 的 ROUND2_CRUISE_* 巡游顺序宏**只在 USE_PLANNER_ROUTE=1 分支生效**（这里写死）。 */
 	// 公共段：P1→P3→P4（到N5岔口）
 	const u8 pre[]  = {B1,N1,P1,N1,B2,N4,N3,P3,N3,N4,N5,N6,P4,N6,N5,0XFF};
 	// 东区巡游：P5→P7→P8→P6

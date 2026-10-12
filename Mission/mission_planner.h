@@ -95,6 +95,24 @@ void get_newroute(void);
  */
 void Clear_door(void);
 
+/* ==================== 比赛时间预算（出门分级贪分） ==================== */
+
+/**
+ * @brief 本轮计时起点：zhunbei() 两个红外 while 退出时调用（一/二轮各一次）
+ */
+void Match_Timer_Start(void);
+
+/**
+ * @brief 本轮已用时（秒）；计时器未启动返回 0（视为时间充足）
+ */
+uint32_t Match_Elapsed_S(void);
+
+/**
+ * @brief 出门定档检查站：一轮到达 N3/N5 时用真实已用时给尾段定档
+ *        （由 Navigation() 的节点推进调用；TIME_BUDGET_ENABLE=0 时空转）
+ */
+void round1_exit_recheck(void);
+
 /* ==================== 工具函数（供 barrier.c 使用） ==================== */
 
 /**

@@ -73,7 +73,7 @@ void QQB_1(void);
 void door(void);
 void Stage_Home(void);
 void do_Upright(void);
-//void ignore_node(void);
+void do_Upright_Far(void);
 void undermou(void);
 //void Special_Node(void);
 void get_newroute(void);

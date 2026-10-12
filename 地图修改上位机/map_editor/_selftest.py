@@ -16,7 +16,7 @@ _selftest.py — 地图编辑器自检（无界面）
   8. 成本表：map_model.OBS 逐项比对固件 nav_planner.c 的 NavObsPenalty[]
   9. 门回程：门区禁用 + 极简 wp 复现 validate/_check_door_perm.py 的 12 条 golden
  10. config.h 写回：宏替换保留行尾注释（含多行 /* 开头），真实文件干跑逐字节不变
- 11. 第二轮 wp：默认顺序 == 固件源码里写死的两套；自定义巡游顺序只换巡游段
+ 11. 第二轮 wp：顺序来自 config.h 的 ROUND2_CRUISE_*（读/写回往返 + 自定义只换巡游段）
 12. 转弯前补偿：解析 map.c 两张表 / 覆盖度 / 分支判定 / 写回幂等与护栏
 只读源码，不写任何固件文件。
 """
@@ -340,16 +340,32 @@ def main():
         got = [w for w in (wp or []) if w in ("P5", "P6", "P7", "P8")]
         check(why is None and got == want,
               "宝物=%s 默认巡游 %s" % (t, "→".join(got or ["?"])))
-    # ② 固件源码里那两套顺序 == round2_firmware_cruise()（只认 get_newroute 里的 if/else 块）
-    src = open(os.path.join(M.ROOT, "Mission", "mission_planner.c"), encoding="utf-8").read()
-    blk = re.search(r"if\s*\(p6_first\)\s*\{(.*?)\}\s*else\s*\{(.*?)\}",
-                    src.split("void get_newroute(void)", 1)[-1], re.S)
-    ccw = re.findall(r"wp\[n\+\+\]\s*=\s*(P\d)\s*;", blk.group(1)) if blk else []
-    cw = re.findall(r"wp\[n\+\+\]\s*=\s*(P\d)\s*;", blk.group(2)) if blk else []
-    check(ccw == M.round2_firmware_cruise(6) and cw == M.round2_firmware_cruise(4),
-          "固件源码里写死的两套顺序 == round2_firmware_cruise()（%s / %s）"
-          % ("→".join(ccw), "→".join(cw)))
-    # ③ 自定义顺序：只换巡游段，前缀/进门节点/终点都不动
+    # ② 顺序由 config.h 的 ROUND2_CRUISE_* 给出（2026-10-07 起，不再是 mission_planner.c 里的死值）
+    r2 = M.parse_round2_cruise()
+    check(not r2["warnings"], "config.h 的 ROUND2_CRUISE_* 能解析出两组顺序（%s / %s）"
+          % ("→".join(r2["cw"]), "→".join(r2["ccw"])))
+    check(r2["cw"] == M.round2_firmware_cruise(4, r2)
+          and r2["ccw"] == M.round2_firmware_cruise(6, r2),
+          "round2_firmware_cruise() 读的就是 config.h 的两组（宝物≠6 走 CW / =6 走 CCW）")
+    # ③ 固件必须用 cruise[] 走 wp，且 p6_first 由巡游首站决定（巡游平台不再写死 wp[n++] = P#）
+    mp = open(os.path.join(M.ROOT, "Mission", "mission_planner.c"), encoding="utf-8").read()
+    g = mp.split("void get_newroute(void)", 1)[-1]
+    check(re.search(r"wp\[n\+\+\]\s*=\s*cruise\[0\]", g) is not None
+          and re.search(r"cruise\[0\]\s*==\s*P6", g) is not None
+          and re.search(r"wp\[n\+\+\]\s*=\s*P[5-8]\s*;", g.split("use_tour", 1)[0]) is None,
+          "get_newroute() 巡游段用 cruise[]（顺序来自宏）、p6_first = (cruise[0]==P6)")
+    # ④ 写回：往返一致 + 自定义能落回去 + 能再解析回来（纯函数干跑，不碰真实文件）
+    cfg_src = open(M.PATH_CONFIG, encoding="utf-8").read()
+    same_src, n0 = M.splice_round2_cruise(cfg_src, r2["cw"], r2["ccw"])
+    check(same_src == cfg_src and n0 == 8, "splice_round2_cruise 用原值回写 ⇒ 逐字节不变")
+    _ccw, _cccw = ["P5", "P6", "P7", "P8"], ["P8", "P7", "P6", "P5"]
+    new_src, n1 = M.splice_round2_cruise(cfg_src, _ccw, _cccw)
+    back = M.parse_round2_cruise(source_text=new_src)
+    check(n1 == 8 and back["cw"] == _ccw and back["ccw"] == _cccw,
+          "splice_round2_cruise 写入自定义顺序后能再解析回来")
+    check(M.splice_round2_cruise(new_src, r2["cw"], r2["ccw"])[0] == cfg_src,
+          "splice_round2_cruise 还原回出厂顺序 == 原文件内容")
+    # ⑤ 自定义顺序：只换巡游段，前缀/进门节点/终点都不动
     wp0, _ = M.round2_waypoints(d_ok, 6)
     custom = ["P5", "P6", "P8", "P7"]
     wp1, _ = M.round2_waypoints(d_ok, 6, custom)
@@ -357,12 +373,12 @@ def main():
           and wp1[:5] == wp0[:5] and wp1[5] == wp0[5] and wp1[-1] == "P2",
           "自定义顺序只换巡游段（前缀 %s / 进门 %s / 终点 %s 不变）"
           % (" ".join(wp1[:5]), wp1[5], wp1[-1]))
-    # ④ 进门"多保留的 N8"跟巡游首站走（固件里就是 p6_first）
+    # ⑥ 进门"多保留的 N8"跟巡游首站走（固件里就是 p6_first）
     d_n3 = [M.NO_PASS, M.NO_PASS, M.CAN_PASS, M.NO_PASS]        # D4 绿 ⇒ 进门 N3
     check(M.round2_waypoints(d_n3, 4)[0].count("N8") == 1
           and M.round2_waypoints(d_n3, 4, ["P6", "P8", "P7", "P5"])[0].count("N8") == 2,
           "门区多保留的 N8 跟巡游首站走（首站 P5 留 1 / 首站 P6 留 2）")
-    # ⑤ 三条门都不通 ⇒ 固件会停车
+    # ⑦ 三条门都不通 ⇒ 固件会停车
     check(M.round2_waypoints([M.NO_PASS] * 4, 4)[0] is None,
           "D2/D3/D4 都不能过 返回 None（固件会 CarBrake_Stop）")
 
@@ -457,6 +473,98 @@ def main():
     more = edit + [{"last": "N8", "now": "N5", "next": "P4", "dist": 7.0}]
     out3 = M.splice_turn_tables(_mapc, more, model.turn["gyro"])
     check("(P4 " in out3, "新增表项后，kTurnTbl_node_check 自动带上新节点（P4）")
+
+    sec("13. 路口判断标志位（DLEFT/DRIGHT ↔ 终点路口几何）")
+    # ① 方向映射：need2turn 符号 == 物理左右（用交叉积验证，angle 是干净方向场）
+    import math as _m
+    def _vec(a):
+        r = _m.radians(a)
+        return (-_m.cos(r), _m.sin(r))
+    def _cross(a, b):
+        return a[0] * b[1] - a[1] * b[0]
+    check(_cross(_vec(180), _vec(90)) > 0 and M.need2turn(180, 90) < 0,
+          "右转（朝右180→朝下90）：need2turn<0 且 交叉积>0，方向约定一致")
+    check(_cross(_vec(0), _vec(90)) < 0 and M.need2turn(0, 90) > 0,
+          "左转（朝左0→朝下90）：need2turn>0 且 交叉积<0，方向约定一致")
+    # ② 已知基准：P3→N3(180°) 终点 N3 有右转出边 N10(90°)，flag 应为 DRIGHT
+    e_p3 = model.edge("P3", "N3")
+    _need_p3 = M.junction_flags_needed(model, e_p3) if e_p3 is not None else {}
+    check(e_p3 is not None and "DRIGHT" in _need_p3 and "DLEFT" not in _need_p3,
+          "P3→N3 终点有右转 90° 出边 ⇒ 需要 DRIGHT（不需要 DLEFT）")
+    check("DRIGHT" in M.flag_set(e_p3.flag) and "DLEFT" not in M.flag_set(e_p3.flag),
+          "P3→N3 现有 flag 就是 DRIGHT（与几何一致）")
+    # ③ 已知基准：N6→N5(0°) 终点 N5 有左转出边 N12(90°)，flag 应为 DLEFT
+    e_n6 = model.edge("N6", "N5")
+    _need_n6 = M.junction_flags_needed(model, e_n6) if e_n6 is not None else {}
+    check(e_n6 is not None and "DLEFT" in _need_n6 and "DRIGHT" not in _need_n6,
+          "N6→N5 终点有左转 90° 出边 ⇒ 需要 DLEFT（不需要 DRIGHT）")
+    check("DLEFT" in M.flag_set(e_n6.flag) and "DRIGHT" not in M.flag_set(e_n6.flag),
+          "N6→N5 现有 flag 就是 DLEFT（与几何一致）")
+    # ④ 全图分析：能列出不一致，且 func 字段齐全、状态是 extra/missing/wrong 之一
+    issues = M.analyze_junction_flags(model, only_plain=True)
+    check(all(it["status"] in ("extra", "missing", "wrong") and "func" in it
+              and (it["extra"] or it["missing"]) for it in issues),
+          "全图分析能列出 %d 条不一致，且每条都有 func/status/extra|missing" % len(issues))
+    # ⑤ suggest_junction_flags 幂等：对建议结果再建议一次 == 同一个值
+    for it in issues[:5]:
+        e = it["edge"]
+        once = M.suggest_junction_flags(model, e)
+        e.flag = once
+        twice = M.suggest_junction_flags(model, e)
+        check(once == twice, "suggest_junction_flags 幂等（%s：%s）" % (e.label(), once))
+    # ⑥ suggest 只重写「到达判据」位（JUNCTION_ARRIVE_FLAGS），非到达判据位原样保留
+    e_b3 = model.edge("B3", "N4")
+    if e_b3 is not None:
+        orig = M.flag_set(e_b3.flag)
+        sug = M.suggest_junction_flags(model, e_b3)
+        new = M.flag_set(sug)
+        # 非到达判据位（寻线/转弯/陀螺/门区等）必须原样保留
+        for keep in ("STOPTURN", "AWHITE", "LEFT_LINE", "RIGHT_LINE", "NOTURN", "RESTMPUZ"):
+            if keep in orig:
+                check(keep in new, "suggest 保留非到达位（%s：%s 仍含 %s）" % (e_b3.label(), sug, keep))
+        # 到达判据位（DLEFT/DRIGHT/CLEFT/CRIGHT/MCLEFT/MCRIGHT/MUL2SING/MUL2MUL）
+        # 应按几何重写，结果与 junction_flags_needed 完全一致（这是新多维分类器的契约）
+        need = M.junction_flags_needed(model, e_b3)
+        for n in M.JUNCTION_ARRIVE_FLAGS:
+            check((n in new) == (n in need),
+                  "到达判据位 %s 与几何一致（%s）" % (n, e_b3.label()))
+    # ⑦ include_mul 开关：False 时不写 MUL2SING/MUL2MUL，角度类照写
+    e_p3 = model.edge("P3", "N3")
+    if e_p3 is not None:
+        full = M.suggest_junction_flags(model, e_p3, include_mul=True)
+        lite = M.suggest_junction_flags(model, e_p3, include_mul=False)
+        check("MUL2MUL" in M.flag_set(full),
+              "include_mul=True：P3→N3 连 MUL2MUL 一起标（%s）" % full)
+        check("MUL2MUL" not in M.flag_set(lite) and "DRIGHT" in M.flag_set(lite),
+              "include_mul=False：P3→N3 只标角度类、不标 MUL2MUL（%s）" % lite)
+        # 分析口径一致：关掉 MUL 后，analyze 也不再把「现写有 MUL2MUL」报成 extra
+        _need_off = M.junction_flags_needed(model, e_p3, include_mul=False)
+        check("MUL2MUL" not in _need_off,
+              "include_mul=False 时 junction_flags_needed 不算 MUL2MUL")
+    # ⑧ right_only 开关：只检查 DLEFT/DRIGHT，忽略 C/MC 精细分档与 MUL
+    e_n16 = model.edge("N16", "N18")
+    if e_n16 is not None:
+        ro = M.analyze_junction_flags(model, only_plain=True, include_mul=False,
+                                      right_only=True)
+        ro_flags = set()
+        for it in ro:
+            ro_flags |= set(it["extra"]) | set(it["missing"])
+        check(ro_flags <= {"DLEFT", "DRIGHT"},
+              "right_only=True 时只报 DLEFT/DRIGHT（不掺 C/MC/MUL）：%s" % sorted(ro_flags))
+        # 现图 N16→N18 flag=DLEFT|DRIGHT（几何只需 DLEFT）⇒ right_only 应报「多余 DRIGHT」
+        _it = next((x for x in ro if x["edge"] is e_n16), None)
+        check(_it is not None and "DRIGHT" in _it["extra"],
+              "right_only 抓出 N16→N18 多余的 DRIGHT（现图 DLEFT|DRIGHT，几何只需 DLEFT）")
+        # 「左右写反」硬错的抓取能力不能依赖真实地图碰巧是错的：内存里把 flag 改回只留
+        # DRIGHT（写反态）再验一次，验完立刻还原（⑤ 已有先例：直接改 model 内存实例）
+        _orig_flag = e_n16.flag
+        e_n16.flag = "DRIGHT"
+        _ro2 = M.analyze_junction_flags(model, only_plain=True, include_mul=False,
+                                        right_only=True)
+        e_n16.flag = _orig_flag
+        _it2 = next((x for x in _ro2 if x["edge"] is e_n16), None)
+        check(_it2 is not None and "DRIGHT" in _it2["extra"] and "DLEFT" in _it2["missing"],
+              "人为写反（只留 DRIGHT）后 right_only 仍抓出 N16→N18（多余 DRIGHT、缺失 DLEFT）")
 
     sec("结果")
     if FAIL:

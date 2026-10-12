@@ -287,14 +287,22 @@ def main():
     check(len(_found) > 0, "离边 6px 处仍能命中图形（叠到 %d 个 item）" % len(_found))
 
     # 连线模式：点两下直接建边（不弹对话框）
+    # ⚠️ 连线现在落在**松手**上（拖动优先：按住动了=拖节点，按住没动=选起点），
+    #    所以"一次点击"必须写成 press + 原地 release，只调 press 是不够的。
     step("connect mode click-click")
     app.var_quick_both.set(True)
     _n0 = len(app.model.edges)
     app.connect_mode.set(True)
     app.connect_from = None
-    app._on_node_press(_Ev(0, 0), "N13")
+
+    def _click(name):
+        """模拟一次完整左键点击（按下 → 原地松开）。"""
+        app._on_node_press(_Ev(0, 0), name)
+        app._on_release(_Ev(0, 0))
+
+    _click("N13")
     check(app.connect_from == "N13", "第一下选中起点 N13")
-    app._on_node_press(_Ev(0, 0), "N16")
+    _click("N16")
     check(app.connect_from is None, "第二下清掉起点（完成连线）")
     check(len(app.model.edges) == _n0 + 2,
           "双向边自动建好（边数 %d → %d）" % (_n0, len(app.model.edges)))
@@ -304,6 +312,121 @@ def main():
     app.model.remove_edge("N13", "N16")
     app.model.remove_edge("N16", "N13")
     check(len(app.model.edges) == _n0, "删除这一对后回到 %d 条" % _n0)
+
+    # ⭐ 拖动优先：连线模式开着也必须能拖动节点。
+    #    踩过的坑：连线模式一被打开（双击节点 / 按 A 键 / 勾工具栏复选框都会打开），
+    #    点节点就全被 _connect_pick 吃掉 ⇒ 单拖和群拖一起失效；用户看到的是
+    #    "Ctrl 框选照样能选出一堆紫色点，但一拖就全哑"。
+    step("connect mode must NOT eat dragging (drag wins)")
+    app.adjust_bg.set(False)
+    # ⚠️ 必须**真的把连线模式打开**：下面断言的是 `_drag["connect"]` 为真，
+    #    而它只在 `connect_from is not None or connect_mode.get()` 时才置位。
+    #    原来只关了 adjust_bg（框选）、没开connect_mode ⇒ connect 恒为 False ⇒ 这段永远 FAIL。
+    app.connect_mode.set(True)
+    app.connect_from = None
+    _p0 = app._node_xy("S1")
+    app._on_node_press(_Ev(100, 100), "S1")
+    check(app._drag is not None and app._drag.get("connect"),
+          "连线模式下按住节点：先装好拖动状态，而不是直接跑去选连线起点")
+    app._on_motion(_Ev(134, 122))              # 位移 34/22 px，超过 DRAG_START_PX
+    check(app._drag["moved"] and app._node_xy("S1") != _p0,
+          "连线模式下拖动 S1 真的移动了：%s → %s" % (_p0, app._node_xy("S1")))
+    app._on_release(_Ev(134, 122))
+    check(app.connect_from is None, "拖动之后不会被当成'选连线起点'")
+    check(not app._drag, "松手后拖动状态已清干净")
+    app.undo()                                 # 撤掉这次拖动，别影响后面的断言
+
+    # ⭐ 抖动容忍：按住但几乎没动 ⇒ 连线模式下仍按"选起点"处理（不然点击全变成微拖）
+    app.connect_from = None
+    app._on_node_press(_Ev(100, 100), "S1")
+    app._on_motion(_Ev(102, 101))              # 只挪 2/1 px < DRAG_START_PX ⇒ 不算拖动
+    check(not app._drag["moved"], "微微抖动（≤%d px）不触发拖动" % E.DRAG_START_PX)
+    app._on_release(_Ev(102, 101))
+    check(app.connect_from == "S1",
+          "按住没动就松手 ⇒ 按'选连线起点'处理（%s）" % app.connect_from)
+    app.cancel_connect()
+
+    # ⭐ 残留指针状态自愈：松开鼠标时指针不在画布上（拖到左右面板外松手）会漏掉
+    #    <ButtonRelease-1> ⇒ _drag/_link/_marquee 残留；旧代码"见残留就 return break"，
+    #    空白点击又清不掉 ⇒ Ctrl 框选在本次运行里**永久失效**且不报错。
+    step("stale pointer state self-heals (marquee never dies)")
+    app.adjust_bg.set(False)
+    app.connect_from = None
+    app._drag = {"name": "S1", "dx": 0, "dy": 0, "moved": False}   # 假装松手事件丢了
+    app._on_bg_press(_Ev(500, 500, state=0x0004))
+    check(app._drag is None, "空白按下会清掉残留 _drag，而不是直接 return break")
+    check(getattr(app, "_marquee", None), "清掉残留后 Ctrl 框选能正常开始（不是永久废掉）")
+    app._marquee = None
+    app.selected_nodes = set()
+    app.selected_edges = set()
+
+    # ⭐ Shift = 连线（用户定的操作）：**先普通单击选中起点 → 按住 Shift 点别的点即连线 → 松开 Shift 回普通**。
+    #    Shift 是"按住才生效"的修饰键、不改 connect_mode ⇒ 松开就不可能误连。
+    step("Shift = connect from the selected node (held modifier, no sticky mode)")
+    app.cancel_connect()
+
+    def _drop_pair(a, b):
+        for _x, _y in ((a, b), (b, a)):
+            if app.model.edge(_x, _y):
+                app.model.remove_edge(_x, _y)
+
+    def _shift_click(name):
+        app._on_node_press(_Ev(0, 0, state=0x0001), name)
+        app._on_release(_Ev(0, 0, state=0x0001))
+
+    # 动态挑"原本没有边"的节点组，别硬编码（地图会变）
+    _names = [n.name for n in app.model.nodes]
+    _free = [(x, y) for x in _names for y in _names
+             if x != y and app.model.edge(x, y) is None and app.model.edge(y, x) is None]
+    _st, _en = _free[0]
+    _rd = next(y for x, y in _free if x == _en and y != _st)
+    _ne0 = len(app.model.edges)
+
+    # ① 没选中任何起点时 Shift+点：只提示，不建边、也不乱设起点
+    app.sel_node = None
+    app.connect_from = None
+    _shift_click(_st)
+    check(len(app.model.edges) == _ne0 and app.sel_node is None,
+          "没选中起点时 Shift+点只提示，不建边也不乱设起点")
+
+    # ② 普通单击选中起点 → 按住 Shift 点终点 ⇒ 连线，选中挪到终点
+    app.select_node(_st)
+    _shift_click(_en)
+    check(app.model.edge(_st, _en) is not None,
+          "普通单击选中 %s → 按住 Shift 点 %s ⇒ 连线" % (_st, _en))
+    check(app.sel_node == _en, "连完选中挪到终点（可一路链式连下去）")
+    check(not app.connect_mode.get(), "Shift+点不会留下常驻「连线模式」（松开即回普通）")
+
+    # ③ 一直按着 Shift 继续点 ⇒ 链式
+    _c1 = len(app.model.edges)
+    _shift_click(_rd)
+    check(app.model.edge(_en, _rd) is not None and len(app.model.edges) > _c1,
+          "按住 Shift 继续点 %s ⇒ 链式再连一条（边数 %d → %d）"
+          % (_rd, _c1, len(app.model.edges)))
+    check(app.sel_node == _rd, "选中继续跟到 %s" % _rd)
+
+    # ④ 松开 Shift ⇒ 普通点击只选中、不连线
+    _c2 = len(app.model.edges)
+    app._on_node_press(_Ev(0, 0), _st)
+    app._on_release(_Ev(0, 0))
+    check(len(app.model.edges) == _c2 and app.sel_node == _st,
+          "松开 Shift 后普通点只选中、不连线（边数 %d 不变）" % _c2)
+
+    # ⑤ Shift+点起点自己 ⇒ 不连自环
+    _shift_click(_st)
+    check(app.model.edge(_st, _st) is None, "Shift+点起点自己不会连出自环")
+
+    _drop_pair(_st, _en)
+    _drop_pair(_en, _rd)
+    check(len(app.model.edges) == _ne0, "Shift 用例跑完边数复原（%d 条）" % _ne0)
+
+    # 双击节点：不再连线、不动 connect_mode / connect_from
+    app.cancel_connect()
+    app._on_node_double(_Ev(0, 0), _st)
+    check(app.connect_from is None and not app.connect_mode.get(),
+          "双击节点不再进入连线模式（mode=%s from=%s）"
+          % (app.connect_mode.get(), app.connect_from))
+    app.cancel_connect()
 
     # 快捷键 A / Esc
     app.connect_mode.set(False)
@@ -454,8 +577,38 @@ def main():
           "画布上确实有图形（item 总数 %d）" % len(app.canvas.find_all()))
 
     # --- 树 ---
-    check(len(app.tree_nodes.get_children()) == len(app.model.nodes),
-          "节点树 %d 行" % len(app.tree_nodes.get_children()))
+    _cov = app.model.turn_coverage()
+    _all_n = len(_cov["rows"])
+    app.turn_view.set("全部")
+    app._fill_turn_list()
+    check(len(app.tree_turn.get_children()) == _all_n,
+          "左栏「转弯补偿」表（显示=全部）%d 行 = 地图转弯组合数 %d"
+          % (len(app.tree_turn.get_children()), _all_n))
+    app.turn_view.set(E.M.TURN_LIST_MODES[0])
+    app._fill_turn_list()
+    _exp = len(E.M.turn_filter(_cov["rows"], E.M.TURN_LIST_MODES[0]))
+    check(len(app.tree_turn.get_children()) == _exp and 0 < _exp < _all_n,
+          "默认档「%s」过滤掉直行：%d 行 < 全部 %d"
+          % (app.turn_view.get(), len(app.tree_turn.get_children()), _all_n))
+    app.turn_view.set("只看实测")
+    app._fill_turn_list()
+    _exp2 = len(E.M.turn_filter(_cov["rows"], "只看实测"))
+    check(len(app.tree_turn.get_children()) == _exp2,
+          "「只看实测」= %d 行（表1/表2 命中）" % _exp2)
+    app.turn_view.set("只看实测停车转")
+    app._fill_turn_list()
+    _exp3 = len(E.M.turn_filter(_cov["rows"], "只看实测停车转"))
+    check(len(app.tree_turn.get_children()) == _exp3 and 0 < _exp3 <= _exp2,
+          "「只看实测停车转」= %d 行（仅表1 停车转实测，<= 实测 %d）" % (_exp3, _exp2))
+    app.turn_view.set(E.M.TURN_LIST_MODES[0])
+    app._fill_turn_list()
+    _kids0 = app.tree_turn.get_children()
+    app.tree_turn.selection_set(_kids0[0])
+    app._on_tree_turn_select(None)
+    check(app.turn_focus is not None,
+          "点「转弯补偿」一行 → 设 turn_focus 供画布高亮（过滤后仍对得上）")
+    app.turn_focus = None
+    app.redraw()
     # 边树行数取决于展示模式（默认「合并双向」→ 每线段一行）
     _mode = app.edge_view.get()
     _expect = (len({frozenset((e.frm, e.to)) for e in app.model.edges})
@@ -596,6 +749,11 @@ def main():
           "「转弯补偿…」入口在界面上真的可见（找到 %d 个，mapped=%s）"
           % (len(_entry3), [bool(b.winfo_ismapped()) for b in _entry3]))
 
+    _entry_anim = _widgets_with_text(app, "小车动画")
+    check(_entry_anim and all(b.winfo_ismapped() for b in _entry_anim),
+          "「小车动画」入口在界面上真的可见（找到 %d 个，mapped=%s）"
+          % (len(_entry_anim), [bool(b.winfo_ismapped()) for b in _entry_anim]))
+
     def _widgets_with_var(root, var):
         """按 textvariable 找控件（下拉框没有 text，只能这样找）。"""
         got = []
@@ -621,7 +779,7 @@ def main():
           % (_vrow.winfo_reqwidth() if _vrow else None, E.LEFT_W))
     # 光"mapped"还不够：pack 空间不够时控件会被裁到栏外 —— 查右边缘真的落在左栏里
     _lright = app._frame_left.winfo_rootx() + E.LEFT_W
-    _news = _entry2 + _vcbs
+    _news = _entry2 + _vcbs + _entry_anim
     check(bool(_news) and all(b.winfo_rootx() + b.winfo_width() <= _lright for b in _news),
           "新入口右边缘都在左栏内（%s <= %s）"
           % ([b.winfo_rootx() + b.winfo_width() for b in _news], _lright))
@@ -690,6 +848,43 @@ def main():
           "规划路线 %s" % (" -> ".join(app.route) if app.route else "(空)"))
     check("route[100]" in app.txt_route.get("1.0", "end"), "结果框里有 route[] 数组")
 
+    # --- 路线动画（小车）：能起、沿路线推进、循环取模、停止后画布不留残影 ---
+    step("route animation (car)")
+    check(app.btn_anim is not None and app.btn_anim.winfo_ismapped(),
+          "「小车动画」按钮在界面上真的可见")
+    _pts0 = app._route_screen_polyline() or [(0.0, 0.0), (1.0, 1.0)]
+    _cum0, _total0 = app._polyline_metrics(_pts0)
+    check(_total0 > 1.0,
+          "路线映射成屏幕折线（%d 点 / 共 %.0fpx）" % (len(_pts0), _total0))
+    app.anim_resume()
+    check(app.anim_playing and app.anim_after_id is not None,
+          "点播放后动画真的在跑（after 定时器已挂）")
+    app.anim_pause()
+    check(not app.anim_playing and app.anim_after_id is None, "暂停会取消定时器")
+
+    # 位置推进 + 循环取模：直接驱动一帧（不依赖真实时间，确定性）
+    app.anim_playing = True
+    app.anim_route_key = tuple(app.route)
+    app.anim_frac = 0.0
+    app._anim_draw()
+    _pa = app._point_at_frac(_pts0, _cum0, _total0, 0.0)[:2]
+    check(bool(app.canvas.find_withtag("anim")),
+          "小车画在画布上（%d 个图元）" % len(app.canvas.find_withtag("anim")))
+    app.anim_frac = 0.5
+    app._anim_draw()
+    _pb = app._point_at_frac(_pts0, _cum0, _total0, 0.5)[:2]
+    check(math.hypot(_pb[0] - _pa[0], _pb[1] - _pa[1]) > 1.0,
+          "进度 0→0.5 小车位置改变（(%.0f,%.0f) → (%.0f,%.0f)）"
+          % (_pa[0], _pa[1], _pb[0], _pb[1]))
+    app.anim_frac = 0.999
+    app.anim_last_t = time.monotonic() - 0.5
+    app._anim_tick()
+    check(app.anim_after_id is not None and 0.0 <= app.anim_frac < 1.0,
+          "跑到终点后循环取模回起点（frac=%.3f）" % app.anim_frac)
+    app.anim_stop()
+    check(not app.anim_playing and not app.canvas.find_withtag("anim"),
+          "停止后画布上的小车图元清干净")
+
     # --- 线索 / 每盏门灯 / 宝物 → 固件分支路线（纯计算入口，不弹窗）---
     step("clue / per-door-light / treasure -> firmware branch")
     M = E.M
@@ -731,13 +926,14 @@ def main():
         [M.NO_PASS, M.NO_PASS, M.NO_PASS, M.NO_PASS], 6, "full")
     check(err is not None and "停车" in err[0], "D2/D3/D4 全黑 → 提示固件会 CarBrake_Stop")
 
-    # 第二轮 宝物=P6：巡游方向必须翻成逆时针 P6→P8→P7→P5
+    # 第二轮 宝物=P6：巡游方向必须翻成逆时针（CCW = config.h 现值，线索路线镜像固件）
+    _ccw_now = M.round2_firmware_cruise(6, M.parse_round2_cruise())
     secs, _cv, err = app._clue_route_sections(
         ST_R2, None, (5, 7),
         [M.CAN_PASS, M.NO_PASS, M.NO_PASS, M.CAN_PASS], 6, "full")
     txt2 = _sections_text(secs)
-    check(err is None and "P6 -> P8 -> P7 -> P5" in txt2,
-          "第二轮 宝物=P6 的必经点按逆时针排列")
+    check(err is None and " -> ".join(_ccw_now) in txt2,
+          "第二轮 宝物=P6 的必经点按逆时针排列（%s）" % " -> ".join(_ccw_now))
 
     # 过门后 stageAB：D2 能过 → 落在 N12；灯全不能过 → 报停车
     secs, _cv, err = app._clue_route_sections(
@@ -785,6 +981,8 @@ def main():
         "stg": "A=6,B=8：P6 -> P8",
         "doors": ["绿(能过)", "蓝(单相)", "黑(不能过)", "蓝(单相)"],
         "treasure": "6 · P6",
+        "punch": "强制开",
+        "tour": "强制开",
     }
     app.clue_route_cfg = dict(_cfg_want)
     app.plan_clue_route_dialog()
@@ -792,7 +990,8 @@ def main():
     _vals = _dlg_combo_values(app)
     _close_toplevels(app)
     _expect = ([_cfg_want["stage"], _cfg_want["p1clue"], _cfg_want["stg"]]
-               + _cfg_want["doors"] + [_cfg_want["treasure"]])
+               + _cfg_want["doors"]
+               + [_cfg_want["treasure"], _cfg_want["punch"], _cfg_want["tour"]])
     check(_vals == _expect, "对话框按上次配置预填（读到 %d 个下拉）" % len(_vals))
 
     # 配置脏/过期时要安全回退（不能崩，也不能填出非法值）。
@@ -804,10 +1003,120 @@ def main():
     _vals2 = _dlg_combo_values(app)
     _close_toplevels(app)
     _legal_doors = [M.DOOR_STATE_NAME[s] for s in M.DOOR_STATE_ORDER]
-    check(len(_vals2) == 8 and _vals2[0].startswith("第一轮·完整路线")
-          and all(v in _legal_doors for v in _vals2[3:7]),
+    check(len(_vals2) == 10 and _vals2[0].startswith("第一轮·完整路线")
+          and all(v in _legal_doors for v in _vals2[3:7])
+          and _vals2[8].startswith("跟随 config.h（当前：") and _vals2[9].startswith("跟随 config.h（当前："),
           "配置非法时回退默认值（阶段=%r，灯=%s）" % (_vals2[0][:12] if _vals2 else None,
                                                       _vals2[3:7]))
+
+    # --- 一轮回程补打卡 P3/P4（P3P4_PUNCH_ENABLE）---
+    step("round-1 return: extra P3/P4 punch")
+    check(M.p3p4_punch_waypoints(3, 0) == ["P4"]
+          and M.p3p4_punch_waypoints(4, 0) == ["P3"]
+          and M.p3p4_punch_waypoints(2, 0) == ["P3", "P4"]
+          and M.p3p4_punch_waypoints(3, 3) == ["P4"]
+          and M.p3p4_punch_waypoints(4, 4) == ["P3"]
+          and M.p3p4_punch_waypoints(5, 3) == ["P4"],
+          "p3p4_punch_waypoints 缺哪个补哪个（去过的 / 宝物平台本身都不重复加）")
+    _punch_off, _ = M.door_return_home_waypoints("N3", 2, False)
+    _punch_on, _ = M.door_return_home_waypoints("N3", 2, False, 0, True)
+    check(_punch_off == ["N3", "P1", "P2"]
+          and _punch_on == ["N3", "P1", "P3", "P4", "P2"],
+          "门回程：补打卡插在宝物平台之后、P2 之前（%s -> %s）"
+          % (_punch_off, _punch_on))
+    check(_vals2[8] == app._switch_vals("P3P4_PUNCH_ENABLE")[0]
+          and _vals2[9] == app._switch_vals("UPRIGHT_TOUR_ENABLE")[0],
+          "两个开关下拉的「跟随 config.h」直接写出当前值（%s ｜ %s）"
+          % (_vals2[8], _vals2[9]))
+    _cfg_punch = bool(M.eval_c_expr("P3P4_PUNCH_ENABLE", M.parse_config_macros()[0]))
+    check(app._punch_on("跟随 config.h") is _cfg_punch
+          and app._punch_on("强制开") is True and app._punch_on("强制关") is False,
+          "「回程补打卡」下拉跟随 config.h（当前 P3P4_PUNCH_ENABLE=%d）" % _cfg_punch)
+    _wp_p, _ = M.door_return_home_waypoints("N3", 4, False, 0, True)
+    _rt_p, _why_p = app.model.plan_route(_wp_p, "full")
+    check(bool(_rt_p) and "P4" in _rt_p and "P3" in _rt_p,
+          "开了补打卡后的门回程路线真的绕到 P4、P3 再回家（%s）"
+          % (" -> ".join(_rt_p or [])[:60]))
+
+    # --- 直立景点巡回 S1/S2（UPRIGHT_TOUR_ENABLE）---
+    step("round-1/2: upright tour S1/S2")
+    check(M.upright_tour_waypoints(3) == ["S1"]
+          and M.upright_tour_waypoints(4) == ["S2"]
+          and M.upright_tour_waypoints(2) == [],
+          "upright_tour_waypoints：补打卡关时宝物 P3→S1、P4→S2，其余宝物不绕")
+    _t_off, _ = M.door_return_home_waypoints("N3", 3, False)
+    _t_on, _ = M.door_return_home_waypoints("N3", 3, False, 0, False, True)
+    check(_t_off == ["N3", "P3", "P2"] and _t_on == ["N3", "P3", "S1", "P2"],
+          "门回程：巡回插在宝物平台之后、P2 之前（%s -> %s）" % (_t_off, _t_on))
+    _both, _ = M.door_return_home_waypoints("N3", 3, False, 0, True, True)
+    check(_both == ["N3", "P3", "S1", "P4", "S2", "P2"],
+          "两个开关一起开：宝物平台(已在前面)之后交错成 S1 -> P4 -> S2（%s）" % _both)
+    # ★ 2026-10-07：S1/S2 不再要求"宝物在 P3/P4"，而是"这次回程会不会去 P3/P4"。
+    _no_plat, _ = M.door_return_home_waypoints("N3", 2, False, 0, True, True)
+    check(_no_plat == ["N3", "P1", "P3", "S1", "P4", "S2", "P2"],
+          "宝物=P1：补打卡开着时照样绕 S1/S2（%s）" % _no_plat)
+    check(M.round1_return_extra_waypoints(2, 0, True, True) == ["P3", "S1", "P4", "S2"]
+          and M.round1_return_extra_waypoints(2, 0, False, True) == []
+          and M.round1_return_extra_waypoints(3, 0, False, True) == ["S1"]
+          and M.round1_return_extra_waypoints(4, 0, False, True) == ["S2"]
+          and M.round1_return_extra_waypoints(2, 0, True, False) == ["P3", "P4"],
+          "round1_return_extra_waypoints：交错 P3->S1->P4->S2；关掉补打卡则退回旧行为")
+    check(M.upright_tour_waypoints(2, 0, True) == ["S1", "S2"]
+          and M.upright_tour_waypoints(3, 0, True) == ["S1", "S2"]
+          and M.upright_tour_waypoints(3, 3, True) == ["S1", "S2"],
+          "upright_tour_waypoints 跟着「会去 P3/P4」走（补打卡开着 ⇒ 两个都绕）")
+    # ⚠️ 独立口径：直接读 mission_planner.c 文本，确认交错段确实集中在共享小函数里、
+    #    两个回程函数各调它一次（断言与实现不同源，防"同源错 ⇒ 自测假通过"）。
+    _mp_p = os.path.join(M.ROOT, "Mission", "mission_planner.c")
+    _mp_txt = open(_mp_p, encoding="utf-8", errors="replace").read()
+    check("append_round1_return_tail(u8 *wp, uint8_t n, uint8_t tier, uint8_t exit_n3)" in _mp_txt
+          and _mp_txt.count("append_round1_return_tail(wp, n,") >= 2,
+          "mission_planner.c：交错段集中在 append_round1_return_tail()，回程函数/检查站各调一次")
+    _cfg_tour = bool(M.eval_c_expr("UPRIGHT_TOUR_ENABLE", M.parse_config_macros()[0]))
+    check(app._tour_on("跟随 config.h") is _cfg_tour
+          and app._tour_on("强制开") is True and app._tour_on("强制关") is False,
+          "「直立景点巡回」下拉跟随 config.h（当前 UPRIGHT_TOUR_ENABLE=%d）" % _cfg_tour)
+    # ⚠️ 独立校验：按**文本**读 config.h 的 0/1，不走 parse_config_macros() ——
+    #    上面漏 [0] 那次的教训是"断言与实现同源错 ⇒ 自测假通过"，这里换成独立口径。
+    _cfg_lines = open(M.PATH_CONFIG, encoding="utf-8").read().splitlines()
+
+    def _flag(nm):
+        for _ln in _cfg_lines:
+            _t = _ln.split()
+            if len(_t) >= 3 and _t[0] == "#define" and _t[1] == nm:
+                return _t[2] not in ("0", "0x0", "0U")
+        return None
+
+    check(app._punch_on("跟随 config.h") is _flag("P3P4_PUNCH_ENABLE")
+          and app._tour_on("跟随 config.h") is _flag("UPRIGHT_TOUR_ENABLE"),
+          "「跟随 config.h」解析正确（P3P4_PUNCH_ENABLE=%s / UPRIGHT_TOUR_ENABLE=%s）"
+          % (_flag("P3P4_PUNCH_ENABLE"), _flag("UPRIGHT_TOUR_ENABLE")))
+    _r2_off, _ = M.round2_waypoints([M.CAN_PASS] * 4, 4)
+    _r2_on, _ = M.round2_waypoints([M.CAN_PASS] * 4, 4, None, None, True)
+    check("S1" not in _r2_off and "S2" not in _r2_off
+          and _r2_on.index("S1") == _r2_on.index("P3") + 1
+          and _r2_on.index("S2") == _r2_on.index("P4") + 1,
+          "二轮：巡回开后在 P3 后插 S1、P4 后插 S2（%s）" % " ".join(_r2_on[:7]))
+    _rt_t, _ = app.model.plan_route(_t_on, "full")
+    check(bool(_rt_t) and "S1" in _rt_t,
+          "开了巡回后的门回程路线真的经过 S1（%s）" % (" -> ".join(_rt_t or [])[:60]))
+
+    # --- 两个对话框必须"按内容自适应"（曾写死几何 ⇒ 内容 1348px 挤进 660px 窗口，
+    #     右边整段看不见 —— 用户报「窗口打开不能完整显示内容」）---
+    step("dialogs fit their content")
+    for _opener, _name in ((app.plan_clue_route_dialog, "线索路线"),
+                           (app.plan_round2_route_dialog, "二轮路线")):
+        _opener()
+        app.update_idletasks()
+        _t = [w for w in app.winfo_children() if isinstance(w, tk.Toplevel)][-1]
+        _f = _t.winfo_children()[0]
+        check(_f.winfo_reqwidth() + 24 <= _t.winfo_width()
+              and _f.winfo_reqheight() + 24 <= _t.winfo_height(),
+              "%s 对话框装得下内容（内容 %dx%d ≤ 窗口 %dx%d）"
+              % (_name, _f.winfo_reqwidth(), _f.winfo_reqheight(),
+                 _t.winfo_width(), _t.winfo_height()))
+        _t.destroy()
+        app.update()
 
     # 随「保存布局」持久化（沙箱文件，绝不碰真实布局）
     _cfgdir = os.path.join(HERE, "_smoke_cfg_%d" % os.getpid())
@@ -871,8 +1180,10 @@ def main():
     _wpx, _ = M.round2_waypoints(_doors_x, 4)
     secs2, flat2, err2 = app._clue_route_sections(
         ST_R2, None, (5, 7), _doors_x, 4, "full")
-    check(_wpx is not None and "N8" in _wpx and "N10 -> N8" in " -> ".join(flat2 or []),
-          "D5黑+D4绿 时固件 wp 明写 N8 ⇒ 经 N10→N8 再 N8→N3 是对的")
+    _flat2 = " -> ".join(flat2 or [])
+    check(_wpx is not None and "N8" in _wpx and "N8 -> N3" in _flat2,
+          "D5黑+D4绿 时固件 wp 明写 N8 ⇒ 路线经 N8 且 N8→N3 读 D4 回家"
+          "（到 N8 走直达还是 N10→N11→N12→N8 由权重/地图定，不写死）")
 
     # --- 第一轮完整路线：去程 + 回程拼接 + 画布分色 ---
     step("round-1 complete route (outbound/return splice + split colouring)")
@@ -908,6 +1219,48 @@ def main():
     app._refresh_wp()
     app.plan_route()
     check(app.route_split is None, "普通「规划路线」会清掉 route_split（不误分色）")
+    check(app.route_dim_edges == [],
+          "普通「规划路线」会清掉门区淡色边（实测 %s）" % (app.route_dim_edges,))
+
+    # --- 门区退回必须画真实边 N5→N8，不能拿 N12→N8 近似 ---
+    # 固件物理：DOOR_D2 读不到 → door_retreat(N5,N8,63) = 倒车退回 N5 一侧再沿 N5→N8 去读 D3。
+    # 旧实现为了让 hops 接在 P1 数组末尾的 N12 后面，用 N12→N8 近似 ⇒ 图上凭空多一条斜线，
+    # 而真正的 N5→N8 没画出来。D2 不能过时 P1 数组末尾的 N12 本身也不该出现（车只到边中点）。
+    step("door retreat uses the real N5->N8 edge (no fake N12->N8)")
+    # D2黑 + D3绿：N5→N8 读D3（真边），N5→N12 只是探灯半程（淡色）
+    _sd, flat_d2, _ed2 = app._clue_route_sections(
+        ST_ALL, 3, (5, 7), [M.NO_PASS, M.CAN_PASS, M.NO_PASS, M.NO_PASS], 4, "full")
+    _o = flat_d2[:app.route_split + 1]
+    _i5 = _o.index("N5")
+    check(_o[_i5 + 1] == "N8",
+          "D2黑+D3绿：门区段是 N5→N8（真边），实际 %s" % " -> ".join(_o[_i5:_i5 + 3]))
+    check("N12" not in _o[_i5:],
+          "D2黑+D3绿：N5 之后不再出现 N12（车没真到过 N12），实际 %s"
+          % " -> ".join(_o[_i5:_i5 + 4]))
+    check(app.route_dim_edges == [("N5", "N12")],
+          "N5→N12 改成淡色「探灯半程」（%s），不进主线" % (app.route_dim_edges,))
+    # 对照：D2 绿时 N5→N12 就是主线本体，不该有淡色边
+    app._clue_route_sections(
+        ST_ALL, 3, (5, 7), [M.CAN_PASS, M.NO_PASS, M.NO_PASS, M.NO_PASS], 4, "full")
+    check(app.route_dim_edges == [],
+          "D2绿：无淡色边（车真过门，N5→N12 属于主线），实际 %s" % (app.route_dim_edges,))
+
+    secs_d3, flat_d3, _ed3 = app._clue_route_sections(
+        ST_ALL, 3, (5, 7),
+        [M.NO_PASS, M.NO_PASS, M.CAN_PASS, M.NO_PASS], 4, "full")
+    _o3 = flat_d3[:app.route_split + 1]
+    _j5 = _o3.index("N5")
+    check(_o3[_j5:_j5 + 6] == ["N5", "N8", "N5", "N4", "N3", "N8"],
+          "D2黑+D3黑+D4绿：门区段 = N5→N8→N5→N4→N3→N8（door1route={N3,N8}），实际 %s"
+          % " -> ".join(_o3[_j5:_j5 + 6]))
+    check(app.route_dim_edges == [("N5", "N12"), ("N5", "N8")],
+          "D3也黑时两条探灯边都是淡色（%s）" % (app.route_dim_edges,))
+    # 画布上淡色线真的画出来了
+    app.route = flat_d3
+    app.redraw()
+    app.update()
+    check(E.ROUTE_DIM_COLOR in _line_cols(app),
+          "画布上出现门区淡色线 %s" % E.ROUTE_DIM_COLOR)
 
     # --- 「画布显示」过滤：去程/回程叠在一条走廊上，要能单独看 ---
     step("route view filter (outbound / return separately)")
@@ -951,13 +1304,17 @@ def main():
     check(err2 is None and flat2 and flat2[0] == "N2" and flat2[-1] == "P2",
           "第二轮完整路线能算出来（%d 跳：%s → %s）"
           % (len(flat2 or []) - 1, (flat2 or ["?"])[0], (flat2 or ["?"])[-1]))
-    check("巡游 P6→P8→P7→P5" in secs[0][0] and flat2[split2] == "P5",
-          "宝物=6 ⇒ 固件逆时针 P6→P8→P7→P5；回程从巡游末站 P5 起（下标 %s）" % split2)
+    # ⚠️ 别写死顺序：固件那两套在 config.h 的 ROUND2_CRUISE_* 里，会被人改（改过就假失败）
+    _fwccw = M.parse_round2_cruise()["ccw"]
+    check(err2 is None and flat2 and ("巡游 %s" % "→".join(_fwccw)) in secs[0][0]
+          and flat2[split2] == _fwccw[-1],
+          "宝物=6 ⇒ 固件 CCW %s（读自 config.h）；回程从巡游末站 %s 起（下标 %s）"
+          % ("→".join(_fwccw), _fwccw[-1], split2))
     _bad2 = [(flat2[i], flat2[i + 1]) for i in range(len(flat2) - 1)
              if app.model.edge(flat2[i], flat2[i + 1]) is None]
     check(not _bad2, "第二轮每一跳都是真实边（无边 %d 处：%s）" % (len(_bad2), _bad2[:4]))
 
-    # 自定义顺序 ⇒ wp 按新顺序排 + 报告提示"固件里写死的是另一套，要同步改"
+    # 自定义顺序 ⇒ wp 按新顺序排 + 报告提示"固件里是另一套，可写回 config.h"
     _custom = ["P5", "P6", "P8", "P7"]
     secs3, _f3, _s3, err3 = app._round2_route_sections(_d, 4, _custom, "full")
     _wp3, _w3 = M.round2_waypoints(_d, 4, _custom)
@@ -965,11 +1322,16 @@ def main():
           and [w for w in _wp3 if w in E.ROUND2_CRUISE_PF] == _custom
           and "巡游 P5→P6→P8→P7" in secs3[0][0],
           "自定义巡游顺序原样进 wp（%s）" % "→".join(_custom))
-    check(any("与固件 get_newroute() 写死的" in ln for ln in secs3[0][1]),
-          "自定义顺序时报告提示固件里写死的顺序不同、要同步改固件")
-    secs4, _f4, _s4, _e4 = app._round2_route_sections(_d, 6, ["P6", "P8", "P7", "P5"], "full")
-    check(not any("与固件 get_newroute() 写死的" in ln for ln in secs4[0][1]),
-          "顺序与固件一致时不误报「不同」")
+    check(any("与固件 config.h 里的" in ln for ln in secs3[0][1]),
+          "自定义顺序时报告提示与固件 config.h 里的不同、可「写回 config.h…」")
+    secs4, _f4, _s4, _e4 = app._round2_route_sections(_d, 6, _fwccw, "full")
+    check(not any("与固件 config.h 里的" in ln for ln in secs4[0][1]),
+          "顺序与固件 config.h 一致时不误报「不同」（%s）" % "→".join(_fwccw))
+    # 「固件顺序」来自 config.h（不是写死的）：传一个不同的 fw_cfg，等它按新 cfg 取默认
+    _altcfg = {"cw": ["P5", "P6", "P7", "P8"], "ccw": ["P8", "P7", "P6", "P5"], "warnings": []}
+    _s5, _f5, _s5i, _e5 = app._round2_route_sections(_d, 4, None, "full", fw_cfg=_altcfg)
+    check(_e5 is None and "巡游 P5→P6→P7→P8" in _s5[0][0],
+          "cruise=None 时按传入的 fw_cfg 取固件 CW 组（%s）" % _altcfg["cw"])
 
     # 门区"多保留的 N8"跟着巡游首站走（D2/D3 黑、D4 绿 ⇒ 进门 N3）
     _dw = [M.NO_PASS, M.NO_PASS, M.CAN_PASS, M.NO_PASS]
@@ -981,16 +1343,19 @@ def main():
     # 对话框：构建 + 按上次配置预填 + 点「显示路线」真跑一遍（成功路径无模态）
     step("round-2 dialog (build / prefill / run)")
     _r2cfg = {"doors": ["绿(能过)", "黑(不能过)", "黑(不能过)", "黑(不能过)"],
-              "treasure": "4 · P4", "order": ["P5", "P6", "P8", "P7"], "auto": False}
+              "treasure": "4 · P4", "cw": ["P5", "P6", "P8", "P7"],
+              "ccw": ["P7", "P8", "P6", "P5"], "auto": False}
     app.round2_cfg = dict(_r2cfg)
     app.plan_round2_route_dialog()
     app.update_idletasks()
     _vals3 = _dlg_combo_values(app)
     check(_vals3[0:4] == _r2cfg["doors"] and _vals3[4:5] == [_r2cfg["treasure"]]
-          and _vals3[5:9] == _r2cfg["order"],
-          "「二轮路线…」按上次配置预填（%d 个下拉：顺序 %s）" % (len(_vals3), _vals3[5:9]))
+          and _vals3[5:9] == _r2cfg["cw"] and _vals3[9:13] == _r2cfg["ccw"],
+          "「二轮路线…」按上次配置预填 CW/CCW 两组（%s / %s）" % (_vals3[5:9], _vals3[9:13]))
     _btn = _find_button(app, "显示路线")
     check(_btn is not None, "「二轮路线…」对话框里有「显示路线」按钮")
+    check(_find_button(app, "写回 config.h…") is not None,
+          "「二轮路线…」对话框里有「写回 config.h…」按钮（可写回固件）")
     if _btn is not None:
         _btn.invoke()
         app.update()
@@ -1004,6 +1369,45 @@ def main():
         check("巡游 P5→P6→P8→P7" in app.txt_route.get("1.0", "end"),
               "面板报告按自定义顺序输出（route[] 也能复制）")
     _close_toplevels(app)
+
+    # 「写回 config.h…」真路径 —— 全程只动沙箱副本，真实 config.h 用 SHA256 守着
+    step("round-2 write-back (config.h ROUND2_CRUISE_*)")
+    _real_cfg = E.M.PATH_CONFIG
+    _real_cfg_hash = hashlib.sha256(open(_real_cfg, "rb").read()).hexdigest()
+    _r2wb = os.path.join(HERE, "_smoke_r2wb_%d" % os.getpid())
+    shutil.rmtree(_r2wb, ignore_errors=True)
+    os.makedirs(_r2wb, exist_ok=True)
+    try:
+        _ccfg = os.path.join(_r2wb, "config.h")
+        shutil.copyfile(_real_cfg, _ccfg)
+        E.M.PATH_CONFIG = _ccfg
+        app.model.round2 = E.M.parse_round2_cruise()
+        _res = app._patch_round2_cruise(_r2wb, "20261007_000000",
+                                        ["P5", "P6", "P8", "P7"], ["P7", "P8", "P6", "P5"])
+        _rb = E.M.parse_round2_cruise()
+        check(_rb["cw"] == ["P5", "P6", "P8", "P7"]
+              and _rb["ccw"] == ["P7", "P8", "P6", "P5"],
+              "写回真路径：两组顺序都写进 config.h（%s）" % _res)
+        _txt2 = open(_ccfg, encoding="utf-8").read()
+        check(_txt2.count("ROUND2_CRUISE") == open(_real_cfg, encoding="utf-8").read().count("ROUND2_CRUISE"),
+              "写回真路径：只改宏值，ROUND2_CRUISE_* 的条数没变")
+        _raw2 = open(_ccfg, "rb").read()
+        check(_raw2[:3] == b"\xef\xbb\xbf" and _raw2.count(b"\r\n") == 0,
+              "写回后仍保 BOM + 全 LF（编码/行尾没被改动）")
+        check(os.path.isfile(os.path.join(_r2wb, "config.h.20261007_000000.bak")),
+              "写回前自动备份到了沙箱（config.h.<时间戳>.bak）")
+        _h1 = hashlib.sha256(open(_ccfg, "rb").read()).hexdigest()
+        _res2 = app._patch_round2_cruise(_r2wb, "20261007_000001",
+                                         ["P5", "P6", "P8", "P7"], ["P7", "P8", "P6", "P5"])
+        _h2 = hashlib.sha256(open(_ccfg, "rb").read()).hexdigest()
+        check(_h1 == _h2 and "无改动" in _res2,
+              "没再改 ⇒ 第二次写回一个字节都不动（%s）" % _res2)
+    finally:
+        E.M.PATH_CONFIG = _real_cfg
+        app.model.round2 = E.M.parse_round2_cruise()
+        shutil.rmtree(_r2wb, ignore_errors=True)
+    check(hashlib.sha256(open(_real_cfg, "rb").read()).hexdigest() == _real_cfg_hash,
+          "真实 Mission/config.h 未被冒烟测试改动（SHA256 一致）")
 
     # 二轮配置随「保存布局」持久化（沙箱文件，绝不碰真实布局）
     _r2dir = os.path.join(HERE, "_smoke_r2_%d" % os.getpid())
@@ -1046,6 +1450,7 @@ def main():
 
     app._on_node_right(_Ev(), "C6")                      # ④ 左键点目标也能完成
     app._on_node_press(_Ev(), "C8")
+    app._on_release(_Ev())                               # 连线落在松手上（拖动优先）
     check(app.connect_from is None and app.model.edge("C6", "C8") is not None,
           "右键起点后左键点目标也能建边（C6→C8）")
 
@@ -1296,8 +1701,10 @@ def main():
     app.refresh_all()
     app.update()
     check(app.model.node("ZZTEST") is not None, "加节点后界面刷新正常")
-    check(len(app.tree_nodes.get_children()) == len(app.model.nodes),
-          "刷新后节点树同步")
+    _covx = app.model.turn_coverage()
+    check(len(app.tree_turn.get_children())
+          == len(E.M.turn_filter(_covx["rows"], app.turn_view.get())),
+          "刷新后左栏「转弯补偿」表与当前显示档一致")
     app.model.restore(snap)
     app.refresh_all()
     app.update()
@@ -1341,6 +1748,42 @@ def main():
     check(E.M.turn_rows_equal(_src_t["stop"], _t["stop"])
           and E.M.turn_rows_equal(_src_t["gyro"], _t["gyro"]),
           "没编辑过 ⇒ 表项与源码逐项相同（所以「写回」会整段跳过，不产生格式 diff）")
+    # 「查看代码差异」里的「转弯补偿差异」用的纯函数 turn_diff / turn_diff_lines
+    _d0 = E.M.turn_diff(app.model.turn, _src_t)
+    check(_d0["same"] and not _d0["const_chg"] and _d0["calc_chg"] is None,
+          "turn_diff：模型补偿与 map.c 一致 ⇒ same=True")
+    _b0 = dict(_t["stop"][0])
+    _bL = _t["consts"]["TURN_L_PIVOT"]
+    _bC = _t["calc_enable"]
+    try:
+        _t["stop"][0]["dist"] = 999.0
+        _t["consts"]["TURN_L_PIVOT"] = 21.0
+        _t["calc_enable"] = 1
+        _d1 = E.M.turn_diff(app.model.turn, _src_t)
+        check(len(_d1["stop_chg"]) == 1 and abs(_d1["stop_chg"][0][2] - 999.0) < 1e-9,
+              "turn_diff：改一行补偿值 ⇒ 报 1 条改值（%s）" % (_d1["stop_chg"],))
+        check(any(n == "TURN_L_PIVOT" and abs(c - 21.0) < 1e-9
+                  for n, _s, c in _d1["const_chg"]),
+              "turn_diff：报公式参数变化（%s）" % (_d1["const_chg"],))
+        check(_d1["calc_chg"] == (int(_src_t["calc_enable"] or 0), 1),
+              "turn_diff：报 TURN_CALC_ENABLE 开关变化（%s）" % (_d1["calc_chg"],))
+        check(any("转弯补偿差异" in s for s in E.M.turn_diff_lines(_d1)),
+              "turn_diff_lines：差异报告里出「转弯补偿差异」段")
+    finally:
+        _t["stop"][0] = _b0
+        _t["consts"]["TURN_L_PIVOT"] = _bL
+        _t["calc_enable"] = _bC
+    # 「查看代码差异」的「宏定义差异」纯函数 macros_diff / macros_diff_lines
+    check(E.M.macros_diff(app.model.macros, dict(app.model.macros))["same"],
+          "macros_diff：同一份宏自比 ⇒ same=True")
+    _mcopy = dict(app.model.macros)
+    _kM = sorted(_mcopy)[0]
+    _mcopy[_kM] = "__DIFF_TEST__"
+    _md = E.M.macros_diff(app.model.macros, _mcopy)
+    check(any(k == _kM for k, _s, _c in _md["chg"]) and not _md["same"],
+          "macros_diff：改一个宏 ⇒ 报改值（%s）" % (_md["chg"][:3],))
+    check(any("宏定义差异" in s for s in E.M.macros_diff_lines(_md)),
+          "macros_diff_lines：差异报告里出「宏定义差异」段")
     check(_out.count("kTurnTbl_node_check") == _mapc.count("kTurnTbl_node_check")
           and _out.count("GetForwardDistanceBeforeGyroTurn") == 2,
           "写回不重复护栏 typedef、陀螺函数头尾各一次")
@@ -1422,6 +1865,62 @@ def main():
         app.turn_focus = None
         app.redraw()
         app.update()
+
+    # --- 路口判断标志位（到达判据，多维）一键修复 ---
+    step("junction flags")
+    _jbtn = _widgets_with_text(app, "路口")
+    check(_jbtn and all(b.winfo_ismapped() for b in _jbtn),
+          "「路口判断标志位」入口在界面上真的可见（找到 %d 个，mapped=%s）"
+          % (len(_jbtn), [bool(b.winfo_ismapped()) for b in _jbtn]))
+    # 默认开关：include_mul 应为 False（线数时序判据默认不自动写）
+    check(hasattr(app, "include_mul") and app.include_mul.get() is False,
+          "「同时标 MUL 类」开关默认关（线数时序判据可靠性低，需显式勾选）")
+    # ① 纯函数：当前地图能列出不一致，且只含普通边（func=NONE）
+    _jissues = M.analyze_junction_flags(app.model, only_plain=True)
+    check(all(M.is_plain_edge(it["edge"]) for it in _jissues),
+          "全图分析只返回普通边（func=NONE），共 %d 条不一致" % len(_jissues))
+    # ② 全图修复（绕过模态框，直接走修复逻辑 + 一个撤销点），改完后不一致清零
+    #    这里显式 include_mul=True，走全 8 判据路径（与 analyze 的默认口径一致）
+    _jsnap = app.model.snapshot()
+    _jcount = len(_jissues)
+    for _it in _jissues:
+        _it["edge"].flag = M.suggest_junction_flags(app.model, _it["edge"], include_mul=True)
+    app._apply_change(_jsnap)
+    check(len(M.analyze_junction_flags(app.model, only_plain=True)) == 0,
+          "全图一键修复后，普通边路口标志不一致清零（修了 %d 条）" % _jcount)
+    app.undo()
+    check(len(M.analyze_junction_flags(app.model, only_plain=True)) == _jcount,
+          "撤销后恢复原状（不一致回到 %d 条）" % _jcount)
+    # ③ 单选修复（开关开）：选中 P3→N3，调用入口方法后 flag 与其终点路口几何一致
+    #    （N3 是 5 岔枢纽：终点有右斜 N8(-35°)+右直角 N10(-90°) 两条岔线 + 3 条非折返出边，
+    #     新多维分类器判为 CRIGHT+DRIGHT+MUL2MUL，非到达位 RIGHT_LINE 原样保留）
+    app.include_mul.set(True)
+    app.sel_edge = app.model.edge("P3", "N3")
+    app.fix_junction_flags_sel()
+    _e_p3n3 = app.model.edge("P3", "N3")
+    check(_e_p3n3.flag == M.suggest_junction_flags(app.model, _e_p3n3, include_mul=True),
+          "单选修复 P3→N3 后 flag 与终点路口几何一致（%s）" % _e_p3n3.flag)
+    check("MUL2MUL" in M.flag_set(_e_p3n3.flag),
+          "开关开时 P3→N3 连 MUL2MUL 一起标（%s）" % _e_p3n3.flag)
+    # ③b 单选修复（开关关）：MUL 类不写，只标角度类
+    app.include_mul.set(False)
+    app.sel_edge = app.model.edge("P3", "N3")
+    app.fix_junction_flags_sel()
+    _e_p3n3 = app.model.edge("P3", "N3")
+    check(_e_p3n3.flag == M.suggest_junction_flags(app.model, _e_p3n3, include_mul=False)
+          and "MUL2MUL" not in M.flag_set(_e_p3n3.flag)
+          and "DRIGHT" in M.flag_set(_e_p3n3.flag),
+          "开关关时 P3→N3 只标角度类、不标 MUL2MUL（%s）" % _e_p3n3.flag)
+    # ④ 框选批量修复 + 写角度：框选两条边，走 fix_junction_flags_batch_angle
+    _e1 = app.model.edge("N3", "N10")
+    _e2 = app.model.edge("N11", "N10")
+    if _e1 and _e2:
+        app.selected_edges = {("N3", "N10"), ("N11", "N10")}
+        app.fix_junction_flags_batch_angle()
+        check("DRIGHT" in M.flag_set(app.model.edge("N3", "N10").flag)
+              and "DRIGHT" in M.flag_set(app.model.edge("N11", "N10").flag),
+              "框选批量写角度+路口标志后，两条边都补上 DRIGHT")
+        app.undo()
 
     app.destroy()
 

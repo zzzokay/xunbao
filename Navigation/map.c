@@ -16,6 +16,8 @@ extern TaskHandle_t xHandle_ArriveDetect;
 /* 定义在 Task/ArriveDetect_task.c，声明原本只在它的头文件里；
    同上，用局部声明避免 map.c 越层包含（之前这里报过隐式声明警告）*/
 void send_play_specified_command(uint8_t index);
+/* 出门定档检查站（mission_planner.c；局部声明避免越层 include，同上） */
+void round1_exit_recheck(void);
 
 /******************  记录地图状态和小车状态的全局变量  *************************/
                                             
@@ -223,21 +225,23 @@ void Route_Error_Stop(u8 from, u8 to)
  *   N13→N18→B5=60           → 原代码里整行被 // 注释掉（同一三元组现由 Tier2 公式给出 28.9）
  * ⚠️ 只能收"真正会走停车转分支"的三元组：分支判定 = (STOPTURN && |转弯|>30) || |转弯|>=90 */
 static const struct { u8 last, now, next; float dist; } kTurnTbl[] = {
-	{ B9, N7, P6, 25 },
 	{ P6, N7, B8, 20 },
 	{ C4, N20, P8, 35 },
 	{ N20, C4, B11, 25 },
 	{ N3, N4, B2, 30 },
 	{ P8, N20, C4, 30 },
 	{ N8, N5, N4, 36 },
-	{ N5, N8, N12, 20 },
-	{ N8, N3, N4, 30 },
-	{ N4, N3, N8, 20 },
+	{ N8, N3, N4, 35 },
+	{ N4, N3, N8, 23 },
 	{ B8, N9, C3, 0 },
-    { B11, C4, N20, 19 },
+	{ B11, C4, N20, 19 },
 	{ N10, N9, B9, 48 },
 	{ B2, N1, P1, 25 },
-    { B3, N2, P2, 25 },
+	{ B3, N2, P2, 25 },
+	{ S1, N3, N4, 17 },
+	{ S2, N6, N5, 30 },
+	{ B9, N7, P6, 20 },
+	{ N5, N6, S2, 25 },
 };
 /* 编译期护栏：kTurnTbl 里的节点号不能超过实际建表的节点数（写错节点号只会在车上才发现）。
  * 50 = map.h 里 enum MapNode 的真实成员数（C1/C2 是注释状态不占编号），
@@ -245,13 +249,16 @@ static const struct { u8 last, now, next; float dist; } kTurnTbl[] = {
  * 以后增删节点，这里和 nav_init 的节点数一起改。 */
 #define MAP_NODE_LIMIT   50
 typedef char kTurnTbl_node_check[
-	((B9  < MAP_NODE_LIMIT) && (N7  < MAP_NODE_LIMIT) && (P6  < MAP_NODE_LIMIT) &&
+	(P6  < MAP_NODE_LIMIT) && (N7  < MAP_NODE_LIMIT) && (B8  < MAP_NODE_LIMIT) &&
 	 (C4  < MAP_NODE_LIMIT) && (N20 < MAP_NODE_LIMIT) && (P8  < MAP_NODE_LIMIT) &&
 	 (B11 < MAP_NODE_LIMIT) && (N3  < MAP_NODE_LIMIT) && (N4  < MAP_NODE_LIMIT) &&
 	 (B2  < MAP_NODE_LIMIT) && (N8  < MAP_NODE_LIMIT) && (N5  < MAP_NODE_LIMIT) &&
-	 (N12 < MAP_NODE_LIMIT) && (N9  < MAP_NODE_LIMIT) && (B8  < MAP_NODE_LIMIT) &&
-	 (C3  < MAP_NODE_LIMIT) && (N10 < MAP_NODE_LIMIT) && (N1  < MAP_NODE_LIMIT) &&
-	 (P1  < MAP_NODE_LIMIT)) ? 1 : -1];
+	 (N9  < MAP_NODE_LIMIT) && (C3  < MAP_NODE_LIMIT) && (N10 < MAP_NODE_LIMIT) &&
+	 (B9  < MAP_NODE_LIMIT) && (N1  < MAP_NODE_LIMIT) && (P1  < MAP_NODE_LIMIT) &&
+	 (B3  < MAP_NODE_LIMIT) && (N2  < MAP_NODE_LIMIT) && (P2  < MAP_NODE_LIMIT) &&
+	 (S1  < MAP_NODE_LIMIT) && (S2  < MAP_NODE_LIMIT) && (N6  < MAP_NODE_LIMIT) &&
+	 (P3  < MAP_NODE_LIMIT) && (B6  < MAP_NODE_LIMIT) && (N12 < MAP_NODE_LIMIT) &&
+	 (N11 < MAP_NODE_LIMIT) && (N13 < MAP_NODE_LIMIT) ? 1 : -1];
 
 /* 在 Node[] 里按节点号找条目。
  * ⚠️ 不能用 getNextConnectNode()：它返回的是"连接表下标"（Address[from] 起的偏移），
@@ -273,6 +280,12 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 	u8    found = 0;
 	float meas  = 19.0f;                 /* 默认值（原 return 19 的语义） */
 	u8    i;
+
+	/* 原路折返（从 last 来、又回 last 去：S1/S2 死端景点、View 景点等）：
+	 * 没有路口需要对位，转弯前前顶只会撞死端的挡板（“撞两次才转弯”）。
+	 * 固化在代码里，不依赖 kTurnTbl 条目——换地图/布局写回重生成表也不会丢。 */
+	if (last == next)
+		return 0;
 
 	for (i = 0; i < (u8)(sizeof(kTurnTbl) / sizeof(kTurnTbl[0])); i++)
 	{
@@ -318,17 +331,17 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 /* 获取对应节点的陀螺仪不停车转弯前的前进距离判断 */
 static float GetForwardDistanceBeforeGyroTurn(u8 last, u8 now, u8 next)
 {
-	if (last == B2 && now == N4 && next == N5)return 8; 
+	if (last == B2 && now == N4 && next == N5) return 8;
 	if (last == B3 && now == N2 && next == P2) return 18;
-    if (last == B2 && now == N1 && next == P1) return 18;
+	if (last == B2 && now == N1 && next == P1) return 18;
 	if (last == P3 && now == N3 && next == N8) return 6;
-    if (last == C4 && now == N20 && next == B6) return 24;
+	if (last == C4 && now == N20 && next == B6) return 24;
 	if (last == N3 && now == N4 && next == B3) return 12;
-    if (last == N5 && now == N12 && next == N11) return 5;
-    if (last == N8 && now == N12 && next == N13) return 10;
-    if (last == N4 && now == N5 && next == N12) return 6;
+	if (last == N5 && now == N12 && next == N11) return 5;
+	if (last == N8 && now == N12 && next == N13) return 10;
+	if (last == N4 && now == N5 && next == N12) return 6;
 	if (last == N8 && now == N3 && next == P3) return 24;
-	if (last == P1 && now == N1 && next == B2)return 3; 
+	if (last == P1 && now == N1 && next == B2) return 3;
 	return 0; // 默认不前进，走原逻辑未修改
 }
 
@@ -485,6 +498,7 @@ static void Nav_NearEnd(void)
 static void Nav_TurnAndAdvance(void)
 {
     cross_event &= ~CROSS_EVENT_ARRIVED;
+    round1_exit_recheck();   /* 到达判定后、节点推进前：一轮到 N3/N5 时出门定档 */
     // Chassis_DisableStallProtection();  // 堵转保护已停用
     if (route[map.point - 1] != 0xFF)
     {
@@ -527,8 +541,10 @@ static void Nav_TurnAndAdvance(void)
                 float forwardDist = GetForwardDistanceBeforeTurn(nodes.lastNode.nodenum, nodes.nowNode.nodenum, nodes.nextNode.nodenum);
                 Chassis_DriveDistance_Blocking(is_Gyro, forwardDist, Stop_T_Speed, getAngleZ(), 0);
                 CarBrake();
-                //转弯
-                Chassis_Turn_By_StopGyro_Blocking(nodes.nextNode.angle, getAngleZ(), 35.0f, TURN_TIMEOUT_DEFAULT);
+                //转弯（原路折返 last==next：180° 大转角，压低转速防甩；20 = Arrived_Stage 180° 已验证档）
+                Chassis_Turn_By_StopGyro_Blocking(nodes.nextNode.angle, getAngleZ(),
+                    (nodes.lastNode.nodenum == nodes.nextNode.nodenum) ? 20.0f : 35.0f,
+                    TURN_TIMEOUT_DEFAULT);
             }
             //陀螺仪不停车转弯
             else
@@ -667,6 +683,9 @@ void map_function(u8 fun)
 		case BHM        : Barrier_HighMountain();				break;    		//高山
 		case UpStageHome: Stage_Home();	                		break;
         case View       : do_Upright();	                	    break;			//景点
-		default:				                        		break;		
+		case View1      : do_Upright_Far();	                	break;			//远景点
+		default:				                        		break;	
+
+
 	}
 }

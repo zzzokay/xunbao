@@ -767,7 +767,7 @@ void Barrier_Bridge(void)
 				{
 					centered_samples++;
 					if (centered_samples >= BRIDGE_CENTERED_THRESHOLD)
-						Chassis_SetTargetSpeed(SPEED2);
+						Chassis_SetTargetSpeed(SPEED25);
 					else
 						Chassis_SetTargetSpeed(SPEED1);
 				}
@@ -1048,7 +1048,7 @@ void Barrier_HighMountain(void)
 			break;
 
 		case HM_FLAT:
-			Chassis_MotorControl(is_Gyro,UpDownStage_Speed_high , UpDownStage_Speed_high, origin_angle);
+			Chassis_MotorControl(is_Gyro,UpDownStage_Speed_high , UpDownStage_Speed_high, getAngleZ());
 			if (imu.pitch >= Begin_up)
 			{
 				state = HM_ASCEND_2;
@@ -1821,12 +1821,33 @@ uint8_t WaitFor_OCR(void)
 	K210_Rece = 0;
 	Clue_Num = 0;
 
-	for (retry = 0; retry < 6; retry++)
+	/* OCR 模式全程只开一次（下方 while 里每 MAIXCAM_RESEND_TICKS_3MS≈0.48s 重发指令保活），
+	   中途不再 close_Maxicam：慢转 SWEEP_MS 期间相机持续在扫、扫到立即退出，
+	   消除旧逻辑"关相机-转头-干等-重开"的盲扫窗口。
+	   六轮摆位：0中(第一眼直视) → 1右20° → 2左20° → [前进4cm靠近] → 3右25° → 4中 → 5左25° → 收尾回中。
+	   角度换算 ≈7.5 单位/°（门区 750 单位≈100°）：20°=150、25°≈188 单位，均在行程 770~2250 内。 */
+	static const uint16_t ocr_head_pos[6] = {
+		OCR_HEAD_MID, OCR_HEAD_FAR_RIGHT, OCR_HEAD_FAR_LEFT,
+		OCR_HEAD_NEAR_RIGHT, OCR_HEAD_MID, OCR_HEAD_NEAR_LEFT
+	};
+	static const uint8_t ocr_head_dir[6] = {0, 1, 2, 1, 0, 2};
+
+	moveServo(0, OCR_HEAD_MID, 500);   /* 保险归位（非阻塞，头本就该在正中） */
+	head_right_left = 0;
+
+	for (retry = 0; retry < 6 && !K210_Rece; retry++)
 	{
 		uint16_t timeout = 0;
-		/* MaixCam识别较慢，保持OCR模式约2.4秒；收到有效结果立即退出。
-		   轮内每 MAIXCAM_RESEND_TICKS_3MS 拍（≈0.48s）重发一次 0x22，提高进模式频率。 */
-		while (!K210_Rece && timeout < MAIXCAM_OCR_WAIT_TICKS)
+		uint32_t budget;   /* 本轮总扫描拍数（3ms/拍） */
+
+		/* 慢转本轮摆位（轮0已在正中）：转动全程相机在扫，扫到 while 立即退出 */
+		moveServo(0, ocr_head_pos[retry], (retry == 0) ? 500 : OCR_HEAD_SWEEP_MS);
+		head_right_left = ocr_head_dir[retry];
+
+		/* 轮0直视完整扫2.4s；其余轮 = 转头 SWEEP_MS + 到位保底扫 SETTLE_MS */
+		budget = (retry == 0) ? MAIXCAM_OCR_WAIT_TICKS
+		                      : (OCR_HEAD_SWEEP_MS + OCR_HEAD_SETTLE_MS) / 3u;
+		while (!K210_Rece && timeout < budget)
 		{
 			if ((timeout % MAIXCAM_RESEND_TICKS_3MS) == 0)
 				open_OCR_mode();
@@ -1834,43 +1855,37 @@ uint8_t WaitFor_OCR(void)
 			timeout++;
 		}
 
-		if (K210_Rece){
-			if(retry >=2 && retry <=4){
-				Chassis_DriveDistance_Blocking(is_Gyro, 4, -SPEED0, getAngleZ(), 0);
-				CarBrake();
-			}
-			if(retry >=5){
+		if (!K210_Rece)
+		{
+			/* 本轮失败：只调车位，不关相机 */
+			if(retry==2)
+			{
 				Chassis_DriveDistance_Blocking(is_Gyro, 4, SPEED0, getAngleZ(), 0);
 				CarBrake();
 			}
-			/* 扫到后把摄像头拨回中间，避免影响后续步骤 */
-			moveServo(0, 1500, 1000);
-			head_right_left = 0;
-			break;
+			if(retry==5)
+			{
+				/* 全部失败收尾：头慢转回中 + 后退7cm 复位 */
+				moveServo(0, OCR_HEAD_MID, OCR_HEAD_SWEEP_MS);
+				head_right_left = 0;
+				Chassis_DriveDistance_Blocking(is_Gyro, 7, -SPEED0, getAngleZ(), 0);
+				CarBrake();
+			}
+			CarBrake();
+			Chassis_ClearMileage();
 		}
+	}
 
-		/* 本轮失败，关闭任务并调整摄像头/车位后再试 */
-		close_Maxicam();
-		if(retry==2)
-		{
-			Chassis_DriveDistance_Blocking(is_Gyro, 4, SPEED0, getAngleZ(), 0);
+	if (K210_Rece)
+	{
+		if(retry >= 3 && retry <= 5){
+			/* 近距轮（右25/中/左25，车已前进4cm）扫到：倒回4cm复位车位 */
+			Chassis_DriveDistance_Blocking(is_Gyro, 4, -SPEED0, getAngleZ(), 0);
 			CarBrake();
 		}
-		if(retry==5)
-		{
-			Chassis_DriveDistance_Blocking(is_Gyro, 7, -SPEED0, getAngleZ(), 0);
-			CarBrake();
-		}
-		/* 左看→右看→中看 循环，配合同一平台多角度找数字 */
-		if (retry % 3 == 0)
-		{moveServo(0, 1440, 1000); head_right_left=1;}
-		else if (retry % 3 == 1)
-		{moveServo(0, 1560, 1000); head_right_left=2;}
-		else
-		{moveServo(0, 1500, 1000); head_right_left=0;}
-		vTaskDelay(1200);
-		CarBrake();
-		Chassis_ClearMileage();
+		/* 扫到后把摄像头拨回中间（非阻塞，只发指令不等待），避免影响后续步骤 */
+		moveServo(0, OCR_HEAD_MID, 1000);
+		head_right_left = 0;
 	}
 	/* 失败时不得保存Clue_Num，也不得置采集完成标志 */
 	if (K210_Rece == 0)
@@ -1984,6 +1999,7 @@ void zhunbei(void)
 		vTaskDelay(5);
 
 	
+	Match_Timer_Start();   /* 出发计时：两个红外 while 退出（一/二轮各自 180s） */
 	/**************转弯测试***************/
 	/*播报语音*/
 		
@@ -2031,7 +2047,16 @@ void do_Upright()
 {
 	float TurnAngle = 0;
 
-	if (!treasure_taken)
+	/* 【取宝门控】一轮去程还没拿到宝藏时不执行直立景点动作：
+	   东区入口边 N12->N16 的 func=View，取宝前就会经过它，此时应当只当普通节点直穿，
+	   动作留到"取宝后的回程"与"第二轮"再做（开关 UPRIGHT_NEED_TREASURE，见 config.h）。
+	   ⚠️ 判据是 treasure_taken（取宝完成标志），不能用 treasure != 0：
+	      treasure 只是线索算出的宝物平台编号，一轮回程 N18->N16 时宝还在平台上。
+	   ⚠️ 这里只 return：不写 cross_event、不清 function —— 到达判定交回 ArriveDetect_task，
+	      与"这条边本来就没有景点"的行为一致。
+	   ⚠️ 故意不用 #if：宏名写错 / 头文件没包含时 #if 会静默当 0，护栏白写；
+	      写成运行期常量判断，宏没定义会直接编译报错。 */
+	if (UPRIGHT_NEED_TREASURE && !treasure_taken)
 	{
 		printf("[UPRIGHT] skipped: treasure not collected yet\r\n");
 		return;
@@ -2053,7 +2078,9 @@ void do_Upright()
 	CarBrake();
 	Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+TurnAngle,getAngleZ(),30, TURN_TIMEOUT_DEFAULT);
 	Chassis_DriveDistance_Blocking(is_Gyro,15,Gyro_Speed,getAngleZ(),0);
+	send_play_specified_command(37);
 	Chassis_Brake(); 
+	vTaskDelay(500);
 	Chassis_DriveDistance_Blocking(is_Gyro,19,-Gyro_Speed,getAngleZ(),0);
 	Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-TurnAngle,getAngleZ(),30, TURN_TIMEOUT_DEFAULT);
 	CarBrake();
@@ -2064,5 +2091,31 @@ void do_Upright()
 }
 
 
+void do_Upright_Far()
+{
+	/* 红线兜底（2026-10-11）：拿完宝藏才允许撞直立景点。
+	 * 路线构造已保证 S1/S2 在宝物平台之后（append_round1_return_tail），
+	 * 这里是第二道保险：万一顺序异常，不撞挡板、原地折返继续。
+	 * ⚠️ View1 边（N3→S1/N6→S2）flag=NO 无到达判据，跳过时必须自己置 ARRIVED
+	 *    否则 ArriveDetect 无判据死等；置 ARRIVED 即在当前里程点折返。 */
+	if (UPRIGHT_NEED_TREASURE && !treasure_taken)
+	{
+		printf("[UPRIGHT-FAR] skipped: treasure not collected yet\r\n");
+		nodes.nowNode.function = 0;
+		cross_event |= CROSS_EVENT_ARRIVED;
+		return;
+	}
+	Chassis_MotorControl(is_Line,SPEED0,SPEED0,0);	
+	/*等待挡板*/
+	while (Infrared_ahead == 0)
+		vTaskDelay(5);	
+	Chassis_DriveDistance_Blocking(is_Gyro,15,Gyro_Speed,getAngleZ(),0);
+	Chassis_Brake();
+	vTaskDelay(500); 
+	send_play_specified_command(37);
+	Chassis_DriveDistance_Blocking(is_Gyro,19,-Gyro_Speed,getAngleZ(),0);
 
+	nodes.nowNode.function = 0;
+	cross_event |= CROSS_EVENT_ARRIVED;
+}
 

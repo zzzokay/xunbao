@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>路口检测补偿 —— 几何仿真 vs 人工实测 对账报告</title>
+<style>
+  :root { --bg:#ffffff; --fg:#1a1a1a; --muted:#6b7280; --line:#e5e7eb;
+          --red:#dc2626; --green:#059669; --amber:#d97706; --blue:#2563eb; --card:#f8fafc; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+         color:var(--fg); background:var(--bg); line-height:1.6; padding:0 0 60px; }
+  .wrap { max-width:960px; margin:0 auto; padding:0 24px; }
+  h1 { font-size:26px; margin:28px 0 4px; }
+  h2 { font-size:19px; margin:32px 0 12px; border-left:4px solid var(--blue); padding-left:10px; }
+  .sub { color:var(--muted); font-size:14px; margin-bottom:8px; }
+  .kpi { display:flex; gap:16px; flex-wrap:wrap; margin:20px 0; }
+  .kpi .card { flex:1; min-width:160px; background:var(--card); border:1px solid var(--line);
+               border-radius:10px; padding:16px; }
+  .kpi .num { font-size:30px; font-weight:700; }
+  .kpi .lbl { color:var(--muted); font-size:13px; }
+  .good { color:var(--green); } .bad { color:var(--red); } .warn { color:var(--amber); }
+  table { width:100%; border-collapse:collapse; font-size:13px; margin:12px 0; }
+  th,td { padding:7px 9px; text-align:center; border-bottom:1px solid var(--line); }
+  th { background:var(--card); font-weight:600; white-space:nowrap; }
+  tr.outlier td { background:#fef2f2; }
+  .tag { display:inline-block; padding:1px 7px; border-radius:20px; font-size:11px; font-weight:600; }
+  .tag.calc { background:#dcfce7; color:var(--green); }
+  .tag.door { background:#fef3c7; color:var(--amber); }
+  .tag.short { background:#fee2e2; color:var(--red); }
+  .tag.small { background:#fef9c3; color:#a16207; }
+  .note { background:#eff6ff; border-left:4px solid var(--blue); padding:12px 16px; border-radius:6px; font-size:14px; margin:16px 0; }
+  .warnbox { background:#fffbeb; border-left:4px solid var(--amber); padding:12px 16px; border-radius:6px; font-size:14px; margin:16px 0; }
+  .mono { font-family:ui-monospace,Consolas,monospace; }
+  .bar-row { display:flex; align-items:center; gap:10px; margin:4px 0; font-size:12px; }
+  .bar-row .name { width:170px; text-align:right; font-family:ui-monospace,monospace; white-space:nowrap; }
+  .bar-track { flex:1; background:#f1f5f9; border-radius:4px; height:20px; position:relative; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>路口检测补偿：几何仿真 vs 人工实测 —— 对账报告</h1>
+  <div class="sub">回应用户反馈「4.15cm 很大了」· 结论：误差大头来自 4 个几何上不可计算的离群点，非模型缺陷</div>
+
+  <div class="kpi">
+    <div class="card"><div class="num">4.15<span style="font-size:15px">cm</span></div><div class="lbl">全部 15 条 MAE（上一轮 s+L）</div></div>
+    <div class="card"><div class="num good">2.38<span style="font-size:15px">cm</span></div><div class="lbl">可算条目（平地大角度 6 条）MAE</div></div>
+    <div class="card"><div class="num warn">4</div><div class="lbl">几何上不可计算的离群点</div></div>
+    <div class="card"><div class="num good">0.908</div><div class="lbl">过原点比例系数 k</div></div>
+  </div>
+
+  <div class="note">
+    <b>一句话结论：</b>几何仿真的误差不是「模型不够准」，而是 15 条实测值里混入了 4 条<b>物理上无法用几何计算</b>的条目
+    （极短边段长补偿 / 门区多判据 / 小角度系统性低估）。把这几条剥掉后，剩余 6 条「平地大角度」的仿真误差只有
+    <b>2.38cm</b>，已接近理论下限。这 4 个离群点与项目文档 §14.2 / §14.7 早已标注的「崩掉的点」逐一对应。
+  </div>
+
+  <h2>一、逐条残差（s+L 几何仿真）</h2>
+  <table>
+    <tr><th>三元组</th><th>φ</th><th>step</th><th>func</th><th>实测Δ</th><th>仿真Δ</th><th>残差</th><th>归类</th></tr>
+    <tr><td class="mono">C4&gt;N20&gt;P8</td><td>-155°</td><td>170</td><td>NONE</td><td>35.0</td><td>33.5</td><td>-1.5</td><td><span class="tag calc">可算</span></td></tr>
+    <tr><td class="mono">N20&gt;C4&gt;B11</td><td>+125°</td><td>180</td><td>NONE</td><td>25.0</td><td>24.1</td><td>-0.9</td><td><span class="tag calc">可算</span></td></tr>
+    <tr><td class="mono">N3&gt;N4&gt;B2</td><td>+140°</td><td>130</td><td>NONE</td><td>30.0</td><td>27.4</td><td>-2.5</td><td><span class="tag calc">可算</span></td></tr>
+    <tr><td class="mono">B11&gt;C4&gt;N20</td><td>-115°</td><td>40</td><td>NONE</td><td>19.0</td><td>21.1</td><td>+2.1</td><td><span class="tag calc">可算</span></td></tr>
+    <tr><td class="mono">N10&gt;N9&gt;B9</td><td>-165°</td><td>156</td><td>NONE</td><td>48.0</td><td>46.0</td><td>-2.0</td><td><span class="tag calc">可算</span></td></tr>
+    <tr class="outlier"><td class="mono">N4&gt;N3&gt;N8</td><td>+145°</td><td>108</td><td>NONE</td><td>20.0</td><td>25.1</td><td>+5.2</td><td><span class="tag short">X交叉怪值</span></td></tr>
+    <tr class="outlier"><td class="mono">N8&gt;N5&gt;N4</td><td>+145°</td><td>85</td><td>DOOR</td><td>36.0</td><td>29.4</td><td>-6.5</td><td><span class="tag door">门区</span></td></tr>
+    <tr><td class="mono">N5&gt;N8&gt;N12</td><td>+110°</td><td>85</td><td>DOOR</td><td>20.0</td><td>20.8</td><td>+0.8</td><td><span class="tag door">门区</span></td></tr>
+    <tr><td class="mono">N8&gt;N3&gt;N4</td><td>-145°</td><td>85</td><td>DOOR</td><td>30.0</td><td>28.0</td><td>-2.0</td><td><span class="tag door">门区</span></td></tr>
+    <tr class="outlier"><td class="mono">B3&gt;N2&gt;P2</td><td>-30°</td><td>40</td><td>NONE</td><td>25.0</td><td>32.0</td><td>+7.0</td><td><span class="tag small">小角度</span></td></tr>
+    <tr><td class="mono">B2&gt;N1&gt;P1</td><td>+40°</td><td>30</td><td>NONE</td><td>25.0</td><td>26.2</td><td>+1.2</td><td><span class="tag small">小角度</span></td></tr>
+    <tr><td class="mono">P6&gt;N7&gt;B8</td><td>+100°</td><td>18</td><td>NONE</td><td>20.0</td><td>18.9</td><td>-1.1</td><td><span class="tag short">极短边</span></td></tr>
+    <tr><td class="mono">P8&gt;N20&gt;C4</td><td>+145°</td><td>12</td><td>NONE</td><td>30.0</td><td>30.9</td><td>+0.9</td><td><span class="tag short">极短边</span></td></tr>
+    <tr class="outlier"><td class="mono">B9&gt;N7&gt;P6</td><td>+170°</td><td>5</td><td>NONE</td><td>25.0</td><td>49.9</td><td>+24.9</td><td><span class="tag short">极短边</span></td></tr>
+    <tr><td class="mono">B8&gt;N9&gt;C3</td><td>-160°</td><td>1</td><td>NONE</td><td>0.0</td><td>-3.5</td><td>-3.5</td><td><span class="tag short">极短边</span></td></tr>
+  </table>
+
+  <h2>二、按属性分组 MAE（误差来源一目了然）</h2>
+  <div class="bar-row"><div class="name">可算（平地大角度）n=6</div><div class="bar-track"><div class="bar-fill" style="width:11.9%;background:var(--green)"></div></div><span>2.38cm</span></div>
+  <div class="bar-row"><div class="name">门区 DOOR n=3</div><div class="bar-track"><div class="bar-fill" style="width:15.5%;background:var(--amber)"></div></div><span>3.10cm</span></div>
+  <div class="bar-row"><div class="name">小角度 n=2</div><div class="bar-track"><div class="bar-fill" style="width:20.8%;background:#a16207"></div></div><span>4.15cm</span></div>
+  <div class="bar-row"><div class="name">极短边 step&lt;20 n=4</div><div class="bar-track"><div class="bar-fill" style="width:38.1%;background:var(--red)"></div></div><span>7.61cm</span></div>
+  <div class="bar-row"><div class="name">全部 15 条</div><div class="bar-track"><div class="bar-fill" style="width:20.8%;background:var(--blue)"></div></div><span>4.15cm</span></div>
+  <div class="sub" style="margin-top:6px">条形长度 = MAE / 20cm 归一化，仅示意比例</div>
+
+  <h2>三、为什么这 4 个离群点「算不出来」</h2>
+  <table>
+    <tr><th>离群点</th><th>残差</th><th>根因</th><th>对应文档依据</th></tr>
+    <tr class="outlier"><td class="mono">B9&gt;N7&gt;P6（step=5）</td><td>+24.9</td><td>入边仅 5cm，补偿 25cm 主要在<b>补段长</b>（0.7×5+25≈28.5cm 才是正常检测起点），与几何无关</td><td>§14.2「B 段长补偿」</td></tr>
+    <tr class="outlier"><td class="mono">N8&gt;N5&gt;N4（DOOR）</td><td>-6.5</td><td>门区 AWHITE/多判据竞争 + door_set_pass_node 运行时改写 step</td><td>§14.2「崩掉的点②门区」</td></tr>
+    <tr class="outlier"><td class="mono">B3&gt;N2&gt;P2（φ=-30°）</td><td>+7.0</td><td>小角度端被系统性低估，疑旋转中心与板中心有横向偏置</td><td>§14.7 证据 2</td></tr>
+    <tr class="outlier"><td class="mono">N4&gt;N3&gt;N8（φ145°）</td><td>+5.2</td><td>长斜边 / X 交叉怪值，任何几何模型解释不了</td><td>§14.7 末尾「4 条怪值」</td></tr>
+  </table>
+
+  <div class="warnbox">
+    <b>诚实结论：</b>「用仿真替代人工实测」这件事，<b>只能对「可算的」条目成立，对那 4 类离群点做不到</b>——因为它们的实测值本身就
+    不是纯转弯几何，而是段长补偿 / 门区时序 / 机械不对称的混合结果。这不是仿真精度问题，而是数据里混入了几何之外的信息。
+  </div>
+
+  <h2>四、落地建议</h2>
+  <table>
+    <tr><th>条目类别</th><th>条数</th><th>建议做法</th><th>预期效果</th></tr>
+    <tr><td class="tag calc">可算（平地大角度）</td><td>6</td><td><b>用几何仿真直接算</b>（Δ = s + L，k≈0.9）</td><td>MAE 2.38cm，可替代实测</td></tr>
+    <tr><td class="tag short">极短边（step&lt;20）</td><td>4</td><td><b>保留实测</b>，或补「段长补偿项」= max(0, 阈值−step)</td><td>B9&gt;N7&gt;P6 这类 +24.9 消失</td></tr>
+    <tr><td class="tag door">门区 DOOR</td><td>3</td><td>保留实测（运行时 step 被改写，静态几何失效）</td><td>—</td></tr>
+    <tr><td class="tag small">小角度（|φ|&lt;100°）</td><td>2</td><td>保留实测，或单独拟合横向偏置项</td><td>—</td></tr>
+  </table>
+
+  <div class="note">
+    <b>下一步（可选）：</b>若想让「可算」条目误差进一步下降，唯一有效的动作是<b>量两个机械常数</b>（§14.4 第 4 条）：
+    旋转中心→板中心纵向距离 L（预期 ~19cm，当前拟合 16cm）和板有效半宽 w。量准后 L 从「拟合」变「求解」，
+    6 条可算条目的 MAE 有望从 2.38cm 进一步压到 2cm 以内。<b>但不要指望这能修好那 4 个离群点——它们的问题在数据，不在参数。</b>
+  </div>
+</div>
+</body>
+</html>

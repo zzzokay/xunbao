@@ -173,6 +173,10 @@
     - **验证**（`地图修改上位机/tools/sim_route_bookkeeping.py` 穷举 5 种宝物平台 × 3 档线索 × 4 组平台线索 × 81 组门色，逐跳统计）：
       按 `treasure_taken` 门控 ⇒ **一轮 6480 个 View 落点全部拦下、二轮 4680 个全部照做**（一轮一次都不做，正合预期）；
       换成 `treasure != 0` ⇒ 其中 **3240 个**（全是一轮回程 `N18→N16` / `B10→N14`）会被提前放行。
+    - ⚠️ **别把本开关删成"写死"**：09-30 的 `09307f5` 曾把 `UPRIGHT_NEED_TREASURE` 从 `config.h` 删掉、
+      只留 `if (!treasure_taken)`，而本节仍写着"开关在 config.h" ⇒ **代码与文档对不上**（10-07 已恢复）。
+      自查一行：`grep -n UPRIGHT_NEED_TREASURE Mission/config.h Mission/barrier.c` —— 必须**各有一处**
+      （`config.h` 是定义、`barrier.c` 是判断）；只在 `barrier.c` 出现 = 又被删成写死了。
 
 15. **MaixCam（二维码/数字/颜色）读不到：接收是"单字节中断"，HAL 收完一字节会自己关掉接收；唯一的"再装备"点被无关条件挡住 ⇒ 接收永久停摆，只能复位。**（09-26 找到并已修）
    - **现象**：摄像头一直在发，车**一点反应都没有**；**一旦发生就是永久的**（断电/复位才恢复），串口**一个字都不打** ——
@@ -266,16 +270,27 @@
       `rs` = `Maxicam_Resends`（**本次开机累计**重开次数，只增）。`rs` 涨而 `bytes` 不涨 ⇒ 相机真的哑了（重开有用）；
       两个都在涨 ⇒ 通信正常、是「认不出来」（摆角/光照/相机端算法），此时加频率没用，该调角度。
 
-19. **直立景点巡回（S1/S2）：开关默认关；「走位通道」和「得分动作」是两件事。**（09-26 新增）
-    - **需求**：一轮的「回家腿」（取宝**之后**）顺路绕近的那个景点（宝物在 `P3` 绕 `S1`、在 `P4` 绕 `S2`）；
-      二轮去 `P3`/`P4` 时**固定两个都绕**。开关 `UPRIGHT_TOUR_ENABLE`（`Mission/config.h`，**默认 0 = 现状不变**）。
-    - **落点三处**（都在 `Mission/mission_planner.c`）：`plan_treasure_return()` 的 `target` 之后、
-      `route_return_home()` 的 `P3`/`P4` 之后、`get_newroute()` 的 `P3`/`P4` 之后。
-      ⚠️ **必须插在宝物平台【之后】** —— 规则：一轮取宝前走到其他平台或直立景点 = **直接结束比赛**。
+19. **直立景点巡回（S1/S2）：开关默认关；判据是「这次回程会不会去 P3/P4」；「走位通道」和「得分动作」是两件事。**（09-26 新增，2026-10-07 改判据）
+    - **需求**：一轮的「回家腿」（取宝**之后**）绕**这次会去的 `P3`/`P4`** 对应的景点；二轮去 `P3`/`P4` 时**固定两个都绕**。
+      开关 `UPRIGHT_TOUR_ENABLE`（`Mission/config.h`，**默认 0 = 现状不变**）。
+      ⚠️ **2026-10-07 改判据**：原来只看宝物值（`treasure == 3` 绕 `S1`、`== 4` 绕 `S2`），
+      现在改成看 **「这次回程会不会去 `P3`/`P4`」** —— 会去 `P3` ⇒ 绕 `S1`，会去 `P4` ⇒ 绕 `S2`。
+      其中「会去 `P3`」= 宝物平台就是 `P3`，**或** 补打卡 `P3P4_PUNCH_ENABLE` 开着且 QR 百位没走过 `P3`（§2.21）。
+      ⇒ 补打卡开着时**两个景点都绕**（3/4 都去）；补打卡关掉则**自动退回旧行为**（宝物 `P3`→`S1`、`P4`→`S2`）。
+      改判据的原因：补打卡一开，回程本来就必去 3/4，再要求「宝物正好在 3/4」就白开了这个开关。
+    - **落点**（都在 `Mission/mission_planner.c`）：一轮那两处（`plan_treasure_return()`、`route_return_home()`）
+      **已合并进共享小函数 `append_round1_return_tail(wp, n)`** —— 它按 **`P3 -> S1 -> P4 -> S2` 交错**写点，
+      两个回程函数各调一次（2026-10-07 起；之前是「先 `P3/P4` 再 `S1/S2`」两段独立的 if 块）；二轮那处在
+      `get_newroute()` 的 `P3`/`P4` 之后（本来就是交错的写法）。
+      ⚠️ **必须整体排在宝物平台【之后】** —— 规则：一轮取宝前走到其他平台或直立景点 = **直接结束比赛**。
+      ⇒ 交错段里「宝物平台正好是 `P3`/`P4`」的那一次**不重复加**（平台已在更前面写过）：宝物 = P4 时实际是
+      `P4 -> P3 -> S1 -> S2`（`P4` 是平台本身，先取宝；`P3`/`S1` 是一轮补的；`S2` 因为「会去 P4」而绕）。
     - ⚠️ **坑①：两处都要插，只插一处会静默失效。** 回程过门时 `door()` 会调 `route_return_home()` 重规划后半段，
       但**不是所有门色组合都会触发**（该门边去程已被 `door_set_pass_node()` 改成 `func=NONE` 时进不去 `door()`），
       那种情况下生效的是 `plan_treasure_return()` 的 wp。
-    - ⚠️ **坑②：`route_return_home()` 的 `u8 wp[3]` 会溢出**（nowNode + 平台 + S + `P2` = 4 个点）⇒ 已扩成 `wp[6]`，别再改回去。
+    - ⚠️ **坑②：`route_return_home()` 的 `u8 wp[3]` 会溢出** ⇒ 已扩成 `wp[8]`（交错后最坏
+      nowNode + 平台 + `P3` + `S1` + `P4` + `S2` + `P2` = **7** 个点），别再改回去；
+      `plan_treasure_return()` 的 `wp[10]` 同理（最坏 **9** 个点）。
     - ⚠️ **坑③：现在开开关只拿到「走位」，拿不到那 11 分/个。** `S1`/`S2` 的进边 `func` 是 **`View1`**
       （`N3→S1`、`N6→S2`），而 `map_function()` 里**没有 `case View1`** ⇒ 车开到 S1/S2 **不做动作、不播报**。
       `do_Upright()` 是给 `N14`/`N16` 写的（只有 `nowNode` 是这两点才设 `TurnAngle=±90` 做侧向撞挡板；
@@ -288,8 +303,16 @@
       （边表 `step` 是"代码长度单位"，×`LEN_SCALE`(1.2) 才是 cm，别直接读成 cm）；二轮固定 **+806cm**，
       一轮只加其中一个（288 或 518cm）。另加 2 次原地掉头（支线是死胡同）+ 每次景点动作的时间。
     - **护栏**：① 开关写成**运行期判断**（`if (UPRIGHT_TOUR_ENABLE) …`），**别用 `#if`**（宏名写错会静默当 0，见 §2.14）；
-      ② 判据只用 `treasure == 3 / 4`，**不要自造 `treasure != 0`**（`treasure` 读线索时就有值，那时宝还在平台上）；
+      ② 判据（2026-10-07 起）=「会去 `P3`/`P4`」：`treasure == 3/4` **或**（补打卡开着 && `flag_line_clue != 3/4` && `treasure != 3/4`），
+      **不要自造 `treasure != 0`**（`treasure` 读线索时就有值，那时宝还在平台上）；
       ③ 改完跑 `tools/sim_upright_tour.py`（关态无 `S`、开态 `S` 在平台之后、去掉 `S` 支路后与关态逐跳一致，5700 项）。
+    - **上位机（地图修改上位机）也镜像了这个开关**（2026-10-07 补）：`map_model.upright_tour_waypoints()`
+      （2026-10-07 起签名 `(treasure, line_clue=None, punch=False)`，语义 =「这次回程会绕哪些景点」）+
+      一轮那两处统一走 `map_model.round1_return_extra_waypoints(treasure, line_clue, punch, tour)`
+      （镜像 `append_round1_return_tail()`，交错 `P3 -> S1 -> P4 -> S2`）+
+      `treasure_return_waypoints()` / `door_return_home_waypoints()` / `round2_waypoints()` 的 `tour` 参数；
+      「线索路线…」与「二轮路线…」两个对话框都加了「直立景点巡回 S1/S2」下拉（跟随 config.h / 强制开 / 强制关）。
+      开了之后**画布上能直接看到绕 S1/S2 的路线**（`S1`/`S2` 在边表里有边：`N3→S1`、`N6→S2`，能规划能画）。
 
 20. **仿真脚本是「手抄镜像」—— 改完代码必须让它自检源码，否则给的是「假通过」。**（09-29 新增）
     - `地图修改上位机/tools/*.py` 里的仿真都是照抄固件的（`wp` / 门分支 / `route[]` 推进），**C 代码改了它不会跟着变**：
@@ -325,6 +348,59 @@
       `try` 越来越大 ⇒ 相机启动/切模式就是慢（该上「轮内重发」，即 §2.18 的设计）；`FAIL` 且 `n` 不涨 ⇒ **一个 `0x94` 都没收到** ⇒ 转查接线（TX/RX 是否交叉、GND 共地、相机 5V 是否跌落、波特率 115200）。
     - ⚠️ **`0x94` 归属只在中断里赋值、绝不 `printf`**（`Maxicam_ProcessRxByte()` 由 `stm32f7xx_it.c` 的 `huart6` 中断调用）。
     - ⚠️ **`git log -S` 查无 ⇒ §2.18 的「轮内重发」是待做项，不是现状**；按文档排查前先核对代码。
+
+21. **一轮回程「补打卡」P3/P4：开关 `P3P4_PUNCH_ENABLE`（默认关）；「去过」有两个口径，别合并。**（2026-10-07 新增）
+    - **它解决什么**：一轮去程只在 `flag_line_clue`（QR 百位）=3 去 P3、=4 去 P4；而**正常固件里它的初值是 0**
+      （`barrier.c:82`，只有 `DEBUG=1` 才是 3）⇒ 现场常常**一个 P3/P4 都没打卡**。打开本开关后，一轮**取宝之后**的回家腿把没去的补上。
+    - **判据（缺哪个补哪个）**：`flag_line_clue != 3 && treasure != 3` 才补 `P3`；`!= 4 && treasure != 4` 才补 `P4`。
+      两个「去过」的判据是**去程百位**与**宝物平台本身**（回程去宝物平台时已经在那儿打卡了）—— 它们**不是同一个东西**，
+      也**不能**用 `treasure != 0` 代替（那是 §2.14 的老坑）。
+    - **落点**：`mission_planner.c` 的共享小函数 `append_round1_return_tail(wp, n)`，被两个回程函数各调一次 ——
+      `plan_treasure_return()`（P7/P8 读到宝物后的回程腿）与 `route_return_home()`（过门回程）；
+      位置在**宝物平台之后、`P2` 之前**，与 `S1/S2` **交错**成 `P3 -> S1 -> P4 -> S2`
+      （2026-10-07 起；原来顺序固定 `P3 -> P4`、排在 `S1/S2` 之前）。
+      `route_return_home()` 的 `wp[6] -> wp[8]`（最坏 **7** 个点）；`plan_treasure_return()` 的 `wp[10]`（最坏 **9** 个点）。
+      ⚠️ **两处都得调**：回程过门时 `door()` 会重规划后半段，与本函数各管一段（同 §2.19）。
+    - ⚠️ **宝物平台必须排在最前**（取宝之前去任何平台 = 走错即结束比赛）⇒ 宝物 = P4 时实际走法是
+      `P4 -> P3 -> S1 -> S2`：先取宝，`P3`/`S1` 是一轮补打卡 + 巡回，`S2` 因为「会去 P4」而绕
+      （交错段里「宝物平台那一次」被跳过，所以不会出现两个 `P4`）。
+    - ⚠️ **打开会改掉门回程路线** ⇒ `validate/_check_door_perm.py` 的 12 条 golden 只在开关**关**的时候成立
+      （**默认就是关**，所以改动后它照样 12/12 通过；哪天把它打开，那 12 条要按新语义重算）。
+    - **上位机镜像**：`map_model.p3p4_punch_waypoints(treasure, line_clue)` +
+      一轮两处统一走 `map_model.round1_return_extra_waypoints(treasure, line_clue, punch, tour)`（交错段）+
+      `treasure_return_waypoints()/door_return_home_waypoints()` 的 `line_clue`/`punch` 参数；
+      「线索路线…」对话框新增「回程补打卡 P3/P4」下拉（**跟随 config.h** / 强制开 / 强制关）。
+    - **仿真**：`tools/sim_route_bookkeeping.py` 的源同步自检（2026-10-07 重写）现在校验
+      「交错段集中在 `append_round1_return_tail()` + 两个回程函数各调一次 + 插点顺序 `P3->S1->P4->S2`
+      + `S` 插点必须与 `UPRIGHT_TOUR_ENABLE` 同行 + 一轮 `P3/P4` 必须与 `goP3/goP4`（或宝物平台行）同行 + `wp` 容量」；
+      启动时打印开关取值 + 一张「门回程 wp 对比表」（补打卡关 → 开，巡回开关置开以显示交错）。
+
+22. **第二轮巡游顺序（P5~P8 走法）已从 C 里搬到 `config.h` 的宏，上位机可读可写。**（2026-10-07 新增）
+    - **为什么搬**：顺序由**实际摆放**决定，不一定是默认的 `P5→P7→P8→P6`；写死在 `mission_planner.c`
+      里就只能手抠 C。现在落 `Mission/config.h` 的 `ROUND2_CRUISE_CW_1..4`（宝物≠6 时走）与
+      `ROUND2_CRUISE_CCW_1..4`（宝物=6 时走）；`get_newroute()` 用 `const u8 cruise[4]` 选一组、
+      `wp[n++] = cruise[i]` 喂进 wp（不再是 `wp[n++] = P5;` 那样的死值）。
+    - **默认值与改动前逐字一致**（CW `P5,P7,P8,P6` / CCW `P6,P8,P7,P5`）⇒ **不开上位机也能照旧跑**，行为零变化。
+    - ⚠️ **`p6_first` 语义跟着改成「巡游首站 == P6」**（原来是 `treasure == 6`）：它决定
+      「过 D4 后要不要多保留一个门节点 N8」。两组填成一样时，以实际填的首站为准。
+    - **想让车永远按同一条顺序走** ⇒ 把两组填成一样即可（与宝物值无关）。
+    - **上位机**：「二轮路线…」对话框给**两组各 4 个下拉**（另有「逆时针自动 = 顺时针的反向」勾选），
+      打开时**从 `config.h` 读当前值**并在底部显示「固件现状」，点「写回 config.h…」**只改这 8 个 `#define`**
+      （先自动备份到 `backups/`）；纯函数 `map_model.parse_round2_cruise()` / `splice_round2_cruise()`。
+    - ⚠️ **只在 `USE_PLANNER_ROUTE=1` 分支生效**：`#if !USE_PLANNER_ROUTE` 的手工兜底数组**仍写死**（历史备份），
+      改顺序时别指望它跟着变。
+    - **改完必跑** `tools/trace_rounds.py`（它复用 `sim_route_bookkeeping.py` 的源同步自检，已扩到
+      `ROUND2_CRUISE_*`：逐条比对镜像假设的顺序与 `config.h` 宏）；`_selftest.py` 第 11 节 / `_guismoke` 也有回归
+      （含「写回只动沙箱副本 / 真实 `config.h` SHA256 不变」）。
+    - **2026-10-07 补修**：「线索路线…」的「第二轮·完整路线」分支此前把 `cfg` 传 `None` ⇒ 显示的巡游
+      顺序**永远是出厂默认**、不跟 `config.h` 走（车上真走配置的顺序，纯上位机显示错）；已改为现场
+      `parse_round2_cruise()`，段落标题带出实际顺序（「巡游 P5→…」）。⚠️ `_guismoke` 的二轮断言已改成
+      从 `config.h` 现值推导，写回自定义顺序后测试仍成立。
+
+23. **边表 `NOTURN` 是“到点后不转弯”的硬标志，会把这条边之后新增的转弯静默吞掉。**（2026-10-07 新增）
+    - **坑**：`Nav_TurnAndAdvance()`（map.c）里 `(flag & NOTURN)` 命中就进「直穿不转弯」分支——它表达的是「这条边**到点后**不要转」。一旦路线在下一段新增了转弯（巡回开时 `P4→N6` 之后要转 140° 去 `S2`），到点后**不停车不转弯**，车沿主线直冲过去。
+    - **实例**：`{ P4, N6, LEFT_LINE|MUL2SING|NOTURN, ... }` 原本服务「P4→N6→N5 直行回家」；巡回（`UPRIGHT_TOUR_ENABLE=1`）让 N6 之后改去 `S2` ⇒ 到 N6 检测到路口也不转弯（现场现象）。已把该边 `NOTURN` 删掉：旧流程下一条边 `N6→N5` 角差 0°，靠角度条件本来就判直穿，行为不变。
+    - **护栏**：给边表加“到点后要转弯”的新走法时，先查入边有没有 `NOTURN`；它只该留给几何上永远直穿的边（跷跷板 `N7→B8`/`N9→B9`）。
 
 ## 3. 地图修改上位机（`地图修改上位机/`）
 
@@ -380,10 +456,32 @@
   否则每次点写回都会因"缩进归一化"产生一堆无意义 diff（工作树本就带着未提交改动，这种噪声会毁掉 diff 复核）。
 - **别在测试里跑真写回**：验证写回路径要"把 `M.PATH_MAP_C` 指向沙箱副本 + 真实文件 SHA256 前后比对"
   （`_guismoke.py` 的 turn 段就是这么做的，并在 `finally` 里还原那个**模块级变量**）。
+- **「连线模式」开着会无声改掉左键语义**：`_on_node_press()` 原第一行是
+  `if connect_from or connect_mode:` → `_connect_pick(name)` → `return` ⇒ 连线模式一开，**点节点就不再拖动**
+  （单拖、Ctrl 框选的群拖一起失效）；而 Ctrl+框选走的是空白画布那条路径、**照旧能选中紫色**，
+  于是现象是"框选能选出来、但一拖就全哑"。而连线模式很容易被无意打开：**双击任意节点**
+  （`_on_node_double → start_connect_from`）、**按 `A` 键**（`bind_all("<Key-a>")`）、勾工具栏复选框都会打开它。
+  已改**拖动优先**：按住节点移动 = 拖动（含群拖），按住没动就松手 = 选连线起点（阈值 `DRAG_START_PX=4`px）。
 - **表里的补偿值"会不会生效"不由表决定**：分支判定在 `map.c: Nav_TurnAndAdvance()`
   （`|Δ| < 10°` 直行 / `STOPTURN && |Δ| > 20°` 或 `|Δ| ≥ 90°` 停车转 / 否则陀螺转）。所以两张表里都
   可能有"存着但永远走不到"的行，编辑器会标红；但固件那条 `STOPTURN` 判据用的是**陀螺实测航向**，
   静态只能按边表角度算 ⇒ 实车以串口日志为准。
+- **别把"进入某模式"绑在"双击 / 普通点几下"这类日常动作上**：10-07 前"**双击节点 = 以它为起点连线**"
+  还会顺手把「连线模式」置真 ⇒ 之后**普通点几下不同节点就把边连出来了**，用户报"连线太容易触发"。
+  定下来的操作是：**普通单击 = 选中/拖动**；**按住 Shift = 连线**（起点取"当前选中的节点"，点别的点即连，
+  松开 Shift 回普通；连完选中挪到终点 ⇒ 可按着 Shift 链式连）；**双击节点只提示、不连线**。
+  ⇒ 连线只剩 `Shift+点节点` 与 `右键点节点` 两个有意图的入口。同理 `A` 键那个 `bind_all` 也是
+  "一按就进模式"，属同类误触源（用户选择保留，但要知道它是）。
+- **Tk 画布：item 绑定返回 `"break"` 挡不住 widget 绑定**（本机实测）：节点 `tag_bind("<ButtonPress-1>")`
+  跑完 `_on_node_press()`（已装好 `_drag`）之后，画布 `bind("<ButtonPress-1>")` ← `_on_bg_press()` **还会被调一次**。
+  所以它开头那句 `if self._link or self._drag: return "break"` **不是多余的** —— 正是靠它兜住刚装好的拖动状态。
+  ⇒ 想在那里加"清理残留状态"，必须先把这次重复调用认出来（同一次按下的 item / widget 绑定 `serial` 相同，
+  见 `_ev_token()`），否则会把刚装的 `_drag` 当残留清掉。**本次真栽过**：直调处理函数的测试全过，
+  只有走真事件链才暴露 —— 交互类改动别只靠直调断言。
+- **残留指针状态会让 Ctrl 框选「永久失效」**：松开鼠标时指针不在画布上（拖到左右面板 / 窗外松手、
+  拖动中弹了对话框）⇒ 画布收不到 `<ButtonRelease-1>`，`_drag`/`_link`/`_marquee`/`_bg_drag` 残留；
+  而旧 `_on_bg_press` 见残留就 `return "break"`、空白点击又清不掉 ⇒ **本次运行**里框选一直无效且不报任何错。
+  已加 `_clear_stale_ptr_state()`：每次**新按下**先清残留（用 `_ev_token()` 区分"新按下"与"同一次按下的重复调用"）。
 
 ## 4. 编译 / 链接 / 静态检查
 
@@ -606,3 +704,96 @@
 - **2026-09-29**：编辑器新增「⟲ 转弯补偿…」（左栏入口）—— 把 `map.c` 的**两张硬补偿表**（`kTurnTbl[]` / `GetForwardDistanceBeforeGyroTurn` 的 if 链）与 `TURN_*` 公式参数搬进上位机：可增删改、逐行标"会不会生效"、覆盖总览列出地图里每个转弯当前生效多少 cm、点行即在画布高亮该弯、显式「写回 map.c」（先备份）。写回**只替换三处**（表1 表体 / 表2 函数体 / `kTurnTbl_node_check` 护栏）且**没编辑就整段跳过**；`map_model` 侧新增解析/`turn_coverage()`/`splice_turn_tables()` 纯函数，`_selftest` 第 12 节 + `_guismoke` 的 turn 段（真写回走沙箱副本、真实 `map.c` SHA256 不变）守着【仅上位机】
 - **2026-09-29**：分析「长度 / 标志位 / 路口线段」的规律并回答「能不能通过仿真算补偿」【仅文档 + 上位机过程产物】—— ① 查出 **边表 `step` 双向不对称**（52 个双向段只有 18 段相等，最大差 **137cm**；两侧都 `NONE` 的 13 段里也有 9 段不等）⇒ 按 `step` 反推几何**必须先去重**；`angle` 则 49/52 严格互为反向（自洽方向场）。② **从边表反解出 50 个节点真实坐标**（段长残差中位 **1.8cm**，落盘 `地图修改上位机/reports/node_coords_solved.json`），据此确认节点图**跨 240 倍非等比例**、只能当拓扑不能当坐标（相似变换对齐后每节点位置误差中位 42cm、最大 255cm）。③ 留一验证：「判据 + `L(1−cosφ)`」LOO-MAE ≈ **7.2cm**（只用判据 7.7）⇒ **纯几何仿真只能当兜底、替代不了实测**。④ 顺手查出 `N5→N12→N11`=5 / `N4→N5→N12`=6（全表仅有的两条 90° 实测）**放在表2 却从不生效**（实车吃默认 19），且 `N10`(deg=10) 是主干枢纽里唯一无条目的（§5.10 / §6.1 / PR §14.9）
 - **2026-09-29**：把「`flag` 到达判据位 ↔ 循迹板灯位」的对照第一次写进文档【仅文档】—— 确认 `detail` 的 **bit15 = 最左 1 号灯、bit0 = 最右 16 号灯**（依据 `scaner.c` 的 `line_weight_default[16]` = −3…+3 与 `calc_track_all()` 的 `line_weight[i] ↔ detail>>(sensorNum-1-i)`），据此列出 10 条判据各自看哪几路灯；顺带查出 **`CRIGHT` 的源码注释「右起 2 和 3 灯」与代码 `0xc`（= 左起 13/14 号）差一位**，以及 `AWHITE` 名为「全白」实查正中连续 10 灯（`0x1FF8`）（§5.11 / PR §6）
+- **2026-10-02**：编辑器新增「路口判断标志位」一键校验/修复【仅上位机】—— 依 `DLEFT`/`DRIGHT` 是**路口几何形状**（车头哪一侧压横线，与车「往哪转」无关）的语义，用边表 `angle`（干净方向场）判每条边终点处非折返出边的左/右直角弯：`need2turn>0`=左拐⇒需 DLEFT、`<0`=右拐⇒需 DRIGHT。`map_model` 新增 `analyze_junction_flags()`/`suggest_junction_flags()`/`junction_turns()` 纯函数，`validate()` 接入 warn 级报警（多余/缺失）；界面「辅助」区新增三个按钮：按路口几何修 DLEFT/DRIGHT（选中/框选）、按图上位置写好角度+路口标志（选中/框选）、一键修复全图（弹确认框，只动普通边 func=NONE，跳过门/景点/跷跷板等特殊边）。`_selftest` 第 13 节 + `_guismoke` junction 段守着（§3.4 / PR §9.5）
+- **2026-10-02**：路口判断升级为**多维分类器**【仅上位机】—— 旧版只按「±90° 直角」二选一（`DLEFT`/`DRIGHT`）过于粗略，改为按岔线夹角 θ=|need2turn(入边,出边)| 分档：直行 θ≤20°（无判据）／斜岔 20°<θ≤70°（`CLEFT`/`CRIGHT`，斜线点中段 2/3 灯）／直角 70°<θ≤110°（`DLEFT`/`DRIGHT`，横线铺满半幅 6 灯）／急弯 110°<θ≤150°（`MCLEFT`/`MCRIGHT`，岔线靠外点最外侧单灯）／折返 θ>150°（排除）；线数类 `MUL2SING`/`MUL2MUL` 用拓扑近似（终点非折返出边 ≥3 条→多岔、≥2 条→汇入）。分档阈值依据 = 边表真实转角分布聚类（0°/90° 主峰/125~145°/30~70°/15~25°）。`map_model` 新增 `classify_turn_angle()`、`junction_flags_needed()` 返回 dict、`JUNCTION_ARRIVE_FLAGS` 8 判据、`JUNCTION_*` 分档常量；`suggest_junction_flags()` 改重写全部 8 个到达判据位（非到达位如 `RIGHT_LINE`/`STOPTURN`/`AWHITE` 原样保留）；`_selftest` 第 13 节 + `_guismoke` junction 段断言同步更新（PR §6/§9.5）
+- **2026-10-02**：路口标志自动标注加「同时标 MUL 类」开关【仅上位机】—— `MUL2SING`/`MUL2MUL` 是**线数时序判据**（连续 >4 帧 `lineNum` 变化），静态只能拓扑近似、可靠性低，故自动标注**默认不写它们**；界面「路口判断标志位」顶部新增 `Checkbutton`（`App.include_mul`，默认 `False`），勾选后三个入口（单选/框选/一键全图）才连 MUL 一起写。`junction_flags_needed()` / `analyze_junction_flags()` / `suggest_junction_flags()` 三函数各加 `include_mul=` 形参（默认 `True` 保持分析完整口径，UI 修复动作传开关值）；`_selftest` 第 13 节⑦ + `_guismoke` junction 段③b 新增开关开/关两种断言（PR §6/§9.5）
+- **2026-10-02**：路口校验改「保守口径」—— 用户反馈「地图能跑通却报 50 条警告」【仅上位机】。根因：多维分类器把 CLEFT/CRIGHT/MCLEFT/MCRIGHT（斜线/急弯精细分档）+ MUL（线数时序）都当"必须精确匹配"的硬判据，而固件作者手写时本就不精确、且 `deal_arrive()` 的 if 链优先级（`DLEFT→DRIGHT→…` 先命中生效）会覆盖它们 ⇒ 大面积假警告。改法：`validate()` 默认 `right_only=True + include_mul=False`，**只报 DLEFT/DRIGHT（直角左右）的确定性错误**；`is_plain_edge()` 把带 `AWHITE`/`MUL*` 标志的边也视为特殊边跳过（如 P6→N7 带 AWHITE=门区检测）。结果：51 条 → **8 条**，其中真正「左右写反」硬错仅 2 条（N12→N8、N16→N18）。`analyze_junction_flags()` / `suggest_junction_flags()` 各加 `right_only=` 形参（PR §6/§9.5）
+
+- **2026-10-07**：修「群选 / 单拖都拖不动」【仅上位机】—— 根因是工具栏**「连线模式」被无声打开**
+  （双击节点 / 按 `A` / 勾复选框都会打开），`_on_node_press()` 第一行就把"点节点"换成"选连线起点" ⇒
+  单拖与群拖全哑、而 Ctrl+框选走空白路径照旧能选中 → 现象正是"框选能选出来、一拖就不动"。改为**拖动优先**
+  （按住移动 = 拖、原地松手 = 选起点、`DRAG_START_PX=4`）；并被这次改动逼出一个更隐蔽的坑：
+  **Tk 画布 item 绑定返回 `break` 挡不住 widget 绑定**（`_on_bg_press` 会再被调一次，原来那句
+  `if _link or _drag: return break` 就是靠它兜住刚装的 `_drag`）⇒ 新增 `_ev_token()` 按 `serial` 认"同一次按下"，
+  并加 `_clear_stale_ptr_state()`，让残留 `_drag`（松开事件丢了）不再永久废掉 Ctrl 框选。
+  `_guismoke` 新增 4 组断言（拖动优先 / 抖动容忍 / 原地松手仍能连线 / 残留自愈），全套 **223 项 [OK] / 0 FAIL**（§3.4）
+- **2026-10-07**：上位机连线交互收敛（用户报"连线太容易触发"）【仅上位机】—— 旧版**双击节点**
+  （`_on_node_double → start_connect_from`）会顺手把「连线模式」置真，之后普通点几下不同节点就自动连边。
+  操作定为：**普通单击 = 选中/拖动**；**按住 Shift = 连线**（`_connect_from_sel()`：起点取当前选中节点，
+  点别的点即连、连完选中挪到终点 ⇒ 可按着 Shift 链式连；松开 Shift 即回普通，**不改 `connect_mode`**）；
+  **双击节点不再连线**（只提示）；**Shift+从节点拖出拉边已取消**（Shift 改作"按住 = 连线"的修饰键，
+  `_link` 仅留残留声明）。右键点节点（连线）/ Shift+右键（菜单）/ A 键 / 工具栏复选框 按用户要求保留。
+  `_guismoke` 加 8 项断言（选中起点→Shift 连线→链式→松开回普通→不连自环→双击不连线…）⇒ **233 项 [OK] / 0 FAIL**；
+  另修 `map_editor/README.md` 一处与代码不符（"空白处拖 = 平移"，实际只有中键能平移）（§3.4）
+- **2026-10-07**：上位机「转弯补偿」持久化（文档 + 对话框提示）【仅上位机】—— 澄清并写进文档：转弯补偿（`map.c` 两张表 + 公式参数 + `TURN_CALC_ENABLE`）**本就随「保存布局 / 布局另存为」写进布局 JSON**（`to_json`/`load_json` 的 `turn` 段，与节点、边表同等对待；已实测往返一致），**不用单独存/另存**。在「⟲ 转弯补偿…」对话框顶部加常驻提示，并把一个坑写进文档：**「重新载入源码」只保住节点位置/底图，会把补偿重置回 `map.c` 当前值**（PR §14.8）。
+- **2026-10-07**：上位机左栏节点表 → 转弯补偿表【仅上位机】—— 按用户要求把左栏上半的**节点表整块换成「转弯补偿」表**（源 = `model.turn_coverage()`，与补偿对话框第③页签同源）：每行 = 一个 (入边,出边) 转弯（上一步→当前→下一步 / 转弯角 / 分支 / 生效值cm / 来源），**点一行 → 画布高亮该弯，双击 → 打开「⟲ 转弯补偿…」**；对话框改完补偿后左栏表自动刷新（`refresh_head()` 调 `_fill_turn_list()`）。同时删掉 `tree_nodes` / `_on_tree_node_select`（`_tree_select("node",…)` 直接 return），节点改在画布上选。`_guismoke` 断言同步（节点树行数 → 转弯补偿表行数 + 点行设 turn_focus）⇒ **234 项 [OK] / 0 FAIL**。
+- **2026-10-07**：「查看代码差异」加上「转弯补偿差异」段【仅上位机】—— 原「查看代码差异」只比 enum + 边表 + `NAV_EDGE_COUNT`，**从没读 `map.c`**，所以补偿改了看不出来（用户问"差异里为什么没有补偿"）。新增纯函数 `map_model.turn_diff()`（按三元组配对：表1/表2 的新增/删除/改值 + 公式参数 + `TURN_CALC_ENABLE`）与 `turn_diff_lines()`（排版），`report_source_diff()` 调它们输出一段「转弯补偿差异」。写回入口**维持现状**（仍走「写回 map.c…」）。`_guismoke` 加 5 条断言 ⇒ **239 项 [OK] / 0 FAIL**。
+- **2026-10-07**：左栏「转弯补偿」表加「显示」下拉【仅上位机】—— 该表默认列全部 ~300 个转弯组合太多，用户要求像「边显示」那样给几档（"别显示全部的"）。新增 `map_model.TURN_LIST_MODES`（只看要补偿的 / 只看实测 / 只看吃默认 / 只看停车转 / 只看陀螺转 / 全部）与纯函数 `turn_filter(rows, mode)`；左栏加下拉（**默认「只看要补偿的」，去掉直行**），提示行显示 `当前行数/总数`；档位随「保存布局」记在 `constraints.turn_view`。`_guismoke` 断言随档位更新 ⇒ **241 项 [OK] / 0 FAIL**。
+- **2026-10-07**：「查看代码差异」再加上「宏定义差异」段【仅上位机】—— 上一轮补了转弯补偿；这轮用户要求"宏定义啥的也显示进去"。新增纯函数 `map_model.macros_diff()`（按**去空白文本**比 `model.macros` 与 `config.h` 的 `parse_config_macros()`：新增/删除/改值）/ `macros_diff_lines()`；`report_source_diff()` 输出「宏定义差异」段，"内容一致"判据纳入 `macro_same`。`_guismoke` 加 3 条断言 ⇒ **244 项 [OK] / 0 FAIL**。
+- **2026-10-07**：左栏「转弯补偿」显示档加「只看实测停车转」【仅上位机】—— 只列**表1 `kTurnTbl`（停车转）的实测行**，与「只看实测」（表1+表2）区分开，便于专盯停车转那张表。`TURN_LIST_MODES` 由 6 档变 7 档；下拉加宽到 width=17（放得下档名）。`_guismoke` 加 1 条断言 ⇒ **245 项 [OK] / 0 FAIL**。
+- **2026-10-07**：地图编辑器加「小车动画」【仅上位机】—— 让小车沿**规划好的路线**匀速跑起来（循环、可暂停/停止、倍速 0.2~4x），带朝向的小车图形 + 正在驶向的节点名 + 车尾尾迹。纯画布动画：不改 `route[]`/模型/固件；进度按"占全长比例"存（缩放/平移/旋转/拖节点都不跳位），速度按屏幕 px/s（`ANIM_BASE_PX_PER_SEC`=220）。入口在左栏「路线规划」面板（`▶ 小车动画` / `⏹` / 倍速滑条）。`_guismoke` 加 9 条断言 ⇒ **254 项 [OK] / 0 FAIL**。
+- **2026-10-07**：编辑器左栏删掉「边显示」整块【仅上位机】—— 用户反馈那栏（左栏原「边（双击定位/右键菜单）」标题 + 「边显示」下拉 + 整张边表）「没什么用」，要求删掉并把下方内容放开。**标题/下拉/边表三个控件全删**，「路线规划」因此多拿高度（上下权重 `3:2`→`2:3`，转弯补偿表 height 10→14）。⚠️ **`tree_edges` 对象本身保留**（建了但**不 pack**）—— `_tree_select` / `_on_tree_edge_select` / 布局 `constraints.edge_view` / `_guismoke` 都还在引用，直接删会连带炸掉这些路径；**别删**。两个入口按钮「⇄ 平台交换…」「⟲ 转弯补偿…」挪到「转弯补偿 / 显示:」那一行（必须 pack 在 expand 的 Treeview **之前**，否则整块不映射＝AI_CONTEXT §7.9 老坑）。选边改走画布点击/右键菜单，功能不受影响。文档同步 `map_editor/README.md` §5（新增「边表已从左栏删除」小节，旧的三种展示模式收进 `<details>`）、`AI_CONTEXT.md` §7.9/§11、上位机 `README.md`、`MEMORY.md`。`_guismoke` **261 项 [OK]**，另有 1 项失败（`D5黑+D4绿` 路线 wp 校验）**改动前就存在、与本次无关**。
+
+- **2026-10-07**：仿真画路线·门区退回改画真实边 [仅上位机] —— 用户报「D2黑+D3绿 时 N5→N12 不该画却画了、更新的 N5→N8 该画没画」。根因：`door_read_hops()` 为了让 hops 能接在 P1 手写数组末尾的 `N12` 后面，用 `N12→N8` **近似**「倒车退回 N5 再重走 N5→N8」—— 图上凭空多一条车没走过的斜线，真边 `N5→N8` 反被跳过。**物理事实**：D2 不能过时车只开到 `N5→N12`边**中点**（`DOOR_LEN_N5N12/2`）读灯，读不到就 `door_retreat(N5,N8,63)` **倒车退回 N5 一侧**，**从没到过 N12** ⇒ 该砍掉数组末尾的 N12。改法（`map_model.py` + `map_editor.py`）：① `_round1_complete` 里 D2 不能过时 `leg1[:-1]` 砍掉 N12；② `door_read_hops` 返回值改为「N5 **之后**」的节点（D2黑+D3绿=`["N8"]`；D2黑+D3黑+D4绿=`["N8","N5","N4","N3","N8"]`），函数体逻辑没变只改语义；③ 新增 `door_read_dim_edges()` 把「开到中点读灯就退回」的边（`N5→N12`、D3也黑时的 `N5→N8`）单独给出，画布上用 `ROUTE_DIM_COLOR` 淡色细虚线补画，**不进 `self.route`**（混进去会污染小车动画与跳数统计）；④ 7 处 `route_split = None` 复位点统一改走新的 `_reset_route_marks()`（同时复位 split + 淡色边，新增路线标记一律挂它）。**验证**：`_guismoke` 加 7 条断言（门区段/淡色边/D2绿无淡色/door1route 那条/画布真出淡色线/复位）⇒ **261 项 [OK]**，仅剩 1 项既有失败（`D5黑+D4绿`）与本次无关；`validate/_check_door_perm.py` 12/12 过。顺带修 `_guismoke` 一处**自身**的坏断言（拖动优先那段只关了 `adjust_bg` 没开 `connect_mode`，而它断言 `_drag["connect"]` 为真 ⇒ 恒 FAIL）。
+- **2026-10-07**：把 `UPRIGHT_NEED_TREASURE` 开关**加回**【动固件】—— 09-30 的 `09307f5` 曾把它从 `config.h` 删掉、把"取宝后才做直立景点动作"的门控写死成 `barrier.c:do_Upright()` 开头的 `if (!treasure_taken)`（当时没同步 §2.14 ⇒ 代码与文档对不上）。现在 `config.h` 恢复 `#define UPRIGHT_NEED_TREASURE  1`、`barrier.c` 改回 `if (UPRIGHT_NEED_TREASURE && !treasure_taken)`（**运行期常量判断**，不用 `#if`）；默认 `1` 与删前行为**逐字等价**，改 `0` 即恢复"边表 `func=View` 就做"的旧行为。EIDE 无头编译 **0 error / 0 warning**（`compiled` 里确认重编了 `Mission/barrier.c`）；`validate/` 6 个脚本改动前后输出**完全一致**（4 个 exit=1 是既有的边表/权重问题）。
+- **2026-10-07**：一轮回程加「补打卡 P3/P4」开关 `P3P4_PUNCH_ENABLE`（`config.h`，**默认 0 = 现状不变**）—— 取宝后的回家腿把去程没去的 P3/P4 补上（缺哪个补哪个：百位=3 补 P4 / =4 补 P3 / =0 两个都补；宝物平台本身不重复加），顺序固定 P3→P4、排在 S1/S2 之前；`mission_planner.c` 两处插点（`plan_treasure_return` / `route_return_home`）+ `route_return_home` 的 `wp[6]→wp[8]`。EIDE 无头编译 **0 error / 0 warning**；`validate/` 8 个脚本与改动前一致（`_check_door_perm.py` 仍 **12/12**，因为开关默认关）；上位机镜像（`map_model` 纯函数 + 「线索路线…」对话框新下拉）与 `tools/sim_route_bookkeeping.py` 源同步自检同步扩到本开关；`_guismoke` **266 项（265 OK / 1 项既有 FAIL：N8 那条，属边表/权重 WIP）**（§2.21）
+- **2026-10-07**：二轮巡游顺序搬到 `config.h` 并由上位机读/写【动固件 + 上位机】—— 用户指出「二轮顺序不一定是 `P5P7P8P6`，和实际摆放有关」。把 `get_newroute()` 里写死的两套顺序改成读 `Mission/config.h` 的 `ROUND2_CRUISE_CW_1..4` / `ROUND2_CRUISE_CCW_1..4`（宝物≠6 / =6 各一组），`cruise[4]` 选组喂 wp；`p6_first` 随之改为「巡游首站 == P6」。**默认值与改动前逐字一致（零行为变化）**。上位机「二轮路线…」对话框改成**两组各 4 下拉**、打开即**读 `config.h` 当前值**并显示「固件现状」、新增「写回 config.h…」（只改 8 个 `#define`，先备份、没变则一字不动）；纯函数 `map_model.parse_round2_cruise()` / `splice_round2_cruise()`（往返零差异）。镜像同步：`tools/sim_route_bookkeeping.py`（源同步自检扩到 `ROUND2_CRUISE_*`）、`tools/sim_upright_tour.py`、`validate/_check_wp_east.py` 均改为读 `config.h`（不再抄死值）。Keil 无头编译 **0 Error(s)**（日志确认重编了 `Mission/mission_planner.c`）；`_selftest` 第 11 节全过（另有 1 项**既有** FAIL 在 §13 路口标志位，改动前后一致）；`_guismoke` **273 项 / 1 项既有 FAIL（`D5黑+D4绿`，同上）**；`validate/` 各脚本与改动前**完全一致**（`_weight_calib`/`_check_csr`/`_check_wp_east` 的失败均属既有边表/权重 WIP）（§2.22）
+- **2026-10-07**：上位机补镜像「直立景点巡回 S1/S2」【仅上位机】—— 之前 `UPRIGHT_TOUR_ENABLE` 只在固件与
+`tools/sim_*` 里有镜像，**编辑器完全没有**（打开开关也看不到路线）。现在 `map_model` 加纯函数
+`upright_tour_waypoints()`，`treasure_return_waypoints` / `door_return_home_waypoints` / `round2_waypoints`
+各加 `tour` 参数；「线索路线…」与「二轮路线…」各加「直立景点巡回 S1/S2」下拉（跟随 config.h / 强制开 / 强制关），
+与「回程补打卡 P3/P4」同一套 `_switch_on()`。两个开关一起开时顺序 = 宝物平台 → 补打卡 → 巡回 → P2（与固件一致）。
+`_guismoke` **280 项（279 OK / 1 项既有 FAIL）**（§2.19）
+- **2026-10-07**：修「线索路线…」对话框内容被裁【仅上位机】—— 用户报「窗口打开不能完整显示内容」。实测：内容宽
+**1348px** 却挤在写死 `660x430` 的窗口里（根因 = 上一轮加的那两行长提示**没设 `wraplength`**，被拉成 1324px 一行）。
+改法：① 提示行加 `wraplength=620`（→ 619px×2 行）；② 新增模块函数 `_fit_dialog(dlg, frm, minw, minh)`，两个对话框都改成
+**按内容实测 `req` 自适应尺寸 + `minsize`**（并夹到屏幕内），以后加控件不会再被裁。`_guismoke` 加 2 条「装得下内容」
+断言 ⇒ **282 项（当前 281 OK / 1 项既有 FAIL）**。
+- **2026-10-07**：修「跟随 config.h」恒等于「关」【仅上位机】—— 用户报「S1/S2 路线没画出来，实际规划也没有 S1/S2（第一轮回程）」。
+查证：镜像与插点都**是对的**（`tour=True` + 宝物 P3/P4 时 `route[]` 里确实有 `S1`/`S2`；`reports/_diag_s1_in_route.py`），
+问题在**开关没生效**：`_switch_on()` 里 `M.parse_config_macros()` **返回 `(macros, field_name)` 二元组**，漏了 `[0]`
+⇒ `eval_c_expr` 抛异常被 `except: return False` **吞掉** ⇒ 「跟随 config.h」**恒为关**（`config.h` 里其实是 1）。
+而 `_guismoke` 的断言调的是同一个错 API ⇒ **两边一起错、自测假通过**。改法：取 `[0]`、异常改成**报状态栏**不再静默、
+断言换**独立**口径（按文本读 config.h 的 0/1），并让下拉文字直接显示 `跟随 config.h（当前：开/关）`。
+另：一轮回程绕 S1/S2 **只在宝物 = P3 / P4 时**（固件规则 `treasure==3→S1` / `==4→S2`），宝物在 P1/P5/P6/未定时**本来就不绕**。
+端到端（跟随=开）：宝物 未定/P1/P5/P6 → `S1/S2=无` 而 `P3、P4 都在`；宝物 P3 → `S1`；宝物 P4 → `S2`。
+`_guismoke` ⇒ **284 项（283 OK / 1 项既有 FAIL）**。
+- **2026-10-07**：一轮回程改「交错 + S1/S2 判据跟着 P3/P4 走」【动固件 + 上位机 + 仿真 + 文档】—— 用户指出
+「既然补打卡开关开着、回程必定把 3/4 跑完，就不该再要求『宝物在 P3/P4』才绕景点」。改法：
+① `mission_planner.c` 抽出共享小函数 `append_round1_return_tail(wp, n)`，`plan_treasure_return()` 与
+`route_return_home()` 各调一次；判据改成「会去 P3 = 宝物平台是 P3 或（补打卡开着 && 百位≠3 && 宝物≠3）」、
+「会去 P4」同理，顺序 **`P3 -> S1 -> P4 -> S2`**（与二轮 `get_newroute()` 同序）；补打卡关掉时自动退回旧行为。
+② `map_model.py`：`upright_tour_waypoints(treasure, line_clue=None, punch=False)` 语义改为「会绕哪些景点」，
+新增 `round1_return_extra_waypoints()`（交错段），两个回程镜像函数改调它。
+③ `tools/sim_route_bookkeeping.py`：镜像同步 + 源同步自检**重写**（旧的 ①③④⑤ 全部失效），
+并把对比表改成「巡回开关置开」以显示交错。
+④ `_guismoke` 断言更新（两开关同开时 = `P3 S1 P4 S2`）+ 新增「宝物=P1 也绕 S1/S2」「交错序列」+ **独立口径**
+（直接读 `mission_planner.c` 文本确认共享小函数存在且两处都调用）。
+验证：Keil 增量编译 **0 Error(s)**（日志确认重编 `mission_planner.c`，2 条警告来自 `barrier.h` 既有声明）；
+`sim_route_bookkeeping` 源同步自检**通过**（「真实预设」那条 `Route_Error_Stop` 与旧版逐字一致 ⇒ 既有，
+起因是仿真预设 `door_pass` 未读，非本次改动）；`_guismoke` **287 项（286 OK / 1 项既有 FAIL）**；
+`_selftest` 1 项既有 FAIL（§13 路口标志位）；`validate/`：`_check_door_perm` **12/12**、
+`_check_csr`/`_check_door_logic`/`_check_map_debug`/`_syntax_map_debug` 全过，
+`_check_wp_east`（112 项）与 `_check_wp`（5 项）的失败**与改动前一致**（均不 import `map_model`、不读
+`mission_planner.c`，属既有边表/权重 WIP）（§2.19 §2.21）
+2026-10-07：用户报「回程没顺路去 S1 反而先绕 P4」——排查确认交错代码（P3→S1→P4→S2）本就对，旧报告是编辑器旧进程生成的（改 .py 不会热加载 ⇒ **改完上位机代码必须重启编辑器再出报告**）；顺手根治两条「既有 FAIL」：_selftest N16→N18 断言改为人造写反态（地图已把 DLEFT 衔上，旧断言绑了真实地图的错误状态）；_guismoke 二轮 N8 断言放宽为「wp 明写 N8 且 N8→N3」（权重 3:2→2:3 后规划器到 N8 改走 N10→N11→N12，不该写死走法）；另把报告头/对话框两处「一轮宝物 P3→S1、P4→S2」旧文案改成新语义（跟着会不会去 P3/P4 走）。_selftest 与 _guismoke 现均全绿。
+- 2026-10-07（晚）：修「线索路线…→第二轮·完整路线」不吃 config.h 二轮顺序的显示 bug（`_clue_route_sections` 二轮分支把 `cfg` 传 `None` 落回出厂默认；改现场 `parse_round2_cruise()`、标题带出实际顺序，`_guismoke` 二轮断言改从 config.h 现值推导）；顺带把被 22:03 写回覆盖回默认的自定义巡游顺序（CW P5→P8→P7→P6 / CCW P6→P7→P8→P5）用 `splice_round2_cruise` 恢复进 config.h（先备份）。`_selftest` 全过、`_guismoke` 全过、`sim_route_bookkeeping` 源同步自检过。
+- **2026-10-07（深夜）**：修「巡回去 S2，到 N6 检测到路口却不停车转弯」——根因是边表 `{P4,N6}` 带 `NOTURN`（旧「P4→N6→N5 直行回家」语义），`Nav_TurnAndAdvance()` 命中即直穿，巡回开后 N6 之后改去 `S2` 的 140° 转弯被静默吞掉；已删该边 `NOTURN`（旧流程靠角差 0° 本来就判直穿，行为不变；跷跷板两条 `NOTURN` 不动）。Keil 无头编译 **0 Error / 0 Warning**（确认重编 map_message.c）。备份 `/tmp/xunbao_bak_1007/`。护栏见 §2.23。
+- **2026-10-10**：修「S1/S2 死端撞挡板两次才转弯」——`do_Upright_Far()` 本身有"红外触发→前顶15cm→倒19cm"的站位舞步，但之后 `Nav_TurnAndAdvance()` 的 175° 折返按默认补偿**再前顶 19cm**（第二次撞挡板）才转；已在 `kTurnTbl[]` 补两条死端折返条目 `{N3,S1,N3,0}` / `{N6,S2,N6,0}`（站位已就绪、转弯前不再前顶），`kTurnTbl_node_check` 同步加 S1/S2/N6。Keil 无头编译 **0 Error / 3 Warning**（全为既有：2 个空参声明弃用 + `TURN_CALC_ENABLE=0` 下 `Node_Lookup` 未引用）。备份 `/tmp/xunbao_bak_1007/map.c.bak.1010`。
+- **2026-10-10（晚）**：修「二轮路线…写回后『查看代码差异』仍报宏差异」——写回/「从 config.h 重读」只刷新了 `model.round2`，没同步 `model.macros`，差异面板拿旧宏值比源码恒报改值；两处各补一行 `parse_config_macros()` 同步。`_selftest` 全过、`_guismoke` 全过。注意：`map_editor.py` 是 **CRLF**（此前记忆里只有 md 是 LF）。
+- **2026-10-10（晚 2）**：把「S1/S2 死端折返不前顶」从 kTurnTbl 条目**固化为代码判断**——用户换图后条目随写回丢失又复现"撞两次"；`GetForwardDistanceBeforeTurn()` 开头加 `if (last == next) return 0;`（原路折返无路口可对位，语义与具体地图无关；View 景点 N14/N16 的折返同样受益）。Keil 编译 **0 Error**（24 个警告全为其他文件既有项）。备份 `/tmp/xunbao_bak_1007/map.c.bak.1010b`。
+- **2026-10-10（晚 3）**：改 OCR 读数字摆头——用户报「识别数字时转头转不够」：原摆幅仅 1500±60 单位≈±8°；改为六轮固定顺序「右30°扫→回中短等1s→左30°扫→前进4cm靠近→右40°扫→中扫→左40°扫→回中+后退7cm复位」，扫到即非阻塞回中退出。角度按门区转头标定 ≈7.5 单位/°（30°=225/40°=300 单位），`OCR_HEAD_FAR/NEAR_*` 四宏接上（原 1350/1650/1300/1700 作废），`OCR_HEAD_SWEEP_MS`=2000ms 缓慢到位，回中轮短等 `OCR_HEAD_MID_PAUSE_MS`=1s。Keil 0 Error（24 警告均既有）。备份 `/tmp/xunbao_bak_20261010/`。
+- **2026-10-10（晚 3）**：原路折返（last==next）的 180° 转弯单独压速——`Nav_TurnAndAdvance()` 停车转分支的`Chassis_Turn_By_StopGyro_Blocking` 转速改 `? 20.0f : 35.0f`（20 = `Arrived_Stage()` 180° 已验证档），普通弯仍 35。编译 **0 Error**。备份 `/tmp/xunbao_bak_1007/map.c.bak.1010c`。
+- **2026-10-11**：OCR 摆头再改——第一眼改为**直视**（轮0=中·完整扫2.4s，进函数时头已被 Stage_Action 拨到正中），轮序变为「中→右30°→左30°→前进4cm→右40°/中/左40°→回中+后退7cm」；原右/左之间那次「回中短等1s」轮删掉（直视已在轮0完整扫过，`OCR_HEAD_MID_PAUSE_MS` 宏一并删除）；近距轮（3/4/5）扫到后的车位补偿统一为**倒回4cm**（原 `retry>=5` 前顶4cm 是旧轮序残留，近距轮扫到多顶4cm）。Keil 0 Error（24 警告均既有）。备份 `/tmp/xunbao_bak_20261011/`。
+- **2026-10-11（晚 2）**：WaitFor_OCR() 改「全程不关相机」——旧逻辑每轮失败都 close→转头→干等→重开（转头 2s 是盲扫窗口）；改为开一次 OCR 模式全程保持（0.48s 重发保活），慢转 `SWEEP_MS`2.5s 期间相机持续在扫、扫到立即退出，到位保底扫 `SETTLE_MS`0.5s；摆幅收窄 ±20°(远 1350/1650)/±25°(近 1310/1690)；close_Maxicam 只出现在成功出口与最终失败出口；失败中段只调车位（轮2失败前进4cm、轮5失败回中+后退7cm）；近距轮(3/4/5)扫到倒回4cm。结构改为 ocr_head_pos/dir 表 + 循环条件 `retry<6 && !K210_Rece` + 循环外统一成功补偿。Keil 0 Error（24 警告均既有）。⚠️ 实车首测留意 MaixCam 连续 20s+ 保持 OCR 模式会不会掉模式（有重发保活）。备份 `/tmp/xunbao_bak_20261011/`（含 v3 版 .bak.v3）。
+- **2026-10-10（晚 4）**：「宝物=4 时顺路撞 S1」规则版——`append_round1_return_tail()` 加 `s1_early` 参数：宝物=4 且**出门节点=N3**（D3 蓝单相 / D4 绿等真路过 N3 的分支）时，S1 提前到宝物平台**之前**（景点 View1 随时可去），宝物后尾段变 **S2 → P3**；N12/N5、N8/N5 出门不路过 N3，保持原 P3→S1→P4→S2。新帮手 `round1_s1_early()`，两个回程函数各算一次传参。上位机同步：`map_model.round1_s1_early()` 镜像 + `round1_return_extra_waypoints(s1_early)` + `treasure_return_waypoints` / `door_return_home_waypoints` 插 S1；`sim_route_bookkeeping` 行为镜像 + 源同步自检更新（s1_early 分支 / 调用签名 / S 行受控口径）；**红线改为「非宝物平台必须在宝物平台之后」，景点不再约束顺序（用户确认景点可提前——若规则不允许请改回）**。Keil **0 Error**；`trace_rounds` violations=[]；`_selftest` 全过；`_guismoke` 1 项既有失败（D2黑+D3绿 N12 —— A/B 换回旧 map_model 仍复现，属边表/权重 WIP，与本改动无关）。备份 `/tmp/xunbao_bak_1007/mission_planner.c.bak.1010` 等。
+- **2026-10-11**：按规则确认「拿完宝藏才能撞直立景点」**撤销 10-10 的 S1 提前**，保留顺路重排——`append_round1_return_tail()` 恢复 `(wp, n)` 签名并加宝物=4 分支：尾段按沿途岔口重排 **S2（N6 出平台顺便）→ P3 → S1（N3 回头补）**（比旧序 P3→S1→S2 少一趟 N6↔N3 折返；N5/N8 出门同样受益）；其它宝物值不变。三层保证：①wp 构造上景点恒在宝物平台后；②sim 红线恢复「景点在宝物前 = 违规」；③`do_Upright_Far()` 加运行时门控（`UPRIGHT_NEED_TREASURE && !treasure_taken` 时跳过撞挡板、原地折返，⚠️ View1 边无到达判据必须自置 ARRIVED）。上位机同步：`map_model.round1_s1_early` 删除、`round1_return_extra_waypoints` 内置宝物=4 分支；sim 行为镜像 + 自检更新。Keil **0 Error**（另现 2 条 #546 既有告警 = 用户 Bridge/QQB 调参的中块声明，非本次引入）；`trace_rounds` violations=[]；`_selftest` 全过；`_guismoke` 仅剩 1 项既有失败（D2黑+D3绿 N12，A/B 已证与路线改动无关）。抽查：宝4+D3蓝 = P4→S2→P3→S1、宝4+D3绿 = P4→S2→P3→S1（出门 N5 也重排，同样省一趟折返）、宝5 = P3→S1→P4→S2 不变。备份 `/tmp/xunbao_bak_1007/mission_planner.c.bak.1011`、`barrier.c.bak.1011`。
+- **2026-10-11（晚 3）**：修「高速加速段剧烈游龙」——根因是加速期循迹环双重增益：阶梯表按实际速度 encoder_avg 取高 Kp，Go_Line 乘子却按仍在爬升的目标速度 TC_speed/40 放大（实际 40 取 Kp7.5×1.75 ≈ 稳态 2 倍增益）；陀螺阻尼（方案A）kd 固定 0.06 + 限幅 ±7 高速下相对太弱兜不住。改三处：① scaner.c 乘子改 fabsf(encoder_avg)/40（起步 encoder_avg≈0 无转向输出属物理正确）；② chassis_api.c 阻尼 kd 随实际速度缩放（kd_eff = kd×encoder_avg/40）；③ LINE_GYRO_COMP_MAX 7→12（kd 缩放后高速段比例区覆盖到 ~114°/s）。Keil 增量编译 0 Error(s)（确认重编 scaner.c/chassis_api.c）；备份在 /tmp/xunbao_backup_20261011/。实车未验证。
+- **2026-10-11（晚 4）**：游龙二补丁（幅度降但概率不变 ⇒ 欠阻尼仍在+扰动源没动）——① Chassis_GetLineGyroComp 的 yaw_rate 改 **10ms 窗口差分**：IMU 模块 ≈100Hz 输出，5ms 循环半数拍 delta=0 ⇒ 阻尼欠估约一半（ChassisState_t 加 line_gyro_div / line_gyro_last_comp，间隔内保持上次输出）；② Chassis_SetTargetSpeed 的 is_Line 分支：目标 ≥SPEED3 时 Cincrement 0.7→0.45，放缓猛加速这个扰动源（翘头保护仍在其上生效）。Keil 0 Error；备份 /tmp/xunbao_backup_20261011_v2/。实车未验证。
+- **2026-10-11（晚 5）**：游龙两轮补丁实车实测整体不如改动前（第二轮 10ms 窗口+加速度放缓观感最差），**全部回滚到 2026-10-11 改动前版本**（scaner.c / chassis_api.c / chassis_api.h 已 cmp 校验与原始备份逐字节一致，全量重建 0 Error）。两轮补丁完整保留在 /tmp/xunbao_backup_20261011_v3_current/（补丁后状态）与同目录 patch_snake_fix.py / patch_snake_prob.py（补丁脚本，可单独重放）。游龙问题转向：先实测确认扰动源（建议串口记录加速段 encoder_avg / line_pid_param / Fspeed / gcomp），再决定单放哪一手。
+- **2026-10-11（深夜）**：落地「出门时刻分级贪分」时间预算——计时起点 = `zhunbei()` 两个红外 while 退出（`Match_Timer_Start()`，一/二轮各调一次 → **各自 180s**；`get_newroute()` 入口重置二轮）；决策点 = 回程出门（`route_return_home` / `plan_treasure_return` 构造尾段时），`append_round1_return_tail()` 按`round1_tail_tier()` 分级（阈值 `config.h` 的 `TB_*`）：**<2:25 全跑（含 S1/S2）／≥2:25 不跑 S1/S2／≥2:35 只跑一个平台（出门 N3 选 P3 就近、其余选 P4 顺路）／≥2:40 直接回家**（用户口径 2:15 前全跑，2:15~2:25 为缓冲带维持全跑）。上层同步：`map_model.round1_return_extra_waypoints(elapsed_s, exit_node)` + 两个 wp 构建器透传；`sim_route_bookkeeping` 加 `exit_elapsed_s`（默认 None=不启用，行为不变）。Keil **0 Error**；`trace_rounds` 无 SYNC/违规；`_selftest` 全过；`_guismoke` 仅剩既有 1 项（D2黑+D3绿 N12）。分级行为抽查 5 档全符设计。备份 `/tmp/xunbao_bak_1007/`（config.h.bak.1011 等）。方案文档：`项目讲解文档/时间预算撞景点方案.md`。
+- **2026-10-12**：时间预算加「出门惩罚」——用户指出 door() 触发点在门中段（读灯处），调用`route_return_home` 时车还没真正到 N3/N5，分级判据系统性乐观；新增 `config.h: TB_EXIT_PENALTY_S=5`（秒，实测后调），`round1_tail_tier()` 判据改为「已用时+惩罚」；上位机 `map_model`/`sim` tier 同步 +5。Keil **0 Error**；`trace_rounds` 无 SYNC/违规；`_selftest` 全过；`_guismoke` 仅剩既有 1 项（D2黑+D3绿 N12）。备份 `/tmp/xunbao_bak_1007/config.h.bak.1012` 等。
+- **2026-10-12（晚）**：修「绿灯穿门不触发 door() ⇒ 分级用平台时刻、系统性乐观」——用户指出 BACK 四分支没覆盖「第一次找到绿灯直接穿回」：D2/D3/D4 去程读绿时 `door_set_pass_node` 已把门边 func 复位 NONE（N12→N5 边表本就是 NONE），回程穿门**不触发 door() 重规划**，`plan_treasure_return` 的预案尾段即最终走法，而其分级用的是平台时刻已用时。修法：`append_round1_return_tail` 加 `tier` 参数（调用方算好传入）；`plan_treasure_return` 两遍规划——先按「prefix+P2」规划累计到出门节点的 step（新帮手 `round1_prefix_cm`，需 `map_message.h` 的 NavEdgeTbl），估出门已用时 = 平台已用时 + step×`TB_MS_PER_CM`(9，实测调) + 出门惩罚；`route_return_home` 维持 已用时+惩罚。惩罚归调用方，`map_model`/`sim` 去掉 extras 内层的 +5。Keil **0 Error**；`trace_rounds` 无 SYNC/违规；`_selftest` 全过；`_guismoke` 仅剩既有 1 项（另 2 项 GUI 失败为复跑即消的 Tk 抖动）。备份 `/tmp/xunbao_bak_1007/mission_planner.c.bak.1012b`、`config.h.bak.1012b`。
+- **2026-10-12（深夜）**：出门定档收敛到 `round1_exit_recheck()` 并加总开关 `TIME_BUDGET_ENABLE`——用户指出绿灯穿门不触发 door()、预案分级用平台时刻系统性乐观，且原 door() 里/预案里的定档分散。现方案：① `plan_treasure_return`/`route_return_home` 的尾段**恒为全量（TB_ALL）预案**，不再做时间定档；② 唯一决策点 = 新函数 `round1_exit_recheck()`，由 `Navigation()` 的 `Nav_TurnAndAdvance()` 入口调用，只认四条出门边（N10→N3/N8→N3/N12→N5/N8→N5）到达后、前方仍有可选项时，用 `已用时+惩罚` 定档并重写后续路线（复用 `door_block_all`/`append_round1_return_tail`/`plan_route_at` 交接，标志 `s_exit_checked` 保证每轮一次，二轮 `get_newroute` 复位）；③ 全逻辑包在 `TIME_BUDGET_ENABLE` 宏内（=0 时 tier 恒 TB_ALL、不计时、不重排，完全回到无时间预算行为）；④ 删两遍估计 `round1_prefix_cm`/`TB_MS_PER_CM` 及 `map_message.h` include。`append_round1_return_tail` 加 `exit_n3` 参数（出门侧由调用方显式传入，修掉 wp[n-1]==N3 在检查站语境失真）。Keil **0 Error**；`trace_rounds` 无 SYNC/违规；`_selftest` 全过；`_guismoke` 仅剩既有 1 项。备份 `/tmp/xunbao_bak_1007/*.bak.recheck`。
+- **2026-10-12（深夜 2）**：出门定档收敛到节点触发后，`TB_EXIT_PENALTY_S` 归零——原 +5s 是为door() 在门中段触发（离 N3/N5 还差一段路）补偿；现在 `round1_exit_recheck` 在 `Nav_TurnAndAdvance` 到达判定后触发、车已在点上，惩罚反成过度补偿（会过早降档）。默认 0，保留宏供实测判据滞后时微调。Keil **0 Error**。
+- **2026-10-12（深夜 3）**：删两个无用宏——`TB_EXIT_PENALTY_S`（节点触发已在点上，补偿已无意义）与`MATCH_TIME_LIMIT_S`（全工程零引用、从未接入）。`round1_exit_recheck` 判据改为裸 `Match_Elapsed_S()`。Keil **0 Error**。当前时间相关宏仅剩 `TIME_BUDGET_ENABLE` + 三个档位阈值。

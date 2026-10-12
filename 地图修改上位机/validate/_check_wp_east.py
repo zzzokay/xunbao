@@ -24,6 +24,8 @@ _check_wp_east.py — 过门后（东区）必经点"精简 vs 全锚点"等价�
 注意：⚠️ 这些"冗余"结论是在**当前权重模型**下成立的（NAV_W_TURN / 障碍表 / 门惩罚）。
       动权重后必须重跑本脚本 + _weight_calib.py，否则可能悄悄改路。
 """
+import os
+import re
 import sys
 import itertools
 import _weight_calib as W
@@ -34,6 +36,32 @@ CAN, ONE, NO = "CAN", "ONE", "NO"        # 对应 CAN_PASS / ONE_WAY_PASS / NO_P
 
 ROUND2_PRE = ["N2", "P1", "P3", "P4", "N5"]   # 二轮固定前段（含起点 N2）
 TAIL = ["P2"]
+
+# 二轮巡游顺序：2026-10-07 起由 Mission/config.h 的 ROUND2_CRUISE_CW_*/_CCW_* 给出
+# （不再是 mission_planner.c 里的死值）。本脚本"旧/新 wp"必须用同一组顺序比，
+# 否则改宏后 old≠new 会假报"精简不再等价"。
+_CFG_TXT = ""
+try:
+    with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "Mission", "config.h"), encoding="utf-8", errors="replace") as _f:
+        _CFG_TXT = _f.read()
+except OSError:
+    pass
+
+
+def _cfg_order(key, dflt):
+    vals = []
+    for i in range(1, 5):
+        m = re.search(r"^\s*#define\s+ROUND2_CRUISE_%s_%d\s+(\S+)" % (key, i), _CFG_TXT, re.M)
+        vals.append(m.group(1) if m else None)
+    if None in vals or any(v not in ("P5", "P6", "P7", "P8") for v in vals) \
+            or len(set(vals)) != 4:
+        return list(dflt)
+    return vals
+
+
+R2_CW = _cfg_order("CW", ("P5", "P7", "P8", "P6"))
+R2_CCW = _cfg_order("CCW", ("P6", "P8", "P7", "P5"))
 
 
 def route(wps):
@@ -51,8 +79,7 @@ def wp_round2_old(dp, p6_first):
         en = ["N3", "N8"] + ([] if p6_first else ["N12"])
     else:
         return None
-    tour = (["P6", "P8", "P7", "P5", "N12"] if p6_first
-            else ["P5", "P7", "P8", "P6", "N10"])
+    tour = (R2_CCW + ["N12"] if p6_first else R2_CW + ["N10"])
     if d2 == CAN:
         rn = ["N5"]
     elif d2 == ONE and d5 == CAN:
@@ -87,7 +114,7 @@ def wp_round2_new(dp, p6_first):
         en = ["N3"] + (["N8"] if p6_first else [])
     else:
         return None
-    tour = ["P6", "P8", "P7", "P5"] if p6_first else ["P5", "P7", "P8", "P6"]
+    tour = R2_CCW if p6_first else R2_CW
     if d2 == CAN:
         rn = ["N5"]
     elif d2 == ONE and d5 == CAN:

@@ -186,6 +186,21 @@ typedef enum { is_No=0, is_Free, is_Line, is_Turn, is_Gyro };
 ⚠️ `MC*`/`C*` 这四条都带 `4 ≤ ledNum ≤ 7`：**先要求「车确实压着主线」** 才认岔路。这条是踩出来的 —— `DLEFT`/`DRIGHT` 曾在 P6 被放宽，现场把「斜线亮 4 灯」当成右直线 ⇒ 提前转弯（见 `交接专用文档（新人先看我）.md` 开头第 2 条）。
 ⚠️ **命中顺序 = `deal_arrive()` 的 if 链顺序 = 优先级**：`DLEFT → DRIGHT → CLEFT → MCLEFT → MCRIGHT → CRIGHT → MORELED → AWHITE → MUL2SING → MUL2MUL`（多判据同时成立时，先命中的才写进 `arrive_method`，§14 的补偿 `d` 就按它选档）。
 
+**到达判据的几何语义（2026-10-02 澄清 + 多维分类）**：本质是**到达路口时循迹板（装在车头）的「灯位图案」**，由**路口的几何形状**决定，与「车接下来往哪转」无关。岔线与行进方向的夹角 θ 决定灯位图案落在哪几盏灯上，据此把「角度 → 判据」分档：
+
+| 弯道类型 | θ = \|need2turn(入边,出边)\| | 判据 | 灯位几何依据 |
+|---|---|---|---|---|
+| 直行/缓弯 | θ ≤ 20° | （无路口判据） | 岔线几乎与行进方向重合，不点亮横向灯 |
+| 斜岔路 | 20° < θ ≤ 70° | `CLEFT`（左）/`CRIGHT`（右） | 斜线点亮**中段 2/3 灯**（0x6000/0x000C） |
+| 直角弯 | 70° < θ ≤ 110° | `DLEFT`（左）/`DRIGHT`（右） | 横线**铺满半幅 6 灯**（0xFC00/0x003F） |
+| 大角度急弯 | 110° < θ ≤ 150° | `MCLEFT`（左）/`MCRIGHT`（右） | 岔线**极靠外**，只点最外侧单灯（0x8000/0x0001） |
+| 折返 | θ > 150° | （排除，不算路口） | 平台/景点内部转身，原路返回不产生路口线 |
+
+转向侧：`need2turn > 0` = 左、`< 0` = 右（已用交叉积 `cross(v_in,v_out)` 全量验证，方向一致）。
+**线数类判据（MUL2SING/MUL2MUL）无法从单个角度静态反推**，用**拓扑**近似：终点非折返出边 ≥3 条 → 多岔 `MUL2MUL`；≥2 条且主线延续 → 汇入 `MUL2SING`。这两个是**时序判据（连续 >4 帧 `lineNum` 变化）**，拓扑近似可靠性低 ⇒ 上位机自动标注**默认不写它们**，需在「同时标 MUL 类」勾选才写（`include_mul` 开关）。
+分档阈值依据 = 边表真实转角分布聚类（0° 直行 31 条 / 90° 直角主峰 41 条 / 125~145° 急弯 19 条 / 30~70° 斜线散落 / 15~25° 缓弯）—— 见 `map_model.py` 的 `JUNCTION_*` 常量。
+上位机「路口判断标志位」一键校验/修复用的就是这套（`map_editor/map_model.py` 的 `classify_turn_angle()` / `junction_flags_needed()` / `analyze_junction_flags()`，见 §9.5）。
+
 ---
 
 ## 7. Navigation() 执行流程（map.c）
@@ -222,9 +237,11 @@ Navigation()
 | `MAIN_DEBUG` / `STEP_DEBUG` | `0` / `0` | 调试分支/按一下跑一个节点；正式比赛必须 0 |
 | `DEBUG` | `0` | `1`=门颜色走 `debug_door_pass[]` 预设（barrier.c） |
 | `UPRIGHT_NEED_TREASURE` | `1` | 直立景点（`View`，`N14`/`N16`）门控：`1`=只有**宝藏已取到手**（标志 `treasure_taken`）与第二轮才做动作，取宝前（一轮去程 `N12→N16` + 一轮回程 `N18→N16`）都当普通节点直穿；`0`=边表 `func=View` 就做（旧行为）。⚠️ 判据是 `treasure_taken`，**不是 `treasure`**（`treasure` 只是线索算出的宝物平台编号）。见 [README.md](README.md) §2.14 |
-| `UPRIGHT_TOUR_ENABLE` | `0` | 直立景点**巡回**（只管走位）开关，**默认关**：`1`=一轮取宝**之后**按宝物平台绕近的景点（`P3`→`S1`、`P4`→`S2`；取宝之前一次都不去）、二轮 `P3`/`P4` 之后固定两个都绕（+806cm）。落点 `mission_planner.c` 的 `plan_treasure_return` / `route_return_home` / `get_newroute`。⚠️ `S1`/`S2` 的 `func` 是 **`View1`**、`map_function()` 无 `case` ⇒ **只走位、不做动作不播报**（要得分需另写 `do_Upright1()`）。见 [README.md](README.md) §2.19 |
+| `UPRIGHT_TOUR_ENABLE` | `0` | 直立景点**巡回**（只管走位）开关，**默认关**：`1`=一轮取宝**之后**绕「**这次会去的** `P3`/`P4`」对应的景点（会去 `P3`→`S1`、会去 `P4`→`S2`；取宝之前一次都不去）、二轮 `P3`/`P4` 之后固定两个都绕（+806cm）。⚠️ **2026-10-07 起判据跟着 `P3`/`P4` 走**（不再要求「宝物就在 `P3`/`P4`」）：补打卡 `P3P4_PUNCH_ENABLE` 开着 ⇒ 两个景点都绕；关掉 ⇒ 退回旧行为（宝物 `P3`→`S1`、`P4`→`S2`）。落点 = `mission_planner.c` 的共享小函数 `append_round1_return_tail()`（一轮，被 `plan_treasure_return` / `route_return_home` **各调一次**）+ `get_newroute()`（二轮）；一轮顺序与二轮一致，**交错成 `P3`→`S1`→`P4`→`S2`**。⚠️ `S1`/`S2` 的 `func` 是 **`View1`**、`map_function()` 无 `case` ⇒ **只走位、不做动作不播报**（要得分需另写 `do_Upright1()`）。见 [README.md](README.md) §2.19 |
+| `P3P4_PUNCH_ENABLE` | `0` | 一轮**取宝之后**的回家腿把去程没去的 `P3`/`P4` **补打卡**（**缺哪个补哪个**：QR 百位=3 补 `P4` / =4 补 `P3` / =0 两个都补；宝物平台本身不重复加）；与 `S1`/`S2` **共用** `append_round1_return_tail()`，顺序**交错**（`P3`→`S1`→`P4`→`S2`）。⚠️ 宝物平台**必须排最前**（取宝前去任何平台 = 走错即结束）⇒ 宝物=P4 时实际 `P4`→`P3`→`S1`→`S2`。⚠️ 打开会改门回程 ⇒ **真实固件走法不再等于** `validate/_check_door_perm.py` 的 12 条 golden（那条脚本**不读开关、恒 12/12**，看不出本开关）。见 [README.md](README.md) §2.21 |
 | 门区段 | — | `DOOR_LEN_*`(6)、`DOOR_RETREAT_*`(4)、`ANGLE_*`(2，反向用 `ANGLE_REV(a)`) |
-| OCR 摆头角度 | `OCR_HEAD_*`(5) | ⚠️ **定义了但没接上**：`OCR_HEAD_MID`(1500) / `FAR_RIGHT|FAR_LEFT`(1350/1650，基准位 ±150) / `NEAR_RIGHT|NEAR_LEFT`(1320/1680，前进 4cm 靠近后 ±180) 共 5 个宏在 `config.h`，但**全工程没有一个 `.c` 引用**；`WaitFor_OCR()` 仍写死 `moveServo(0, 1440/1560/1500, 1000)`，`head_right_left`(1=右/2=左/0=中) 语义未变。**要用先接上** |
+| `ROUND2_CRUISE_CW_*` / `_CCW_*` | `P5,P7,P8,P6` / `P6,P8,P7,P5` | **第二轮东区巡游顺序**（P5~P8 各一次，顺序 = 走法）：`CW` 组宝物≠6 时走、`CCW` 组宝物=6 时走；`get_newroute()` 用 `const u8 cruise[4]` 选组、`wp[n++] = cruise[i]` 喂进 wp。`p6_first`（决定"过 D4 后是否多留一个 N8"）= **巡游首站是否 = P6**（旧写法 `treasure == 6` 已废）。两组填成一样 ⇒ 与宝物值无关。**上位机「二轮路线…」可读写**（写回只改这 8 个宏）。⚠️ 仅 `USE_PLANNER_ROUTE=1` 生效。见 [README.md](README.md) §2.22 |
+| OCR 摆头角度 | `OCR_HEAD_*`(7) | **已接上（2026-10-11 晚，第一眼直视 + 全程不关相机）**：`WaitFor_OCR()` 开一次 OCR 模式全程保持（0.48s 重发保活），六轮摆位 = 中扫2.4s(第一眼直视) → 右20°(`FAR_RIGHT`1350) → 左20°(`FAR_LEFT`1650) → 前进4cm靠近 → 右25°(`NEAR_RIGHT`1310) → 中 → 左25°(`NEAR_LEFT`1690)；慢转 `SWEEP_MS`2.5s 期间相机持续在扫、扫到立即退出，到位保底扫 `SETTLE_MS`0.5s；任一轮扫到立即**非阻塞**回中退出。角度换算 ≈7.5 单位/°（门区 750 单位≈100°，30°=225/40°=300）；缓慢=`OCR_HEAD_SWEEP_MS`(2000ms) 走到位+等待 SWEEP_MS+200；`head_right_left`(1=右/2=左/0=中) 语义未变 |
 | 长度标定 | `LEN_SCALE 1.2f` | 100 代码单位 ≈ 120cm；运行时里程公式用，其余距离阈值已内联为 cm |
 
 ---
@@ -295,6 +312,23 @@ python 地图修改上位机/map_editor/map_editor.py    # 打开即当前固件
 - **转弯前补偿也能可视化改**（2026-09-29 新增）：左栏「**⟲ 转弯补偿…**」把 `map.c` 的两张表
   （`kTurnTbl[]` + 陀螺 if 链）与 `TURN_*` 公式参数搬进界面，可增删改 + 覆盖总览 + 画布高亮，
   改完显式「写回 map.c…」（先备份）。现状、参数可信度与写回口径见 **§14**。
+- **路口判断标志位一键校验/修复**（2026-10-02 新增，2026-10-02 升级为多维分类）：右栏「辅助」区「**路口判断标志位**」
+  按边表 `angle` 判每条边终点处的路口几何，核对 flag 里的**到达判据位**（DLEFT/DRIGHT/CLEFT/CRIGHT/MCLEFT/MCRIGHT
+  + MUL2SING/MUL2MUL）是否与几何一致——不再只是「±90° 直角」二选一，而是按 §6 的分档表（直行/斜线/直角/急弯/折返）
+  给每类弯道匹配对应判据：
+  ① 校验面板自动出 warn（多余/缺失）；② 「按路口几何修到达判据」「按图上位置写好角度+路口标志」
+  两个按钮支持**选中单条 / Ctrl 框选批量**（整批一个撤销点）；③ 「一键修复全图」弹确认框列出将改的边，
+  **只动普通边（func=NONE）**、跳过门区/景点/跷跷板等特殊边（它们的到达判据另有用途）。
+  **顶部「同时标 MUL2SING/MUL2MUL」复选框**控制是否连这两个线数时序判据一起写（默认**关**，因其拓扑近似可靠性低）。
+
+  ⚠️ **校验默认「保守口径」**（2026-10-02 定）：`validate()` 只报 **DLEFT/DRIGHT（直角左右）** 的确定性错误，
+  **不报** CLEFT/CRIGHT/MCLEFT/MCRIGHT（斜线/急弯精细分档）与 MUL 类 —— 这三类要么固件作者手写时本就不精确匹配、
+  要么靠 `deal_arrive()` 的 if 链优先级覆盖（`DLEFT→DRIGHT→CLEFT→…` 先命中生效），把它们当 warn 会大面积误报
+  （曾把能跑通的地图报出 50 条假警告）。**只报 DLEFT/DRIGHT 后收敛到 8 条**，其中真正的「左右写反」硬错仅 2 条。
+  带 `AWHITE`/`MUL*` 标志的边也视为特殊边跳过（如 P6→N7 带 AWHITE=门区检测，DLEFT|DRIGHT 是作者有意写双向检测）。
+  语义见 §6「到达判据的几何语义」；纯函数在 `map_model.py` 的 `classify_turn_angle()` /
+  `junction_flags_needed(include_mul=)` / `analyze_junction_flags(include_mul=, right_only=)` /
+  `suggest_junction_flags(include_mul=, right_only=)`，`_selftest` 第 13 节 + `_guismoke` junction 段守着。
 - ⚠️ **不变量：写回 `config.h` 必须原样保住行尾注释**（2026-09-15 踩过，**直接编挂整份工程**）。已抽成纯函数 `App._rewrite_config_macro()`，
   `_selftest.py` 第 10 节守着它（6 条合成用例 + **真实 `config.h` 原值干跑、逐字节不变**）。现象与根因见 [README.md](README.md) §3.1。
   另注：`LEN_N22B7`/`DOOR_LEN_*` 这类宏在 `#if USE_FIELD==FIELD_SCHOOL / #else` **各定义一次**，写回只改**第一处** ⇒ 切到 `FIELD_COMP` 再改会落错分支（当前 `USE_FIELD=FIELD_SCHOOL`，暂时无害）。
@@ -346,6 +380,7 @@ python 地图修改上位机/map_editor/map_editor.py    # 打开即当前固件
 | QR 分流、门/宝物改路 | `update_route_at_P1()` / `update_route_by_door_*()` / `update_route_at_door_for_stageAB()` / `update_route_at_P7/P8_for_treasure()` | `Mission/mission_planner.c` |
 | 一轮门回程 | `update_route_by_door_1~4()` → 统一走 `route_return_home()`（**规划层禁用门区 + `wp={当前节点,[宝物平台],P2}`**，不再手写路线）。door_2 额外放行 `N8→N3`（退回重读 D4）；`door_zone[8][2]` 是禁用的门区边表 | `Mission/mission_planner.c` |
 | 第二轮完整路线 | `get_newroute()` / `Clear_door()` / `load_route_at()` | `Mission/mission_planner.c` |
+| **第二轮巡游顺序** | `ROUND2_CRUISE_CW_1..4` / `ROUND2_CRUISE_CCW_1..4`（宝物≠6 / =6 各一组）；`get_newroute()` 的 `cruise[4]` 选组 | `Mission/config.h`（上位机「二轮路线…」可读写，见 §2.22） |
 | 门通行检测 + 障碍物理 | `door()` / `Door_ReadPass()` / `door_set_pass_node()` / `door_retreat()` | `Mission/barrier.c` |
 | **地图图形化编辑（辅助工具，不进固件）** | `map_editor.py`（界面）/ `map_model.py`（解析+导出+校验+Dijkstra） | `地图修改上位机/map_editor/`（见 §9.5） |
 | 底盘/电机/传感器 | `Chassis_*` API（`Chassis_Init/SetMode/SetTargetSpeed/SetTrackMode/MotorControl/Brake/DriveDistance_Blocking/Periodic_Update_5ms/OverrideLinePid`） | `Application/chassis_api.c` |
@@ -370,7 +405,7 @@ python 地图修改上位机/map_editor/map_editor.py    # 打开即当前固件
 | **改 `wp` / 读路线** | `getNextConnectNode()` 返回**连接表偏移**≠下标；`route[map.point]==0xFF` 是结束哨兵；改完保证相邻节点**有向连通** | README §5.4 |
 | **用 `Chassis_Override*Pid()`** | Restore 必须在同一函数的**正常出口**（状态机 `while` 之外），别放 `default:` 这类走不到的分支 | README §2.7 |
 | **直立景点 `do_Upright()`** | ① 在**边长 70%** 处就被调用（`B10→N14` 的 `step=100`）；② `step≥90` 时直立结束后**会再补走 15cm**（N16 不会）；③ 结尾清 `nodes.nowNode.function` ⇒ 判断"刚做过什么"别读它；④ 两次转向传 `TURN_TIMEOUT_DEFAULT`(2500ms) / 固定容差 2°（见下一行）；⑤ 受 `config.h` 的 `UPRIGHT_NEED_TREASURE` 门控，判据是 `barrier.c` 的标志 `treasure_taken`（`Stage_CollectTreasure()` 置位）而非 `treasure`；取宝前一次都不做；⑥ 打印 `[UPRIGHT] turn#N / turn#N done` | README §2.8 / §2.9 / §2.14 |
-| **直立景点巡回（`S1`/`S2`）** | 开关 `UPRIGHT_TOUR_ENABLE`（`config.h`，**默认 0**）；插点三处且**必须都在宝物平台之后**（一轮取宝前去 = 结束比赛）：`mission_planner.c` 的 `plan_treasure_return()` / `route_return_home()`（⚠️ `wp[3]→wp[6]` 已扩容，别改回）/ `get_newroute()`；⚠️ **两处都要插**（该门边去程被 `door_set_pass_node()` 改成 `func=NONE` 时不进 `door()`）；⚠️ `S1`/`S2` 的 `func` 是 `View1` 且**无 `case`** ⇒ 只走位、不得分；⚠️ `S1 = 0` 会撞 `Nav_IsStraightThrough()` 的 0 号哨兵 | README §2.19 |
+| **直立景点巡回（`S1`/`S2`）** + **一轮补打卡 `P3`/`P4`** | 开关 `UPRIGHT_TOUR_ENABLE` / `P3P4_PUNCH_ENABLE`（`config.h`）；**一轮两处已合并进共享小函数 `append_round1_return_tail(wp, n)`**（`plan_treasure_return()` / `route_return_home()` 各调一次），二轮在 `get_newroute()` 的 `P3`/`P4` 之后；顺序**交错成 `P3`→`S1`→`P4`→`S2`**，且**必须整体在宝物平台之后**（取宝前去 = 结束比赛）；`S1`/`S2` 的判据 =「会去 `P3`/`P4`」（`treasure == 3/4` **或** 补打卡开着且百位没走过）；⚠️ `wp` 已扩容（`route_return_home` 8 点、`plan_treasure_return` 10 点），别改回；⚠️ `S1`/`S2` 的 `func` 是 `View1` 且**无 `case`** ⇒ 只走位、不得分；⚠️ `S1 = 0` 会撞 `Nav_IsStraightThrough()` 的 0 号哨兵 | README §2.19 §2.21 |
 | **排查"车停住不说话"** | 按串口标签分层：`[PROTECT]`（保护，**都有播报**）/ `[HARD-STOP]` / `[HANG]` / `[DOOR]`；"完全没声音" ⇒ 只可能是 `CarBrake_Stop()`（9 处）或两个无超时等待（`Want2Go` / `door()` 等 8 灯） | README §2.10~§2.11 |
 | **「转弯后切回巡线，车不动」** | `Task/motor_task.c` 的 `handle_mode_switch()`：**迁移只清「离开模式」的渐变/给速值**；⚠️ 进 `is_Line` 的路径必须紧跟一次 `Chassis_SetTargetSpeed`；⚠️ `chassis_api.c` 的 `is_Free/is_No` 分支**不能删**（`CarBrake()` 靠它停车） | README §2.16 |
 | **MaixCam（二维码/数字/颜色）读不到 / 只发不解析** | 三者是**同一条链**（`K210.c` 的 `Maxicam_ProcessRxByte`）；接收是**单字节中断** ⇒ `huart6` 每个发送点之后**必须**补一次 `HAL_UART_Receive_IT`（`K210.c` 3 处 + `openmv.c` 2 处）；⚠️ 判"接收空闲"用 `huart6.RxState`，**别用 `HAL_UART_GetState()`**；⚠️ 改 `stm32f7xx_it.c:465` 那句必须**同一轮**把中断里的 `close_Maxicam()` 移出；⚠️ `Stage_Action()` 扫描失败无出口 | README §2.15 |
@@ -595,6 +630,9 @@ Tier3  其它                                 → 保持原默认 19
 - 护栏：`_selftest.py` 第 12 节（往返一致 / 幂等 / 新增节点自动进 `kTurnTbl_node_check`），
   `_guismoke.py` 的 turn 段（真写回路径走**沙箱副本** + 真实 `map.c` SHA256 前后比对）。
   编辑器侧的坑与不变量写在 `地图修改上位机/map_editor/AI_CONTEXT.md` §6.14 / §7.10 / §10.7。
+- 💾 **随布局保存 / 另存（2026-10-07 明确）**：这两张表 + 公式参数 + `TURN_CALC_ENABLE` 会**随「保存布局 / 布局另存为」
+  一起写进布局 JSON** 的 `turn` 段，「载入布局」自动恢复 —— 与节点位置、边表同等对待，**不用单独存**。
+  ⚠️ 但**点「重新载入源码」会把补偿重置回 `map.c` 当前值**（该操作只保住节点位置/底图）；要落固件仍须点「写回 map.c…」。
 
 ---
 

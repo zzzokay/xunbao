@@ -8,7 +8,7 @@
  * ===================================================================== */
 
  /* ===================== 调试开关 ===================== */
-#define MAP_DEBUG      0        
+#define MAP_DEBUG      0
 #define STEP_DEBUG     0
 #define MAIN_DEBUG     0
 #define DEBUG          0        //摄像头
@@ -20,15 +20,70 @@
 #define TURN_CALC_ENABLE   0
 
 
+/* ===================== 直立景点（View，N14/N16）触发条件 =====================
+ * 1 = 只有"已经拿到宝藏"之后才做直立景点动作（一轮取宝后的回程 + 第二轮）；
+ *     一轮去程（还没取宝）经过 N12->N16 / C3->N14 时不做动作，当普通节点直穿。
+ * 0 = 恢复旧行为（边表 func=View 就做，含一轮去程）。
+ * 依据：一轮去程 N5->N12->N13->P5->N13->N12->N16 会在取宝前经过 N16。
+ * 落点与验证见 project_reference.md §11 / README.md §2.14 */
+#define UPRIGHT_NEED_TREASURE  1
+
 /* ===================== 直立景点巡回 S1/S2（View1 通道）=====================
- * 1 = 一轮【取宝之后】的回家腿顺路绕近的那个景点（宝物 P3->S1、P4->S2）；
+ * 1 = 一轮【取宝之后】的回家腿绕"这次会去的 P3/P4"对应的景点：
+ *       会去 P3 -> 绕 S1；会去 P4 -> 绕 S2
+ *     ⇒ 2026-10-07 起判据**跟着 P3/P4 走**（不再要求"宝物就在 P3/P4"）：
+ *       补打卡 P3P4_PUNCH_ENABLE 开着时两个景点都绕；关掉补打卡则自动退回旧行为
+ *       （宝物 P3->S1、宝物 P4->S2）。
  *     二轮去 P3/P4 时固定两个都绕。
  * 0 = 完全不进 S1/S2*/
-#define UPRIGHT_TOUR_ENABLE  0
+#define UPRIGHT_TOUR_ENABLE  1
+
+/* ===================== 一轮回程补打卡 P3/P4 =====================
+ * 1 = 一轮【取宝之后】的回家腿，把去程没去的 P3/P4 补上再回家（**缺哪个补哪个**）：
+ *     QR 百位=3（去过 P3）只补 P4、=4（去过 P4）只补 P3、
+ *     =0（正常固件默认，一轮去程根本不经过 P3/P4）两个都补；
+ *     宝物平台正好是它时不重复加（回程本来就要去那儿打卡）。
+ *     顺序：与 S1/S2 交错成 **P3 -> S1 -> P4 -> S2**（都在宝物平台之后、P2 之前，
+ *           与二轮 get_newroute() 同序）。落点在 mission_planner.c 的共享小函数
+ *           append_round1_return_tail()，两个回程函数各调一次。
+ * 0 = 完全保持原行为（回程只去宝物平台）。
+ * ⚠️ 打开会改掉门回程路线 ⇒ 真实固件走法不再等于 validate/_check_door_perm.py 的 12 条
+ *     golden（那条脚本只验"边禁用 + 极简 wp"机制、恒 12/12，看不出本开关）。
+ * ⚠️ 改完跑 地图修改上位机/tools/sim_route_bookkeeping.py（自带源码同步自检）。 */
+#define P3P4_PUNCH_ENABLE  1
 
 /* ===================== 路线生成 ===================== */
 #define USE_PLANNER_ROUTE  1
 #define SKIP_ROUND1        0
+
+/* ===================== 第二轮东区巡游顺序（P5~P8 各一次，顺序 = 走法）=====================
+ * 巡游顺序由**实际摆放**决定，不一定是默认的「P5→P7→P8→P6」。
+ *   CW  组 = 宝物 != 6 时走（默认情况）
+ *   CCW 组 = 宝物 == 6 时走
+ * 想让车永远按同一条顺序走 ⇒ 把两组填成一样即可（就与宝物值无关了）。
+ * 值为 NavEdgeTbl 里的平台节点名（P5/P6/P7/P8），每组 4 个、各出现一次。
+ * ⚠️ get_newroute() 用运行期 if 读取，**别改成 #if**（宏名写错会静默当 0，见 README §2.14）；
+ *    仅 USE_PLANNER_ROUTE=1 生效。上位机「二轮路线…」可读写这一段。
+ * ⚠️ 改完跑 地图修改上位机/tools/trace_rounds.py（仿真手抄镜像会自检源码同步） */
+#define ROUND2_CRUISE_CW_1   P5
+#define ROUND2_CRUISE_CW_2   P7
+#define ROUND2_CRUISE_CW_3   P8
+#define ROUND2_CRUISE_CW_4   P6
+#define ROUND2_CRUISE_CCW_1  P6
+#define ROUND2_CRUISE_CCW_2  P8
+#define ROUND2_CRUISE_CCW_3  P7
+#define ROUND2_CRUISE_CCW_4  P5
+
+/* ===================== 比赛时间预算（出门分级贪分，2026-10-11） =====================
+ * 出门 = 回程到达 N3/N5（route_return_home 重规划时刻）；计时起点 = zhunbei()
+ * 两个红外 while 退出（一/二轮各调一次 → 各自 180s）。出门时已用时：
+ *   < 2:25 全跑（含 S1/S2）；≥ 2:25 不跑 S1/S2；≥ 2:35 只跑一个平台；≥ 2:40 直接回家
+ * 口径：用户原话 2:15 前全跑，2:15~2:25 为缓冲带维持全跑；要提前收景点把
+ *   TB_NO_SIGHTS_AT_S 改 135。门控细节见 mission_planner.c 的 round1_tail_tier()。 */
+#define TIME_BUDGET_ENABLE   1  /* 总开关：0=完全关闭时间预算（不定档/不计时/不重排），尾段恒为全量 */
+#define TB_NO_SIGHTS_AT_S   145  /* 2:25 起不跑 S1/S2 */
+#define TB_ONE_PLAT_AT_S    155  /* 2:35 起只跑一个平台 */
+#define TB_HOME_ONLY_AT_S   160  /* 2:40 起直接回家 */
 
 /* ===================== 地图起始/目标 & 按键合并窗口 ===================== */
 /* 调试（MAP_DEBUG=1）时，只需改这三个节点名：程序用最短路径算法自动生成 起始点->[途径点]->目标点 的路线 */
@@ -89,10 +144,10 @@
 /* ===== door_retreat 后退距离（与路段全长无关，按”起点→目标”方向命名）===== */
 #if USE_FIELD == FIELD_SCHOOL
     /* —— 学校场地实测值（TODO）—— */
-    #define DOOR_RETREAT_N5N8   63
-    #define DOOR_RETREAT_N5N4   67
-    #define DOOR_RETREAT_N10N8  90
-    #define DOOR_RETREAT_N8N5   65
+    #define DOOR_RETREAT_N5N8   60
+    #define DOOR_RETREAT_N5N4   60
+    #define DOOR_RETREAT_N10N8  83
+    #define DOOR_RETREAT_N8N5   60
 #else
     /* —— 比赛场地（现状）—— */
     #define DOOR_RETREAT_N5N8   85
@@ -125,14 +180,21 @@
 
 /* ===== OCR 读数字：摄像头（舵机0）左右摆角 =====
  * 1500 = 正中；数值越大越往左（Rudder_control.c 的 HEAD_LEFT=2250 / HEAD_RIGHT=770）。
- * WaitFor_OCR() 每轮按「右 → 左 → 中」三档扫描，摆角分两组：
- *   FAR  = 车在基准位（还没前进）
- *   NEAR = 已前进 4cm 靠近号码板之后（近处同一横向偏差对应更大偏角） */
+ * 2026-10-11 晚 已接上（第一眼直视 + 全程不关相机）：WaitFor_OCR() 开一次 OCR 模式后全程保持
+ *   （每0.48s重发指令保活），六轮摆位 = 中扫2.4s(第一眼直视) → 右20° → 左20° → [前进4cm靠近]
+ *   → 右25° → 中 → 左25°；慢转 SWEEP_MS(2.5s) 期间相机持续在扫、扫到立即退出，
+ *   到位后保底扫 SETTLE_MS(0.5s)。任一轮扫到立即非阻塞回中退出（近距轮扫到再倒回4cm复位车位）；
+ *   全失败才回中+后退7cm 并 close_Maxicam。
+ * 角度换算参照门区转头标定：HEAD 1500±750 单位 ≈ ±100° ⇒ ≈7.5 单位/°（20°=150、25°≈188 单位）。
+ * FAR = 车在基准位（还没前进，±20°）；NEAR = 已前进 4cm 靠近号码板之后（±25°）。
+ * 均在舵机行程（770~2250）内。 */
 #define OCR_HEAD_MID         1500
-#define OCR_HEAD_FAR_RIGHT   1350
-#define OCR_HEAD_FAR_LEFT    1650
-#define OCR_HEAD_NEAR_RIGHT  1300
-#define OCR_HEAD_NEAR_LEFT   1700
+#define OCR_HEAD_FAR_RIGHT   1350   /* 基准位右转约20° */
+#define OCR_HEAD_FAR_LEFT    1650   /* 基准位左转约20° */
+#define OCR_HEAD_NEAR_RIGHT  1310   /* 靠近后右转约25° */
+#define OCR_HEAD_NEAR_LEFT   1690   /* 靠近后左转约25° */
+#define OCR_HEAD_SWEEP_MS    2500   /* 缓慢转头：舵机运动时长(ms)，转动中相机持续在扫 */
+#define OCR_HEAD_SETTLE_MS    500   /* 到位后保底扫时长(ms) */
 
 
 /* ===================== 底盘长度标定 =====================

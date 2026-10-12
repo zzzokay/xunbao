@@ -1,0 +1,163 @@
+{
+ "summary": {
+  "大角度平地(NONE,100~178°)": {
+   "n": 6,
+   "mae": 7.08,
+   "n_rule": 6
+  },
+  "门区(DOOR)": {
+   "n": 3,
+   "mae": 2.17,
+   "n_rule": 3
+  },
+  "小角度(<100°)": {
+   "n": 2,
+   "mae": 18.0,
+   "n_rule": 0
+  },
+  "极短边(step<20)": {
+   "n": 4,
+   "mae": 10.96,
+   "n_rule": 0
+  }
+ },
+ "rows": [
+  {
+   "key": "B9>N7>P6",
+   "meas": 25.0,
+   "phi": 170.0,
+   "func": "NONE",
+   "step": 5.0,
+   "flag": "DLEFT|STOPTURN"
+  },
+  {
+   "key": "P6>N7>B8",
+   "meas": 20.0,
+   "phi": 100.0,
+   "func": "NONE",
+   "step": 18.0,
+   "flag": "DLEFT|DRIGHT|AWHITE|STOPTURN"
+  },
+  {
+   "key": "C4>N20>P8",
+   "meas": 35.0,
+   "phi": -155.0,
+   "func": "NONE",
+   "step": 170.0,
+   "flag": "CRIGHT|MUL2MUL"
+  },
+  {
+   "key": "N20>C4>B11",
+   "meas": 25.0,
+   "phi": 125.0,
+   "func": "NONE",
+   "step": 180.0,
+   "flag": "CLEFT|MCLEFT|STOPTURN|RIGHT_LINE"
+  },
+  {
+   "key": "N3>N4>B2",
+   "meas": 30.0,
+   "phi": 140.0,
+   "func": "NONE",
+   "step": 130.0,
+   "flag": "CLEFT|LEFT_LINE|Temp_R"
+  },
+  {
+   "key": "P8>N20>C4",
+   "meas": 30.0,
+   "phi": 145.0,
+   "func": "NONE",
+   "step": 12.0,
+   "flag": "MCLEFT|RIGHT_LINE|STOPTURN"
+  },
+  {
+   "key": "N8>N5>N4",
+   "meas": 36.0,
+   "phi": 145.0,
+   "func": "DOOR",
+   "step": 85.0,
+   "flag": "STOPTURN|CLEFT"
+  },
+  {
+   "key": "N5>N8>N12",
+   "meas": 20.0,
+   "phi": 110.0,
+   "func": "DOOR",
+   "step": 85.0,
+   "flag": "CLEFT|DLEFT|DRIGHT"
+  },
+  {
+   "key": "N8>N3>N4",
+   "meas": 30.0,
+   "phi": -145.0,
+   "func": "DOOR",
+   "step": 85.0,
+   "flag": "CLEFT|CRIGHT|NEAR_CENTER|MUL2MUL"
+  },
+  {
+   "key": "N4>N3>N8",
+   "meas": 20.0,
+   "phi": 145.0,
+   "func": "NONE",
+   "step": 108.0,
+   "flag": "DLEFT|TEMP_NEAR_CENTER|LEFT_LINE"
+  },
+  {
+   "key": "B8>N9>C3",
+   "meas": 0.0,
+   "phi": -160.0,
+   "func": "NONE",
+   "step": 1.0,
+   "flag": "MUL2MUL|MUL2SING|STOPTURN|CLEFT"
+  },
+  {
+   "key": "B11>C4>N20",
+   "meas": 19.0,
+   "phi": -115.0,
+   "func": "NONE",
+   "step": 40.0,
+   "flag": "CRIGHT"
+  },
+  {
+   "key": "N10>N9>B9",
+   "meas": 48.0,
+   "phi": -165.0,
+   "func": "NONE",
+   "step": 156.0,
+   "flag": "LEFT_LINE|CRIGHT|MUL2SING|STOPTURN"
+  },
+  {
+   "key": "B2>N1>P1",
+   "meas": 25.0,
+   "phi": 40.0,
+   "func": "NONE",
+   "step": 30.0,
+   "flag": "LEFT_LINE|CRIGHT|STOPTURN"
+  },
+  {
+   "key": "B3>N2>P2",
+   "meas": 25.0,
+   "phi": -30.0,
+   "func": "NONE",
+   "step": 40.0,
+   "flag": "RIGHT_LINE|CLEFT|STOPTURN"
+  }
+ ],
+ "b_resid": {
+  "B9>N7>P6": 7.71,
+  "P6>N7>B8": -2.7,
+  "C4>N20>P8": 12.22,
+  "N20>C4>B11": 0.9,
+  "N3>N4>B2": -0.45,
+  "P8>N20>C4": 0.56,
+  "N8>N5>N4": -5.44,
+  "N5>N8>N12": 0.5,
+  "N8>N3>N4": 0.56,
+  "N4>N3>N8": 9.56,
+  "B8>N9>C3": 32.85,
+  "B11>C4>N20": 19.03,
+  "N10>N9>B9": 0.35,
+  "B2>N1>P1": -9.55,
+  "B3>N2>P2": -26.45
+ }
+}
