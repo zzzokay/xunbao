@@ -59,7 +59,7 @@
 
 /* ===================== 路线生成 ===================== */
 #define USE_PLANNER_ROUTE  1
-#define SKIP_ROUND1        0
+#define SKIP_ROUND1        1
 
 /* ===================== 第二轮东区巡游顺序（P5~P8 各一次，顺序 = 走法）=====================
  * 巡游顺序由**实际摆放**决定，不一定是默认的「P5→P7→P8→P6」。
@@ -72,12 +72,12 @@
  * ⚠️ 改完跑 地图修改上位机/tools/trace_rounds.py（仿真手抄镜像会自检源码同步） */
 #define ROUND2_CRUISE_CW_1   P5
 #define ROUND2_CRUISE_CW_2   P7
-#define ROUND2_CRUISE_CW_3   P8
-#define ROUND2_CRUISE_CW_4   P6
+#define ROUND2_CRUISE_CW_3   P6
+#define ROUND2_CRUISE_CW_4   P8
 #define ROUND2_CRUISE_CCW_1  P6
-#define ROUND2_CRUISE_CCW_2  P8
-#define ROUND2_CRUISE_CCW_3  P7
-#define ROUND2_CRUISE_CCW_4  P5
+#define ROUND2_CRUISE_CCW_2  P7
+#define ROUND2_CRUISE_CCW_3  P5
+#define ROUND2_CRUISE_CCW_4  P8
 
 /* ===================== 比赛时间预算（出门分级贪分，2026-10-11） =====================
  * 出门 = 回程到达 N3/N5（route_return_home 重规划时刻）；计时起点 = zhunbei()
@@ -85,7 +85,7 @@
  *   < 2:25 全跑（含 S1/S2）；≥ 2:25 不跑 S1/S2；≥ 2:35 只跑一个平台；≥ 2:40 直接回家
  * 口径：用户原话 2:15 前全跑，2:15~2:25 为缓冲带维持全跑；要提前收景点把
  *   TB_NO_SIGHTS_AT_S 改 135。门控细节见 mission_planner.c 的 round1_tail_tier()。 */
-#define TIME_BUDGET_ENABLE   1  /* 总开关：0=完全关闭时间预算（不定档/不计时/不重排），尾段恒为全量 */
+#define TIME_BUDGET_ENABLE   0  /* 总开关：0=完全关闭时间预算（不定档/不计时/不重排），尾段恒为全量 */
 #define TB_NO_SIGHTS_AT_S   135  /* 2:15 起不跑 S1/S2 */
 #define TB_ONE_PLAT_AT_S    145  /* 2:25 起只跑一个平台 */
 #define TB_HOME_ONLY_AT_S   155  /* 2:35 起直接回家 */
@@ -108,10 +108,10 @@
 
 /* ===================== 地图起始/目标 & 按键合并窗口 ===================== */
 /* 调试（MAP_DEBUG=1）时，只需改这三个节点名：程序用最短路径算法自动生成 起始点->[途径点]->目标点 的路线 */
-#define FIRST_POINT   P3
-#define VIA_POINT     P4      /* 调试途径点（MapNode 枚举名）；填 0 = 不用途径点（退化成两点路线）。
+#define FIRST_POINT   C3
+#define VIA_POINT     0     /* 调试途径点（MapNode 枚举名）；填 0 = 不用途径点（退化成两点路线）。
                                注意 S1=0，故 S1 不能当途径点；要途经 S1 请改用别的调试方式 */
-#define END_POINT     S2
+#define END_POINT     P8
 #define NAV_TOKEN_WINDOW_MS  2000
 
 
@@ -151,6 +151,7 @@
     #define DOOR_LEN_N5N8   170
     #define DOOR_LEN_N8N10  170
     #define DOOR_LEN_N3N10  170
+#define DOOR_LEN_N20N3  170   /* D5 过门（回程 N20→N3）；先抄 N3N10，待标定 */
     #define DOOR_LEN_N3N8   170
     #define DOOR_LEN_N8N12  170
 #else
@@ -159,6 +160,7 @@
     #define DOOR_LEN_N5N8   200
     #define DOOR_LEN_N8N10  200
     #define DOOR_LEN_N3N10  220
+#define DOOR_LEN_N20N3  90   /* D5 过门（回程 N20→N3）；先抄 N3N10，待标定 */
     #define DOOR_LEN_N3N8   200
     #define DOOR_LEN_N8N12  200
 #endif
@@ -169,12 +171,14 @@
     #define DOOR_RETREAT_N5N8   60
     #define DOOR_RETREAT_N5N4   60
     #define DOOR_RETREAT_N10N8  83
+#define DOOR_RETREAT_N20N8  83   /* D5 读灯失败退回 N20→N8；先抄 N10N8，待标定 */
     #define DOOR_RETREAT_N8N5   60
 #else
     /* —— 比赛场地（现状）—— */
     #define DOOR_RETREAT_N5N8   72
     #define DOOR_RETREAT_N5N4   68
     #define DOOR_RETREAT_N10N8  100
+#define DOOR_RETREAT_N20N8  100  /* D5 读灯失败退回 N20→N8；先抄 N10N8，待标定 */
     #define DOOR_RETREAT_N8N5   78
 #endif
 

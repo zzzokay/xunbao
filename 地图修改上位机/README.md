@@ -6,6 +6,8 @@
 
 1. 双击 **`run_editor.bat`** — 打开地图编辑器
 2. 看 **`map_editor/README.md`** — 使用说明
+3. 两套布局想对账 / 把一套的参数搬到另一套：编辑器左栏「**⇋ JSON 对比…**」
+   （对比 + 按选择迁移，迁移前自动存快照；见 `map_editor/README.md` §4.5.1）
 
 ## 目录结构
 
@@ -35,6 +37,10 @@
 - `Navigation/map.h` — 节点枚举 `enum MapNode`
 - `Mission/config.h` — 宏定义（`LEN_*`、`ANGLE_*`、`DOOR_LEN_*`、`TURN_CALC_ENABLE`、
   **`ROUND2_CRUISE_CW_*` / `ROUND2_CRUISE_CCW_*`** = 第二轮巡游顺序，宝物≠6 / =6 各一组）
+- `Mission/barrier.c` — **门区状态机 `door()` 的触发链**（lastNode→nowNode ⇒ DoorState；
+  编辑器从画布空白处**右键 →「🚧 门区状态表…」**查看/修改触发边并写回，写回自动备份）
+- `Mission/mission_planner.c` — **door_zone[8][2] 门区禁用边**（与触发链同步管理；
+  上位机门区回程/BACK 门识别都从这两个文件解析，固件改了自动跟上）
 - `Navigation/map.c` — **转弯前补偿**两张表（`kTurnTbl[]` / `GetForwardDistanceBeforeGyroTurn`）
   + 公式参数 `TURN_L_PIVOT` / `TURN_GATE_CM` / `TURN_D_*`。入口：编辑器左栏
   「转弯补偿 / 显示:」那一行的「⟲ 转弯补偿…」（原理见 `项目讲解文档/project_reference.md` §14）

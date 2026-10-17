@@ -18,6 +18,8 @@ _selftest.py — 地图编辑器自检（无界面）
  10. config.h 写回：宏替换保留行尾注释（含多行 /* 开头），真实文件干跑逐字节不变
  11. 第二轮 wp：顺序来自 config.h 的 ROUND2_CRUISE_*（读/写回往返 + 自定义只换巡游段）
 12. 转弯前补偿：解析 map.c 两张表 / 覆盖度 / 分支判定 / 写回幂等与护栏
+13. 布局 JSON 对比迁移：diff 产出指令 / 应用生效 / 迁移后收敛零差异 / 反向边只提示
+15. 门区状态表：barrier.c 触发链 / door_zone 解析，沙箱写回，真实固件 SHA256 不变
 只读源码，不写任何固件文件。
 """
 import os
@@ -136,8 +138,10 @@ def main():
     n_enum = len(enum_lines) - 2      # 去掉 "enum MapNode {" 与 "};"
     check(n_enum == len(m.nodes), "enum 行数(%d) == 节点数(%d)" % (n_enum, len(m.nodes)))
     check(enum_lines[-1].strip() == "};", "enum 以 }; 收尾")
-    check("B11" in enum and not enum_lines[-2].rstrip().endswith(","),
-          "enum 最后一项无逗号")
+    # 不硬编码「最后一项是谁」（地图加节点就会红）：按模型最后一个节点动态判
+    check(m.nodes[-1].name in enum_lines[-2]
+          and not enum_lines[-2].rstrip().endswith(","),
+          "enum 最后一项（%s）无逗号" % m.nodes[-1].name)
 
     sec("5. 编辑操作")
     base = len(m.edges)
@@ -642,6 +646,164 @@ def main():
           and M.round1_return_extra_waypoints(3, 0, False, True) == ["S1"]
           and M.round1_return_extra_waypoints(4, 0, False, True) == ["S2"],
           "旧签名薄壳行为不变（回归）")
+
+    sec("14. 布局 JSON 对比迁移（layout_diff / apply_layout_diff_items）")
+    import json as _json
+    # ① 格式护栏：选错文件要报错，而不是静默比出一堆废话
+    try:
+        M.layout_diff({"format": "x"}, {"format": "xunbao-map"})
+        check(False, "format 不对时应抛 ValueError")
+    except ValueError:
+        check(True, "format 不对时抛 ValueError（防选错文件）")
+    # ② 真实布局自比 = 零可迁移差异
+    _ja = _json.loads(m.to_json())
+    _z = M.layout_diff(_ja, _json.loads(_json.dumps(_ja)))
+    check(not [r for s in _z for r in s["rows"] if r["apply"]],
+          "同一份 JSON 自比：0 项可迁移")
+    # ③ 构造一份"改过的参考 B"（动态取键，不硬编码节点/边 —— AI_CONTEXT §7.8）
+    _jb = _json.loads(_json.dumps(_ja))
+    _mk = sorted(_jb["macros"])[0]
+    _jb["macros"][_mk] = str(_jb["macros"][_mk]) + "x"            # 宏改值
+    _jb["field"] = ("FIELD_COMP" if _ja.get("field") != "FIELD_COMP"
+                    else "FIELD_SCHOOL")
+    _st = _jb["turn"]["stop"]
+    _st0 = dict(_st[0])
+    _st0["dist"] = float(_st0["dist"]) + 0.5
+    _st[0] = _st0                                                  # 改一行
+    _stdel = dict(_st.pop())                                       # 删一行（仅 A 有）
+    _st.append({"last": "ZZ1", "now": "ZZ2", "next": "ZZ3",
+                "dist": 9.0})                                      # B 新增一行
+    _ck2 = sorted(_jb["turn"]["consts"])[0]
+    _jb["turn"]["consts"][_ck2] = _jb["turn"]["consts"][_ck2] + 1  # 常量改值
+    _jb["nodes"][0]["x"] = float(_jb["nodes"][0]["x"]) + 3.0       # 节点挪位
+    _jb["edges"][0]["step"] = str(_jb["edges"][0]["step"]) + " "   # 边参数改文本
+    _jb["constraints"]["unit_px_per_cm"] = \
+        float(_jb["constraints"].get("unit_px_per_cm", 1.0)) + 0.1
+    _jb["background"]["opacity"] = 0.9
+    _ja["macros"]["__EXTRA_ONLY_A__"] = "1"                        # 仅 A 有的宏
+    _rows = [r for s in M.layout_diff(_ja, _jb) for r in s["rows"]]
+    _items = [r["apply"] for r in _rows if r["apply"]]
+    _kinds = [it[0] for it in _items]
+    check("field" in _kinds and "macro" in _kinds and "const" in _kinds,
+          "场地/宏/常量差异都被抓到")
+    check(_kinds.count("turn") == 2 and _kinds.count("turndel") == 1,
+          "转弯表：改 1 行 + 新增 1 行 + 删 1 行")
+    check("node" in _kinds and "edge" in _kinds
+          and "constr" in _kinds and "bg" in _kinds,
+          "节点/边/约束/底图差异都被抓到")
+    check(any(r["apply"] is None and "仅 A 有" in r["act"] for r in _rows),
+          "「仅 A 有」的宏只提示、不生成迁移指令")
+    _delrows = [r for r in _rows if r["apply"]
+                and r["apply"][0] in ("nodedel", "edgedel", "turndel")]
+    check(_delrows and all(r["sel"] is False for r in _delrows),
+          "删除类指令默认不勾（sel=False，防误删）")
+    # ④ 应用到干净模型，然后与应用后的模型应收敛为零可迁移差异
+    _m2 = M.MapModel()
+    _m2.load_json(_json.dumps(_ja))
+    _n = M.apply_layout_diff_items(_m2, _items)
+    check(_n == len(_items), "全部指令生效（%d/%d）" % (_n, len(_items)))
+    check(_m2.macros[_mk] == _jb["macros"][_mk], "宏值已迁成 B 的")
+    check(_m2.field_name == _jb["field"], "场地已迁成 B 的")
+    check(any(r.get("last") == "ZZ1" for r in _m2.turn["stop"])
+          and all((r.get("last"), r.get("now"), r.get("next"))
+                  != (_stdel["last"], _stdel["now"], _stdel["next"])
+                  for r in _m2.turn["stop"]),
+          "转弯表：新增行在、被删行不在")
+    _m2j = _json.loads(_m2.to_json())
+    _z2 = [r for s in M.layout_diff(_m2j, _jb) for r in s["rows"] if r["apply"]]
+    check(not _z2, "迁移后 A\' 与 B 收敛为零可迁移差异（%s）"
+          % "; ".join(r["label"] for r in _z2[:5]))
+    # ⑤ 反向边只提示不自动迁（方向语义要人工定）
+    _ra = {"format": "xunbao-map", "edges": [{"frm": "XX", "to": "YY"}]}
+    _rb = {"format": "xunbao-map", "edges": [{"frm": "YY", "to": "XX"}]}
+    _rr = [r for s in M.layout_diff(_ra, _rb) for r in s["rows"]]
+    check(any(r["apply"] is None and "方向不同" in r["act"] for r in _rr)
+          and any(r["apply"] and r["apply"][0] == "edgedel" for r in _rr)
+          and any(r["apply"] and r["apply"][0] == "edge" for r in _rr),
+          "只有反向边的情形：一条提示 + 默认不勾的删除 + 另一方向的新增")
+
+    sec("15. 门区状态表（barrier.c 触发链 / door_zone 解析 + 沙箱写回）")
+    import json as _json2
+    import hashlib as _hl
+    # ① 真实固件解析：5 条触发链，D5_BACK 已是 N20→N3（2026-10-17 迁移）
+    _trig, _tw = M.parse_door_triggers()
+    check(len(_trig) == 5 and not _tw,
+          "barrier.c 触发链解析出 5 条（无警告）")
+    _d5 = next((t for t in _trig if t["state"] == "DOOR_D5_BACK"), None)
+    check(_d5 is not None and _d5["last"] == "N20" and _d5["now"] == "N3",
+          "DOOR_D5_BACK 触发边 = N20→N3（注释=%s）" % (_d5 or {}).get("note", ""))
+    _slots = M.parse_door_slots()
+    check(_slots.get("DOOR_D5_BACK") == 3 and _slots.get("DOOR_D4_BACK") == 2,
+          "door_pass 下标：D5_BACK→3、D4_BACK→2（%s）" % _slots)
+    _pes = M.parse_door_pass_edges()
+    check(_pes.get("DOOR_D5_BACK") == ("N20", "N3"),
+          "D5_BACK 过门动作 door_set_pass_node(N20,N3)（%s）" % (_pes.get("DOOR_D5_BACK"),))
+    _rts = M.parse_door_retreats()
+    check(_rts.get("DOOR_D5_BACK") is not None,
+          "D5_BACK 退回分支解析成功（door_retreat%s；起点是否跟触发边一致由"
+          " door_back_flow 的 hazard 动态提示）" % (_rts.get("DOOR_D5_BACK"),))
+    _zone, _zw = M.parse_door_zone()
+    check(len(_zone) == 8 and ("N3", "N20") in _zone and ("N20", "N3") in _zone
+          and ("N3", "N10") not in _zone and not _zw,
+          "door_zone[8][2] 解析 8 对且 N20↔N3 已进、N10↔N3 已出")
+    # ② 动态 BACK 门链路
+    _be = M.door_back_edges()
+    check(_be.get(("N20", "N3")) == (3, "DOOR_D5_BACK")
+          and _be.get(("N8", "N3")) == (2, "DOOR_D4_BACK"),
+          "door_back_edges() 动态识别两条 BACK 门边")
+    check(M.door_back_slot_edge(3) == ("N20", "N3")
+          and M.door_back_slot_edge(2) == ("N8", "N3"),
+          "door_back_slot_edge(3)/(2) = D5/D4 的 BACK 边")
+    _hops, _start, _allow, _note = M.door_back_chain([1, 1, 1, 2], ("N20", "N3"))
+    check(_hops == [] and _start == "N3" and not _allow and "door_1" in _note,
+          "D5_BACK 绿：直接落 N3 重规划（起点跟着触发边终点走）")
+    _hops2, _start2, _al2, _note2 = M.door_back_chain([3, 2, 2, 1], ("N20", "N3"))
+    _bk = (_rts.get("DOOR_D5_BACK") or ("N20", "N8"))[1]
+    check(_hops2 == [_bk, "N3"] and _start2 == "N3",
+          "D5_BACK 非绿 + D2 蓝 + D4 绿：退回 %s ⇒ %s→N3 重读 D4（hops 动态）"
+          % (_bk, _bk))
+    _wps, _blocked = M.door_return_home_waypoints("N3", 2, False)
+    check(("N20", "N3") in _blocked and ("N3", "N20") in _blocked
+          and ("N10", "N3") not in _blocked and ("N3", "N10") not in _blocked,
+          "门区回程禁用边来自 get_door_zone()：N20↔N3 禁、N10↔N3 不再禁")
+    # ③ 沙箱写回 barrier.c / mission_planner.c（真实固件文件必须一字不动）
+    _tmpdir = os.path.join(HERE, "_selftest_door_%d" % os.getpid())
+    os.makedirs(_tmpdir, exist_ok=True)
+    try:
+        _real_bc = M._fw_path("Mission", "barrier.c")
+        _real_mp = M._fw_path("Mission", "mission_planner.c")
+        _sha = lambda p: _hl.sha256(open(p, "rb").read()).hexdigest()
+        _bc0, _mp0 = _sha(_real_bc), _sha(_real_mp)
+        _sb_bc = os.path.join(_tmpdir, "barrier.c")
+        _sb_mp = os.path.join(_tmpdir, "mission_planner.c")
+        import shutil as _sh
+        _sh.copy2(_real_bc, _sb_bc)
+        _sh.copy2(_real_mp, _sb_mp)
+        # 改触发边：D2 的 N5→N12 改成 N9→N13（假节点，只验字节级替换）
+        _ok, _msg = M.set_door_trigger("DOOR_D2", "N9", "N13",
+                                       path=_sb_bc, backup_dir=_tmpdir)
+        check(_ok, "沙箱 set_door_trigger：%s" % _msg)
+        _sbtxt = open(_sb_bc, encoding="utf-8").read()
+        check("nodes.lastNode.nodenum == N9 && nodes.nowNode.nodenum == N13"
+              "){state = DOOR_D2;}" in _sbtxt.replace("\r\n", "\n"),
+              "沙箱触发行已改（保格式）")
+        check("DOOR_D5_BACK" in _sbtxt and "N20 && nodes.nowNode.nodenum == N3"
+              in _sbtxt, "沙箱里 D5_BACK 行没被误伤")
+        _ok2, _msg2 = M.set_door_zone_pair(("N5", "N12"), ("N9", "N13"),
+                                           path=_sb_mp, backup_dir=_tmpdir)
+        check(_ok2, "沙箱 set_door_zone_pair：%s" % _msg2)
+        check("{N9, N13}" in open(_sb_mp, encoding="utf-8").read(),
+              "沙箱 door_zone 第一对已改")
+        _baks = [f for f in os.listdir(_tmpdir) if f.endswith(".bak")]
+        check(len(_baks) >= 2, "写回前自动备份落沙箱（%d 份）" % len(_baks))
+        # 不存在/多匹配的护栏
+        _ok3, _msg3 = M.set_door_trigger("DOOR_NOPE", "N5", "N8", path=_sb_bc)
+        check(not _ok3, "不存在的 state 拒写（%s）" % _msg3)
+        check(_sha(_real_bc) == _bc0 and _sha(_real_mp) == _mp0,
+              "真实 barrier.c / mission_planner.c 未被自检改动（SHA256 一致）")
+    finally:
+        import shutil as _sh2
+        _sh2.rmtree(_tmpdir, ignore_errors=True)
 
     sec("结果")
     if FAIL:

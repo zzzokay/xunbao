@@ -550,6 +550,11 @@
 
 12. **`plan_route_at()` 重写 route[] 不带 0xFF 哨兵（2026-10-17 已修）**：`nav_build_route()` 原来只在「规划失败」时写 `route[offset]=0xFF`，成功路径只写新节点不写哨兵 ⇒ 每次中途重写（stageAB / P8 宝物回程预案 / `round1_exit_recheck()` 出门裁尾段）都是把更短的路线**盖在旧路线上、旧尾段原样留在后面**，`route[]` 里再无 0xFF。表现：2:15~2:25 档把尾段裁成 P4+P3 后，车跑完两个平台会**顺着残留旧尾段继续跑 S1/S2**（2026-10-17 实车 2:20 于 N5 复现：先 P4 再 P3 后多跑 S1、回头找 S2）；全量档跑完 P2 后也会撞上残留/清零区（route[] 清零区字节 0x00 = 节点 0 = S1）。修复 = `nav_build_route()` 末尾补 `if (j < max_len) route[j++] = 0xFF;`。⚠️ 手抄镜像 `sim_route_bookkeeping.py` 的 `build_route_at()` 一直按「含 0xFF 哨兵」模拟，所以仿真全绿也测不出 —— 以后「固件真机走了仿真里没有的路」优先怀疑这类账本写盘细节。
 
+13. **`upright_Set_node(a,b)` / `upright_Reset_node(a,b)` 的 `(a,b)` 必须是边表里**真实存在**的有向边，否则上电（或二轮开局）第一拍就死停。**（2026-10-17 踩过）
+    `getNextConnectNode()` 查不到 → `Route_Error_Stop()` → `send(33)` 播"偏航" → `CarBrake_Stop()` `while(1)`。
+    事故：`upright_Set()` 写了 `upright_Set_node(N20,C8)`，而 **`N20` 的出边只有 `P8 / N3 / N10 / C10`**（`N20→C8` 没有这条边，N20 侧进 C8 必须先走 `N20→C10→C8`）⇒ `SKIP_ROUND1=1` 时 `get_newroute()` 在**上电第一拍**就执行到 `upright_Set()` ⇒ 一上电就是"偏航"音 + 车再也不动；串口是 `[HARD-STOP] ROUTE ERROR: no connection 38 -> 42` 紧跟 `[HARD-STOP] CarBrake_Stop entered`。同函数的 `do_Upright()` 收尾 `upright_Reset_node(N20,C8)` 一并改成 `(C10,C8)`。
+    ⚠️ 加/改布防点前先查边：`m.out_neighbors('N20')`（上位机镜像）或 `grep "{ *N20," Navigation/map_message.c`。
+
 ## 6. 调参与实车
 
 1. **转弯前硬补偿那一列混了两件事**（转弯几何 + 段长补偿），所以任何公式都拟合不了。
@@ -837,3 +842,32 @@
   Keil **0 Error / 29 Warning**（与基线同）；sim 全绿（宏=0 已实测二轮 wp 去 S1、宏=1 恢复）；
   _selftest/_guismoke 各 6 失败为**既有**（换改前 config 复现：TB_P1 档位期望 + N16→N18 边检查未跟上固件演进）。
   备份 /tmp/{config.h,mission_planner.c,map_model.py}.bak
+
+- **10-17 上位机新增「⇋ JSON 对比迁移」**（map_editor）：两个布局 JSON 对比（A=基准/当前、
+  B=参考），差异按 场地/宏/转弯补偿/约束/底图/节点/边 分节列出，多选后迁到当前布局。
+  纯计算 `map_model.layout_diff()/apply_layout_diff_items()`（_selftest 新增第 14 节，全过）+
+  对话框 `layout_diff_dialog()`（_guismoke「layout JSON diff dialog」段 11 项全过；沙箱 A/B，
+  真实 layouts/map.c/config.h SHA256 不变）。护栏：删除类默认不勾；「仅 A 有」宏不迁；
+  反向边只提示不自动迁；**迁移前完整快照落 layouts/snapshots/**（宏/转弯表/约束不在撤销栈）。
+  入口在左栏 ⚖ 规划权重 同一行（工具栏三行宽度吃紧，§7.9）。
+  map_model.py 为纯插入（diff 0 行删除）；_selftest/_guismoke 剩余 6~7 失败为既有 WIP
+  （10-16 尾条已记的 TB_P1/N16→N18 + 本轮 D2黑+D3绿、BLBL 拉条、S1 长度，基线复现一致）。
+
+- **10-17（晚）D5 过门必经点 N10→N3 ⇒ N20→N3 全链迁移 + 上位机「🚧 门区状态表」**：
+  固件 barrier.c（触发链/D5_BACK 过门动作/D4 蓝灯预设）、mission_planner.c（door_zone[8][2]、
+  plan_treasure_return 的 wp、一轮回程出门边检测 round1_exit_recheck、get_newroute 三处 D5 必经点、
+  门区边参数恢复）、config.h（新增 DOOR_LEN_N20N3 / DOOR_RETREAT_N20N8，两场地段，先抄旧值待标定）、
+  map_message.c（边表 N3↔N10 → N3↔N20，N20→N3 func=DOOR）。**⚠️ mission_planner.c 里
+  USE_PLANNER_ROUTE=0 的手写数组（entry_*_p6 / tail_D3_D5_blue 等）仍走 N10，未迁移**——
+  它们拓扑相关（N8→N20 无边），需要按新地图重规划；N20→N8 也没有边，door_retreat(N20,N8)
+  的退回几何要实车验证。上位机：新增门区状态表（画布空白右键），barrier.c 触发链 / door_zone
+  可视 + 可改 + 写回（自动备份）；BACK 门识别全部改为解析固件（door_back_edges /
+  door_back_slot_edge），treasure_return_waypoints / door_read_flow / door_back_flow /
+  door_back_chain / 完整一轮④段检测全动态。validate/_check_csr、_check_door_perm 的门边列表
+  改为动态解析 door_zone（12/12 golden 新拓扑下复现）。_selftest 新增第 15 节 19 项全过、
+  _guismoke 新增「door state dialog」段 7 项全过（真实 barrier.c/config.h/mission_planner.c
+  SHA256 不变）；Keil -r 全量重编 **0 Error / 36 Warning**（与基线同）。
+  _selftest/_guismoke 剩余 6~7 失败仍为既有 WIP（TB_P1 / N16→N18 / BLBL / S1 长度）。
+  备份 map_editor/backups/*.{pre_d5n20,pre_d5n20b}.bak + /tmp/xunbao_bak_1017b/
+
+- **2026-10-17（修「一上电就播偏航 33 / 车不动」）**：`Mission/barrier.c` 的 `upright_Set()` 里 `upright_Set_node(N20,C8)` 引用了**不存在的边**（`N20` 出边只有 `P8/N3/N10/C10`，要 `N20→C10→C8`）。`SKIP_ROUND1=1` 时 `main_task` 第一拍就 `get_newroute()` → `upright_Set()` → `getNextConnectNode(N20,C8)` 失败 → `Route_Error_Stop` 播 `33`（偏航）+ `CarBrake_Stop()` `while(1)` ⇒ 上电只响一声"偏航"、车完全不动；`SKIP_ROUND1=0` 时则推迟到二轮开局同样死停。两处（`upright_Set` / `do_Upright` 的 Reset）改为 `(C10,C8)`。护栏写进 §5.13；Keil `-r` 全量 **0 Error / 38 Warning**（`barrier.c` 5 条均为既有 546-D/550-D，本次未新增）。

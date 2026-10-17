@@ -43,7 +43,7 @@ u8 door1route[100] = {N3, N8, 0XFF};                     // D2关D3关，去D4
    回程时全部禁用，防止最短路又拐回门区、或在门口穿门掉头。 */
 static const u8 door_zone[8][2] = {
 	{N5, N12}, {N12, N5}, {N5, N8}, {N8, N5},
-	{N3, N8},  {N8, N3},  {N3, N10}, {N10, N3},
+	{N3, N8},  {N8, N3},  {N3, N20}, {N20, N3},   /* D5 过门边 10-17: N10→N3 改 N20→N3 */
 };
 
 /* ==================== 内部辅助函数 ==================== */
@@ -179,7 +179,7 @@ void round1_exit_recheck(void)
 	if (s_exit_checked) return;
 	/* 定档点：宝物=P1 → 在 P1 平台（Stage() 调）；其余 → 到达四条出门边（去程不会误触发） */
 	if (treasure == 2) { if (arr != P1) return; }
-	else if (!((arr == N3 && (from == N10 || from == N8)) ||
+	else if (!((arr == N3 && (from == N20 || from == N8)) ||
 	           (arr == N5 && (from == N12 || from == N8)))) return;
 
 	/* 前方还有可选加分项（S1/S2/补打卡平台）才值得重排 */
@@ -360,8 +360,8 @@ static uint8_t plan_treasure_return(uint8_t start)
 	else if (door_pass[0] == ONE_WAY_PASS || door_pass[1] == ONE_WAY_PASS ||
 		door_pass[2] == ONE_WAY_PASS)
 	{
-		/* 回程需经 D5；该门仍由 door() 在 N10->N3 上读取和处理 */
-		wp[n++] = N10;
+		/* 回程需经 D5；该门由 door() 在 N20->N3 上读取和处理（10-17 迁移） */
+		wp[n++] = N20;
 		wp[n++] = N3;
 	}
 	else
@@ -630,8 +630,8 @@ void Clear_door(void)
 	door_set_pass_node(N8, N5, DOOR_LEN_N5N8, SPEED4);
 	door_set_pass_node(N3, N8, DOOR_LEN_N3N8, SPEED4);
 	door_set_pass_node(N8, N3, DOOR_LEN_N3N8, SPEED4);
-	door_set_pass_node(N3, N10, DOOR_LEN_N3N10, SPEED4);
-	door_set_pass_node(N10, N3, DOOR_LEN_N3N10, SPEED4);
+	door_set_pass_node(N3, N20, DOOR_LEN_N20N3, SPEED4);
+	door_set_pass_node(N20, N3, DOOR_LEN_N20N3, SPEED4);
 }
 
 void get_newroute(void)
@@ -706,7 +706,7 @@ void get_newroute(void)
 		}
 		else if (door_pass[0] == ONE_WAY_PASS && door_pass[3] == CAN_PASS)
 		{
-			wp[n++] = N10;               /* 原 N10,N3：N3 冗余 */
+			wp[n++] = N20;               /* 原 N10,N3：N3 冗余（10-17 D5 迁移 N20→N3） */
 		}
 		else if (door_pass[0] == ONE_WAY_PASS && door_pass[3] == NO_PASS && door_pass[2] == CAN_PASS)
 		{
@@ -724,7 +724,7 @@ void get_newroute(void)
 		}
 		else if (door_pass[0] == NO_PASS && door_pass[1] == ONE_WAY_PASS && door_pass[3] == CAN_PASS)
 		{
-			wp[n++] = N10;               /* 原 N10,N3：N3 冗余 */
+			wp[n++] = N20;               /* 原 N10,N3：N3 冗余（10-17 D5 迁移 N20→N3） */
 		}
 		else if (door_pass[0] == NO_PASS && door_pass[1] == ONE_WAY_PASS && door_pass[3] == NO_PASS)
 		{
@@ -736,7 +736,7 @@ void get_newroute(void)
 		}
 		else if (door_pass[0] == NO_PASS && door_pass[1] == NO_PASS && door_pass[2] == ONE_WAY_PASS)
 		{
-			wp[n++] = N10;               /* 原 N10,N3：N3 冗余 */
+			wp[n++] = N20;               /* 原 N10,N3：N3 冗余（10-17 D5 迁移 N20→N3） */
 		}
 		else
 		{

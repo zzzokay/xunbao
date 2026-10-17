@@ -35,7 +35,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     /* ========== N2 ========== */
     { N2, B1, RESTMPUZ|RIGHT_LINE, 0, 24, SPEED0, Bridge },
     { N2, B3, NO, 30, 36, SPEED1, BLBS },
-    { N2, P2, LEFT_LINE, 180, 10, 15, UpStageHome },
+    { N2, P2, LEFT_LINE, 180, 12, 15, UpStageHome },
 
     /* ========== P2 ========== */
     { P2, N2, CLEFT|RIGHT_LINE, 0, 12, SPEED1, NONE },
@@ -51,7 +51,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { N3, P3, LEFT_LINE, 0, 320, SPEED4, UpStage },
     { N3, N4, CLEFT|LEFT_LINE|Temp_R, 180, 130, SPEED3, NONE },
     { N3, N8, DRIGHT|DLEFT|NEAR_CENTER, ANGLE_N3N8, 50, SPEED2, DOOR },
-    { N3, N10, DLEFT|DRIGHT|RIGHT_LINE, 90, DOOR_LEN_N3N10, SPEED3, NONE },
+    { N3, N20, NO|DRIGHT, 90, 50, SPEED2, DOOR },
 
     /* ========== N4 ========== */
     { N4, B2, NO, -40, 40, SPEED1, Hill },
@@ -74,39 +74,38 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { P4, N6, CRIGHT|LEFT_LINE, 0, 40, SPEED3, NONE },
 
     /* ========== N7 ========== */
-    { N7, P6, NO, 90, 18, 15, UpStage },
-    { N7, B8, LEFT_LINE|NOTURN, 10, 1, SPEED1, QQB },
+    { N7, P6, NO, 0, 20, 15, UpStage },
+    { N7, B8, LEFT_LINE|NOTURN, -80, 0, 15, QQB },
 
     /* ========== P6 ========== */
-    { P6, N7, DLEFT|DRIGHT|AWHITE|STOPTURN, -90, 18, SPEED1, NONE },
+    { P6, N7, CLEFT|CRIGHT|STOPTURN, 180, 10, SPEED0, NONE },
 
     /* ========== B8 ========== */
-    { B8, N9, MUL2MUL|MUL2SING|STOPTURN|CLEFT, 160, 1, 15, NONE },
+    { B8, N9, CRIGHT|MUL2MUL|STOPTURN|MCRIGHT, 10, 0, 15, NONE },
 
     /* ========== B9 ========== */
-    { B9, N7, DLEFT|STOPTURN, -80, 5, 15, NONE },
+    { B9, N7, DLEFT|STOPTURN, -170, 5, 15, NONE },
 
     /* ========== N8 ========== */
     { N8, N3, CLEFT|CRIGHT|NEAR_CENTER|MUL2MUL, ANGLE_N8N3, 50, SPEED2, DOOR },
     { N8, N5, STOPTURN|CLEFT, ANGLE_N8N5, 50, SPEED0, DOOR },
-    { N8, N10, MUL2MUL|NEAR_CENTER, ANGLE_N8N10, DOOR_LEN_N8N10, SPEED4, NONE },
+    { N8, N10, CLEFT|CRIGHT|NEAR_CENTER, ANGLE_N8N10, DOOR_LEN_N8N10, SPEED4, NONE },
     { N8, N12, MUL2MUL, ANGLE_N8N12, DOOR_LEN_N8N12, SPEED3, NONE },
 
     /* ========== C3 ========== */
-    { C3, N9, MUL2SING|RIGHT_LINE|MCLEFT|NOTURN, 180, 90, SPEED1, NONE },
-    { C3, N14, DLEFT|MCLEFT|CLEFT, 90, 10, SPEED1, View },
+    { C3, B6, NO|DRIGHT, 180, 500, SPEED4, SM },
+    { C3, N9, LEFT_LINE|MCRIGHT, -90, 100, SPEED2, NONE },
 
     /* ========== N9 ========== */
-    { N9, B9, LEFT_LINE|NOTURN, -165, 0, SPEED1, QQB },
-    { N9, C3, DLEFT|LEFT_LINE, 0, 70, SPEED2, NONE },
-    { N9, N10, DLEFT|DRIGHT|NEAR_CENTER, 180, 200, SPEED3, NONE },
+    { N9, B9, LEFT_LINE|NOTURN, 100, 0, 15, QQB },
+    { N9, B10, NO|LEFT_LINE, -90, 100, SPEED3, BLBL },
+    { N9, C3, NO|DLEFT|RIGHT_LINE, 90, 100, SPEED3, NONE },
 
     /* ========== N10 ========== */
-    { N10, N3, DRIGHT|DLEFT|RIGHT_LINE|STOPTURN, -90, 70, SPEED2, DOOR },
     { N10, N8, CLEFT|CRIGHT|DLEFT|DRIGHT, ANGLE_N10N8, DOOR_LEN_N8N10, SPEED3, NONE },
-    { N10, N9, LEFT_LINE|CRIGHT|MUL2SING|STOPTURN, 0, 170, SPEED3, NONE },
     { N10, N15, DRIGHT|STOPTURN, 90, 24, SPEED2, NONE },
     { N10, N11, NO, 180, 100, SPEED1, SM },
+    { N10, N20, NO|DLEFT|LEFT_LINE, -90, 10, SPEED2, NONE },
 
     /* ========== N12 ========== */
     { N12, N5, AWHITE|RIGHT_LINE|RESTMPUZ, -90, 222, SPEED4, NONE },
@@ -122,13 +121,8 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     /* ========== P5 ========== */
     { P5, N13, MUL2SING|CLEFT|CRIGHT|NEAR_CENTER, 0, 60, SPEED2, NONE },
 
-    /* ========== N14 ========== */
-    { N14, C3, DRIGHT|STOPTURN, -90, 18, SPEED1, NONE },
-    { N14, S3, NO, -180, 2, SPEED1, View1 },
-    { N14, B10, NO, 90, 120, SPEED3, BLBL },
-
     /* ========== S3 ========== */
-    { S3, N14, INGNORE, 180, 2, -SPEED0, BACK },
+    { S3, C8, NO, -90, 0, SPEED2, NONE },
 
     /* ========== S4 ========== */
     { S4, N15, INGNORE, 0, 1, -SPEED0, BACK },
@@ -141,21 +135,17 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     /* ========== S5 ========== */
     { S5, N16, INGNORE, 0, 1, -SPEED0, BACK },
 
-    /* ========== C4 ========== */
-    { C4, N20, CRIGHT|MUL2MUL, 155, 170, SPEED4, NONE },
-    { C4, B11, NO, 90, 50, SPEED2, BLBL },
-
     /* ========== C5 ========== */
     { C5, N15, DLEFT|STOPTURN, -90, 36, SPEED2, NONE },
     { C5, N18, NO|DLEFT, 180, 150, SPEED4, NONE },
 
     /* ========== B5 ========== */
-    { B5, N18, DRIGHT, 0, LEN_N18B5-20, SPEED25, NONE }, /* B5->N18 （与 N18->B5 同长，取大=LEN_N18B5） */
+    { B5, N18, DRIGHT, 0, LEN_N18B5-30, SPEED25, NONE }, /* B5->N18 （与 N18->B5 同长，取大=LEN_N18B5） */
     { B5, N19, DRIGHT, 180, LEN_B5N19, SPEED25, NONE },
 
     /* ========== B6 ========== */
-    { B6, N20, CRIGHT|DRIGHT|RESTMPUZ|LEFT_LINE, 0, 50, SPEED2, NONE },
-    { B6, N22, DRIGHT|RESTMPUZ, 180, 36, SPEED3, NONE },
+    { B6, C3, NO|DRIGHT, 0, 500, SPEED4, NONE },
+    { B6, C9, NO|DLEFT, 180, 30, SPEED2, NONE },
 
     /* ========== B7 ========== */
     { B7, N22, DLEFT|RESTMPUZ, 0, LEN_N22B7-30, SPEED3, NONE }, /* B7->N22 （与 N22->B7 同长，取大=LEN_N22B7） */
@@ -179,12 +169,12 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { P7, C9, DRIGHT, 0, 200, SPEED4, NONE },
 
     /* ========== N20 ========== */
-    { N20, C4, CLEFT|MCLEFT|STOPTURN|RIGHT_LINE, -35, 180, SPEED4, NONE },
-    { N20, B6, NO, 180, 50, SPEED1, SM },
-    { N20, P8, NEAR_CENTER|RESTMPUZ, 0, 12, SPEED0, BHM },
+    { N20, P8, RESTMPUZ|LEFT_LINE|NEAR_CENTER, 0, 20, SPEED0, BHM },
+    { N20, N3, NO|DRIGHT, -90, 10, SPEED2, DOOR },
+    { N20, N10, NO|DLEFT|RIGHT_LINE, 90, 10, SPEED2, NONE },
+    { N20, C10, NO|MCLEFT, -35, 90, SPEED3, NONE },
 
     /* ========== N22 ========== */
-    { N22, B6, RESTMPUZ, 0, 18, SPEED1, SM },
     { N22, B7, NO, 180, LEN_N22B7, SPEED3, Hill },
     { N22, C9, DLEFT|CLEFT, 90, 10, SPEED2, NONE },
 
@@ -193,31 +183,33 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { C6, N19, DLEFT, -90, 30, SPEED2, NONE },
 
     /* ========== C7 ========== */
-    { C7, C8, DLEFT|STOPTURN, 180, 108, SPEED3, NONE },
-    { C7, B10, NO, -90, 15, SPEED1, BLBL },
+    { C7, B10, NO, 90, 20, SPEED1, BLBL },
+    { C7, C8, NO|DRIGHT, 180, 20, SPEED2, NONE },
 
     /* ========== C8 ========== */
-    { C8, C7, DRIGHT|CRIGHT|STOPTURN, 0, 100, SPEED25, NONE },
-    { C8, B11, NO, -90, 10, SPEED1, BLBL },
+    { C8, C7, NO|DLEFT, 0, 20, SPEED2, NONE },
+    { C8, S3, NO, 90, 0, SPEED2, NONE },
+    { C8, C10, NO|MCRIGHT, 180, 20, SPEED2, NONE },
 
     /* ========== C9 ========== */
     { C9, P7, NONE, 180, 250, SPEED4, BSoutPole },
     { C9, N22, DLEFT|DRIGHT|STOPTURN, -90, 18, SPEED2, NONE },
+    { C9, B6, NO, 0, 30, SPEED0, SM },
 
     /* ========== P8 ========== */
-    { P8, N20, MCLEFT|RIGHT_LINE|STOPTURN, 180, 12, SPEED0, NONE },
+    { P8, N20, DLEFT|DRIGHT|STOPTURN|RIGHT_LINE, 180, 20, SPEED0, NONE },
 
     /* ========== N11 ========== */
     { N11, N10, DLEFT|DRIGHT|LEFT_LINE, 0, 60, SPEED25, NONE },
     { N11, N12, RIGHT_LINE|AWHITE|DRIGHT, 180, 60, SPEED3, NONE },
 
     /* ========== B10 ========== */
-    { B10, N14, DRIGHT|STOPTURN, -90, 120, SPEED3, View },
-    { B10, C7, DLEFT|CLEFT, 90, 20, SPEED1, NONE },
+    { B10, C7, DRIGHT, -90, 20, SPEED1, NONE },
+    { B10, N9, NO|RIGHT_LINE|MCLEFT|NOTURN, 90, 100, SPEED3, NONE },
 
-    /* ========== B11 ========== */
-    { B11, C4, CRIGHT, -90, 40, SPEED2, NONE },
-    { B11, C8, DRIGHT|CRIGHT, 90, 10, SPEED1, NONE },
+    /* ========== C10 ========== */
+    { C10, N20, NO|CLEFT|STOPTURN, 145, 90, SPEED3, NONE },
+    { C10, C8, NO|DLEFT, 0, 20, SPEED2, View },
 };
 
 /* 编译期检查：NavEdgeTbl 行数必须与 NAV_EDGE_COUNT 一致（改漏立即编译报错）

@@ -38,9 +38,21 @@ print(f"getNextConnectNode(自动CSR) 解析参考边: 成功 {ok}, 失败 {bad}
 addr_ok = (addr[54]==len(edges))
 print(f"addr[54]={addr[54]} 应==NAV_EDGE_COUNT={len(edges)}: {'OK' if addr_ok else 'MISMATCH'}")
 
-# 3) 校验 8 条门边
+# 3) 校验 8 条门边（动态解析 mission_planner.c 的 door_zone[8][2]，2026-10-17 N20↔N3 迁移后不再写死）
 door_bad = 0
-for (a,b) in [("N5","N12"),("N12","N5"),("N5","N8"),("N8","N5"),("N3","N8"),("N8","N3"),("N3","N10"),("N10","N3")]:
+
+def door_zone_pairs():
+    """从 mission_planner.c 动态解析 door_zone[8][2]（固件改门边，这里自动跟上）。"""
+    import re, os
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     "..", "..", "Mission", "mission_planner.c")
+    txt = open(p, encoding="utf-8", errors="replace").read()
+    m = re.search(r"door_zone\s*\[\s*\d+\s*\]\s*\[\s*\d+\s*\]\s*=\s*\{(.*?)\}\s*;",
+                  txt, re.S)
+    assert m, "mission_planner.c 里没找到 door_zone[8][2]"
+    return [(a, b) for a, b in re.findall(r"\{\s*(\w+)\s*,\s*(\w+)\s*\}", m.group(1))]
+
+for (a,b) in door_zone_pairs():
     r = getNextConnectNode(W.NODE_IDX[a], W.NODE_IDX[b])
     ok_str = 'OK' if r is not None else 'MISSING'
     if r is None: door_bad += 1

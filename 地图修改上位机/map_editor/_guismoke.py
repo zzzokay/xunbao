@@ -196,6 +196,95 @@ def main():
               "真实布局文件未被冒烟测试改动（SHA256 一致）")
     check(not os.path.exists(layout), "沙箱布局已清理")
 
+    # --- 「⇋ JSON 对比…」：入口可见 + 两个沙箱 JSON 能对比/迁移（不碰真实 layouts）---
+    step("layout JSON diff dialog")
+    _btn_diff = _find_button(app, "⇋ JSON 对比…")
+    check(_btn_diff is not None, "左栏找到「⇋ JSON 对比…」入口按钮")
+    if _btn_diff is not None:
+        check(_btn_diff.winfo_ismapped(),
+              "「⇋ JSON 对比…」入口真的被映射（AI_CONTEXT §7.9 的教训）")
+
+    def _find_tree(w):
+        from tkinter import ttk
+        for c in w.winfo_children():
+            if isinstance(c, ttk.Treeview):
+                return c
+            got = _find_tree(c)
+            if got is not None:
+                return got
+        return None
+
+    _tmpdir = os.path.join(HERE, "_smoke_diff_%d" % os.getpid())
+    shutil.rmtree(_tmpdir, ignore_errors=True)
+    os.makedirs(_tmpdir, exist_ok=True)
+    _da = os.path.join(_tmpdir, "A.json")
+    _db = os.path.join(_tmpdir, "B.json")
+    # 迁移前快照一律落沙箱（真实 layouts/snapshots 绝不能被测试碰，AI_CONTEXT §7.1）
+    app._diff_backup_dir_override = _tmpdir
+    try:
+        check(app.save_layout(show_msg=False, path=_da) and os.path.isfile(_da),
+              "对比测试：布局 A 存沙箱")
+        with open(_da, encoding="utf-8") as fh:
+            _d = json.load(fh)
+        # ⚠️ 挑宏别挑到 ANGLE_*/LEN_*（边表求值会引用）：选 OCR_*（舵机 PWM，不影响边）
+        _mk = next((k for k in sorted(_d["macros"]) if k.startswith("OCR_")),
+                   sorted(_d["macros"])[0])
+        _d["macros"][_mk] = str(_d["macros"][_mk]) + "x"          # 宏改值
+        _d["nodes"][0]["x"] = float(_d["nodes"][0]["x"]) + 5.0    # 节点挪位
+        with open(_db, "w", encoding="utf-8") as fh:
+            json.dump(_d, fh, ensure_ascii=False)
+        # auto=True：打开即对比（不弹文件对话框，符合 §7.5 无人值守规则）
+        dlg = app.layout_diff_dialog(path_a=_da, path_b=_db, auto=True)
+        app.update()
+        _tree = _find_tree(dlg)
+        check(_tree is not None, "对比对话框里有差异树")
+        _leafs = []
+        if _tree is not None:
+            _heads = _tree.get_children()
+            check(len(_heads) >= 2, "对比结果按节分组（%d 个节）" % len(_heads))
+            for h in _heads:
+                _leafs += list(_tree.get_children(h))
+            check(len(_leafs) >= 2,
+                  "宏 + 节点的差异行都列出来了（%d 行）" % len(_leafs))
+        dlg.destroy()
+        app.update()
+        # 选差异行 → 应用到当前模型 → 验证后还原（模型改动可逆，快照落沙箱）
+        _old_mk = app.model.macros[_mk]
+        _old_x0 = app.model.nodes[0].x
+        dlg2 = app.layout_diff_dialog(path_a=_da, path_b=_db, auto=True)
+        app.update()
+        _tree2 = _find_tree(dlg2)
+        _leafs2 = []
+        for h in _tree2.get_children():
+            _leafs2 += list(_tree2.get_children(h))
+        check(bool(_leafs2), "第二个对话框同样能列出差异行")
+        if _leafs2:
+            _tree2.selection_set(_leafs2)
+            _btn_apply = _find_button(dlg2, "应用选中 → 当前布局")
+            check(_btn_apply is not None, "「应用选中」按钮存在")
+            if _btn_apply is not None:
+                _btn_apply.invoke()          # 无删除行 ⇒ 不会弹确认框，无人值守安全
+                app.update()
+                check(app.model.macros[_mk] != _old_mk,
+                      "应用后宏已迁成 B 的值")
+                check(abs(app.model.nodes[0].x - _old_x0) > 1.0,
+                      "应用后节点坐标已迁成 B 的")
+                _baks = [f for f in os.listdir(_tmpdir) if f.startswith("对比迁移前_")]
+                check(bool(_baks), "迁移前完整快照落在沙箱（%s）" % (_baks or "无"))
+                # 还原模型（宏不在撤销栈里，手动恢复）
+                app.model.macros[_mk] = _old_mk
+                app.model.nodes[0].x = _old_x0
+                app.model.dirty = True
+                app.refresh_all()
+                app.update()
+        if dlg2.winfo_exists():
+            dlg2.destroy()
+        app.update()
+    finally:
+        shutil.rmtree(_tmpdir, ignore_errors=True)
+        app._diff_backup_dir_override = None
+    check(not os.path.exists(_db), "对比沙箱已清理")
+
     # --- 底图：候选 / 反推标定 / 滑条 / 重置 ---
     step("background controls")
     check(hasattr(app.bg, "fit_to_nodes"), "背景管理器就位")
@@ -1165,19 +1254,54 @@ def main():
     check("反复重读" in _sections_text(secs),
           "door() 里 D5黑无匹配分支的隐患被提示")
 
+    # --- 🚧 门区状态表：对话框能建、两张表都有数据（只读检查，不写固件）---
+    step("door state dialog")
+    from tkinter import ttk
+    _dlg = app.door_state_dialog()
+    app.update()
+    _trees = []
+    def _collect_trees(w):
+        for c in w.winfo_children():
+            if isinstance(c, ttk.Treeview):
+                _trees.append(c)
+            _collect_trees(c)
+    _collect_trees(_dlg)
+    check(len(_trees) >= 2, "门区状态表：触发链表 + door_zone 表都建出来（%d 棵树）"
+          % len(_trees))
+    if _trees:
+        _n_rows = len(_trees[0].get_children())
+        check(_n_rows == 5, "触发链 5 行（%d）" % _n_rows)
+        _z_rows = len(_trees[1].get_children())
+        check(_z_rows == 8, "door_zone 8 行（%d）" % _z_rows)
+        _kids = _trees[0].get_children()
+        if _kids:
+            _vals = _trees[0].item(_kids[-1], "values")
+            check("N20→N3" in str(_vals),
+                  "触发链表里 D5_BACK 显示 N20→N3（跟 barrier.c 解析）")
+    check(_find_button(_dlg, "修改选中的触发边 → 写回 barrier.c") is not None,
+          "「修改触发边 → 写回」按钮存在")
+    check(_find_button(_dlg, "修改选中的边 → 写回 mission_planner.c") is not None,
+          "「修改 door_zone → 写回」按钮存在")
+    _dlg.destroy()
+    app.update()
+
     # 经过 DOOR 边必须告警（旧版 show_route_text 有，重写时曾漏掉）
     _p, _why = app.model.plan_route(["N5", "N8"], "full")
     _lines = app._fmt_planned(["N5", "N8"], _p, _why)
     check(any("是 DOOR 边" in ln for ln in _lines),
           "路线经过 DOOR 边时会告警（door() 会清空 route[]）")
 
-    # 回程门区：D2蓝 + D5绿 ⇒ 固件 get_newroute 的 wp 只放 N10（N3 冗余），规划器必须走 N10→N3
+    # 回程门区：D2蓝 + D5绿 ⇒ 固件 get_newroute 的 wp 只放过门起点（N3 冗余），
+    # 走的边 = 触发链 D5_BACK 的边（从 barrier.c 解析；2026-10-17 起是 N20→N3）
+    _e5 = M.door_back_slot_edge(3) or ("N20", "N3")
     secs, flat, err = app._clue_route_sections(
         ST_R2, None, (5, 7),
         [M.ONE_WAY_PASS, M.NO_PASS, M.NO_PASS, M.CAN_PASS], 4, "full")
     _tail = " -> ".join(flat or [])
-    check("N10 -> N3" in _tail and "N10 -> N8" not in _tail,
-          "D2蓝+D5绿（D3/D4黑）回程走 N10→N3，不绕 N10→N8")
+    check("%s -> %s" % _e5 in _tail
+          and ("%s -> N8" % _e5[0]) not in _tail,
+          "D2蓝+D5绿（D3/D4黑）回程走 %s→%s 过 D5，不绕 %s→N8"
+          % (_e5[0], _e5[1], _e5[0]))
     # 对照：D2蓝 + D3绿 + D4绿 + D5黑 ⇒ 固件 wp 里**明写 N8**（D5 黑、走 D4 回家），
     # 所以路线确实会经 N10→N8 再去 N3 —— 这是对的，不是 bug。
     _doors_x = [M.ONE_WAY_PASS, M.CAN_PASS, M.CAN_PASS, M.NO_PASS]

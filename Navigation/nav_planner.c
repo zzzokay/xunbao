@@ -21,7 +21,7 @@ static const float NavObsPenalty[20] = {
                 改这里必须同步 scripts/map_editor/map_model.py 的 OBS["Hill"] 与
                 scripts/validate/_weight_calib.py 的 OBS_PENALTY[4]（_selftest.py 第 8 节会逐项比对）。 */
     50.0f,  /* 5 LBHill */
-    265.0f, /* 6 SM 刀山(round2 用权重避开 N11) */
+    213.0f, /* 6 SM 刀山(round2 用权重避开 N11) */
     100.0f, /* 7 View 景点支路(不应被当捷径) */
     100.0f, /* 8 View1 景点支路 */
     1000.0f,/* 9 BACK 后退桩(绝不该选为前进路径) */
@@ -29,7 +29,7 @@ static const float NavObsPenalty[20] = {
     80.0f,  /* 11 QQB 跷跷板(单相) */
     70.0f,  /* 12 BLBS 短波动板 */
     50.0f,  /* 13 BLBL 长波动板(BLBL 调低便于南环/长波动板更快；且 BLBL<BLBS 使最小 Hill 降到 240) */
-    60.0f,  /* 14 DOOR 门：**不再是 0**。门要停车→等线(Scaner.ledNum>=8)→刹车→读灯(500ms)+转弯，
+    400.0f, /* 14 DOOR 门：**不再是 0**。门要停车→等线(Scaner.ledNum>=8)→刹车→读灯(500ms)+转弯，
                是固定时间开销，纯"长度+转弯"模型完全没算；取 0 会让规划器把"穿门"当免费捷径
                （实测：学校场地 N3→P4 走门 493 < 原路折返 510 → 自己拐进 D4 门、还会被 door() 清空 route）。
                取 60 = 与 UpStage 同量级；实测 0→300 期间 15 条参考路线/12 条门回程/门逻辑均不变，

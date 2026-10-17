@@ -48,7 +48,7 @@ extern u8 door1route[100];
  *  楼梯              Barrier_Hill
  *  刀山              Sword_CorrectByScanner / Sword_Mountain
  *  珠峰              Barrier_HighMountain
- *  直立景点          do_Upright / do_Upright1 
+ *  直立景点          do_Upright / do_Upright_Far 
  *  波浪板            Barrier_WavedPlate
  *  南极              South_Pole
  *  路线更新（宝物）  load_route_at
@@ -1228,7 +1228,7 @@ void Barrier_HighMountain(void)
 			Robot_Work(BODY, UP); 	//人站起来
 			Robot_Work(CAMERA, HEAD_MID);
 			/* 平台动作（选角同优先级：origin 坡底平地实测更直 > 第二段采样 straight_angle） */
-			Stage_Action(origin_valid ? origin_angle : straight_angle);
+			Stage_Action(straight_angle ? straight_angle : origin_angle);
 
 			origin_angle = need2turn(0.0f, nodes.nowNode.angle + 180.0f);
 			descend_angle = origin_angle;	/* 下坡第一段无有效帧时的回退值 */
@@ -1365,7 +1365,7 @@ void South_Pole(void)
 		SP_DONE
 	} state = SP_APPROACH;
 
-	float origin_angle = 0.0f;
+	float origin_angle = 0.0f,descend_angle = 0.0f;
 
 	Chassis_OverrideGyroPid(4, 0, 50, 50);
 	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
@@ -1402,16 +1402,17 @@ void South_Pole(void)
 				
 			Stage_Correct(5);
 			Robot_Work(BODY, DOWN);
-
+			origin_angle = getAngleZ();
 			state = SP_DESCEND;
 			break;
 
 		case SP_DESCEND:
-			/* 同 Barrier_HighMountain：用"进平台边的反向"当参考航向（C9→P7=180 → 得 0 ✓） */
-			origin_angle = need2turn(0.0f, nodes.nowNode.angle + 180.0f);
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low-5, origin_angle,
-				Begin_down, UpDownStage_Speed_low-2, down_pitch, UpDownStage_Speed_high, After_down, 0.04f, 10.0f, 0.0f);
-			Chassis_MotorControl(is_Line, SPEED1, SPEED1, 0);
+				Begin_down, UpDownStage_Speed_low-5, down_pitch, 20, down_pitch-30, 0.07f, 10.0f, 0.0f);
+			//用循迹走（定长 while 读距离，本段出"最直角度"给 HM_DESCEND_FLAT 选角）
+			Ramp_LineDrive_CatchMid(60.0f, 20.0f, &descend_angle);
+			RampCtrl_Blocking(RAMP_DESCEND, 20, origin_angle,
+				Begin_down, 20, down_pitch, 20, After_down, 0.07f, 10.0f, 0.0f);
 			state = SP_DONE;
 			break;
 
@@ -1456,6 +1457,7 @@ void QQB_1(void)
 	uint8_t is_emergency = 0;
 	uint8_t seen_negative = 0;
 	uint16_t break_cnt = 0;
+	uint8_t is_B9_or_B8 =0;
 	while(state!=QQB_DONE){
 		switch (state)
 		{
@@ -1471,33 +1473,40 @@ void QQB_1(void)
 
 			//等待小车行驶10cm后，改变循迹模式为中间循迹
 			Chassis_ClearMileage();
-			
-			while(Chassis_GetMileage() < 90)vTaskDelay(2);	
+			if(nodes.nowNode.nodenum == B9)
+			{
+				is_B9_or_B8 =0;
+				while(Chassis_GetMileage() < 90)vTaskDelay(2);
+			}
+					
+			else if(nodes.nowNode.nodenum == B8)
+			{
+				is_B9_or_B8 =1;
+				while(Chassis_GetMileage() < 90)vTaskDelay(2);	
+			}
+				
+
 			Chassis_SetTrackMode(TRACK_NEAR_CENTER);
 			Chassis_ClearMileage();
 			
+			  
+
 			state = QQB_WAIT_PITCH;
 			break;
 
 		case QQB_WAIT_PITCH:
 			
 			Cross_getline(&Cross_Scaner);
-			//防止循迹受到旁边红线的干扰
-			//if(imu.pitch>=After_up ||Cross_Scaner.ledNum>=4||Cross_Scaner.lineNum>=2)Chassis_SetEdgeIgnore(4);
-			//等待对其
-			if ((imu.yaw >=65&&imu.yaw <=115)||(imu.yaw <=-65&&imu.yaw >=-115))
-			{
-				Chassis_OverrideGyroPid(5, 0, 70, 5);  
-				if(getAngleZ()<0){Chassis_MotorControl(is_Gyro, 10, 10, getAngleZ()>0?90:-90);}
-				else Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ()>0?90:-90);
-				Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);	
-			}
+
+			Chassis_MotorControl(is_Line, 15, 15, 0);
+		
+			
 			//等待小车爬上跷跷板，俯仰角大于 up_pitch 进入下一状态
 			if(imu.pitch> basic_p+20)
 			{
 				Chassis_ClearMileage();	
 				CarBrake();	
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()>0?90:-90, getAngleZ(), 30.0f, TURN_TIMEOUT_DEFAULT);
+				Chassis_Turn_By_StopGyro_Blocking(is_B9_or_B8 == 0?180:0, getAngleZ(), 30.0f, TURN_TIMEOUT_DEFAULT);
 				is_emergency=1;
 				Cross_getline(&Cross_Scaner);				
 				state = QQB_GYRO;
@@ -1558,7 +1567,7 @@ void QQB_1(void)
 			}
 			else if(is_emergency){
 			is_emergency=0;
-			Chassis_MotorControl(is_Gyro, 10, 10, getAngleZ()>0?90:-90);
+			Chassis_MotorControl(is_Gyro, 10, 10, is_B9_or_B8 == 0?180:0);
 			Chassis_ClearMileage();
 			}
 
@@ -1576,7 +1585,7 @@ void QQB_1(void)
 			Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);
 			float p = imu.pitch;
 			if(p> up_pitch)break_cnt++;
-			if(break_cnt > 500){Chassis_DriveDistance_Blocking(is_Gyro, 5, 8,getAngleZ()>0?90:-90, 0);break_cnt=0;}
+			if(break_cnt > 500){Chassis_DriveDistance_Blocking(is_Gyro, 5, 8,is_B9_or_B8 == 0?180:0, 0);break_cnt=0;}
 
 			if(p < up_pitch&&seen_negative==0){CarBrake(); break_cnt = 0;} 
 			if (p < After_down)seen_negative = 1;	
@@ -1585,11 +1594,11 @@ void QQB_1(void)
 				vTaskDelay(300);	
 				while(imu.pitch <= basic_p-40){vTaskDelay(2);}	
 				vTaskDelay(100);
-				Chassis_Turn_By_StopGyro_Blocking(getAngleZ()>0?90:-90, getAngleZ(), 15.0f, TURN_TIMEOUT_DEFAULT);
+				Chassis_Turn_By_StopGyro_Blocking(is_B9_or_B8 == 0?180:0, getAngleZ(), 15.0f, TURN_TIMEOUT_DEFAULT);
 				Chassis_RestoreGyroPid();
 				Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ());	
 				while(imu.pitch <= basic_p-20){vTaskDelay(2);}		
-				Chassis_Turn_By_Gyro_Blocking(getAngleZ()>0?100:-80, getAngleZ(), 15.0f);
+				Chassis_Turn_By_Gyro_Blocking(is_B9_or_B8 == 0?180:0, getAngleZ(), 15.0f);
 				while(imu.pitch <= basic_p){vTaskDelay(2);}	
 				Chassis_Brake();
 				state = QQB_RECOVERY;
@@ -1615,7 +1624,7 @@ void QQB_1(void)
 			Chassis_MotorControl(is_Line, 15, 15, 0);
 	
 			Chassis_ClearMileage();
-			uint8_t dis = getAngleZ()>0?(uint8_t)(70):(uint8_t)(50);
+			uint8_t dis = is_B9_or_B8 == 0?(uint8_t)(70):(uint8_t)(40);
 			while(Chassis_GetMileage() < dis)vTaskDelay(2);
 
 			float angle = getAngleZ();
@@ -1750,7 +1759,7 @@ void door()
 	else if(nodes.lastNode.nodenum == N5 && nodes.nowNode.nodenum == N8){state = DOOR_D3;}
 	else if(nodes.lastNode.nodenum == N3 && nodes.nowNode.nodenum == N8){state = DOOR_D4;}
 	else if(nodes.lastNode.nodenum == N8 && nodes.nowNode.nodenum == N3){state = DOOR_D4_BACK;}	/* 回家过D4: N8→N3 */
-	else if(nodes.lastNode.nodenum == N10 && nodes.nowNode.nodenum == N3){state = DOOR_D5_BACK;}	/* 回家过D5: N10→N3 */
+	else if(nodes.lastNode.nodenum == N20 && nodes.nowNode.nodenum == N3){state = DOOR_D5_BACK;}	/* 回家过D5: N20→N3 */
 
 	if(state != DOOR_D5_BACK && state != DOOR_D4_BACK)Robot_Work(CAMERA, HEAD_RIGHT);
 	else Robot_Work(CAMERA, HEAD_LEFT);
@@ -1891,7 +1900,7 @@ void door()
 		if (door_pass[3] == CAN_PASS)
 		{
 			send_play_specified_command(8);
-			nodes.nowNode = door_set_pass_node(N10, N3, DOOR_LEN_N3N10, SPEED3);
+			nodes.nowNode = door_set_pass_node(N20, N3, DOOR_RETREAT_N20N8, SPEED3);
 			nodes.nowNode.step = 36;
 			nodes.nowNode.speed = SPEED3;
 			cross_event |= CROSS_EVENT_DOOR;
@@ -1908,13 +1917,13 @@ void door()
 				   D4 门边(N8→N3)，再次触发 door()。 */
 				route[0] = N3;
 				route[1] = 0xFF;
-				nodes.nowNode = door_retreat(N10, N8, DOOR_RETREAT_N10N8);
+				nodes.nowNode = door_retreat(N10, N8, DOOR_RETREAT_N20N8);
 				cross_event |= CROSS_EVENT_DOOR;
 
 			}
 			else if (door_pass[0] == NO_PASS && door_pass[1] == ONE_WAY_PASS)
 			{
-				nodes.nowNode = door_retreat(N10, N8, DOOR_RETREAT_N10N8);
+				nodes.nowNode = door_retreat(N10, N8, DOOR_RETREAT_N20N8);
 				door_set_pass_node(N3, N8, DOOR_LEN_N3N8, SPEED3);
 				door_set_pass_node(N8, N3, DOOR_LEN_N3N8, SPEED3);
 				update_route_by_door_2();
@@ -2214,8 +2223,12 @@ void upright_Set()
 {
 	upright_Set_node(N12,N16);
 	upright_Set_node(N18,N16);
-	upright_Set_node(C3,N14);
-	upright_Set_node(B10,N14);
+	/* [新增] C8/N15 近景点（参照 N16）：二轮重新武装 */
+	upright_Set_node(N10,N15);
+	upright_Set_node(C5,N15);
+	upright_Set_node(C7,C8);
+	upright_Set_node(C10,C8);   /* N20 来：实际走 N20->C10->C8，N20->C8 无此边 */
+
 }
 
 
@@ -2247,16 +2260,31 @@ void do_Upright()
 		upright_Reset_node(N12,N16);
 		upright_Reset_node(N18,N16);
 	}
-	if(nodes.nowNode.nodenum==N14) {
-		TurnAngle=getAngleZ()>0?90:-90;
-		upright_Reset_node(C3,N14);
-		upright_Reset_node(B10,N14);
+	else if(nodes.nowNode.nodenum==N15) {
+		/* [新增] N15 近景点：景点在0°方向(S4侧)。N10来(+90)转-90 / C5来(-90)转+90，与N16同一公式 */
+		TurnAngle=getAngleZ()>0?-90:90;
+		upright_Reset_node(N10,N15);
+		upright_Reset_node(C5,N15);
 	}
+	else if(nodes.nowNode.nodenum==C8) {
+		/* [新增] C8 近景点：景点在90°方向(S3侧)。C7来(180)转-90 / N20来(-35)转+125，按差值算 */
+		TurnAngle=90-getAngleZ();
+		upright_Reset_node(C7,C8);
+		upright_Reset_node(C10,C8);
+	}
+
+	
 	CarBrake();
 	Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+TurnAngle,getAngleZ(),30, TURN_TIMEOUT_DEFAULT);
-	Chassis_DriveDistance_Blocking(is_Gyro,15,Gyro_Speed,getAngleZ(),0);
+	if(nodes.nowNode.nodenum==C8) {
+		Chassis_DriveDistance_Blocking(is_Gyro,19,Gyro_Speed,getAngleZ(),0);
+	}
+	else Chassis_DriveDistance_Blocking(is_Gyro,15,Gyro_Speed,getAngleZ(),0);
 	CarBrake();
-	Chassis_DriveDistance_Blocking(is_Gyro,15,-Gyro_Speed,getAngleZ(),0);
+	if(nodes.nowNode.nodenum==C8) {
+		Chassis_DriveDistance_Blocking(is_Gyro,19,-Gyro_Speed,getAngleZ(),0);
+	}
+	else Chassis_DriveDistance_Blocking(is_Gyro,15,-Gyro_Speed,getAngleZ(),0);
 	send_play_specified_command(37);
 	CarBrake();
 	vTaskDelay(500);

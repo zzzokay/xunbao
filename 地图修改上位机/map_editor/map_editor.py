@@ -825,6 +825,11 @@ class App(tk.Tk):
         brow.pack(fill="x", padx=4)
         ttk.Button(brow, text="⚖ 规划权重…",
                    command=self.weight_tuner_dialog).pack(side="left")
+        # 「⇋ JSON 对比…」：两个布局 JSON 对比，把参考文件的差异迁移到当前布局。
+        # ⚠️ 入口放这一行（AI_CONTEXT §7.9）：brow 在 expand 的 Treeview 之前 pack，
+        #    保证可见；工具栏三行宽度吃紧，不放工具栏。
+        ttk.Button(brow, text="⇋ JSON 对比…",
+                   command=self.layout_diff_dialog).pack(side="left", padx=(6, 0))
         self.lbl_turn_hint = ttk.Label(top, foreground="#666666", wraplength=372, text="")
         self.lbl_turn_hint.pack(anchor="w", padx=4)
         self.tree_turn = ttk.Treeview(top, columns=("ang", "br", "val", "src"),
@@ -2838,6 +2843,9 @@ class App(tk.Tk):
         nx, ny = self.s2w(ev.x, ev.y)
         m.add_command(label="在此新建节点…", command=lambda: self.create_node_dialog(nx, ny))
         m.add_command(label="新建边…", command=self.add_edge_dialog)
+        # 门区状态表（barrier.c door() 触发链 + door_zone 禁用边，可改可写回）：
+        # 低频管理功能放右键菜单，不占工具栏/左栏行宽（§7.9 的坑）。
+        m.add_command(label="🚧 门区状态表…", command=self.door_state_dialog)
         m.add_separator()
         m.add_command(label="适配窗口", command=self._fit_view)
         m.add_command(label="重新载入源码", command=self.reload_sources)
@@ -4219,8 +4227,11 @@ class App(tk.Tk):
         for name, edge, st, verdict, act in steps:
             lines.append("  %-6s 在 %-8s 读灯 = %-10s %s" % (name, edge, M.DOOR_STATE_NAME[st], verdict))
             lines.append("         └ %s" % act)
+        # D5 的退回宏跟触发边/退回分支走（从 barrier.c 解析，2026-10-17 迁移后是 N20→N8）
+        _r5 = M.parse_door_retreats().get("DOOR_D5_BACK") or ("N20", "N8")
         for macro, who in (("DOOR_RETREAT_N5N8", "D2 黑退回"), ("DOOR_RETREAT_N5N4", "D3 黑退回"),
-                           ("DOOR_RETREAT_N10N8", "D5 黑退回"), ("DOOR_RETREAT_N8N5", "D4回程黑退回")):
+                           ("DOOR_RETREAT_%s%s" % _r5, "D5 黑退回"),
+                           ("DOOR_RETREAT_N8N5", "D4回程黑退回")):
             v = self._macro_value(macro)
             if v is not None:
                 lines.append("  %s距离：%s = %s cm" % (who, macro, ("%.0f" % v)))
@@ -4336,7 +4347,8 @@ class App(tk.Tk):
           ② 手写数组一律以 N12 结尾（在 N5→N12 上读 D2）⇒ 门区从 N12 接着走。
           ③ 过门后 update_route_at_door_for_stageAB() 的 wp[0] 就是过门落点 ⇒ 自然接上。
           ④ 到第二个平台(P7/P8)读宝物 ⇒ plan_treasure_return() 的 wp[0] 就是该平台。
-          ⑤ 回程若穿过 BACK 门(N10→N3 / N8→N3)，door() 会再调 route_return_home() 覆盖 ⇒ 再拼一段。
+          ⑤ 回程若穿过 BACK 门（触发链里 *_BACK 的边，见「🚧 门区状态表…」），
+             door() 会再调 route_return_home() 覆盖 ⇒ 再拼一段。
 
         返回 (sections, flat_nodes, split_idx, err)：split_idx = 回程起始下标（画布分色用）。
         """
@@ -4419,7 +4431,8 @@ class App(tk.Tk):
         idx = None
         for i in range(len(ret) - 1):
             e = self.model.edge(ret[i], ret[i + 1])
-            if e is not None and e.func == "DOOR" and ret[i + 1] == "N3" and ret[i] in ("N10", "N8"):
+            if e is not None and e.func == "DOOR" \
+                    and (ret[i], ret[i + 1]) in M.door_back_edges():
                 idx = i
                 break
         if idx is not None:
@@ -4462,7 +4475,8 @@ class App(tk.Tk):
     def _back_branch_from_edge(self, doors, read_set, edge):
         """按「4 格门灯 + 进门读到的灯」推 BACK 门之后怎么走（④b 与「门区回程」阶段共用）。
 
-        走到 N10→N3 会读 D5、退回后 N8→N3 会重读 D4 ⇒ 这两盏此刻按真值算；
+        走到 D5 的 BACK 触发边（door_back_slot_edge(3)，从 barrier.c 解析）会读 D5、
+        退回后 D4 的 BACK 边会重读 D4 ⇒ 这两盏此刻按真值算；
         D2/D3 仍只有进门时读到的值（没读到就是 0=未读）。
         """
         doors_back = M.doors_known_only(doors, set(read_set) | {"D4", "D5"})
@@ -4481,10 +4495,12 @@ class App(tk.Tk):
         if d3 == M.CAN_PASS:
             return "none", None, "进门读到 D3 绿 ⇒ 回程走 N8→N5（D3 那扇门），不经过 BACK 门"
         if d4 == M.CAN_PASS:
-            return "back", ("N8", "N3"), "进门读到 D4 绿 ⇒ 回程必经点钉住 N8→N3（走 D4 回家）"
+            _e4 = M.door_back_slot_edge(2) or ("N8", "N3")
+            return "back", _e4, ("进门读到 D4 绿 ⇒ 回程必经点钉住 %s→%s（走 D4 回家）" % _e4)
         if M.ONE_WAY_PASS in (d2, d3, d4):
-            return "back", ("N10", "N3"), ("D2/D3/D4 没有一个是绿、但读到过蓝（单相）⇒ "
-                                           "回程必经点押 N10→N3（到门口才读 D5）")
+            _e5 = M.door_back_slot_edge(3) or ("N20", "N3")
+            return "back", _e5, ("D2/D3/D4 没有一个是绿、但读到过蓝（单相）⇒ "
+                                 "回程必经点押 %s→%s（到门口才读 D5）" % _e5)
         return "stop", None, "D2/D3/D4 都不能过 ⇒ 固件 plan_treasure_return() 直接 CarBrake_Stop()"
 
     def _input_section(self, stage, clue, ab, doors, treasure, punch=None, tour=None,
@@ -6911,6 +6927,352 @@ class App(tk.Tk):
     def load_layout(self):
         """载入布局（可用列表挑选）。"""
         self.load_layout_picker()
+
+    # ================================================================ JSON 对比迁移
+    def _diff_layout_choices(self):
+        """layouts/ 下的布局文件名（不含 snapshots/），给对比对话框的候选。"""
+        d = self._layouts_dir()
+        out = []
+        if os.path.isdir(d):
+            for fn in sorted(os.listdir(d)):
+                if fn.lower().endswith(".json"):
+                    out.append(fn)
+        return out
+
+    def _diff_backup_dir(self):
+        """迁移前快照的存放目录（测试会把 _diff_backup_dir_override 指到沙箱）。"""
+        return getattr(self, "_diff_backup_dir_override", None) or \
+            os.path.join(self._layouts_dir(), "snapshots")
+
+    def _write_diff_backup(self):
+        """迁移前把当前内存布局**完整**存一份 JSON（含宏/转弯表/约束）。
+
+        ⚠️ 撤销栈（model.snapshot）只救节点/边 —— 宏、转弯补偿表、约束不在里面，
+        所以迁移前必须落一份完整快照，出问题可以「载入布局」直接回退。
+        写不出来则中止迁移（宁可不迁，也不能没有退路）。
+        """
+        try:
+            d = self._diff_backup_dir()
+            os.makedirs(d, exist_ok=True)
+            self._sync_state_to_model()
+            p = os.path.join(d, "对比迁移前_%s.json"
+                             % datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(self.model.to_json())
+            return p
+        except Exception as ex:
+            messagebox.showerror("备份失败", "迁移前快照写不出来，已中止迁移：%s" % ex,
+                                 parent=self)
+            return None
+
+    def layout_diff_dialog(self, path_a=None, path_b=None, auto=False):
+        """两个布局 JSON 对比 + 把参考 B 的差异按选择迁移到当前布局。
+
+        path_a/path_b/auto 供冒烟测试用：指定文件直接对比，不弹文件对话框。
+        对比/应用的核心计算在 map_model.layout_diff() / apply_layout_diff_items()
+        （纯函数，_selftest 有专节守着）；这里只负责选文件、展示、勾选、落快照。
+        """
+        dlg = tk.Toplevel(self)
+        dlg.title("JSON 对比迁移")
+        frm = ttk.Frame(dlg)
+        frm.pack(fill="both", expand=True)
+        choices = self._diff_layout_choices()
+        var_a = tk.StringVar(value=path_a or "当前布局（内存）")
+        var_b = tk.StringVar(value=path_b or "")
+        info = tk.StringVar(value="A = 基准，B = 参考（把 B 的值迁到当前布局）。"
+                                 "先选 B，点「开始对比」。")
+
+        def pick(var):
+            p = filedialog.askopenfilename(
+                title="选择布局 JSON", parent=dlg,
+                initialdir=self._layouts_dir(), filetypes=[("布局 JSON", "*.json")])
+            if p:
+                var.set(p)
+
+        row = ttk.Frame(frm)
+        row.pack(fill="x", padx=8, pady=(8, 2))
+        ttk.Label(row, text="基准 A:").pack(side="left")
+        ttk.Combobox(row, textvariable=var_a, width=38,
+                     values=["当前布局（内存）"] + choices).pack(side="left", padx=(4, 2))
+        ttk.Button(row, text="浏览…", command=lambda: pick(var_a)).pack(side="left")
+        row2 = ttk.Frame(frm)
+        row2.pack(fill="x", padx=8, pady=2)
+        ttk.Label(row2, text="参考 B:").pack(side="left")
+        ttk.Combobox(row2, textvariable=var_b, width=38,
+                     values=choices).pack(side="left", padx=(4, 2))
+        ttk.Button(row2, text="浏览…", command=lambda: pick(var_b)).pack(side="left")
+
+        rows = {}          # iid -> diff row（含 apply 指令）
+
+        def _load(path):
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+
+        def do_compare():
+            try:
+                if var_a.get() == "当前布局（内存）":
+                    self._sync_state_to_model()       # 把界面态也算进"当前"
+                    da = json.loads(self.model.to_json())
+                else:
+                    da = _load(var_a.get())
+                db = _load(var_b.get())
+            except Exception as ex:
+                messagebox.showerror("读文件失败", str(ex), parent=dlg)
+                return
+            try:
+                secs = M.layout_diff(da, db)
+            except ValueError as ex:
+                messagebox.showerror("对比失败", str(ex), parent=dlg)
+                return
+            tree.delete(*tree.get_children())
+            rows.clear()
+            n_apply = 0
+            for sec in secs:
+                head = tree.insert("", "end", open=True, text="%s（相同 %d 项）"
+                                   % (sec["name"], sec["same"]))
+                for r in sec["rows"]:
+                    iid = tree.insert(head, "end",
+                                      text="%s  —  %s" % (r["label"], r["act"]),
+                                      values=(r["cur"], r["ref"]))
+                    r["iid"] = iid
+                    rows[iid] = r
+                    if r["apply"]:
+                        n_apply += 1
+            if n_apply:
+                info.set("共 %d 处差异（全部可迁移）。按住 Ctrl/Shift 在树里多选要迁的行"
+                         "（删除类默认不选），再点「应用选中 → 当前布局」。" % n_apply)
+            else:
+                info.set("两份布局没有差异（完全相同）。")
+
+        mid = ttk.Frame(frm)
+        mid.pack(fill="both", expand=True, padx=8, pady=4)
+        tree = ttk.Treeview(mid, columns=("cur", "ref"), selectmode="extended")
+        tree.heading("#0", text="差异项 / 动作")
+        tree.heading("cur", text="当前值 (A)")
+        tree.heading("ref", text="参考值 (B)")
+        tree.column("#0", width=330, stretch=True)
+        tree.column("cur", width=240, stretch=True)
+        tree.column("ref", width=240, stretch=True)
+        vs = ttk.Scrollbar(mid, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=vs.set)
+        tree.pack(side="left", fill="both", expand=True)
+        vs.pack(side="left", fill="y")
+        ttk.Label(frm, textvariable=info, foreground="#666666",
+                  wraplength=780).pack(anchor="w", padx=8)
+
+        _DEL_KINDS = ("nodedel", "edgedel", "turndel")
+
+        def do_apply():
+            sel = [i for i in tree.selection() if i in rows and rows[i]["apply"]]
+            if not sel:
+                messagebox.showinfo("没有选中", "请先在树上选中要迁移的差异行。", parent=dlg)
+                return
+            items = [rows[i]["apply"] for i in sel]
+            ndel = sum(1 for it in items if it[0] in _DEL_KINDS)
+            if ndel and not messagebox.askyesno(
+                    "确认迁移",
+                    "选中项里有 %d 个**删除**操作（节点/边/补偿行）。\n"
+                    "迁移前会自动存一份当前布局的完整快照，确定继续？" % ndel,
+                    parent=dlg):
+                return
+            bak = self._write_diff_backup()
+            if not bak:
+                return
+            self._push_undo()
+            n = M.apply_layout_diff_items(self.model, items)
+            if any(it[0] in ("constr", "bg") for it in items):
+                self._apply_model_background()
+            if any(it[0] == "field" for it in items):
+                self.field_var.set(
+                    "比赛场地" if self.model.field_name == "FIELD_COMP" else "学校场地")
+            self.refresh_all()
+            self._update_title()
+            dlg.destroy()
+            self.status("已迁移 %d 项（参考：%s）；迁移前快照：%s"
+                        % (n, os.path.basename(var_b.get()), bak))
+
+        brow = ttk.Frame(frm)
+        brow.pack(fill="x", padx=8, pady=(2, 8))
+        ttk.Button(brow, text="开始对比", command=do_compare).pack(side="left")
+
+        def sel_all():
+            ids = [i for i in rows if rows[i]["apply"]
+                   and rows[i]["apply"][0] not in _DEL_KINDS]
+            if ids:
+                tree.selection_set(ids)
+
+        def sel_none():
+            tree.selection_remove(tree.selection())
+
+        ttk.Button(brow, text="全选（不含删除）",
+                   command=sel_all).pack(side="left", padx=(6, 0))
+        ttk.Button(brow, text="清空选择",
+                   command=sel_none).pack(side="left", padx=(6, 0))
+        ttk.Button(brow, text="关闭", command=dlg.destroy).pack(side="right")
+        ttk.Button(brow, text="应用选中 → 当前布局",
+                   command=do_apply).pack(side="right", padx=(0, 6))
+
+        _fit_dialog(dlg, frm, 880, 560)
+        if auto and var_b.get():
+            do_compare()
+        return dlg
+
+    # ================================================================ 门区状态表
+    def door_state_dialog(self):
+        """🚧 门区状态表：barrier.c door() 触发链 + mission_planner.c door_zone 禁用边。
+
+        上位机各处（BACK 门识别 / 门区回程的禁用边）都从这两张表**解析**，
+        固件改了自动跟上；这里可改触发边 / 禁用边并**写回固件**（自动备份）。
+        表里同时列出 case 里的过门动作（door_set_pass_node）与读灯失败退回
+        （door_retreat），三者不一致时顶部会给出 ⚠ 提示。
+        """
+        dlg = tk.Toplevel(self)
+        dlg.title("门区状态表")
+        frm = ttk.Frame(dlg)
+        frm.pack(fill="both", expand=True)
+        names = self.model.names()
+        backup_dir = os.path.join(HERE, "backups")
+        info = tk.StringVar(value="")
+
+        ttk.Label(frm, text="door() 触发链（barrier.c）：lastNode→nowNode ⇒ DoorState"
+                            "；改「触发边」后过门/退回两列若不一致会标 ⚠").pack(
+            anchor="w", padx=8, pady=(8, 2))
+        tree = ttk.Treeview(frm, columns=("slot", "edge", "pass", "retreat", "note"),
+                            selectmode="browse", height=6)
+        for h, w in ((("slot",), 80), (("edge",), 110), (("pass",), 180),
+                     (("retreat",), 170), (("note",), 160)):
+            tree.heading(h[0], text={"slot": "door_pass[]", "edge": "触发边 (last→now)",
+                                     "pass": "过门动作 door_set_pass_node",
+                                     "retreat": "读灯失败退回 door_retreat",
+                                     "note": "行尾注释"}[h[0]])
+            tree.column(h[0], width=w, stretch=True)
+        tree.column("#0", width=120)
+        tree.pack(fill="x", padx=8)
+        ttk.Button(frm, text="修改选中的触发边 → 写回 barrier.c",
+                   command=lambda: edit_trigger()).pack(anchor="w", padx=8, pady=(4, 2))
+
+        ttk.Label(frm, text="door_zone[8][2]（mission_planner.c：门区回程规划时禁用的边，"
+                            "与过门边保持一致）").pack(anchor="w", padx=8, pady=(8, 2))
+        ztree = ttk.Treeview(frm, columns=("idx",), height=8, selectmode="browse")
+        ztree.heading("#0", text="边 (from→to)")
+        ztree.heading("idx", text="#")
+        ztree.column("#0", width=300)
+        ztree.column("idx", width=40)
+        ztree.pack(fill="x", padx=8)
+        zbtns = ttk.Frame(frm)
+        zbtns.pack(anchor="w", padx=8, pady=(4, 2))
+        ttk.Button(zbtns, text="修改选中的边 → 写回 mission_planner.c",
+                   command=lambda: edit_zone()).pack(side="left")
+
+        ttk.Label(frm, textvariable=info, foreground="#8a6d00", wraplength=860,
+                  justify="left").pack(anchor="w", padx=8, pady=(6, 2))
+
+        def reload_tables():
+            trig, warns = M.parse_door_triggers()
+            slots = M.parse_door_slots(force=True)
+            pes = M.parse_door_pass_edges()
+            rts = M.parse_door_retreats()
+            tree.delete(*tree.get_children())
+            for t in trig:
+                st = t["state"]
+                tree.insert("", "end", text=st,
+                            values=(slots.get(st, "?"),
+                                    "%s→%s" % (t["last"], t["now"]),
+                                    ("%s→%s" % pes[st]) if st in pes else "—",
+                                    ("%s→%s" % rts[st]) if st in rts else "—",
+                                    t["note"]))
+            ztree.delete(*ztree.get_children())
+            for i, pr in enumerate(M.get_door_zone(force=True)):
+                ztree.insert("", "end", text="%s→%s" % pr, values=(i,))
+            msg = []
+            for t in trig:      # 一致性：触发边 vs 过门动作 vs 退回动作
+                if not t["state"].endswith("_BACK"):
+                    continue
+                pe = pes.get(t["state"])
+                if pe and (t["last"], t["now"]) != pe:
+                    msg.append("%s：触发边 %s→%s ≠ 过门动作 %s→%s（case 里的 "
+                               "door_set_pass_node 要同步改）"
+                               % (t["state"], t["last"], t["now"], pe[0], pe[1]))
+                rt = rts.get(t["state"])
+                if rt and rt[0] != t["last"]:
+                    msg.append("%s：触发边起点 %s ≠ 退回分支 %s→%s（读灯失败的退回策略"
+                               "要重新设计，黑/蓝灯时会按旧几何倒车）"
+                               % (t["state"], t["last"], rt[0], rt[1]))
+            if warns:
+                msg += warns
+            info.set("；".join(msg) if msg else
+                     "触发链 / 过门动作 / 退回分支一致。写回会自动备份到 map_editor/backups/。")
+
+        def two_node_picker(parent, title, btn, cur, on_ok):
+            sub = tk.Toplevel(parent)
+            sub.title(title)
+            sub.transient(parent)
+            sfrm = ttk.Frame(sub)
+            sfrm.pack(fill="both", expand=True)
+            v1 = tk.StringVar(value=cur[0])
+            v2 = tk.StringVar(value=cur[1])
+            ttk.Label(sfrm, text="last/from:").grid(row=0, column=0, padx=6, pady=8)
+            ttk.Combobox(sfrm, textvariable=v1, values=names, width=8,
+                         state="readonly").grid(row=0, column=1, padx=4)
+            ttk.Label(sfrm, text="now/to:").grid(row=0, column=2, padx=6)
+            ttk.Combobox(sfrm, textvariable=v2, values=names, width=8,
+                         state="readonly").grid(row=0, column=3, padx=4)
+            ttk.Button(sfrm, text=btn,
+                       command=lambda: on_ok(sub, v1.get(), v2.get())
+                       ).grid(row=1, column=0, columnspan=4, pady=(4, 10))
+            return sub
+
+        def edit_trigger():
+            sel = tree.selection()
+            if not sel:
+                messagebox.showinfo("先选一行", "先在上表选中要改的 DoorState 行。", parent=dlg)
+                return
+            st = tree.item(sel[0], "text")
+            cur = next((t for t in M.door_triggers(force=True) if t["state"] == st), None)
+            if not cur:
+                return
+
+            def on_ok(sub, a, b):
+                if a == b:
+                    messagebox.showwarning("自环", "last/now 不能是同一个节点。", parent=sub)
+                    return
+                ok, msg = M.set_door_trigger(st, a, b, backup_dir=backup_dir)
+                if not ok:
+                    messagebox.showerror("写回失败", msg, parent=sub)
+                    return
+                sub.destroy()
+                reload_tables()
+                self.status(msg + "（barrier.c 已写回并备份，记得重新编译）")
+
+            two_node_picker(dlg, "修改 %s 触发边" % st, "写回 barrier.c",
+                            (cur["last"], cur["now"]), on_ok)
+
+        def edit_zone():
+            sel = ztree.selection()
+            if not sel:
+                messagebox.showinfo("先选一行", "先在下表选中要改的边。", parent=dlg)
+                return
+            idx = int(ztree.item(sel[0], "values")[0])
+            cur = M.get_door_zone(force=True)[idx]
+
+            def on_ok(sub, a, b):
+                if a == b:
+                    messagebox.showwarning("自环", "from/to 不能是同一个节点。", parent=sub)
+                    return
+                ok, msg = M.set_door_zone_pair(cur, (a, b), backup_dir=backup_dir)
+                if not ok:
+                    messagebox.showerror("写回失败", msg, parent=sub)
+                    return
+                sub.destroy()
+                reload_tables()
+                self.status(msg + "（mission_planner.c 已写回并备份，记得重新编译）")
+
+            two_node_picker(dlg, "修改 door_zone[%d]" % idx, "写回 mission_planner.c",
+                            cur, on_ok)
+
+        reload_tables()
+        _fit_dialog(dlg, frm, 940, 560)
+        return dlg
 
     def save_json(self):
         path = filedialog.asksaveasfilename(

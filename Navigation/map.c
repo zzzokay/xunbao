@@ -228,23 +228,24 @@ void Route_Error_Stop(u8 from, u8 to)
  * ⚠️ 只能收"真正会走停车转分支"的三元组：分支判定 = (STOPTURN && |转弯|>30) || |转弯|>=90 */
 static const struct { u8 last, now, next; float dist; } kTurnTbl[] = {
 	{ P6, N7, B8, 20 },
-	{ C4, N20, P8, 37 },
-	{ N20, C4, B11, 25 },
 	{ N3, N4, B2, 30 },
-	{ P8, N20, C4, 30 },
 	{ N8, N5, N4, 36 },
 	{ N8, N3, N4, 35 },
 	{ N4, N3, N8, 23 },
-	{ B8, N9, C3, 0 },
-	{ B11, C4, N20, 19 },
-	{ N10, N9, B9, 48 },
 	{ B2, N1, P1, 25 },
 	{ B3, N2, P2, 25 },
 	{ S1, N3, N4, 9 },
 	{ S2, N6, N5, 30 },
 	{ B9, N7, P6, 20 },
 	{ P4, N6, S2, 30 },
-	{ N16, N18, B5, 25 },
+	{ N16, N18, B5, 20 },
+	{ N8, N10, N20, 30 },
+	{ N8, N10, N11, 30 },
+	{ B8, N9, B10, 25 },
+	{ C3, N9, B9, 30 },
+	{ C10, N20, P8, 27 },
+	{ C10, N20, N10, 27 },
+	{ C10, N20, N3, 27 },
 };
 /* 编译期护栏：kTurnTbl 里的节点号不能超过实际建表的节点数（写错节点号只会在车上才发现）。
  * 50 = map.h 里 enum MapNode 的真实成员数（C1/C2 是注释状态不占编号），
@@ -253,15 +254,15 @@ static const struct { u8 last, now, next; float dist; } kTurnTbl[] = {
 #define MAP_NODE_LIMIT   50
 typedef char kTurnTbl_node_check[
 	(P6  < MAP_NODE_LIMIT) && (N7  < MAP_NODE_LIMIT) && (B8  < MAP_NODE_LIMIT) &&
-	 (C4  < MAP_NODE_LIMIT) && (N20 < MAP_NODE_LIMIT) && (P8  < MAP_NODE_LIMIT) &&
-	 (B11 < MAP_NODE_LIMIT) && (N3  < MAP_NODE_LIMIT) && (N4  < MAP_NODE_LIMIT) &&
-	 (B2  < MAP_NODE_LIMIT) && (N8  < MAP_NODE_LIMIT) && (N5  < MAP_NODE_LIMIT) &&
-	 (N9  < MAP_NODE_LIMIT) && (C3  < MAP_NODE_LIMIT) && (N10 < MAP_NODE_LIMIT) &&
-	 (B9  < MAP_NODE_LIMIT) && (N1  < MAP_NODE_LIMIT) && (P1  < MAP_NODE_LIMIT) &&
-	 (B3  < MAP_NODE_LIMIT) && (N2  < MAP_NODE_LIMIT) && (P2  < MAP_NODE_LIMIT) &&
-	 (S1  < MAP_NODE_LIMIT) && (S2  < MAP_NODE_LIMIT) && (N6  < MAP_NODE_LIMIT) &&
-	 (P4  < MAP_NODE_LIMIT) && (N16 < MAP_NODE_LIMIT) && (N18 < MAP_NODE_LIMIT) &&
-	 (B5  < MAP_NODE_LIMIT) && (B6  < MAP_NODE_LIMIT) && (N12 < MAP_NODE_LIMIT) &&
+	 (N3  < MAP_NODE_LIMIT) && (N4  < MAP_NODE_LIMIT) && (B2  < MAP_NODE_LIMIT) &&
+	 (N8  < MAP_NODE_LIMIT) && (N5  < MAP_NODE_LIMIT) && (N1  < MAP_NODE_LIMIT) &&
+	 (P1  < MAP_NODE_LIMIT) && (B3  < MAP_NODE_LIMIT) && (N2  < MAP_NODE_LIMIT) &&
+	 (P2  < MAP_NODE_LIMIT) && (S1  < MAP_NODE_LIMIT) && (S2  < MAP_NODE_LIMIT) &&
+	 (N6  < MAP_NODE_LIMIT) && (B9  < MAP_NODE_LIMIT) && (P4  < MAP_NODE_LIMIT) &&
+	 (N16 < MAP_NODE_LIMIT) && (N18 < MAP_NODE_LIMIT) && (B5  < MAP_NODE_LIMIT) &&
+	 (N10 < MAP_NODE_LIMIT) && (N20 < MAP_NODE_LIMIT) && (N11 < MAP_NODE_LIMIT) &&
+	 (N9  < MAP_NODE_LIMIT) && (B10 < MAP_NODE_LIMIT) && (C3  < MAP_NODE_LIMIT) &&
+	 (C10 < MAP_NODE_LIMIT) && (P8  < MAP_NODE_LIMIT) && (N12 < MAP_NODE_LIMIT) &&
 	 (N13 < MAP_NODE_LIMIT) && (P3  < MAP_NODE_LIMIT) ? 1 : -1];
 
 /* 在 Node[] 里按节点号找条目。
@@ -347,13 +348,12 @@ static float GetForwardDistanceBeforeTurn(u8 last, u8 now, u8 next)
 static float GetForwardDistanceBeforeGyroTurn(u8 last, u8 now, u8 next)
 {
 	if (last == B2 && now == N4 && next == N5) return 8;
-	if (last == C4 && now == N20 && next == B6) return 24;
 	if (last == N3 && now == N4 && next == B3) return 12;
 	if (last == N8 && now == N12 && next == N13) return 10;
 	if (last == N8 && now == N3 && next == P3) return 24;
 	if (last == P1 && now == N1 && next == B2) return 3;
-	if (last == N8 && now == N10 && next == N9) return 3;
 	if (last == N16 && now == N12 && next == N8) return 5;
+	if (last == B10 && now == N9 && next == B9) return 5;
 	return 0; // 默认不前进，走原逻辑未修改
 }
 
@@ -482,10 +482,7 @@ static void Nav_PrepareArrival(void)
         Chassis_SetTargetSpeed(SPEED0);
     }
 
-    if(nodes.nowNode.nodenum == N14 && nodes.nextNode.nodenum == C3)
-    {
-        Chassis_SetTargetSpeed(SPEED1);
-    }
+
     if(nodes.nowNode.function !=NONE && nodes.nowNode.speed >= SPEED0)
     {
         Chassis_SetTargetSpeed(SPEED0);

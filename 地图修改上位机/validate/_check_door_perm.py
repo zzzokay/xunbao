@@ -28,11 +28,29 @@ import _weight_calib as W
 # 与 nav_planner.h 的权重一致（镜像 C 的 NAV_W_*）
 W_LEN, W_TURN, W_OBS = 1.0, 0.6, 1.0
 
-# 门区 8 条通行边（4 对 × 2 方向）——与 mission_planner.c 的 door_block_all() / Clear_door() 同一组
-DOOR_ZONE = [("N5", "N12"), ("N12", "N5"),
-             ("N5", "N8"),  ("N8", "N5"),
-             ("N3", "N8"),  ("N8", "N3"),
-             ("N3", "N10"), ("N10", "N3")]
+# 门区 8 条通行边（4 对 × 2 方向）——**动态解析** mission_planner.c 的 door_zone[8][2]
+# （2026-10-17 D5 过门边 N10↔N3 → N20↔N3 迁移后不再写死；解析失败回退下面的列表）
+DOOR_ZONE_FALLBACK = [("N5", "N12"), ("N12", "N5"),
+                      ("N5", "N8"),  ("N8", "N5"),
+                      ("N3", "N8"),  ("N8", "N3"),
+                      ("N3", "N20"), ("N20", "N3")]
+
+def door_zone_pairs():
+    """从 mission_planner.c 动态解析 door_zone[8][2]（固件改门边，这里自动跟上）。"""
+    import re, os
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     "..", "..", "Mission", "mission_planner.c")
+    txt = open(p, encoding="utf-8", errors="replace").read()
+    m = re.search(r"door_zone\s*\[\s*\d+\s*\]\s*\[\s*\d+\s*\]\s*=\s*\{(.*?)\}\s*;",
+                  txt, re.S)
+    assert m, "mission_planner.c 里没找到 door_zone[8][2]"
+    return [(a, b) for a, b in re.findall(r"\{\s*(\w+)\s*,\s*(\w+)\s*\}", m.group(1))]
+
+try:
+    DOOR_ZONE = door_zone_pairs()
+except Exception as _ex:
+    print(f"  [WARN] door_zone 解析失败，用兜底列表：{_ex}")
+    DOOR_ZONE = DOOR_ZONE_FALLBACK
 
 # treasure -> 回程前要绕去取的宝物平台（5/6 在东区，回程直接回家）
 TREASURE_PF = {2: "P1", 3: "P3", 4: "P4"}

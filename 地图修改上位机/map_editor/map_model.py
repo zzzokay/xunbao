@@ -1508,7 +1508,211 @@ DOOR_SLOT_NAME = ["D2", "D3", "D4", "D5"]
 
 # 门区 8 条通行边：与 mission_planner.c 的 door_zone[8][2] / Clear_door() 是同一组
 DOOR_ZONE = [("N5", "N12"), ("N12", "N5"), ("N5", "N8"), ("N8", "N5"),
-             ("N3", "N8"), ("N8", "N3"), ("N3", "N10"), ("N10", "N3")]
+             ("N3", "N8"), ("N8", "N3"), ("N3", "N20"), ("N20", "N3")]
+# ⚠️ 上面只是**解析失败时的兜底**；运行时用 get_door_zone() 从 mission_planner.c 解析。
+#
+# ---------------------------------------------------------------- 门区状态表（barrier.c 触发链 / mission_planner.c door_zone，可解析可写回）
+# 2026-10-17 起，BACK 门（回程过门）的触发边不再硬编码 N10→N3 / N8→N3：
+# 从 barrier.c door() 开头的 if-else 链**解析**（固件改触发边，上位机自动跟上）；
+# 解析失败回退 DOOR_TRIG_FALLBACK / DOOR_BACK_FALLBACK。
+# 「🚧 门区状态表…」对话框（map_editor）可改触发边 / door_zone 并写回（自动备份）。
+DOOR_TRIG_FALLBACK = [
+    {"state": "DOOR_D2", "last": "N5", "now": "N12", "note": "看D2"},
+    {"state": "DOOR_D3", "last": "N5", "now": "N8", "note": "看D3"},
+    {"state": "DOOR_D4", "last": "N3", "now": "N8", "note": "看D4"},
+    {"state": "DOOR_D4_BACK", "last": "N8", "now": "N3", "note": "回家过D4: N8→N3"},
+    {"state": "DOOR_D5_BACK", "last": "N20", "now": "N3", "note": "回家过D5: N20→N3"},
+]
+DOOR_BACK_FALLBACK = {("N20", "N3"): (3, "DOOR_D5_BACK"),
+                      ("N8", "N3"): (2, "DOOR_D4_BACK")}
+_DOOR_TRIG_CACHE = None
+_DOOR_SLOTS_CACHE = None
+_DOOR_ZONE_CACHE = None
+
+
+def _fw_path(*parts):
+    """固件源文件路径（ROOT = 仓库根）。"""
+    return os.path.join(ROOT, *parts)
+
+
+def parse_door_triggers(path=None):
+    """解析 barrier.c door() 的触发链 → ([{state,last,now,note}], warnings)。"""
+    p = path or _fw_path("Mission", "barrier.c")
+    warns = []
+    try:
+        with open(p, encoding="utf-8", errors="replace") as f:
+            txt = f.read()
+    except OSError as ex:
+        return [], ["读不到 barrier.c：%s" % ex]
+    out = []
+    for m in re.finditer(
+            r"nodes\.lastNode\.nodenum\s*==\s*(\w+)\s*&&\s*nodes\.nowNode\.nodenum"
+            r"\s*==\s*(\w+)\s*\)\s*\{\s*state\s*=\s*(DOOR_\w+)\s*;\s*\}"
+            r"(?:\s*/\*\s*(.*?)\s*\*/)?", txt):
+        out.append({"state": m.group(3), "last": m.group(1),
+                    "now": m.group(2), "note": (m.group(4) or "").strip()})
+    if not out:
+        warns.append("barrier.c 里没解析到 door() 触发链（格式变了？）")
+    return out, warns
+
+
+def door_triggers(force=False):
+    """触发链（缓存）。返回 [{state,last,now,note}]；解析失败回退 DOOR_TRIG_FALLBACK。"""
+    global _DOOR_TRIG_CACHE
+    if force or _DOOR_TRIG_CACHE is None:
+        trig, _w = parse_door_triggers()
+        _DOOR_TRIG_CACHE = trig or [dict(x) for x in DOOR_TRIG_FALLBACK]
+    return _DOOR_TRIG_CACHE
+
+
+def parse_door_slots(path=None, force=False):
+    """case DOOR_x 块内 `door_pass[i] = pass_state` ⇒ {state: i}（i = 门位下标）。"""
+    global _DOOR_SLOTS_CACHE
+    if path is None and not force and _DOOR_SLOTS_CACHE is not None:
+        return _DOOR_SLOTS_CACHE
+    p = path or _fw_path("Mission", "barrier.c")
+    with open(p, encoding="utf-8", errors="replace") as f:
+        txt = f.read()
+    out = {}
+    for m in re.finditer(r"case\s+(DOOR_\w+)\s*:(.*?)break;", txt, re.S):
+        mm = re.search(r"door_pass\[(\d+)\]\s*=\s*pass_state", m.group(2))
+        if mm:
+            out[m.group(1)] = int(mm.group(1))
+    if path is None:
+        _DOOR_SLOTS_CACHE = out
+    return out
+
+
+def parse_door_pass_edges(path=None):
+    """每个 case 块里首个 door_set_pass_node(A, B, …) ⇒ {state: (A, B)}（过门动作的边）。"""
+    p = path or _fw_path("Mission", "barrier.c")
+    with open(p, encoding="utf-8", errors="replace") as f:
+        txt = f.read()
+    out = {}
+    for m in re.finditer(r"case\s+(DOOR_\w+)\s*:(.*?)break;", txt, re.S):
+        mm = re.search(r"door_set_pass_node\(\s*(\w+)\s*,\s*(\w+)\s*,", m.group(2))
+        if mm:
+            out[m.group(1)] = (mm.group(1), mm.group(2))
+    return out
+
+
+def parse_door_retreats(path=None):
+    """每个 case 块里首个 door_retreat(A, B, …) ⇒ {state: (A, B)}（读灯失败退回的边）。"""
+    p = path or _fw_path("Mission", "barrier.c")
+    with open(p, encoding="utf-8", errors="replace") as f:
+        txt = f.read()
+    out = {}
+    for m in re.finditer(r"case\s+(DOOR_\w+)\s*:(.*?)break;", txt, re.S):
+        mm = re.search(r"door_retreat\(\s*(\w+)\s*,\s*(\w+)\s*,", m.group(2))
+        if mm:
+            out[m.group(1)] = (mm.group(1), mm.group(2))
+    return out
+
+
+def door_back_edges(force=False):
+    """BACK 门（回程过门）触发边 {(last,now): (door_pass 位, state)}。
+
+    回程路线识别「这条边要读哪盏门灯」都用它，**别再硬编码边对**
+    （2026-10-17 D5 从 N10→N3 挪到 N20→N3 就是这么跟上的）。
+    """
+    out = {}
+    slots = parse_door_slots(force=force)
+    for t in door_triggers(force=force):
+        if t["state"].endswith("_BACK"):
+            out[(t["last"], t["now"])] = (slots.get(t["state"], 3), t["state"])
+    return out or dict(DOOR_BACK_FALLBACK)
+
+
+def door_back_slot_edge(slot, force=False):
+    """door_pass 位 → BACK 门触发边 (last,now)；没有返回 None。"""
+    for edge, (s, _st) in door_back_edges(force=force).items():
+        if s == slot:
+            return edge
+    return None
+
+
+def set_door_trigger(state, last, now, path=None, backup_dir=None):
+    """把 barrier.c 触发链里 state 的 (last,now) 改成新值（保缩进/行尾注释，字节级替换）。
+
+    返回 (ok, msg)。backup_dir 给定时先落 barrier.c.<时间戳>.bak（原字节）。
+    """
+    p = path or _fw_path("Mission", "barrier.c")
+    with open(p, "rb") as f:
+        raw = f.read()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as ex:
+        return False, "barrier.c 不是 UTF-8：%s" % ex
+    pat = re.compile(
+        r"(nodes\.lastNode\.nodenum\s*==\s*)(\w+)"
+        r"(\s*&&\s*nodes\.nowNode\.nodenum\s*==\s*)(\w+)"
+        r"(\s*\)\s*\{\s*state\s*=\s*" + re.escape(state) + r"\s*;\s*\})")
+    hits = pat.findall(text)
+    if len(hits) != 1:
+        return False, "触发链里 %s 匹配到 %d 处（应为 1），未改动" % (state, len(hits))
+    new_text = pat.sub(lambda m: "%s%s%s%s%s" % (
+        m.group(1), last, m.group(3), now, m.group(5)), text, count=1)
+    if backup_dir:
+        os.makedirs(backup_dir, exist_ok=True)
+        stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        with open(os.path.join(backup_dir, "barrier.c.%s.bak" % stamp), "wb") as f:
+            f.write(raw)          # 备份保持原字节
+    with open(p, "wb") as f:
+        f.write(new_text.encode("utf-8"))
+    global _DOOR_TRIG_CACHE
+    _DOOR_TRIG_CACHE = None
+    return True, "%s 触发边改为 %s→%s" % (state, last, now)
+
+
+def parse_door_zone(path=None):
+    """解析 mission_planner.c 的 door_zone[8][2] → ([(a, b)], warnings)。"""
+    p = path or _fw_path("Mission", "mission_planner.c")
+    warns = []
+    try:
+        with open(p, encoding="utf-8", errors="replace") as f:
+            txt = f.read()
+    except OSError as ex:
+        return [], ["读不到 mission_planner.c：%s" % ex]
+    m = re.search(r"door_zone\s*\[\s*\d+\s*\]\s*\[\s*\d+\s*\]\s*=\s*\{(.*?)\}\s*;",
+                  txt, re.S)
+    if not m:
+        return [], ["mission_planner.c 里没解析到 door_zone[8][2]"]
+    pairs = re.findall(r"\{\s*(\w+)\s*,\s*(\w+)\s*\}", m.group(1))
+    return [(a, b) for a, b in pairs], warns
+
+
+def get_door_zone(force=False):
+    """门区禁用边（door_zone[8][2] 的镜像，缓存）；解析失败回退 DOOR_ZONE 常量。"""
+    global _DOOR_ZONE_CACHE
+    if force or _DOOR_ZONE_CACHE is None:
+        pairs, _w = parse_door_zone()
+        _DOOR_ZONE_CACHE = pairs or list(DOOR_ZONE)
+    return _DOOR_ZONE_CACHE
+
+
+def set_door_zone_pair(old, new, path=None, backup_dir=None):
+    """把 door_zone[8][2] 里的一对 (a,b) 换成 (c,d)。返回 (ok, msg)。"""
+    p = path or _fw_path("Mission", "mission_planner.c")
+    with open(p, "rb") as f:
+        raw = f.read()
+    text = raw.decode("utf-8")
+    pat = re.compile(r"\{\s*" + re.escape(old[0]) + r"\s*,\s*" + re.escape(old[1])
+                     + r"\s*\}")
+    hits = pat.findall(text)
+    if len(hits) != 1:
+        return False, "door_zone 里 %s→%s 匹配到 %d 处（应为 1），未改动" % (
+            old[0], old[1], len(hits))
+    new_text = pat.sub("{%s, %s}" % (new[0], new[1]), text, count=1)
+    if backup_dir:
+        os.makedirs(backup_dir, exist_ok=True)
+        stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        with open(os.path.join(backup_dir, "mission_planner.c.%s.bak" % stamp), "wb") as f:
+            f.write(raw)
+    with open(p, "wb") as f:
+        f.write(new_text.encode("utf-8"))
+    global _DOOR_ZONE_CACHE
+    _DOOR_ZONE_CACHE = None
+    return True, "door_zone 里 %s→%s 改为 %s→%s" % (old[0], old[1], new[0], new[1])
 
 # 宝物编号 -> 回程前要绕去取的平台（5/6 在东区已取过，见 plan_treasure_return）
 TREASURE_PF = {2: "P1", 3: "P3", 4: "P4", 5: "P5", 6: "P6"}
@@ -1682,7 +1886,8 @@ def door_read_flow(doors):
         steps.append(("D4", "N3→N8", d4, "能过 → 过门",
                       "door_set_pass_node(N3,N8) 后赋给 nodes.nowNode ⇒ 过门落在 N8"
                       + ("；绿额外放行 N8→N3" if d4 == CAN_PASS
-                         else "；蓝额外放行 N10→N3（回程走 D5）")))
+                         else "；蓝额外预设 %s→%s（回程走 D5）"
+                              % (door_back_slot_edge(3) or ("N20", "N3")))))
         return steps, "N8", None
     steps.append(("D4", "N3→N8", d4, "不能过 → 死停",
                   "barrier.c:door() 的 DOOR_D4 分支直接 CarBrake_Stop()（不返回）"))
@@ -1713,45 +1918,69 @@ def doors_known_only(doors, known):
 
 
 def door_back_flow(doors):
-    """镜像 barrier.c:door() 的【回家路上过门】两个分支（D5_BACK: N10→N3、D4_BACK: N8→N3）。
+    """镜像 barrier.c:door() 的【回家路上过门】两个 BACK 分支（触发边从 barrier.c 解析）。
 
     返回 (steps, hazards)：steps=[(门, 读灯的边, 灯状态, 判定, 动作)]；
-    hazards=[提示文本]，例如"这个灯组合在 door() 里没有匹配分支"。
+    hazards=[提示文本]，例如"这个灯组合在 door() 里没有匹配分支"、
+    "触发边已改但退回分支还是旧边（D5 挪位后要重新设计退回策略）"。
     """
     d2, d3, d4, d5 = doors[0], doors[1], doors[2], doors[3]
     steps, hazards = [], []
 
-    # ---------- DOOR_D5_BACK：N10 -> N3 ----------
+    e5 = door_back_slot_edge(3) or ("N20", "N3")
+    e4 = door_back_slot_edge(2) or ("N8", "N3")
+    pe = parse_door_pass_edges()
+    p5 = pe.get("DOOR_D5_BACK") or e5
+    rt = parse_door_retreats()
+    r5 = rt.get("DOOR_D5_BACK") or ("N10", "N8")
+    r4 = rt.get("DOOR_D4_BACK") or ("N8", "N5")
+    t5 = "%s→%s" % e5
+    t4 = "%s→%s" % e4
+
+    # ---------- DOOR_D5_BACK（触发边 = t5）----------
     if d5 == CAN_PASS:
-        steps.append(("D5", "N10→N3", d5, "绿 → 过门",
-                      "door_set_pass_node(N10,N3)（step=36, SPEED3），nowNode 落在 N3 ⇒ "
-                      "update_route_by_door_1() = route_return_home(起点 N3, 门区 8 边全禁)"))
+        steps.append(("D5", t5, d5, "绿 → 过门",
+                      "door_set_pass_node(%s,%s, DOOR_LEN_%s%s)（step=36, SPEED3），"
+                      "nowNode 落在 %s ⇒ update_route_by_door_1() = "
+                      "route_return_home(起点 %s, 门区 8 边全禁)"
+                      % (p5[0], p5[1], p5[0], p5[1], e5[1], e5[1])))
     elif d2 == ONE_WAY_PASS:
-        steps.append(("D5", "N10→N3", d5, "非绿（else 分支；D2 是蓝、单相已用尽）→ 退回重读",
-                      "route[0]=N3; route[1]=0xFF（door() 内部手写）+ door_retreat(N10,N8) "
-                      "⇒ nowNode 变成 N10→N8 ⇒ 车由 N8→N3 在 N8→N3 上重读 D4"))
+        steps.append(("D5", t5, d5, "非绿（else 分支；D2 是蓝、单相已用尽）→ 退回重读",
+                      "route[0]=N3; route[1]=0xFF（door() 内部手写）+ door_retreat(%s,%s) "
+                      "⇒ nowNode 变成 %s→%s ⇒ 车由 %s→%s 在 %s→%s 上重读 D4"
+                      % (r5[0], r5[1], r5[0], r5[1], r5[1], e5[1], r5[1], e5[1])))
     elif d2 == NO_PASS and d3 == ONE_WAY_PASS:
-        steps.append(("D5", "N10→N3", d5, "非绿（else 分支；D2 黑、D3 蓝已用尽）→ 退回",
-                      "door_retreat(N10,N8) + 放行 N3↔N8 ⇒ update_route_by_door_2() "
-                      "= route_return_home(起点 N8, 额外放行 N8→N3)"))
+        steps.append(("D5", t5, d5, "非绿（else 分支；D2 黑、D3 蓝已用尽）→ 退回",
+                      "door_retreat(%s,%s) + 放行 N3↔N8 ⇒ update_route_by_door_2() "
+                      "= route_return_home(起点 %s, 额外放行 %s→%s)"
+                      % (r5[0], r5[1], r5[1], r5[1], e5[1])))
     else:
-        steps.append(("D5", "N10→N3", d5, "非绿 → ⚠ door() 里没有匹配分支", "什么都不做"))
+        steps.append(("D5", t5, d5, "非绿 → ⚠ door() 里没有匹配分支", "什么都不做"))
         hazards.append("D5 非绿时 door() 只处理「D2=蓝」或「D2=黑且 D3=蓝」两种组合；"
                        "当前组合两边都不满足 ⇒ 不置 cross_event、不改 route[] "
                        "⇒ Navigation() 会重跑同一段并再次触发 door()，**可能反复重读这扇门**。")
 
-    # ---------- DOOR_D4_BACK：N8 -> N3 ----------
-    if d4 == CAN_PASS:
-        steps.append(("D4(回程)", "N8→N3", d4, "绿 → 过门",
-                      "放行 N3↔N8；nowNode = N8→N3（step=36, SPEED3, function=NONE）+ "
-                      "motor_pid_clear() ⇒ update_route_by_door_3() = route_return_home(起点 N3)"))
-    else:
-        steps.append(("D4(回程)", "N8→N3", d4, "非绿（else 分支：黑/蓝）→ 退回",
-                      "先放行 N8↔N5（必须！否则 retreat 读到旧值会二次触发 door()）+ "
-                      "door_retreat(N8,N5) ⇒ update_route_by_door_4() "
-                      "= route_return_home(起点 N5)"))
-    return steps, hazards
+    # 触发边改了、退回分支没跟 ⇒ 黑/蓝灯时车会按旧几何倒车/转向（2026-10-17 D5 挪位实况）
+    if r5[0] != e5[0]:
+        hazards.append("⚠ D5_BACK 触发边是 %s→%s，但读灯失败的退回分支还是 "
+                       "door_retreat(%s,%s) —— D5 挪位后，黑/蓝灯的退回策略要重新设计"
+                       "（door_retreat 会按旧几何倒车再转向，车会走错）。"
+                       % (e5[0], e5[1], r5[0], r5[1]))
 
+    # ---------- DOOR_D4_BACK（触发边 = t4）----------
+    if d4 == CAN_PASS:
+        steps.append(("D4(回程)", t4, d4, "绿 → 过门",
+                      "放行 %s↔%s；nowNode = %s→%s（step=36, SPEED3, function=NONE）+ "
+                      "motor_pid_clear() ⇒ update_route_by_door_3() = "
+                      "route_return_home(起点 %s)"
+                      % (e4[1], e4[0], e4[0], e4[1], e4[1])))
+    else:
+        steps.append(("D4(回程)", t4, d4, "非绿（else 分支：黑/蓝）→ 退回",
+                      "先放行 %s↔%s（必须！否则 retreat 读到旧值会二次触发 door()）+ "
+                      "door_retreat(%s,%s) ⇒ update_route_by_door_4() "
+                      "= route_return_home(起点 %s)"
+                      % (r4[0], r4[1], r4[0], r4[1], r4[1])))
+    return steps, hazards
 
 def door_read_hops(doors):
     """进门读灯时，**退回重读那一段真正开过的节点**（全部是边表里的真实边）。
@@ -1800,40 +2029,47 @@ def door_read_dim_edges(doors):
 
 
 def door_back_chain(doors, door_edge):
-    """回程在 `door_edge` 上撞到 BACK 门时，镜像 door() 的 D5_BACK / D4_BACK 分支。
+    """回程在 `door_edge` 上撞到 BACK 门时，镜像 door() 的 BACK 分支。
 
-    door_edge ∈ {("N10","N3"), ("N8","N3")}（这两条是"回家路上"读的门）。
+    door_edge 必须是触发链里的 BACK 边（见 door_back_edges()；2026-10-17 起
+    **不再硬编码 N10→N3 / N8→N3** —— D5 已挪到 N20→N3，触发边跟着 barrier.c 走）。
     返回 (hops, start, allow, note)：
       hops  = 走 route_return_home 之前还要经过的节点（如退回 N8 后由 N8→N3 重读 D4）；
       start/allow 交给 door_return_home_waypoints()。
-    ⚠️ 注意两个 BACK 分支的 else 是**"非绿"**（黑和蓝都走），不是只有黑。
+    ⚠️ 两个 BACK 分支的 else 是**"非绿"**（黑和蓝都走），不是只有黑。
     """
     d2, d3, d4, d5 = doors[0], doors[1], doors[2], doors[3]
-    if door_edge == ("N10", "N3"):                       # DOOR_D5_BACK
+    be = door_back_edges().get(tuple(door_edge))
+    slot = be[0] if be else 3
+    land = door_edge[1]                     # 过门后落在的节点 = 触发边终点
+    r5 = parse_door_retreats().get("DOOR_D5_BACK") or ("N10", "N8")
+    back_n = r5[1]                          # D5 读灯失败退回到的节点（现仍 N8，待重设计）
+    if slot == 3:                           # ---- D5_BACK ----
         if d5 == CAN_PASS:
-            return [], "N3", False, "D5 绿 ⇒ update_route_by_door_1()（起点 N3）"
+            return [], land, False, "D5 绿 ⇒ update_route_by_door_1()（起点 %s）" % land
         if d2 == ONE_WAY_PASS:
-            # route[0]=N3; route[1]=0xFF ⇒ 退回 N8，再由 N8→N3 重读 D4（DOOR_D4_BACK）
+            # route[0]=land; route[1]=0xFF ⇒ 退回 back_n，再由 back_n→land 重读 D4（D4_BACK）
             if d4 == CAN_PASS:
-                return (["N8", "N3"], "N3", False,
-                        "D5 非绿 + D2 蓝 ⇒ route[0]=N3、退回 N8 ⇒ N8→N3 重读 D4 得绿 ⇒ "
-                        "update_route_by_door_3()（起点 N3）")
-            return (["N8", "N3", "N5"], "N5", False,
-                    "D5 非绿 + D2 蓝 ⇒ route[0]=N3、退回 N8 ⇒ N8→N3 重读 D4 非绿 ⇒ "
-                    "退回 N5 ⇒ update_route_by_door_4()（起点 N5）")
+                return ([back_n, land], land, False,
+                        "D5 非绿 + D2 蓝 ⇒ route[0]=%s、退回 %s ⇒ %s→%s 重读 D4 得绿 ⇒ "
+                        "update_route_by_door_3()（起点 %s）"
+                        % (land, back_n, back_n, land, land))
+            return ([back_n, land, "N5"], "N5", False,
+                    "D5 非绿 + D2 蓝 ⇒ route[0]=%s、退回 %s ⇒ %s→%s 重读 D4 非绿 ⇒ "
+                    "退回 N5 ⇒ update_route_by_door_4()（起点 N5）"
+                    % (land, back_n, back_n, land))
         if d2 == NO_PASS and d3 == ONE_WAY_PASS:
-            return ([], "N8", True,
-                    "D5 非绿 + D2 黑 + D3 蓝 ⇒ 退回 N8 ⇒ update_route_by_door_2()"
-                    "（起点 N8，放行 N8→N3）")
-        return ([], "N3", False,
+            return ([], back_n, True,
+                    "D5 非绿 + D2 黑 + D3 蓝 ⇒ 退回 %s ⇒ update_route_by_door_2()"
+                    "（起点 %s，放行 %s→%s）" % (back_n, back_n, back_n, land))
+        return ([], land, False,
                 "⚠ D5 非绿且 D2/D3 组合在 door() 里没有匹配分支（不置 cross_event，"
                 "可能反复重读这扇门）——下面按 D5 绿的结果占位，仅作示意")
-    # DOOR_D4_BACK：N8 → N3
+    # ---- D4_BACK ----
     if d4 == CAN_PASS:
-        return [], "N3", False, "D4 回程绿 ⇒ update_route_by_door_3()（起点 N3）"
+        return [], land, False, "D4 回程绿 ⇒ update_route_by_door_3()（起点 %s）" % land
     return (["N5"], "N5", False,
             "D4 回程非绿 ⇒ 放行 N8↔N5、退回 N5 ⇒ update_route_by_door_4()（起点 N5）")
-
 
 def p3p4_punch_waypoints(treasure, line_clue):
     """镜像 mission_planner.c 的 `P3P4_PUNCH_ENABLE` 段：一轮回程要"补打卡"的平台。
@@ -2099,7 +2335,8 @@ def treasure_return_waypoints(start, doors, treasure, line_clue=None, punch=Fals
     elif d4 == CAN_PASS:
         wp += ["N8", "N3"]
     elif ONE_WAY_PASS in (d2, d3, d4):
-        wp += ["N10", "N3"]      # 回程需经 D5
+        _e5 = door_back_slot_edge(3) or ("N20", "N3")
+        wp += [_e5[0], _e5[1]]   # 回程需经 D5（必经点 = 触发链里 D5_BACK 的起点）
     else:
         return None, "D2/D3/D4 都不能过（固件会 CarBrake_Stop）"
     if treasure not in (5, 6):
@@ -2128,7 +2365,7 @@ def door_return_home_waypoints(start, treasure, allow_N8_N3=False,
     wp += round1_return_extra_waypoints(treasure, line_clue, punch, tour,
                                         elapsed_s=elapsed_s, exit_node=start)
     wp.append("P2")
-    blocked = set(DOOR_ZONE)
+    blocked = set(get_door_zone())
     if allow_N8_N3:
         blocked.discard(("N8", "N3"))
     return wp, blocked
@@ -2863,6 +3100,299 @@ MISSING_SEED = ("C6", "C7", "C8", "G1", "C2", "B4")
 
 def load_seed_positions():
     return dict(SEED_POSITIONS)
+
+
+# ---------------------------------------------------------------- 布局 JSON 对比 / 迁移
+# 「⇋ JSON 对比…」的纯计算部分（无 Tk，_selftest 有专节守着）。
+# 方向约定：a = 基准（当前布局），b = 参考（要把 b 的值迁到 a 一侧）。
+# 设计护栏：
+#  - layout_diff() 只产出「差异行 + 指令」，apply_layout_diff_items() 才真正改模型，
+#    两段都能脱离 GUI 单测；
+#  - 删除类指令（删节点/删边/删补偿行）sel=False 默认不勾，防误删；
+#  - 「仅当前有」的宏不给迁移（宏被边表 angle/step 引用，删了 eval 会失败）；
+#  - 参考里只有反向边（b 有 Y→X 而 a 只有 X→Y）只提示、不自动迁（方向语义要人工定）；
+#  - 迁移前的完整快照由界面层落盘（宏/转弯表/约束不在撤销栈里，撤销救不回来）。
+
+def _diff_txt(v, limit=46):
+    """值 → 对比对话框里显示的短文本。"""
+    if v is None:
+        return "(无)"
+    if isinstance(v, bool):
+        s = "开" if v else "关"
+    elif isinstance(v, float):
+        s = "%g" % v
+    elif isinstance(v, (dict, list)):
+        s = json.dumps(v, ensure_ascii=False)
+    else:
+        s = str(v)
+    s = s.replace("\n", " ")
+    return s if len(s) <= limit else s[:limit - 1] + "…"
+
+
+_EDGE_DIFF_FIELDS = ("flag", "angle", "step", "speed", "func", "comment")
+_NODE_DIFF_FIELDS = ("x", "y", "comment")
+
+
+def _num_eq(x, y):
+    try:
+        return abs(float(x) - float(y)) < 1e-9
+    except (TypeError, ValueError):
+        return x == y
+
+
+def layout_diff(a, b):
+    """对比两份布局 JSON（json.loads 后的 dict）。
+
+    返回 [section]；section = {"name": 节名, "same": 相同项数, "rows": [row]}；
+    row = {"label","cur","ref","sel","act","apply"}：
+      - apply=None → 仅提示行，不参与迁移；
+      - 否则 apply = 指令元组，交给 apply_layout_diff_items()。
+    格式不对（format != "xunbao-map"）抛 ValueError。
+    """
+    for tag, d in (("A", a), ("B", b)):
+        if not isinstance(d, dict) or d.get("format") != "xunbao-map":
+            raise ValueError("%s 不是布局 JSON（format 字段不对，或选错了文件）" % tag)
+    secs = []
+
+    def _sec(name):
+        s = {"name": name, "same": 0, "rows": []}
+        secs.append(s)
+        return s
+
+    def _row(sec, label, cur, ref, act, apply_, sel=True):
+        sec["rows"].append({"label": label, "cur": cur, "ref": ref,
+                            "act": act, "apply": apply_, "sel": sel})
+
+    # ① 场地（USE_FIELD，影响所有 LEN_*/ANGLE_* 宏的取值）
+    s = _sec("场地")
+    va, vb = a.get("field"), b.get("field")
+    if va != vb:
+        _row(s, "USE_FIELD", _diff_txt(va), _diff_txt(vb),
+             "改成 B 的场地", ("field", vb))
+    else:
+        s["same"] += 1
+
+    # ② 宏（config.h 快照：LEN_*/ANGLE_*/ROUND2_CRUISE_*……）
+    s = _sec("宏")
+    ma, mb = a.get("macros") or {}, b.get("macros") or {}
+    for k in sorted(set(ma) | set(mb)):
+        va, vb = ma.get(k), mb.get(k)
+        if va == vb:
+            s["same"] += 1
+        elif k not in mb:
+            _row(s, k, _diff_txt(va), "(无)",
+                 "仅 A 有（不迁移：删宏会让边表求值失败）", None)
+        else:
+            _row(s, k, _diff_txt(va), _diff_txt(vb), "改成 B 的值",
+                 ("macro", k, vb))
+
+    # ③ 转弯补偿（两张表 + 公式常量 + 计算开关）
+    s = _sec("转弯补偿")
+    ta, tb = a.get("turn") or {}, b.get("turn") or {}
+    va, vb = ta.get("calc_enable"), tb.get("calc_enable")
+    if va != vb:
+        _row(s, "TURN_CALC_ENABLE", _diff_txt(va), _diff_txt(vb),
+             "改成 B 的值", ("calc", vb))
+    else:
+        s["same"] += 1
+    ca, cb = ta.get("consts") or {}, tb.get("consts") or {}
+    for k in sorted(set(ca) | set(cb)):
+        va, vb = ca.get(k), cb.get(k)
+        if va == vb:
+            s["same"] += 1
+        elif k not in cb:
+            _row(s, "常量 " + k, _diff_txt(va), "(无)", "仅 A 有（保留）", None)
+        else:
+            _row(s, "常量 " + k, _diff_txt(va), _diff_txt(vb), "改成 B 的值",
+                 ("const", k, vb))
+    for tbl in ("stop", "gyro"):
+        la = {(r.get("last"), r.get("now"), r.get("next")): r
+              for r in (ta.get(tbl) or [])}
+        lb = {(r.get("last"), r.get("now"), r.get("next")): r
+              for r in (tb.get(tbl) or [])}
+        tname = "停车转" if tbl == "stop" else "陀螺转"
+        for k in sorted(set(la) | set(lb), key=lambda x: tuple(str(v) for v in x)):
+            ra, rb = la.get(k), lb.get(k)
+            if ra is not None and rb is not None and _num_eq(ra.get("dist"), rb.get("dist")):
+                s["same"] += 1
+                continue
+            label = "%s: %s→%s→%s" % ((tname,) + tuple(str(v) for v in k))
+            if rb is None:
+                _row(s, label, _diff_txt(ra and ra.get("dist")), "(无)",
+                     "删掉这行补偿", ("turndel", tbl) + tuple(k), sel=False)
+            else:
+                _row(s, label, _diff_txt(ra and ra.get("dist")),
+                     _diff_txt(rb.get("dist")),
+                     "新增这行补偿" if ra is None else "改成 B 的值",
+                     ("turn", tbl, dict(rb)))
+
+    # ④ 约束 / ⑤ 底图标定（界面态；clue_route/round2_route 这类整键一起迁）
+    for name, key, ap in (("约束", "constraints", "constr"),
+                          ("底图标定", "background", "bg")):
+        s = _sec(name)
+        da_, db_ = a.get(key) or {}, b.get(key) or {}
+        for k in sorted(set(da_) | set(db_)):
+            va, vb = da_.get(k), db_.get(k)
+            if va == vb:
+                s["same"] += 1
+            elif k not in db_:
+                _row(s, k, _diff_txt(va), "(无)", "仅 A 有（保留）", None)
+            else:
+                _row(s, k, _diff_txt(va), _diff_txt(vb), "改成 B 的值",
+                     (ap, k, vb))
+
+    # ⑥ 节点（坐标 / 备注；新增 / 删除）
+    s = _sec("节点")
+    na = {n.get("name"): n for n in (a.get("nodes") or [])}
+    nb = {n.get("name"): n for n in (b.get("nodes") or [])}
+
+    def _npos(n):
+        return "x=%s y=%s %s" % (_diff_txt(n.get("x"), 10), _diff_txt(n.get("y"), 10),
+                                 _diff_txt(n.get("comment"), 18))
+
+    for name in sorted(set(na) | set(nb)):
+        ra, rb = na.get(name), nb.get(name)
+        if ra is not None and rb is not None:
+            if all((_num_eq(ra.get(f), rb.get(f)) if f != "comment"
+                    else ra.get(f) == rb.get(f)) for f in _NODE_DIFF_FIELDS):
+                s["same"] += 1
+            else:
+                _row(s, name, _npos(ra), _npos(rb),
+                     "改成 B 的坐标/备注", ("node", name, dict(rb)))
+        elif rb is not None:
+            _row(s, name, "(无)", _npos(rb),
+                 "新增节点（它的边要在「边」节一起勾）", ("node", name, dict(rb)))
+        else:
+            _row(s, name, _npos(ra), "(无)",
+                 "从当前删除（连带它的边）", ("nodedel", name), sel=False)
+
+    # ⑦ 边（参数逐字段比；方向按 frm→to 精确配对）
+    s = _sec("边")
+    ea = {(e.get("frm"), e.get("to")): e for e in (a.get("edges") or [])}
+    eb = {(e.get("frm"), e.get("to")): e for e in (b.get("edges") or [])}
+
+    def _eparams(e):
+        return " / ".join("%s=%s" % (f, _diff_txt(e.get(f), 14))
+                          for f in _EDGE_DIFF_FIELDS)
+
+
+    for k in sorted(set(ea) | set(eb), key=lambda x: tuple(str(v) for v in x)):
+        ra, rb = ea.get(k), eb.get(k)
+        if ra is not None and rb is not None:
+            changed = [f for f in _EDGE_DIFF_FIELDS if ra.get(f) != rb.get(f)]
+            if not changed:
+                s["same"] += 1
+            else:
+                _row(s, "%s→%s" % k,
+                     " / ".join("%s=%s" % (f, _diff_txt(ra.get(f), 14)) for f in changed),
+                     " / ".join("%s=%s" % (f, _diff_txt(rb.get(f), 14)) for f in changed),
+                     "改成 B 的参数", ("edge", k[0], k[1], dict(rb)))
+        elif rb is not None:
+            _row(s, "%s→%s" % k, "(无)", _eparams(rb), "新增边",
+                 ("edge", k[0], k[1], dict(rb)))
+        else:
+            _row(s, "%s→%s" % k, _eparams(ra), "(无)", "从当前删除这条边",
+                 ("edgedel", k[0], k[1]), sel=False)
+            if (k[1], k[0]) in eb:
+                _row(s, "%s→%s" % k, "A 里是这个方向",
+                     "B 里是 %s→%s" % (k[1], k[0]),
+                     "两边方向不同，请人工核对（不自动迁）", None)
+    return secs
+
+
+def apply_layout_diff_items(model, items):
+    """把 layout_diff() 产出的指令应用到 MapModel。返回实际生效的条数。
+
+    纯函数（不碰 Tk、不碰文件）；界面层负责撤销点 + 迁移前快照 + 刷新。
+    """
+    n = 0
+    for it in items:
+        kind = it[0]
+        if kind == "field":
+            model.field_name = it[1]
+            n += 1
+        elif kind == "macro":
+            model.macros[it[1]] = it[2]
+            n += 1
+        elif kind == "const":
+            model.turn["consts"][it[1]] = it[2]
+            n += 1
+        elif kind == "calc":
+            model.turn["calc_enable"] = it[1]
+            n += 1
+        elif kind == "turn":
+            tbl, row = it[1], it[2]
+            lst = model.turn.setdefault(tbl, [])
+            key = (row.get("last"), row.get("now"), row.get("next"))
+            for i, r in enumerate(lst):
+                if (r.get("last"), r.get("now"), r.get("next")) == key:
+                    lst[i] = dict(row)
+                    break
+            else:
+                lst.append(dict(row))
+            n += 1
+        elif kind == "turndel":
+            tbl, k = it[1], tuple(it[2:5])
+            lst = model.turn.get(tbl) or []
+            keep = [r for r in lst
+                    if (r.get("last"), r.get("now"), r.get("next")) != k]
+            if len(keep) != len(lst):
+                model.turn[tbl] = keep
+                n += 1
+        elif kind == "constr":
+            if not isinstance(getattr(model, "constraints", None), dict):
+                model.constraints = {}
+            model.constraints[it[1]] = it[2]
+            n += 1
+        elif kind == "bg":
+            if not isinstance(getattr(model, "background", None), dict):
+                model.background = {}
+            model.background[it[1]] = it[2]
+            n += 1
+        elif kind == "node":
+            name, d = it[1], it[2]
+            nd = model.node(name)
+            if nd is not None:
+                if "x" in d:
+                    nd.x = float(d["x"])
+                if "y" in d:
+                    nd.y = float(d["y"])
+                if "comment" in d:
+                    nd.comment = d["comment"]
+            else:
+                model.nodes.append(Node.from_dict(dict(d, name=name)))
+            n += 1
+        elif kind == "nodedel":
+            name = it[1]
+            if model.node(name) is not None:
+                model.nodes = [x for x in model.nodes if x.name != name]
+                model.edges = [e for e in model.edges
+                               if e.frm != name and e.to != name]
+                n += 1
+        elif kind == "edge":
+            frm, to, d = it[1], it[2], it[3]
+            ed = model.edge(frm, to)
+            if ed is not None:
+                for f in _EDGE_DIFF_FIELDS:
+                    if f in d:
+                        setattr(ed, f, d[f])
+            else:
+                d2 = dict(d)
+                d2["frm"], d2["to"], d2["tag"] = frm, to, None
+                e2 = Edge.from_dict(d2)
+                if not e2.tag:
+                    e2.tag = model._new_tag()
+                model.edges.append(e2)
+            n += 1
+        elif kind == "edgedel":
+            ed = model.edge(it[1], it[2])
+            if ed is not None:
+                model.edges.remove(ed)
+                n += 1
+    if n:
+        model.dirty = True
+    return n
+
 
 
 # ---------------------------------------------------------------- 自检

@@ -51,3 +51,5 @@
 - ⚠️ **`_guismoke.py` 里会开对话框的测试块，必须另起一个 `E.App()` 实例**——前面的断言做过 `fix_junction_flags`/`undo` 等改动，画布状态已被扰动，复用同一实例会让早先的「入口可见」断言假红（看着像布局回归）。且首次填充是 `dlg.after(30)`，断言前要主动调刷新函数，否则拿到空文本。
 - 改 `map_model.py` 后必跑 `_selftest.py` + `_guismoke.py`，用**系统 Python**（`C:/Users/14166/AppData/Local/Microsoft/WindowsApps/python.exe`，托管版无 tkinter）。
 - 改鼠标交互（`_on_node/bg_press`/`_on_motion`/`_on_release`）必须 `event_generate` 走真事件链验证（直调断言不够，README §3.4）。连线语义：普通单击=选中/拖动（>4px 为拖）；**Shift+点节点=连线**；双击不连线。误触源：工具栏连线模式复选框与 `A` 键。
+
+- **`upright_Set_node/Reset_node(a,b)` 的 (a,b) 必须是有向边表里真实存在的边**：查不到 → `Route_Error_Stop` 播 33 + `CarBrake_Stop()` while(1)。10-17 事故：`upright_Set()` 写 `N20,C8`（N20 出边只有 P8/N3/N10/C10，实走 `N20→C10→C8`）⇒ `SKIP_ROUND1=1` 时上电第一拍 `get_newroute()` 就死停（串口 `no connection 38 -> 42`）。改用 `C10,C8`。改布防点前先 `m.out_neighbors()` 查边。README §5.13。
