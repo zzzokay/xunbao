@@ -30,8 +30,7 @@
       "defines": [
         "USE_HAL_DRIVER",
         "STM32F750xx",
-        "USE_PLANNER_ROUTE=1",
-        "USE_FIELD=1"
+        "USE_PLANNER_ROUTE=1"
       ]
     }
   ]

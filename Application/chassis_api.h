@@ -35,7 +35,7 @@
  * ================================================================ */
 #define LINE_GYRO_COMP_KD    0.06f
 #define LINE_GYRO_COMP_MAX   7.0f
-#define LINE_GYRO_YAW_FILTER 0.7f
+#define LINE_GYRO_YAW_FILTER 0.6f
 /* 循迹边界模式 */
 typedef enum {
     TRACK_ALL = 0,        // 正常双边循迹

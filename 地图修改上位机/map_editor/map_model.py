@@ -35,6 +35,8 @@ PATH_MSG_H = os.path.join(ROOT, "Navigation", "map_message.h")
 PATH_CONFIG = os.path.join(ROOT, "Mission", "config.h")
 # 「转弯前补偿」两张表都写在 map.c 里（不像边表那样单独一个文件）
 PATH_MAP_C = os.path.join(ROOT, "Navigation", "map.c")
+# 路径规划权重表 NavObsPenalty[]（唯一数据源，改这里等于改固件）
+PATH_NAV_C = os.path.join(ROOT, "Navigation", "nav_planner.c")
 
 
 # ---------------------------------------------------------------- flag / func 名字表
@@ -252,7 +254,7 @@ def parse_config_macros(path=PATH_CONFIG, source_text=None):
         mm = re.search(r"#define\s+%s\s+(\d+)" % name, src)
         if mm:
             consts[name] = int(mm.group(1))
-    mm = re.search(r"#define\s+USE_FIELD\s+([A-Za-z_]\w*)", src)
+    mm = re.search(r"#define\s+USE_FIELD_?\s+([A-Za-z_]\w*)", src)
     if not mm:
         raise ParseError("config.h 里找不到 USE_FIELD")
     field_tok = mm.group(1)
@@ -266,7 +268,7 @@ def parse_config_macros(path=PATH_CONFIG, source_text=None):
 
     def eval_cond(expr):
         e = expr.strip()
-        m2 = re.match(r"^USE_FIELD\s*==\s*(\w+)$", e)
+        m2 = re.match(r"^USE_FIELD_?\s*==\s*(\w+)$", e)
         if m2:
             return consts.get(m2.group(1), 0) == field
         m2 = re.match(r"^(\d+)\s*==\s*(\d+)$", e)
@@ -358,6 +360,236 @@ def macros_diff_lines(td):
     return out
 
 
+# ============================== 路径规划权重（NavObsPenalty[]）========================
+# 固件 Navigation/nav_planner.c 的 `static const float NavObsPenalty[20]`，下标 = map.h 的
+# barriers 枚举值，含义=「过这类障碍的等效 cm 代价」。规划器 cost = W_STEP*step + W_OBS*penalty
+# + W_TURN*|转角|，所以**改这几个数就能改变走哪条路**（不需要改 wp必经点）。
+#
+# ⚠️ 三处必须同步（_selftest.py 第 8 节会逐项比对，不一致就红）：
+#   ① Navigation/nav_planner.c 的 NavObsPenalty[]   ← 本模块读写的就是它（唯一数据源）
+#   ② 本文件MapModel.OBS                             ← 上位机自己算路线用
+#   ③ validate/_weight_calib.py 的 OBS_PENALTY       ← 回归校验用
+# 上位机改完 ① 会自动同步 ②（同一进程内），③ 是独立脚本需手动或由「写回」一并处理。
+
+# 只暴露"人能看懂名字 + 会真实影响路线"的项；下标 0/16/17/18 恒为 0，不给拉条。
+WEIGHT_EDITABLE = [
+    "UpStage", "Bridge", "Hill", "LBHill", "SM", "View", "View1",
+    "BSoutPole", "QQB", "BLBS", "BLBL", "DOOR", "BHM", "UpStageHome",
+]
+WEIGHT_HINT = {
+    "Hill":  "山地/楼梯。调高→更愿意走平路（南环）；调低→更愿意爬楼梯。",
+    "BLBL":  "长波动板。调低→南环变便宜（南环有 2 段长波）。",
+    "BLBS":  "短波动板。",
+    "SM":    "刀山。调高→更避开 N12→N11 这条刀山近路。",
+    "View":  "景点支路。调高→更不把景点当捷径。",
+    "View1": "直立景点支路。",
+    "DOOR":  "门。固定开销（停车+读灯500ms）；调高→更不穿门。",
+    "Bridge": "桥。",
+    "UpStage": "平台（去完要往返）。",
+    "UpStageHome": "回家平台。",
+    "BHM":   "高山。",
+    "QQB":   "跷跷板（单相）。",
+    "BSoutPole": "南极。",
+    "LBHill": "小山地。",
+    "BACK":  "后退桩（别动，必须远大于其它）。",
+}
+
+def parse_obs_penalty(path=None):
+    """解析固件 NavObsPenalty[] → {func_name: float}（按 FUNC_ORDER 的枚举下标）。
+
+    与 _selftest.py 第 8 节的解析口径保持一致（下标 0 恒 0，16/17/18 也恒 0）。
+    解析不到就raise ParseError，**不静默返回默认值** —— 静默会让上位机显示的路线
+    和车上跑的完全无关却毫无提示（这个坑已经踩过：OBS 与固件不同步）。
+    """
+    # ⚠️ 用 `path=None` + 运行时读全局，**不要**写 `path=PATH_NAV_C`：
+    #    默认值在函数**定义时**就绑定了，之后再改模块变量（测试重定向到副本）不生效。
+    path = path or PATH_NAV_C
+    try:
+        src = open(path, encoding="utf-8").read()
+    except OSError as e:
+        raise ParseError("打不开 %s：%s" % (path, e))
+    m = re.search(r"NavObsPenalty\s*\[[^\]]*\]\s*=\s*\{", src)
+    if not m:
+        raise ParseError("nav_planner.c 里找不到 NavObsPenalty[] 初始化")
+    end = src.find("};", m.end())
+    if end < 0:
+        raise ParseError("NavObsPenalty[] 没有闭合的 };")
+    body = src[m.end():end]
+    vals = _scan_obs_body(body)
+    if len(vals) < 20:
+        raise ParseError("NavObsPenalty[] 只解析到 %d 项（应≥20），源码格式可能变了"
+                         % len(vals))
+    # FUNC_ORDER 是**列表**，下标正好 = 固件注释里的 barriers 枚举编号（NONE=1 … UpStageHome=19），
+    # 也就是 NavObsPenalty[] 的下标（0 是"空"）。所以 vals[i] 对应 FUNC_ORDER[i-1]。
+    return {name: vals[idx + 1] for idx, name in enumerate(FUNC_ORDER)
+            if idx + 1 < len(vals)}
+
+
+def _scan_obs_lines(body, eol="\n"):
+    r"""把 NavObsPenalty[] 的表体拆成 [(行号, 数值 or None, 该行原文)]。
+
+    ★ 用**块注释状态机**而不是逐行 `find("/*")` / `re.sub` —— 两个坑都踩过：
+      ① 注释正文含 `**`（非贪婪的 `/* ... */` 会提前终止，把后面整行当注释吞掉
+         ⇒ 只解析到 18 项，Hill/DOOR 两行凭空消失）；
+      ② Hill/DOOR 两项的注释**跨多行**（`/* 4 Hill …` 一直到 `*/` 才结束），
+         续行里没有 `/*`，逐行剥注释会把 `· N12→N20 ：要到 Hill <= 200 才翻` 当成候选行。
+      只有"处于注释外 + 该行以数值+逗号开头"才算一个权重项。
+    """
+    out = []
+    in_block = False
+    for i, line in enumerate(body.split(eol)):
+        s = line.strip()
+        if not s:
+            out.append((i, None, line))
+            continue
+        if in_block:
+            out.append((i, None, line))
+            j = s.find("*/")
+            if j >= 0:
+                in_block = False
+            continue
+        # 注释外：先取 /* 之前的代码部分
+        k = s.find("/*")
+        code = (s[:k] if k >= 0 else s).strip()
+        if k >= 0 and s.find("*/", k) < 0:
+            in_block = True                      # 注释跨行，本行只有开头
+        vm = re.match(r"^(-?\d+(?:\.\d+)?)f?\s*,?$", code)
+        out.append((i, (float(vm.group(1)) if vm else None), line))
+    return out
+
+
+def _scan_obs_body(body):
+    """便捷封装：只要数值列表（按出现顺序）。"""
+    return [v for _i, v, _l in _scan_obs_lines(body) if v is not None]
+
+
+def write_obs_penalty(values, path=None, backup_dir=None):
+    """把 {func_name: float} 写回固件 NavObsPenalty[]。
+
+    * **只改数字**，注释/缩进/顺序/换行一律按原样重排回去（改一个数不该产生 20 行 diff）。
+    * 行尾按文件原样探测（nav_planner.c 是 LF），**不用文本模式写**，避免 Windows 上被改成 CRLF。
+    * 返回 [(func_name, old, new), ...] 表示真正变了的项。
+    """
+    if not isinstance(values, dict):
+        raise ValueError("values 应为 {func_name: 数字}")
+    path = path or PATH_NAV_C        # 见 parse_obs_penalty 的同名注释（默认值绑定时机）
+    raw = open(path, "rb").read()
+    crlf = raw.count(b"\r\n")
+    lf_only = raw.count(b"\n") - crlf
+    eol = "\r\n" if crlf >= lf_only else "\n"
+    src = raw.decode("utf-8")
+    m = re.search(r"NavObsPenalty\s*\[[^\]]*\]\s*=\s*\{", src)
+    if not m:
+        raise ParseError("nav_planner.c 里找不到 NavObsPenalty[] 初始化")
+    end = src.find("};", m.end())
+    if end < 0:
+        raise ParseError("NavObsPenalty[] 没有闭合的 };")
+    body = src[m.end():end]
+
+    lines = body.split(eol)
+    scanned = _scan_obs_lines(body, eol)
+    # 遍历时要用「这是第几个权重项」当枚举下标（不是行号）——跨行注释会让行号 ≠ 下标
+    changed = []
+    seq = -1
+    for (li, oldv, raw_line) in scanned:
+        if oldv is None:
+            continue
+        seq += 1
+        if seq >= 20:
+            break
+        # 下标 = barriers 枚举值（seq 0 = 下标 0 的"空"）
+        name = FUNC_ORDER[seq - 1] if 1 <= seq <= len(FUNC_ORDER) else None
+        if name is None or name not in values:
+            continue
+        newv = float(values[name])
+        if newv < 0:
+            raise ValueError("%s 的权重不能为负（%r）" % (name, newv))
+        if abs(newv - oldv) < 1e-9:
+            continue
+        # 只换数字：保留原缩进 + 原行尾注释（本项注释都在同一行，跨行注释不动）
+        stripped = raw_line.strip()
+        k = stripped.find("/*")
+        comment = stripped[k:].strip() if k >= 0 else ""
+        indent = raw_line[:len(raw_line) - len(raw_line.lstrip())]
+        tail = (", " + comment) if comment else ","
+        lines[li] = "%s%s%s" % (indent, _fmt_obs(newv), tail)
+        changed.append((name, oldv, newv))
+
+    if not changed:
+        return []
+    if backup_dir:
+        os.makedirs(backup_dir, exist_ok=True)
+        stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        with open(os.path.join(backup_dir, "nav_planner.c.%s.bak" % stamp), "wb") as f:
+            f.write(raw)          # 备份保持原字节
+    new_src = src[:m.end()] + eol.join(lines) + src[end:]
+    with open(path, "wb") as f:
+        f.write(new_src.encode("utf-8"))     # 二进制写，行尾不会被转换
+    return changed
+
+
+def _fmt_obs(v):
+    """权重数字格式：整数就写整数（与固件里 `230.0f` 这种写法对齐写成 `230.0f`）。"""
+    if abs(v - round(v)) < 1e-9:
+        return "%d.0f" % int(round(v))
+    return ("%.4f" % v).rstrip("0") + "f"
+
+
+def load_obs_from_firmware(path=None):
+    """读固件 → 同时刷新 MapModel.OBS，让上位机立刻按固件权重算路线。"""
+    vals = parse_obs_penalty(path)
+    MapModel.OBS.update({k: v for k, v in vals.items() if k in MapModel.OBS})
+    return vals
+
+
+def sync_obs_to_model(values):
+    """把权重写进 MapModel.OBS（只更新存在的键，不新增枚举名）。"""
+    if not isinstance(values, dict):
+        raise ValueError("values 应为 {func_name: 数字}")
+    n = 0
+    for k, v in values.items():
+        if k in MapModel.OBS and isinstance(MapModel.OBS.get(k), (int, float)):
+            MapModel.OBS[k] = float(v)
+            n += 1
+    return n
+
+
+def obs_diff(cur, src):
+    """比较「当前模型的规划权重」与「nav_planner.c 源码的 NavObsPenalty[]」（只读）。
+
+    与 macros_diff / turn_diff 同构：返回 dict(add/dele/chg/same)，但**只比 chg**——
+    权重是固定 20 项的表，不存在"新增/删除一项"这种可能，键集固定，
+    真正要报的只有"哪几项的值被改了"。
+    ⚠️ 浮点按 1e-6 容差比：解析出来是 230.0，用户拖条是 230，直接 == 也能过，
+       但走一遍 round() 更稳（拖条是 IntVar，天然整数）。
+    """
+    cur = {k: float(v) for k, v in (cur or {}).items() if _is_num(v)}
+    src = {k: float(v) for k, v in (src or {}).items() if _is_num(v)}
+    chg = []
+    for name in FUNC_ORDER:                     # 按固件里的固定顺序，不排序
+        if name not in cur or name not in src:
+            continue
+        if abs(cur[name] - src[name]) > 1e-6:
+            chg.append((name, src[name], cur[name]))
+    return {"chg": chg, "same": not chg}
+
+
+def _is_num(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def obs_diff_lines(td):
+    """把 `obs_diff()` 的结果写成差异报告里的几行（纯字符串、无 Tk，便于自检）。"""
+    if td.get("same"):
+        return ["规划权重差异：无（MapModel.OBS 与 nav_planner.c 的 NavObsPenalty[] 一致）"]
+    out = ["规划权重差异（nav_planner.c NavObsPenalty[]，左=源码值，右=当前模型值）："]
+    for name, sv, cv in td["chg"]:
+        out.append("  ~ %s：%g → %g" % (name, sv, cv))
+    out.append("  ⇒ 当前模型显示的路线已按【当前值】算；固件仍按【源码值】跑。"
+               "写回固件后两边才一致。")
+    return out
+
+
 def write_use_field(new_field, path=PATH_CONFIG):
     """切换 config.h 的 USE_FIELD（FIELD_COMP / FIELD_SCHOOL）。
 
@@ -366,7 +598,7 @@ def write_use_field(new_field, path=PATH_CONFIG):
     if new_field not in ("FIELD_COMP", "FIELD_SCHOOL"):
         raise ParseError("场地只能是 FIELD_COMP 或 FIELD_SCHOOL，不是 %r" % new_field)
     src = open(path, encoding="utf-8").read()
-    pattern = re.compile(r"(#ifndef\s+USE_FIELD\s*\n#define\s+USE_FIELD\s+)(\w+)(\s*\n#endif)")
+    pattern = re.compile(r"(#ifndef\s+USE_FIELD_?\s*\n#define\s+USE_FIELD_?\s+)(\w+)(\s*\n#endif)")
     m = pattern.search(src)
     if not m:
         raise ParseError("config.h 里找不到 #ifndef USE_FIELD / #define USE_FIELD / #endif 块")
@@ -1640,38 +1872,126 @@ def upright_tour_waypoints(treasure, line_clue=None, punch=False):
     return out
 
 
-def round1_return_extra_waypoints(treasure, line_clue, punch=False, tour=False,
-                                  elapsed_s=None, exit_node=None):
-    """镜像一轮回程（plan_treasure_return / route_return_home）**宝物平台之后、P2 之前**的交错段。
+# ================= 比赛时间预算（出门 / 取宝后 分级贪分）=================
+# 与固件 Mission/mission_planner.c 的 round1_tail_tier_of() 一一对应（2026-10-12）。
+# 阈值**读 Mission/config.h**（读不到才用下面的默认），避免这里硬编码与固件漂移。
+TB_MACROS = ("TB_NO_SIGHTS_AT_S", "TB_ONE_PLAT_AT_S", "TB_HOME_ONLY_AT_S",
+             "TB_P1_NO_SIGHTS_AT_S", "TB_P1_HOME_ONLY_AT_S")
+TB_FALLBACK = {"TB_NO_SIGHTS_AT_S": 145, "TB_ONE_PLAT_AT_S": 155,
+               "TB_HOME_ONLY_AT_S": 160,
+               "TB_P1_NO_SIGHTS_AT_S": 135, "TB_P1_HOME_ONLY_AT_S": 145}
+TIER_NAME = {0: "全跑", 1: "不跑 S1/S2（只补平台）", 2: "只跑一个平台", 3: "直接回家"}
 
-    基础序 **P3 -> S1 -> P4 -> S2**（与二轮 get_newroute() 一致，避免交叉绕路）。
-    S1/S2 跟着"会去 P3/P4"走（同 upright_tour_waypoints()），所以**不再依赖宝物值**：
-    补打卡开着时两个景点都绕，关掉则退回旧行为（宝物 P3→S1、P4→S2）。
-    宝物=4（2026-10-11）：尾段按沿途岔口重排 **S2 -> P3 -> S1**。
-    ⚠️ 景点与平台一律在拿完宝藏之后（用户确认规则）。
-    elapsed_s/exit_node（2026-10-11）：出门时刻分级贪分，阈值同步 config.h 的 TB_*
-    （<2:25 全跑；≥2:25 不跑 S1/S2；≥2:35 只跑一个平台；≥2:40 直接回家）；
-    elapsed_s=None = 不启用时间裁剪（现行为）。
-    返回列表**不含宝物平台本身**（调用方已在更前面加过）。
+
+def mmss(sec):
+    """秒 → 「2:25」这种写法（报告用）。"""
+    s = int(sec)
+    return "%d:%02d" % (s // 60, s % 60)
+
+
+def time_budget_macros(cfg=None):
+    """5 个时间预算宏 → dict[str,int]。cfg = parse_config_macros()[0]，None 就现读。"""
+    src = cfg
+    if src is None:
+        try:
+            src, _f = parse_config_macros()
+        except Exception:
+            src = {}
+    out = dict(TB_FALLBACK)
+    for k in TB_MACROS:
+        try:
+            v = int(str((src or {}).get(k)).strip())
+            if v > 0:
+                out[k] = v
+        except (TypeError, ValueError):
+            pass
+    return out
+
+
+def time_budget_enabled(cfg=None):
+    """镜像 config.h 的 TIME_BUDGET_ENABLE（=0 时固件不裁剪、也不算时）。"""
+    src = cfg
+    if src is None:
+        try:
+            src, _f = parse_config_macros()
+        except Exception:
+            return True
+    return str((src or {}).get("TIME_BUDGET_ENABLE", "1")).strip() == "1"
+
+
+def round1_tail_tier(treasure, elapsed_s, tb=None):
+    """镜像 mission_planner.c:round1_tail_tier_of()。返回 (tier, 说明)。
+
+    tier：0=全跑 / 1=仅平台（不跑 S1/S2）/ 2=只跑一个平台 / 3=直接回家。
+    ⚠️ 两套阈值（2026-10-12 用户口径）：
+      宝物=P1(2)：< TB_P1_NO_SIGHTS 全跑；该值~TB_P1_HOME_ONLY 仅 P3、P4；≥ 直接回家。
+      其余宝物  ：通用 TB_NO_SIGHTS / TB_ONE_PLAT / TB_HOME_ONLY 三档。
+    elapsed_s=None ⇒ 不裁剪（= 固件 TIME_BUDGET_ENABLE=0 或计时器没启动）。
     """
+    tb = tb or time_budget_macros()
+    if elapsed_s is None:
+        return 0, "未启用时间裁剪（elapsed_s=None）"
+    if treasure == 2:
+        p, q = tb["TB_P1_NO_SIGHTS_AT_S"], tb["TB_P1_HOME_ONLY_AT_S"]
+        if elapsed_s < p:
+            return 0, "宝物=P1：< %s 全跑" % mmss(p)
+        if elapsed_s < q:
+            return 1, "宝物=P1：%s~%s 仅 P3、P4" % (mmss(p), mmss(q))
+        return 3, "宝物=P1：≥ %s 直接回家" % mmss(q)
+    a, b, c = tb["TB_NO_SIGHTS_AT_S"], tb["TB_ONE_PLAT_AT_S"], tb["TB_HOME_ONLY_AT_S"]
+    if elapsed_s < a:
+        return 0, "< %s 全跑" % mmss(a)
+    if elapsed_s < b:
+        return 1, "%s~%s 不跑 S1/S2" % (mmss(a), mmss(b))
+    if elapsed_s < c:
+        return 2, "%s~%s 只跑一个平台" % (mmss(b), mmss(c))
+    return 3, "≥ %s 直接回家" % mmss(c)
+
+
+def round1_tail_ladder(treasure, tb=None):
+    """该宝物值下的「档位阶梯」：[(时间范围文本, tier, 该档做什么)]（供报告/对话框列出）。"""
+    tb = tb or time_budget_macros()
+    if treasure == 2:
+        p, q = tb["TB_P1_NO_SIGHTS_AT_S"], tb["TB_P1_HOME_ONLY_AT_S"]
+        return [("< %s" % mmss(p), 0, "全跑：P3、P4 + S1、S2"),
+                ("%s ~ %s" % (mmss(p), mmss(q)), 1, "仅 P3、P4（两个平台必去，不跑 S1/S2）"),
+                ("≥ %s" % mmss(q), 3, "直接回家")]
+    a, b, c = tb["TB_NO_SIGHTS_AT_S"], tb["TB_ONE_PLAT_AT_S"], tb["TB_HOME_ONLY_AT_S"]
+    return [("< %s" % mmss(a), 0, "全跑：P3、P4 + S1、S2"),
+            ("%s ~ %s" % (mmss(a), mmss(b)), 1, "不跑 S1/S2（只补平台）"),
+            ("%s ~ %s" % (mmss(b), mmss(c)), 2, "只跑一个平台"),
+            ("≥ %s" % mmss(c), 3, "直接回家")]
+
+
+def round1_tail_plan(treasure, line_clue, punch=False, tour=False,
+                     elapsed_s=None, exit_node=None, tb=None, tier=None):
+    """一轮【宝物平台 / 出门点之后、P2 之前】的尾段。返回 (wp, info)。
+
+    info = {"tier","tier_name","trigger","exit_n3","reason","tb"}。
+    ⚠️ **定档点**（固件 round1_exit_recheck() 的两个触发点，2026-10-12）：
+      宝物=P1 → 在 P1 平台【取完宝那一刻】（barrier.c 的 Stage() 调它）；
+                此时出门节点无意义，exit_n3 恒传 1（P1 之后先西 P3、再东 P4）。
+      其余宝物 → 回程到达四条出门边（N10→N3 / N8→N3 / N12→N5 / N8→N5）那一刻。
+    tier 传了就直接用（给「档位阶梯」逐档取 wp）；返回的 wp **不含宝物平台本身**。
+    """
+    tb = tb or time_budget_macros()
+    if tier is None:
+        tier, reason = round1_tail_tier(treasure, elapsed_s, tb)
+    else:
+        reason = "（指定档位）"
+    if treasure == 2:
+        trigger = "在 P1 取完宝那一刻"
+        exit_n3 = True
+    else:
+        trigger = "回程到达出门边（N3/N5）那一刻"
+        exit_n3 = (exit_node == "N3")
+
     punch_list = p3p4_punch_waypoints(treasure, line_clue) if punch else []
     tours = upright_tour_waypoints(treasure, line_clue, punch) if tour else []
-    # 出门时刻分级（阈值同步 config.h 的 TB_*：2:25 / 2:35 / 2:40）
-    # elapsed_s 语义 = 出门时刻已用时（含出门惩罚，由调用方计算；
-    # 固件两个口径：BACK 重规划 = 已用时+TB_EXIT_PENALTY_S；绿灯穿门 = 平台已用时+行驶估计+惩罚）
-    tier = 0
-    if elapsed_s is not None:
-        if elapsed_s >= 160:
-            tier = 3
-        elif elapsed_s >= 155:
-            tier = 2
-        elif elapsed_s >= 145:
-            tier = 1
-    exit_n3 = (exit_node == "N3")
     out = []
-    if tier == 3:                      # ≥2:40 直接回家
-        return out
-    if tier == 2:                      # ≥2:35 只跑一个平台：出门 N3 选 P3，其余选 P4
+    if tier == 3:                      # 直接回家
+        pass
+    elif tier == 2:                    # 只跑一个平台：出门 N3 选 P3，其余选 P4
         if exit_n3:
             if "P3" in punch_list:
                 out.append("P3")
@@ -1682,8 +2002,7 @@ def round1_return_extra_waypoints(treasure, line_clue, punch=False, tour=False,
                 out.append("P4")
             elif "P3" in punch_list:
                 out.append("P3")
-        return out
-    if tier == 1:                      # ≥2:25 不跑 S1/S2：只补平台（出门侧优先）
+    elif tier == 1:                    # 不跑 S1/S2：只补平台（出门侧优先）
         if exit_n3:
             if "P3" in punch_list:
                 out.append("P3")
@@ -1694,23 +2013,62 @@ def round1_return_extra_waypoints(treasure, line_clue, punch=False, tour=False,
                 out.append("P4")
             if "P3" in punch_list:
                 out.append("P3")
-        return out
-    if treasure == 4:                  # 全跑：沿途岔口重排
+    elif treasure == 4:                # 全跑：沿途岔口重排
         if "S2" in tours:
             out.append("S2")
         if "P3" in punch_list:
             out.append("P3")
         if "S1" in tours:
             out.append("S1")
-        return out
-    if "P3" in punch_list:
-        out.append("P3")
-    if "S1" in tours:
-        out.append("S1")
-    if "P4" in punch_list:
-        out.append("P4")
-    if "S2" in tours:
-        out.append("S2")
+    else:                              # 全跑：基础序
+        if "P3" in punch_list:
+            out.append("P3")
+        if "S1" in tours:
+            out.append("S1")
+        if "P4" in punch_list:
+            out.append("P4")
+        if "S2" in tours:
+            out.append("S2")
+    info = {"tier": tier, "tier_name": TIER_NAME[tier], "trigger": trigger,
+            "exit_n3": exit_n3, "reason": reason, "tb": tb,
+            "punch_list": punch_list, "tours": tours}
+    return out, info
+
+
+def round1_tail_ladder_wp(treasure, line_clue, punch=False, tour=False, tb=None,
+                          exit_node="N3"):
+    """档位阶梯 + 每档的 wp：[(时间范围, tier, 该档做什么, wp)]（对话框/报告用）。"""
+    tb = tb or time_budget_macros()
+    rows = []
+    for rng, tier, desc in round1_tail_ladder(treasure, tb):
+        wp, _info = round1_tail_plan(treasure, line_clue, punch, tour,
+                                     exit_node=exit_node, tb=tb, tier=tier)
+        rows.append((rng, tier, desc, wp))
+    return rows
+
+
+def round1_return_extra_waypoints(treasure, line_clue, punch=False, tour=False,
+                                  elapsed_s=None, exit_node=None, tb=None):
+    """（薄壳，兼容旧签名）只返回 wp；要看档位/定档点请用 round1_tail_plan()。"""
+    return round1_tail_plan(treasure, line_clue, punch, tour,
+                            elapsed_s, exit_node, tb)[0]
+
+
+def time_budget_rule_lines(cfg=None):
+    """规则说明（读 config.h 现值）：总开关 + 两套阈值 + 两套档位。对话框直接用。"""
+    tb = time_budget_macros(cfg)
+    en = time_budget_enabled(cfg)
+    out = ["TIME_BUDGET_ENABLE = %s%s" % ("1" if en else "0",
+           "" if en else "（=0 ⇒ 完全不裁剪，尾段恒为全量）"),
+           "阈值（读 Mission/config.h）：TB_NO_SIGHTS/TB_ONE_PLAT/TB_HOME_ONLY = %d/%d/%d"
+           " ｜ TB_P1_NO_SIGHTS/TB_P1_HOME_ONLY = %d/%d"
+           % (tb["TB_NO_SIGHTS_AT_S"], tb["TB_ONE_PLAT_AT_S"], tb["TB_HOME_ONLY_AT_S"],
+              tb["TB_P1_NO_SIGHTS_AT_S"], tb["TB_P1_HOME_ONLY_AT_S"]),
+           ""]
+    for title, tre in (("通用：宝物 P3/P4/P5/P6（定档点 = 回程到达出门边 N3/N5 那一刻）", 3), ("宝物在 P1：定档点 = 在 P1 平台取完宝那一刻（出口恒按 N3 侧，先西 P3 再东 P4）", 2)):
+        out.append(title)
+        for rng, tier, desc in round1_tail_ladder(tre, tb):
+            out.append("    %-11s %s" % (rng, desc))
     return out
 
 
@@ -1789,13 +2147,14 @@ def round2_firmware_cruise(treasure, cfg=None):
     return list(cfg.get("cw") or ROUND2_CW_DEFAULT)
 
 
-def round2_waypoints(doors, treasure, cruise=None, cfg=None, tour=False):
+def round2_waypoints(doors, treasure, cruise=None, cfg=None, tour=False, s1=True):
     """镜像 get_newroute()（USE_PLANNER_ROUTE=1）：第二轮完整 wp。
 
     doors = door_pass[0..3]（D2/D3/D4/D5）；treasure 只用来定巡游方向（6=逆时针）。
     cruise = 自定义巡游顺序（P5~P8 各一次，顺序就是走法）；None = 固件当前顺序
              （由 cfg 的 CW/CCW 组按宝物值选，cfg=None 用出厂默认）。
-    tour=True ⇒ 按 UPRIGHT_TOUR_ENABLE 在 P3 后插 S1、P4 后插 S2。
+    tour=True ⇒ 按 UPRIGHT_TOUR_ENABLE 在 P3 后插 S1、P4 后插 S2（S1 还受
+    s1=ROUND2_S1_ENABLE 门控；map_editor 传 _r2_s1_on() 直读 config，默认 True）。
     cfg = `parse_round2_cruise()` 的结果（固件 config.h 里的两组顺序）。
     ⚠️ 门区那个"多保留的 N8"跟的是**巡游首站**：固件里就是首站=P6 才留，
        自定义顺序首站是 P6 时同理（平台交换后改顺序，门节点跟着变）。
@@ -1808,8 +2167,8 @@ def round2_waypoints(doors, treasure, cruise=None, cfg=None, tour=False):
         cruise = list(cruise)
     tour_from_p6 = (cruise[0] == "P6")
     wp = ["N2", "P1", "P3"]
-    if tour:                       # ← 镜像 mission_planner.c 二轮那两处 UPRIGHT_TOUR_ENABLE
-        wp.append("S1")            #   二轮固定两个都绕（N3 支路）
+    if tour and s1:                # ← 镜像二轮插点（UPRIGHT_TOUR_ENABLE && ROUND2_S1_ENABLE）
+        wp.append("S1")            #   N3 支路；ROUND2_S1_ENABLE=0（config.h）可单独关
     wp.append("P4")
     if tour:
         wp.append("S2")            #   N6 支路
@@ -1888,6 +2247,19 @@ class MapModel:
             m.edges.append(Edge(r["from"], r["to"], r["flag"], r["angle"], r["step"],
                                 r["speed"], r["func"], r["comment"], tag=m._new_tag()))
         m.declared_count = declared
+        # ★ 规划权重也从**固件**读（Navigation/nav_planner.c 的 NavObsPenalty[]），
+        #   覆盖类里那份硬编码的 OBS —— 否则改了固件权重、忘了改这里，
+        #   上位机显示的路线会和车上跑的悄悄不一致（_selftest 第 8 节专门盯这个）。
+        #   读失败保留类里的默认值，但把原因记进 m.obs["warnings"]，不静默。
+        m.obs = {"warnings": []}
+        try:
+            for _k, _v in parse_obs_penalty().items():
+                if _k in MapModel.OBS:
+                    MapModel.OBS[_k] = _v
+        except Exception as ex:                                    # noqa: BLE001
+            m.obs["warnings"].append(
+                "解析 nav_planner.c 的 NavObsPenalty[] 失败，规划权重沿用内置默认值"
+                "（可能与固件不符，显示的路线未必是车上跑的）：%s" % ex)
         try:
             m.turn = parse_turn_tables()
         except Exception as ex:                                    # noqa: BLE001

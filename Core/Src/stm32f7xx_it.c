@@ -462,11 +462,10 @@ void USART6_IRQHandler(void)
   HAL_UART_IRQHandler(&huart6);
   /* USER CODE BEGIN USART6_IRQn 1 */
   /* HAL完成单字节接收后，解析本字节并继续接收下一字节 */
-  if (HAL_UART_GetState(&huart6) == HAL_UART_STATE_READY)
-  {
-    Maxicam_ProcessRxByte(Maxicam_Rx);
-    HAL_UART_Receive_IT(&huart6, (uint8_t *)&Maxicam_Rx, 1);
-  }
+  /* 不能以 gState==READY 作门控：open 与 close 的阻塞发送期间 gState==BUSY_TX，
+     此时到达的字节会被丢弃且接收中断不再重新挂载，造成偶发丢 0x94 确认/识别结果。 */
+  Maxicam_ProcessRxByte(Maxicam_Rx);
+  HAL_UART_Receive_IT(&huart6, (uint8_t *)&Maxicam_Rx, 1);
   /* USER CODE END USART6_IRQn 1 */
 }
 

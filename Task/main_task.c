@@ -24,7 +24,7 @@
 
 /*===== 调试开关 MAIN_DEBUG 已集中到 config.h =====*/
 
-uint8_t test_flag = 1; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
+uint8_t test_flag = 15; //调试模式选择：0=关闭，1=循迹测试，2=陀螺测试，3=障碍物测试，4=坡道测试，5=红外测试，6=灰度测试，7=十字路口测试，8=一键自检，9=机器人动作测试
 float temp_speed=25;
 #if MAIN_DEBUG
 
@@ -44,7 +44,7 @@ void main_task(void *pvParameters)
 	mpuZreset(get_latest_yaw(), nodes.nowNode.angle); // 用稳定后的实际角度计算补偿
 
 	/*等待挡板*/
-	if (test_flag != 10 && test_flag != 11 && test_flag != 12 && test_flag != 8 && test_flag != 13&& test_flag != 14)
+	if (test_flag != 10 && test_flag != 11 && test_flag != 12 && test_flag != 8 && test_flag != 13&& test_flag != 14&& test_flag != 15)
 	{
 		while (Infrared_ahead == 0)
 			vTaskDelay(5);
@@ -63,12 +63,12 @@ void main_task(void *pvParameters)
 	#if SKIP_ROUND1
 	/* 跳过第一轮直接进第二轮：预设门状态（决定 get_newroute() 选哪条二轮路线）+
 	   置 routetime=1，让首个主循环周期走"二轮处理"分支（get_newroute()+zhunbei()） */
-	door_pass[0] = NO_PASS; /* D2 */
-	door_pass[1] = CAN_PASS;  /* D3 */
+	door_pass[0] = ONE_WAY_PASS; /* D2 */
+	door_pass[1] = NO_PASS;  /* D3 */
 	door_pass[2] = CAN_PASS;  /* D4 */
 	door_pass[3] = NO_PASS;  /* D5 */
 	door_pass[4] = NO_PASS;  /* D1 */
-	treasure = 2; /* 预设宝物平台编号：2 → 宝物平台 P1
+	treasure = 5; /* 预设宝物平台编号：2 → 宝物平台 P1
 	                 ⚠️ 改这里要连同上面 door_pass 预设一起看（两者共同决定 get_newroute() 选哪条二轮路线）；
 	                    2026-09-29 统一记载：行末原来写 5、README §2.4 原写 6，均与代码不符，以代码为准 */
 	map.routetime = 1;
@@ -120,12 +120,12 @@ void main_task(void *pvParameters)
 		{
 			//Chassis_OverrideGyroPid(2,0,10,50);
 			//Chassis_OverrideTurnPid(6.0f, 0.0f, 90.0f, 30.0f);
-			//Chassis_MotorControl(is_No,2,-2,0);
+			Chassis_MotorControl(is_Free,1000,1000,0);
 			//vTaskDelay(3000);
 			//Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ());
 			//Chassis_RestoreTurnPid();
-			Chassis_DriveDistance_Blocking(is_Gyro, 75.0f, -SPEED2, getAngleZ(), 0);
-			Chassis_Brake();
+			//Chassis_DriveDistance_Blocking(is_Gyro, 75.0f, SPEED0, getAngleZ(), 0);
+			//Chassis_Brake();
             //Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+180, getAngleZ(),20.0f);
 			//CarBrake();
 			//Chassis_Brake();
@@ -200,12 +200,16 @@ void main_task(void *pvParameters)
 		{
 
 
-			printf("1");
+			// printf("1");
+			send_play_specified_command(37);
 			uint8_t pass_state = Door_ReadPass_Test();
+			if(pass_state != 0)
+			{
 			printf("Door pass state = %d\r\n", pass_state);
 			vTaskDelay(1000);
+			test_flag =11;
+			}
 
-				// test_flag =0;
 		}
 		if(test_flag == 11)//测试摄像头数字
 		{
@@ -223,8 +227,10 @@ void main_task(void *pvParameters)
 
 			printf("OCR test start\r\n");
 			ocr_ok = WaitFor_OCR();
-			if (ocr_ok == OCR_SCAN_SUCCESS)
+			if (ocr_ok == OCR_SCAN_SUCCESS){
 				printf("OCR success: clue_A=%d\r\n", flag_clue_A);
+				test_flag=12;
+			}
 			else if (ocr_ok == OCR_SCAN_FAILED)
 				printf("OCR timeout or invalid result\r\n");
 		}
@@ -255,6 +261,7 @@ void main_task(void *pvParameters)
 			{
 				printf("QR success: line=%d, stageA=%d, stageB=%d\r\n",
 					flag_line_clue, flag_clue_stage_A, flag_clue_stage_B);
+				test_flag=10;
 			}
 			else
 			{
@@ -283,6 +290,28 @@ void main_task(void *pvParameters)
 			{
 				printf("key_single\r\n");
 				key[0].mode =0;
+			}
+		}
+		if(test_flag == 15)//定时器粗大误差测试：按一下按键起表，之后每 10s 播报一次语音 37
+		{
+			static uint32_t tt_start = 0, tt_next = 0;
+			uint32_t tt_now = xTaskGetTickCount();
+
+			if(key[0].mode == 1)                       /* 单击起表（再按 = 重新起表） */
+			{
+				key[0].mode = 0;
+				tt_next = (tt_start = tt_now) + 10u * configTICK_RATE_HZ;
+				printf("[TT] start tick=%lu\r\n", (unsigned long)tt_start);
+				send_play_specified_command(37);
+			}
+			/* ⚠️ 用 tick 差值判"到点"，别累加 vTaskDelay —— 后者会把主循环 3ms 的舍入误差累积起来 */
+			if(tt_start != 0 && (int32_t)(tt_now - tt_next) >= 0)
+			{
+				tt_next += 10u * configTICK_RATE_HZ;
+				printf("[TT] tick=%lu elapsed=%lu ms (应为 10000 的倍数)\r\n",
+				       (unsigned long)tt_now,
+				       (unsigned long)((tt_now - tt_start) * 1000u / configTICK_RATE_HZ));
+				send_play_specified_command(37);
 			}
 		}
 		/*调试模式下不执行 Navigation()，避免无传感器跑飞*/

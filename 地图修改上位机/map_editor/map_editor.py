@@ -145,6 +145,8 @@ def _fit_dialog(dlg, frm, minw, minh):
 
     ⚠️ 一律用**内容实测**的 req 尺寸，别再写死一个几何值 —— 写死的那个一旦小于内容，
        就会像「线索路线…」那样：内容 1348px 挤进 660px 窗口，右边整段看不见。
+    ⚠️ minsize 跟着截断后的尺寸一起变小：内容确实装不下时，**调用方要自己分栏/用滚动区**
+       （曾因此把「写回固件」按钮顶到屏幕外，用户报"找不到按钮"）。
     """
     dlg.update_idletasks()
     w = max(minw, frm.winfo_reqwidth() + 24)
@@ -154,6 +156,28 @@ def _fit_dialog(dlg, frm, minw, minh):
     dlg.geometry("%dx%d" % (w, h))
     dlg.minsize(w, h)
     return w, h
+
+
+def time_budget_choices():
+    """「比赛已用时」下拉的选项：**边界值从 config.h 的 TB_* 现读**，再补一条 10 秒阶梯。
+
+    ⇒ 改 Mission/config.h 的阈值后，临界值一定还在候选里（不用两处手抄维护）。
+    第一项 = 不启用时间裁剪（= 固件 TIME_BUDGET_ENABLE 关 / 计时器没启动）。
+    其余形如 "145 · 2:25"（秒 · 分:秒），`_elapsed_from_choice()` 按 "·" 取秒。
+    """
+    marks = set()
+    try:
+        tb = M.time_budget_macros()
+        for k in ("TB_NO_SIGHTS_AT_S", "TB_ONE_PLAT_AT_S", "TB_HOME_ONLY_AT_S",
+                  "TB_P1_NO_SIGHTS_AT_S", "TB_P1_HOME_ONLY_AT_S"):
+            try:
+                marks.add(int(tb[k]))
+            except (KeyError, TypeError, ValueError):
+                pass
+    except Exception:
+        pass
+    vals = sorted(v for v in (set(range(60, 181, 10)) | marks) if 30 <= v <= 180)
+    return ["不启用时间裁剪"] + ["%d · %s" % (v, M.mmss(v)) for v in vals]
 
 # ================================================================
 #  拖动吸附模式（比"硬锁表里角度"更实用）
@@ -793,6 +817,14 @@ class App(tk.Tk):
         # 转弯前补偿（map.c 的两张表 + 公式参数）：入口在**这一行**（不是工具栏，那里宽度吃紧）
         ttk.Button(trow, text="⟲ 转弯补偿…",
                    command=self.turn_comp_dialog).pack(side="left", padx=(6, 0))
+        # 路径规划权重（NavObsPenalty[]）：拖动实时看路线变化，可写回固件。
+        # ⚠️ **必须单独一行**：这一行已有「转弯补偿」标题+「显示」下拉(142px)+两个按钮，
+        #    reqw 合计已接近左栏 372px；再加第三个按钮会超出 ⇒ 按钮被挤出可视区
+        #    （`winfo_ismapped()` 返回 False，看起来"按钮不见了"，_guismoke 会红）。
+        brow = ttk.Frame(top)
+        brow.pack(fill="x", padx=4)
+        ttk.Button(brow, text="⚖ 规划权重…",
+                   command=self.weight_tuner_dialog).pack(side="left")
         self.lbl_turn_hint = ttk.Label(top, foreground="#666666", wraplength=372, text="")
         self.lbl_turn_hint.pack(anchor="w", padx=4)
         self.tree_turn = ttk.Treeview(top, columns=("ang", "br", "val", "src"),
@@ -856,6 +888,8 @@ class App(tk.Tk):
         row2b.pack(fill="x", padx=4, pady=(0, 2))
         ttk.Button(row2b, text="线索路线…", command=self.plan_clue_route_dialog).pack(side="left")
         ttk.Button(row2b, text="二轮路线…", command=self.plan_round2_route_dialog).pack(
+            side="left", padx=4)
+        ttk.Button(row2b, text="时间预算…", command=self.time_budget_dialog).pack(
             side="left", padx=4)
         ttk.Button(row2b, text="读 config.h", command=self.wp_from_config).pack(side="left", padx=4)
         cost_row = ttk.Frame(bot)
@@ -4106,6 +4140,18 @@ class App(tk.Tk):
         """「直立景点巡回 S1/S2」下拉 → bool（`UPRIGHT_TOUR_ENABLE`）。"""
         return self._switch_on("UPRIGHT_TOUR_ENABLE", choice)
 
+    def _r2_s1_on(self):
+        """二轮 S1 插点开关（config.h 的 ROUND2_S1_ENABLE；读不到宏按开处理）。
+
+        不设「强制开/关」下拉 —— S1 单独开关属现场配置，跟 config.h 走即可。
+        """
+        try:
+            macros, _field = M.parse_config_macros()
+            return bool(M.eval_c_expr("ROUND2_S1_ENABLE", macros))
+        except Exception as ex:                                  # noqa: BLE001
+            self.status("⚠ 读 config.h 的 ROUND2_S1_ENABLE 失败（按开处理）：%s" % ex)
+            return True
+
     def _doors_after_entry_read(self, doors):
         """回程梯子的输入：只有"进门时真读到的门"算已知，其余按固件初值 0（未读）算。
 
@@ -4126,7 +4172,7 @@ class App(tk.Tk):
         return eff, read, warn
 
     def _append_after_door(self, sections, enter, ab, doors, treasure, mode,
-                           clue=None, punch=False, tour=False):
+                           clue=None, punch=False, tour=False, elapsed_s=None):
         """过门之后：stageAB（平台 A/B）+ 宝物回程。返回可上画布的 path（或 None）。
 
         clue = P1 线索（QR 百位）、punch = P3P4_PUNCH_ENABLE、tour = UPRIGHT_TOUR_ENABLE，
@@ -4151,7 +4197,7 @@ class App(tk.Tk):
             return canvas
         doors_eff, _read, warn_doors = self._doors_after_entry_read(doors)
         wp2, why2 = M.treasure_return_waypoints("P%d" % b, doors_eff, treasure,
-                                                clue, punch, tour)
+                                                clue, punch, tour, elapsed_s)
         if wp2 is None:
             sections.append(("宝物回程 / plan_treasure_return()", ["⚠ %s" % why2]))
             return canvas
@@ -4223,8 +4269,64 @@ class App(tk.Tk):
         self.route_split = None
         self.route_dim_edges = []
 
+    # ------------------------------------------------------------ 线索参数（权重拉条复用）
+    P1CLUE_MAP = {
+        "不指定（固件不改路线）": None,
+        "线索=0：跳过 P3、P4": 0,
+        "线索=3：经过 P3": 3,
+        "线索=4：经过 P4": 4,
+    }
+
+    @classmethod
+    def clue_cfg_args(cls, cfg, elapsed_from_choice=None):
+        """把 `self.clue_route_cfg` 解析成 `_round1_complete()` 的实参。
+
+        与「线索路线…」里 `run()` 的解析**逐行对齐**（那边是 UI 直接调的，这边是给权重拉条复用）——
+        ⚠️ 两处解析若分叉，会出现"同一个线索组合，两个对话框算出不同路线"，最难查。
+        返回 (clue, ab, doors, treasure, punch, tour, elapsed_s, err)。
+        `err` 非 None 表示 treasure/clue 缺失，固件会停车。
+        """
+        cfg = cfg or {}
+
+        # 门灯：显示名 → 状态码
+        doors = []
+        names = cfg.get("doors") or []
+        for i in range(4):
+            label = names[i] if i < len(names) else None
+            state = M.NO_PASS
+            for s in M.DOOR_STATE_ORDER:
+                if M.DOOR_STATE_NAME[s] == label:
+                    state = s
+                    break
+            doors.append(state)
+
+        clue = cls.P1CLUE_MAP.get(cfg.get("p1clue"), None)
+        ab = None
+        stg = cfg.get("stg") or ""
+        try:
+            ab = (int(stg.split(",")[0].split("=")[1]),
+                  int(stg.split(",")[1].split("：")[0].split("=")[1]))
+        except Exception:                                        # noqa: BLE001
+            ab = None
+        tsel = cfg.get("treasure")
+        treasure = None
+        if tsel and tsel != "未定":
+            try:
+                treasure = int(str(tsel).split(" ")[0])
+            except ValueError:
+                treasure = None
+        punch = cfg.get("punch") == "开"
+        tour = cfg.get("tour") == "开"
+        elapsed_s = None
+        if elapsed_from_choice is not None:
+            elapsed_s = elapsed_from_choice(cfg.get("elapsed"))
+        err = None
+        if treasure is None:
+            err = "宝物线索「未定」：固件读不到宝物编号会CarBrake_Stop()，回程算不出来。"
+        return clue, ab, doors, treasure, punch, tour, elapsed_s, err
+
     def _round1_complete(self, clue, ab, doors, treasure, mode="full", punch=False,
-                         tour=False):
+                         tour=False, elapsed_s=None):
         """第一轮**完整路线**：起步 → P1 → 门区 → 东区 → 回程，逐段拼接成一条。
 
         拼接依据（都是固件真实交接点）：
@@ -4304,7 +4406,7 @@ class App(tk.Tk):
             return sections, outbound, None, None
         doors_eff, read_entry, warn_doors = self._doors_after_entry_read(doors)
         wp2, why2 = M.treasure_return_waypoints("P%d" % b, doors_eff, treasure,
-                                                clue, punch, tour)
+                                                clue, punch, tour, elapsed_s)
         if wp2 is None:
             return sections, [], None, ("固件会停车", str(why2))
         p2, e2 = self.model.plan_route(wp2, mode)
@@ -4326,7 +4428,7 @@ class App(tk.Tk):
                           "见下面 ④b" % edge)
             chain, start, allow, note = self._back_branch_from_edge(doors, read_entry, edge)
             wp3, blocked = M.door_return_home_waypoints(start, treasure, allow,
-                                                        clue, punch, tour)
+                                                        clue, punch, tour, elapsed_s)
             p3, e3 = self.model.plan_route(wp3, mode, blocked)
             lines = ["回程在 %s→%s 上撞到 BACK 门 ⇒ door() 会重写路线：" % edge, "  " + note]
             foot = list(ret[:idx + 1]) + list(chain)
@@ -4337,6 +4439,11 @@ class App(tk.Tk):
                 lines.append("  ⚠ 重规划失败：%s" % e3)
             ret = foot
             sections.append(("④b 回程·门区（door() 的 BACK 分支重规划）", lines))
+
+        if elapsed_s is not None:
+            sections.append(self._time_budget_section(
+                treasure, clue, punch, tour, elapsed_s,
+                self._exit_node_of_wp(wp3 if idx is not None else wp2, treasure)))
 
         flat = self._join(outbound, ret)
         front = flat[:split + 1]
@@ -4380,7 +4487,8 @@ class App(tk.Tk):
                                            "回程必经点押 N10→N3（到门口才读 D5）")
         return "stop", None, "D2/D3/D4 都不能过 ⇒ 固件 plan_treasure_return() 直接 CarBrake_Stop()"
 
-    def _input_section(self, stage, clue, ab, doors, treasure, punch=None, tour=None):
+    def _input_section(self, stage, clue, ab, doors, treasure, punch=None, tour=None,
+                       elapsed_s=None):
         """报告头：把这次的输入原样回显（免得以后分不清这份报告是哪套灯算的）。"""
         clue_txt = {None: "不指定（固件不改路线）", 0: "0（跳过 P3/P4）",
                     3: "3（经过 P3）", 4: "4（经过 P4）"}.get(clue, str(clue))
@@ -4401,20 +4509,24 @@ class App(tk.Tk):
                          % ("开" if tour else "关",
                             "；一轮 S1/S2 跟着「回程会不会去 P3/P4」走（补打卡开着时交错成 P3→S1→P4→S2，关着则宝物 P3→S1、P4→S2）；二轮 P3 后绕 S1、P4 后绕 S2"
                             if tour else "（不进 S1/S2）"))
+        if elapsed_s is not None:
+            lines.append("比赛已用时 = %d s（%s）⇒ 尾段按时间预算裁剪，见下面「时间预算」段"
+                         % (elapsed_s, M.mmss(elapsed_s)))
         return ("本次输入（这份报告按这套算）", lines)
 
     def _clue_route_sections(self, stage, clue, ab, doors, treasure, mode="full",
-                             punch=False, tour=False):
+                             punch=False, tour=False, elapsed_s=None):
         """线索/门灯/宝物 → 固件分支的路线（**纯计算，不碰 UI**；对话框与冒烟测试共用）。
 
         参数：stage=阶段文本；clue=P1 线索(0/3/4/None)；ab=(平台A, 平台B)；
               doors=[D2,D3,D4,D5] 状态（**唯一输入**：回程走哪个门区入口也由它自动推）；
               treasure=宝物编号或 None；punch=P3P4_PUNCH_ENABLE（一轮回程补打卡 P3/P4）；
-              tour=UPRIGHT_TOUR_ENABLE（直立景点巡回 S1/S2）。
+              tour=UPRIGHT_TOUR_ENABLE（直立景点巡回 S1/S2）；elapsed_s=已用时秒（None=不裁剪）。
         返回 (sections, canvas_path, err)：sections=[(标题, 行列表)]；err=(标题, 说明) 或 None。
         第一段固定是「本次输入」回显，方便对上报告是哪套灯算的。
         """
-        sections = [self._input_section(stage, clue, ab, doors, treasure, punch, tour)]
+        sections = [self._input_section(stage, clue, ab, doors, treasure, punch, tour,
+                                        elapsed_s=elapsed_s)]
         canvas = []
         self._reset_route_marks()        # 每次重算；只有「第一轮·完整路线」会设 split/淡色边
 
@@ -4423,7 +4535,7 @@ class App(tk.Tk):
 
         if stage.startswith("第一轮·完整路线"):
             sub, flat, split, err = self._round1_complete(clue, ab, doors, treasure, mode,
-                                                          punch, tour)
+                                                          punch, tour, elapsed_s)
             sections += sub
             if err:
                 return sections, [], err
@@ -4457,7 +4569,7 @@ class App(tk.Tk):
             if err:
                 return sections, canvas, None
             canvas = self._append_after_door(sections, enter, ab, doors, treasure, mode,
-                                             clue, punch, tour) or []
+                                             clue, punch, tour, elapsed_s) or []
 
         elif stage.startswith("第一轮·过门"):
             trace, enter, err = self._door_trace_lines(doors, with_back=False)
@@ -4465,7 +4577,7 @@ class App(tk.Tk):
                 return sections, canvas, ("固件会停车", err)
             sections.append(("门区读灯推进（door()，路线写在门里）", trace))
             canvas = self._append_after_door(sections, enter, ab, doors, treasure, mode,
-                                             clue, punch, tour) or []
+                                             clue, punch, tour, elapsed_s) or []
 
         elif stage.startswith("第一轮·门区回程"):
             bsteps, hazards = M.door_back_flow(doors)
@@ -4489,7 +4601,7 @@ class App(tk.Tk):
             chain, start, allow, note = self._back_branch_from_edge(
                 doors, M.door_read_names(doors), edge)
             wp, blocked = M.door_return_home_waypoints(start, treasure, allow,
-                                                       clue, punch, tour)
+                                                       clue, punch, tour, elapsed_s)
             path, why = plan(wp, blocked)
             head.append("回程在 %s→%s 上撞 BACK 门：%s" % (edge[0], edge[1], note))
             head.append("门区 8 条边在规划层全禁（nav_set_edge_blocked），"
@@ -4513,7 +4625,7 @@ class App(tk.Tk):
             fw_r2 = M.parse_round2_cruise()
             _t2 = treasure if treasure is not None else 0
             wp, why = M.round2_waypoints(doors, _t2,
-                                        None, fw_r2, tour)
+                                        None, fw_r2, tour, s1=self._r2_s1_on())
             if wp is None:
                 return sections, canvas, ("固件会停车", str(why))
             path, e = plan(wp)
@@ -4523,6 +4635,148 @@ class App(tk.Tk):
             canvas = list(path) if path else []
 
         return sections, canvas, None
+
+    # ---------------- 时间预算（分级贪分）：阈值 / 定档点 / 各档走法 ----------------
+
+    @staticmethod
+    def _elapsed_from_choice(choice):
+        """「比赛已用时」下拉 → 秒数（None = 不启用时间裁剪）。"""
+        if not choice or choice.startswith("不启用"):
+            return None
+        try:
+            return int(str(choice).split("·")[0].strip())
+        except (ValueError, IndexError):
+            return None
+
+    @staticmethod
+    def _exit_node_of_wp(wp, treasure):
+        """回程 wp 里的「出门节点」：加宝物平台之前的那个节点（P5/P6 = 门区最后加的节点）。"""
+        if treasure in (2, 3, 4):
+            tpf = M.TREASURE_PF.get(treasure)
+            if tpf in wp:
+                i = wp.index(tpf)
+                if i > 0:
+                    return wp[i - 1]
+        for n in reversed(list(wp)):
+            if n in ("N3", "N5", "N8", "N10", "N12"):
+                return n
+        return None
+
+    def _time_budget_section(self, treasure, clue, punch, tour, elapsed_s, exit_node):
+        """时间预算报告段：定档点 / 档位 / 尾段 wp / 被裁项 / 该宝物的档位阶梯（纯计算）。"""
+        title = "时间预算 / 分级贪分（round1_exit_recheck）"
+        if treasure is None:
+            return (title, ["宝物线索「未定」⇒ 尾段算不出来。"])
+        wp, info = M.round1_tail_plan(treasure, clue, punch, tour,
+                                      elapsed_s=elapsed_s, exit_node=exit_node)
+        full, _i0 = M.round1_tail_plan(treasure, clue, punch, tour,
+                                       exit_node=exit_node, tier=0)
+        cut = [x for x in full if x not in wp]
+        tb = info["tb"]
+        lines = []
+        if not M.time_budget_enabled():
+            lines += ["⚠ Mission/config.h 的 TIME_BUDGET_ENABLE = 0 ⇒ 固件当前【完全不裁剪】"
+                      "（尾段恒为全量）；下面是按已用时算出来的预览，车上不会真的这么走。", ""]
+        lines += [
+            "定档点 = %s" % info["trigger"],
+            "已用时 = %d s（%s）⇒ 档位 = %s"
+            % (elapsed_s, M.mmss(elapsed_s), info["reason"]),
+            "尾段 wp（宝物平台 / 出门点之后 → P2，不含宝物平台本身）: %s"
+            % (" -> ".join(wp) if wp else "（空，直接回家）"),
+            "全量（不裁剪）: %s" % (" -> ".join(full) if full else "（空）"),
+            "被裁掉: %s" % ("、".join(cut) if cut else "无"),
+            "阈值（Mission/config.h）: 通用 %d/%d/%d ｜ P1 专用 %d/%d"
+            % (tb["TB_NO_SIGHTS_AT_S"], tb["TB_ONE_PLAT_AT_S"], tb["TB_HOME_ONLY_AT_S"],
+               tb["TB_P1_NO_SIGHTS_AT_S"], tb["TB_P1_HOME_ONLY_AT_S"]),
+            "",
+            "档位阶梯（宝物 = %d（%s）｜ 百位 = %s ｜ 补打卡 = %s ｜ 巡回 = %s）:"
+            % (treasure, M.TREASURE_PF.get(treasure, "?"),
+               "不指定" if clue is None else clue,
+               "开" if punch else "关", "开" if tour else "关"),
+        ]
+        for rng, tier, desc, twp in M.round1_tail_ladder_wp(treasure, clue, punch, tour):
+            lines.append("    %-11s → %-32s wp=%s"
+                         % (rng, desc, " ".join(twp) if twp else "（无，直接回家）"))
+        return (title, lines)
+
+    def time_budget_dialog(self):
+        """「时间预算…」：分级贪分的阈值 / 定档点 / 各档走法（**只读**，不改任何文件）。"""
+        dlg = tk.Toplevel(self)
+        dlg.title("时间预算（分级贪分）：阈值 / 定档点 / 各档走法")
+        dlg.transient(self)
+        frm = ttk.Frame(dlg, padding=12)
+        frm.pack(fill="both", expand=True)
+
+        ttk.Label(frm, wraplength=660, justify="left",
+                  text="取完宝后要不要继续去 P3/P4/S1/S2，由 mission_planner.c 的"
+                       " round1_exit_recheck() + round1_tail_tier_of() 按「已用时」定档。"
+                       "**宝物在 P1 是单独一套（更紧的）阈值**；其余宝物在回程到达出门边"
+                       " N3/N5 时定档。这里只读，改阈值请改 Mission/config.h 的 TB_*。").grid(
+            row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
+
+        TRE_V = ["2 · P1", "3 · P3", "4 · P4", "5 · P5", "6 · P6"]
+        CLUE_V = ["不指定", "0", "3", "4"]
+        SW_V = ["开", "关"]
+        TIME_V = time_budget_choices()   # 与「线索路线…」同一份（边界读 config.h）
+        _c = dict(getattr(self, "time_budget_cfg", None) or {})
+
+        def _d(key, vals, i=0):
+            v = _c.get(key)
+            return v if v in vals else vals[i]
+
+        def cbox(col, label, vals, default, width=14):
+            ttk.Label(frm, text=label).grid(row=1, column=col * 2, sticky="e",
+                                            pady=3, padx=(0, 4))
+            var = tk.StringVar(value=default)
+            ttk.Combobox(frm, textvariable=var, values=vals, state="readonly",
+                         width=width).grid(row=1, column=col * 2 + 1, sticky="w",
+                                           pady=3, padx=(0, 10))
+            return var
+
+        tre_v = cbox(0, "宝物线索", TRE_V, _d("treasure", TRE_V))
+        clue_v = cbox(1, "QR 百位", CLUE_V, _d("clue", CLUE_V))
+        punch_v = cbox(2, "补打卡", SW_V, _d("punch", SW_V))
+        elapsed_v = cbox(3, "已用时", TIME_V, _d("elapsed", TIME_V))
+
+        ttk.Label(frm, text="规则（读 Mission/config.h 现值）").grid(
+            row=2, column=0, columnspan=4, sticky="w", pady=(10, 2))
+        rule = tk.Text(frm, height=10, width=88, wrap="none")
+        rule.grid(row=3, column=0, columnspan=4, sticky="we")
+        rule.insert("1.0", "\n".join(M.time_budget_rule_lines()))
+        rule.configure(state="disabled")
+
+        ttk.Label(frm, text="这一次会怎么走").grid(
+            row=4, column=0, columnspan=4, sticky="w", pady=(10, 2))
+        out = tk.Text(frm, height=13, width=88, wrap="none")
+        out.grid(row=5, column=0, columnspan=4, sticky="we")
+
+        def run():
+            tre = int(tre_v.get().split(" ")[0])
+            clue = None if clue_v.get() == "不指定" else int(clue_v.get())
+            punch = (punch_v.get() == "开")
+            elapsed = self._elapsed_from_choice(elapsed_v.get())
+            self.time_budget_cfg = {"treasure": tre_v.get(), "clue": clue_v.get(),
+                                    "punch": punch_v.get(), "elapsed": elapsed_v.get()}
+            if elapsed is None:
+                full, _i = M.round1_tail_plan(tre, clue, punch, True, exit_node="N3")
+                lines = ["已用时「不启用时间裁剪」⇒ 固件不裁剪，尾段恒为全量",
+                         "全量尾段 wp = %s" % (" -> ".join(full) if full else "（空）"),
+                         "",
+                         "想看定档后的走法，请把「已用时」选成一个具体时刻。"]
+            else:
+                _t, lines = self._time_budget_section(tre, clue, punch, True,
+                                                      elapsed, "N3")
+            out.delete("1.0", "end")
+            out.insert("1.0", "\n".join(lines))
+            self.status("时间预算：宝物 P%d ｜ 百位 = %s ｜ 已用时 = %s"
+                        % (tre, clue_v.get(), elapsed_v.get()))
+
+        btns = ttk.Frame(frm)
+        btns.grid(row=6, column=0, columnspan=4, sticky="w", pady=(10, 0))
+        ttk.Button(btns, text="看这一次", command=run).pack(side="left")
+        ttk.Button(btns, text="关闭", command=dlg.destroy).pack(side="left", padx=8)
+        run()
+        _fit_dialog(dlg, frm, 780, 520)
 
     def plan_clue_route_dialog(self):
         """按固件真实分支显示路线：每盏门灯(D2~D5) + 宝物线索 + P1/平台线索。
@@ -4605,12 +4859,17 @@ class App(tk.Tk):
                           _pick("punch", PUNCH_VALS, PUNCH_VALS[0]))
         tour_sel = combo(7, "直立景点巡回 S1/S2", TOUR_VALS,
                          _pick("tour", TOUR_VALS, TOUR_VALS[0]))
+        TIME_VALS = time_budget_choices()   # 10 秒阶梯 + config.h 的 TB_* 边界
+        elapsed_sel = combo(8, "比赛已用时", TIME_VALS,
+                            _pick("elapsed", TIME_VALS, TIME_VALS[0]))
         ttk.Label(frm, text="（回程走哪个门区入口不用选：由上面 4 格门灯自动推；"
                             "补打卡 = P3P4_PUNCH_ENABLE（缺哪个补哪个）；"
                             "巡回 = UPRIGHT_TOUR_ENABLE（一轮跟着「会不会去 P3/P4」绕 S1/S2，与补打卡交错成 P3→S1→P4→S2，二轮两个都绕）；"
+                            "已用时 = 固件比赛计时（出发起算）；选了就会按时间预算裁剪尾段"
+                            "（宝物在 P1 另有更紧的 2:15 / 2:25 两档，见「时间预算…」）；"
                             "这些选择会记住，随「保存布局」一起存，重启也在）",
                   foreground="#666666", wraplength=620, justify="left").grid(
-            row=8, column=0, columnspan=2, sticky="w", pady=(6, 0))
+            row=9, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
         def light_state(i):
             for s in M.DOOR_STATE_ORDER:
@@ -4628,6 +4887,7 @@ class App(tk.Tk):
                   int(stg.get().split(",")[1].split("：")[0].split("=")[1]))
             punch = self._punch_on(punch_sel.get())
             tour = self._tour_on(tour_sel.get())
+            elapsed = self._elapsed_from_choice(elapsed_sel.get())
             # 记住这次的选择（下次打开就是这套；也会随「保存布局」写进 constraints）
             self.clue_route_cfg = {
                 "stage": stage.get(),
@@ -4637,9 +4897,11 @@ class App(tk.Tk):
                 "treasure": tsel,
                 "punch": punch_sel.get(),
                 "tour": tour_sel.get(),
+                "elapsed": elapsed_sel.get(),
             }
             sections, canvas, err = self._clue_route_sections(
-                stage.get(), clue, ab, doors, tval, self.cost_mode.get(), punch, tour)
+                stage.get(), clue, ab, doors, tval, self.cost_mode.get(), punch, tour,
+                elapsed_s=elapsed)
             if err:
                 self._write_route_report(sections)      # 先把已经算出来的段落给出来
                 messagebox.showerror(err[0], err[1], parent=dlg)
@@ -4656,7 +4918,7 @@ class App(tk.Tk):
             dlg.destroy()
 
         buttons = ttk.Frame(frm)
-        buttons.grid(row=9, column=0, columnspan=2, sticky="w", pady=(14, 0))
+        buttons.grid(row=10, column=0, columnspan=2, sticky="w", pady=(14, 0))
         ttk.Button(buttons, text="显示路线", command=run).pack(side="left")
         ttk.Button(buttons, text="取消", command=dlg.destroy).pack(side="left", padx=8)
         _fit_dialog(dlg, frm, 660, 430)
@@ -4667,14 +4929,15 @@ class App(tk.Tk):
 
         doors=[D2,D3,D4,D5]；treasure=宝物编号或 None；cruise=巡游顺序或 None（= 用固件当前顺序）。
         fw_cfg = 固件 config.h 的两组顺序（`M.parse_round2_cruise()`；None = 用 self.model.round2）。
-        tour = UPRIGHT_TOUR_ENABLE（在 P3 后插 S1、P4 后插 S2）。
+        tour = UPRIGHT_TOUR_ENABLE（在 P3 后插 S1、P4 后插 S2；S1 还受
+        config.h 的 ROUND2_S1_ENABLE 门控，见 _r2_s1_on()）。
         返回 (sections, flat_nodes, split_idx, err)：split_idx = 回程起始下标（画布分色用）。
         """
         t = treasure if treasure is not None else 0
         cfg = fw_cfg if fw_cfg is not None else getattr(self.model, "round2", None)
         fw_order = M.round2_firmware_cruise(t, cfg)
         order = list(cruise) if cruise else list(fw_order)
-        wp, why = M.round2_waypoints(doors, t, order, None, tour)
+        wp, why = M.round2_waypoints(doors, t, order, None, tour, s1=self._r2_s1_on())
         if wp is None:
             return [], [], None, ("固件会停车", str(why))
         k = max(i for i, name in enumerate(wp) if name in ROUND2_CRUISE_PF)
@@ -5264,6 +5527,10 @@ class App(tk.Tk):
             src_macros, _src_field = M.parse_config_macros()
         except Exception as ex:                                   # noqa: BLE001
             src_macros, macro_err = None, "%s" % ex
+        try:
+            src_obs = M.parse_obs_penalty()
+        except Exception as ex:                                   # noqa: BLE001
+            src_obs, obs_err = None, "%s" % ex
 
         added_nodes = [name for name in current_names if name not in source_names]
         removed_nodes = [name for name in source_names if name not in current_names]
@@ -5306,8 +5573,19 @@ class App(tk.Tk):
             macro_td = M.macros_diff(getattr(self.model, "macros", None) or {}, src_macros)
             lines.extend(M.macros_diff_lines(macro_td))
             macro_same = macro_td["same"]
+        lines.append("")
+        # 规划权重（NavObsPenalty[]）：拉条拖过但还没写回固件时，这里会报出来 ——
+        # 否则"上位机显示的路线"和"车上跑的路线"会悄悄不一致（这正是本段存在的意义）。
+        if src_obs is None:
+            lines.append("规划权重差异：无法读取 nav_planner.c（%s）" % obs_err)
+            obs_same = False
+        else:
+            obs_td = M.obs_diff(getattr(M.MapModel, "OBS", None) or {}, src_obs)
+            lines.extend(M.obs_diff_lines(obs_td))
+            obs_same = obs_td["same"]
         if (not added_nodes and not removed_nodes and not order_changed and not edge_problems
-                and len(self.model.edges) == len(source_rows) and turn_same and macro_same):
+                and len(self.model.edges) == len(source_rows) and turn_same and macro_same
+                and obs_same):
             lines.extend(["", "当前模型与源码内容一致。"])
 
         dlg = tk.Toplevel(self)
@@ -5318,9 +5596,10 @@ class App(tk.Tk):
         text.configure(state="disabled")
         text.pack(fill="both", expand=True, padx=8, pady=8)
         ttk.Button(dlg, text="关闭", command=dlg.destroy).pack(pady=(0, 8))
-        self.status("已生成代码差异报告：%d 项边表差异；转弯补偿%s；宏定义%s"
+        self.status("已生成代码差异报告：%d 项边表差异；转弯补偿%s；宏定义%s；规划权重%s"
                     % (len(edge_problems), "一致" if turn_same else "有差异",
-                       "一致" if macro_same else "有差异"))
+                       "一致" if macro_same else "有差异",
+                       "一致" if obs_same else "有差异"))
 
     def _backup(self, path, backup_dir, ts):
         if os.path.isfile(path):
@@ -5428,6 +5707,531 @@ class App(tk.Tk):
         open(path, "w", encoding="utf-8", newline="").write(new_src)
         return ("Navigation/map.c（表1 %d 条 / 表2 %d 条 / 公式参数改了 %d 个）"
                 % (len(cur.get("stop") or []), len(cur.get("gyro") or []), n_const))
+
+    # ============================================================ 路径规划权重（拉条）
+    def weight_tuner_dialog(self):
+        """「⚖ 规划权重…」：拖拉条实时看路线变化，可读源码 / 写回固件 NavObsPenalty[]。
+
+        改的是 `Navigation/nav_planner.c` 的 `NavObsPenalty[]`（等效 cm 代价）——
+        规划器 cost = W_STEP*step + W_OBS*penalty + W_TURN*|转角|，**不碰 wp 必经点**。
+        拖动只改内存里的 `MapModel.OBS`（画布立刻重算）；点「写回固件」才落盘 + 自动备份。
+
+        ⚠️ 写回后必须同步 `validate/_weight_calib.py` 的 OBS_PENALTY，否则回归脚本会用旧值判路。
+        """
+        dlg = tk.Toplevel(self)
+        dlg.title("规划权重（NavObsPenalty）—— 拖动看路线，写回落固件")
+        dlg.transient(self)
+        frm = ttk.Frame(dlg, padding=12)
+        frm.pack(fill="both", expand=True)
+
+        # ---------- 读源码 ----------
+        try:
+            src_vals = M.parse_obs_penalty()
+            src_ok, src_msg = True, ""
+        except Exception as e:                      # 解析失败要明确说，不能静默用默认值
+            src_vals, src_ok, src_msg = {}, False, str(e)
+        # 内存当前值（可能已被别的对话框改过）优先，缺项回落到源码
+        cur = dict(src_vals)
+        for k in M.WEIGHT_EDITABLE:
+            if k in M.MapModel.OBS:
+                cur[k] = float(M.MapModel.OBS[k])
+        draft = dict(cur)                # 对话框里的草稿（拖动改这个）
+        dirty = []                       # 草稿 vs 源码，有差异的项
+        self._w_suspend = False          # 批量刷新时挂起回调
+
+        ttk.Label(frm, wraplength=980, justify="left", text=(
+            "cost = 长度(cm) + 障碍代价(左表) + 0.6×|转角|°　⇒ 调这几个数就决定走哪条路。"
+            "数据源 = nav_planner.c 的 NavObsPenalty[]；拖动只改内存，"
+            "点「💾 写回固件」才落盘（自动备份）。")).grid(
+            row=0, column=0, columnspan=5, sticky="w", pady=(0, 6))
+
+        if not src_ok:
+            ttk.Label(frm, wraplength=700, justify="left", foreground="#c62828",
+                      text="⚠ 读固件失败：%s\n拉条不可用（不会拿默认值糊弄你——"
+                           "那样显示的路线和车上跑的会悄悄不一致）。" % src_msg).grid(
+                row=1, column=0, columnspan=5, sticky="w")
+            _fit_dialog(dlg, frm, 760, 220)
+            return
+
+        # ---------- 主体：左栏（拉条 + 线索条件） / 右栏（三块监控）----------
+        # ⚠️ 必须**左右分栏**。之前三块 Text 都竖着堆在一个 frm 里，内容 req 高度到 1148px，
+        #    而屏幕只有 1067px ⇒ `_fit_dialog` 把窗口截到 1007px，**底部按钮被顶到可视区外**，
+        #    用户报"找不到写回按钮"。分栏后左栏 ~330px 宽、右栏吃掉剩余宽度，
+        #    高度由三个 Text 的 height 之和（8+8+9=25 行 ≈ 500px）决定，能整屏放下。
+        body = ttk.Frame(frm)
+        body.grid(row=1, column=0, sticky="nsew")
+        frm.rowconfigure(1, weight=1)
+        left = ttk.Frame(body)
+        left.pack(side="left", fill="both", expand=False)
+        right = ttk.Frame(body)
+        right.pack(side="left", fill="both", expand=True)
+
+        # ---------- 拉条（左栏） ----------
+        # ⚠️ frm 下面全部用 grid（父容器混用 pack/grid 报 TclError）。
+        grid = ttk.Frame(left)
+        grid.pack(fill="x")
+        ttk.Label(grid, text="障碍", width=9, anchor="w").grid(row=0, column=0, sticky="w")
+        ttk.Label(grid, text="固件", width=6, anchor="e").grid(row=0, column=1, sticky="e")
+        ttk.Label(grid, text="现在", width=6, anchor="e").grid(row=0, column=2, sticky="e")
+        ttk.Label(grid, text="").grid(row=0, column=3, sticky="w")
+
+        rows = {}
+        r = 1
+        for name in M.WEIGHT_EDITABLE:
+            if name not in cur:
+                continue
+            base = float(src_vals.get(name, 0.0))
+            ttk.Label(grid, text=name, width=9, anchor="w").grid(row=r, column=0, sticky="w")
+            ttk.Label(grid, text="%g" % base, width=6, anchor="e",
+                      foreground="#666666").grid(row=r, column=1, sticky="e", padx=(0, 4))
+            var = tk.IntVar(value=int(round(cur[name])))
+            # BACK 是"绝不该选"的桩，给超大上限；其余 0~400
+            hi = 2000 if name == "BACK" else 400
+            # ★ 用 command= 回调（ttk.Scale 官方做法）：拖动过程中**实时**触发，
+            #   只绑 <ButtonRelease-1> 会漏掉「拖到一半停住」的情况；command 在
+            #   IntVar 被写（含鼠标拖动、键盘方向键、程序 set）时都会调。
+            sc = ttk.Scale(grid, from_=0, to=hi, orient="horizontal", variable=var,
+                           command=lambda _v: self._weight_refresh())
+            sc.grid(row=r, column=2, sticky="ew", padx=(0, 4))
+            cur_lab = ttk.Label(grid, text="%g" % cur[name], width=6, anchor="e")
+            cur_lab.grid(row=r, column=3, sticky="e", padx=(0, 4))
+            rows[name] = (var, cur_lab, base)
+            r += 1
+        grid.columnconfigure(2, weight=1)
+        # 控件句柄挂到 self：_weight_refresh 每次拖动都要读，存局部会让它拿不到；
+        # 挂出来也让 _selftest/_guismoke 能直接断言拉条数量与初值。
+        self._w_rows = rows
+        self._w_watch = None
+        self._w_src = src_vals
+
+        # ---------- 线索参数（左栏底部，复用「线索路线…」上次的选择）----------
+        ttk.Label(left, text="线索条件（沿用「线索路线…」那套）",
+                  foreground="#555555").pack(anchor="w", pady=(10, 2))
+        cbox = ttk.Frame(left)
+        cbox.pack(fill="x")
+        cfg = dict(self.clue_route_cfg or {})
+        P1_VALS = list(self.P1CLUE_MAP.keys())
+        AB_VALS = ["P5=5, P7=7", "P5=5, P8=8", "P6=6, P7=7", "P6=6, P8=8"]
+        TRE_V = ["未定"] + ["%d · P%d" % (i, i) for i in range(1, 9)]
+        DOOR_LABELS = [M.DOOR_SLOT_NAME[i] for i in range(4)]
+        DOOR_VALS = [M.DOOR_STATE_NAME[s] for s in M.DOOR_STATE_ORDER]
+
+        def _pick(key, values, default):
+            v = cfg.get(key)
+            return v if v in values else default
+
+        def cline(row, label, values, default, width=14):
+            """一行一个下拉（左栏窄，竖排比横排省高度也省宽度）。"""
+            ttk.Label(cbox, text=label, width=9, anchor="w").grid(row=row * 2, column=0,
+                                                                    sticky="w")
+            var = tk.StringVar(value=default)
+            ttk.Combobox(cbox, textvariable=var, values=values, state="readonly",
+                         width=width).grid(row=row * 2, column=1, sticky="ew", padx=(0, 0),
+                                           pady=1)
+            return var
+
+        cv_p1 = cline(0, "P1线索", P1_VALS, _pick("p1clue", P1_VALS, P1_VALS[0]), 16)
+        cv_ab = cline(1, "平台A/B", AB_VALS, _pick("stg", AB_VALS, AB_VALS[1]))
+        cv_tr = cline(2, "宝物", TRE_V, _pick("treasure", TRE_V, TRE_V[5]))
+        cv_pu = cline(3, "补打卡", ["开", "关"], _pick("punch", ["开", "关"], "开"), 6)
+        cv_to = cline(4, "巡回", ["开", "关"], _pick("tour", ["开", "关"], "开"), 6)
+
+        cv_doors = []
+        _cd = cfg.get("doors")
+        for i in range(4):
+            dv = DOOR_VALS[0]
+            if isinstance(_cd, (list, tuple)) and i < len(_cd) and _cd[i] in DOOR_VALS:
+                dv = _cd[i]
+            var = tk.StringVar(value=dv)
+            ttk.Label(cbox, text=DOOR_LABELS[i], width=9,
+                      anchor="w").grid(row=10 + i, column=0, sticky="w", pady=1)
+            ttk.Combobox(cbox, textvariable=var, values=DOOR_VALS, state="readonly",
+                         width=14).grid(row=10 + i, column=1, sticky="ew", pady=1)
+            cv_doors.append(var)
+        cbox.columnconfigure(1, weight=1)
+
+        # ---------- 关键路段 + 变化汇总 + 完整一轮路线（右栏） ----------
+        ttk.Label(right, text="① 关键路段（变了的话，下面第二行是固件原走向）").grid(
+            row=0, column=0, sticky="w")
+        watch = tk.Text(right, height=7, width=76, wrap="none")
+        watch.grid(row=1, column=0, sticky="we")
+
+        # 变化汇总：拖动时最该一眼看到的就是这块，单独一框
+        clab = ttk.Label(right, text="② 变化汇总（相对固件现状）")
+        clab.grid(row=2, column=0, sticky="w", pady=(8, 2))
+        change_box = tk.Text(right, height=8, width=76, wrap="none")
+        change_box.grid(row=3, column=0, sticky="we")
+        self._w_change = change_box
+        self._w_clab = clab
+
+        ttk.Label(right, text="③ 完整一轮路线（去/回程分色，与画布一致）").grid(
+            row=4, column=0, sticky="w", pady=(8, 2))
+        watch2 = tk.Text(right, height=8, width=76, wrap="none")
+        watch2.grid(row=5, column=0, sticky="we")
+        self._w_watch2 = watch2
+        self._w_cvars = (cv_p1, cv_ab, cv_tr, cv_pu, cv_to, cv_doors)
+        self._w_watch = watch          # 供 _weight_refresh_now 读（不能只存局部）
+
+        ttk.Label(right, foreground="#666666", wraplength=560, justify="left",
+                  text=("· 「固件」= 当前 nav_planner.c 里的数，「现在」= 拉条值；"
+                        "两者不同即为待写回。\n"
+                        "· ①②③ 都按左边线索条件实时重算；「画布显示这一轮」把③推到画布。\n"
+                        "· ⚠ 写回后请同步 validate/_weight_calib.py 的 OBS_PENALTY。")).grid(
+            row=6, column=0, sticky="w", pady=(8, 0))
+
+        # ---------- 按钮（放**右栏底部**，跟着右栏一起伸缩 ⇒ 永远在可视区内） ----------
+        # ⚠️ 别放回 frm 底部：左栏（拉条+线索，纵向 ~560px）会把按钮顶到屏幕外，
+        #    这正是用户报"找不到写回按钮"的原因。
+        btns = ttk.Frame(right)
+        btns.grid(row=7, column=0, sticky="w", pady=(10, 0))
+
+        def collect():
+            return {k: float(v.get()) for k, (v, _l, _b) in rows.items()}
+
+        def current_cfg():
+            """读界面上的线索条件 → cfg dict（结构与「线索路线…」的 clue_route_cfg 一致）。"""
+            cv_p1, cv_ab, cv_tr, cv_pu, cv_to, cv_doors = self._w_cvars
+            return {"stage": "第一轮·完整路线（去程 + 回程拼接）",
+                    "p1clue": cv_p1.get(), "stg": cv_ab.get(),
+                    "doors": [v.get() for v in cv_doors], "treasure": cv_tr.get(),
+                    "punch": cv_pu.get(), "tour": cv_to.get(),
+                    "elapsed": (self.clue_route_cfg or {}).get("elapsed")}
+
+        def show_on_canvas():
+            """把②的完整一轮路线推到画布（去程/回程分色）。"""
+            cfgv = current_cfg()
+            # 记住这次的线索条件，「线索路线…」下次打开就是这一套
+            self.clue_route_cfg = cfgv
+            clue, ab, doors, treasure, punch, tour, elapsed_s, err = self.clue_cfg_args(
+                cfgv, self._elapsed_from_choice)
+            if err:
+                messagebox.showwarning("线索不完整", err, parent=dlg)
+                return
+            if ab is None:
+                messagebox.showerror("线索不合法", "「平台A/B」选的不是 P5/P7/P6/P8 组合。",
+                                     parent=dlg)
+                return
+            _sec, flat, split, err2 = self._round1_complete(
+                clue, ab, doors, treasure, "full", punch, tour, elapsed_s)
+            if err2:
+                messagebox.showerror(err2[0], err2[1], parent=dlg)
+                return
+            if not flat:
+                self.route = []
+                self._reset_route_marks()
+            else:
+                self.route = flat
+                self.route_split = split
+            self.redraw()
+            self.status("画布已显示这一轮：去程 %d 跳 / 回程 %d 跳（权重尚未写回）"
+                        % (split, len(flat) - 1 - split))
+
+        def reload_from_src():
+            """丢弃草稿，重新读固件。"""
+            try:
+                vals = M.parse_obs_penalty()
+            except Exception as e:
+                self.status("读固件失败：%s" % e)
+                return
+            for k, (var, lab, base) in rows.items():
+                if k in vals:
+                    var.set(int(round(float(vals[k]))))
+                    lab.configure(text="%g" % float(vals[k]))
+            self._w_src = vals
+            self._weight_refresh_now()
+            self.status("已丢弃改动，重新读取固件 NavObsPenalty[]")
+
+        def write_back():
+            vals = collect()
+            try:
+                changed = M.write_obs_penalty(
+                    vals, backup_dir=os.path.join(HERE, "backups"))
+            except Exception as e:
+                messagebox.showerror("写回失败", str(e), parent=dlg)
+                return
+            if not changed:
+                self.status("权重没有变化，未写回")
+                return
+            # 同步内存模型，画布立刻按新权重重算
+            M.sync_obs_to_model(vals)
+            for k, (var, lab, base) in rows.items():
+                lab.configure(text="%g" % float(vals.get(k, base)))
+            txt = "\n".join("· %s：%g → %g" % (n, o, w) for n, o, w in changed)
+            messagebox.showinfo(
+                "已写回固件",
+                "Navigation/nav_planner.c 的 NavObsPenalty[] 已更新：\n\n%s\n\n"
+                "原文件已备份到 map_editor/backups/。\n\n"
+                "⚠ 别忘了同步 validate/_weight_calib.py 的 OBS_PENALTY，"
+                "否则回归脚本仍按旧值判路。" % txt, parent=dlg)
+            self.status("权重已写回固件：%s"
+                        % "、".join("%s=%g" % (n, w) for n, _o, w in changed))
+            self._w_src = M.parse_obs_penalty()      # 写回后"固件基线"要跟着更新，否则一直显示"已翻转"
+            self._weight_refresh_now()
+
+        # 「写回固件」放**第一位**：它是这个对话框的正事，用户说"找不到按钮"就是它
+        ttk.Button(btns, text="💾 写回固件", command=write_back).pack(side="left")
+        ttk.Button(btns, text="↺ 重新读取固件", command=reload_from_src).pack(side="left", padx=6)
+        ttk.Button(btns, text="🖼 画布显示这一轮", command=show_on_canvas).pack(side="left")
+        ttk.Button(btns, text="关闭", command=dlg.destroy).pack(side="left", padx=6)
+
+        # 线索条件任一下拉变化 → ①②③ 立刻重算（与拖拉条同一条刷新通道）
+        for _v in (cv_p1, cv_ab, cv_tr, cv_pu, cv_to, *cv_doors):
+            _v.trace_add("write", lambda *_a: self._weight_refresh())
+
+        # 首次填充监控区（直接算，不走节流）
+        dlg.after(30, self._weight_refresh_now)
+        _fit_dialog(dlg, frm, 1000, 660)
+
+    def _weight_refresh(self, throttle=True):
+        """拉条拖动时的实时预览（由 ttk.Scale 的 command= 调）。
+
+        流程：读self._w_rows 的 IntVar → MapModel.OBS → 重算**固件真实 wp 组合** → 刷新画布。
+        ⚠️ 节流：一次拖动会产生几十次回调，每次都跑 8 次 Dijkstra + redraw 会卡；
+        所以拖动中只标记「脏」，用 after 合并成一次刷新（80ms 内只算一次）。
+        """
+        self._w_dirty = True
+        if throttle and getattr(self, "_w_pending", None):
+            return
+        self._w_pending = self.after(80, self._weight_refresh_now)
+
+    def _weight_refresh_now(self):
+        """真正干活：把草稿权重套进模型并重算路线。"""
+        self._w_pending = None
+        rows = getattr(self, "_w_rows", None)
+        watch = getattr(self, "_w_watch", None)
+        if rows is None or watch is None:
+            return
+        src_vals = getattr(self, "_w_src", None) or {}
+        vals = {k: float(v.get()) for k, (v, _l, _b) in rows.items()}
+        for k, (var, lab, base) in rows.items():
+            lab.configure(text="%g" % vals[k])
+        # ① 套进内存模型（画布用 MapModel.plan_route）
+        M.sync_obs_to_model(vals)
+        # ② 刷新画布上的现有路线
+        try:
+            self.redraw()
+        except Exception:
+            pass
+        # ③ 监控固件真实组合（mission_planner.c 的分支，不是随便挑的样例）
+        WATCH = [
+            ("一轮 5/8 去程", ["N12", "P5", "P8"]),
+            ("一轮 6/8 去程", ["N12", "P6", "P8"]),
+            ("二轮 CW", ["N12", "P5", "P7", "P8", "P6"]),
+            ("二轮 CCW", ["N12", "P6", "P8", "P7", "P5"]),
+        ]
+        lines = []
+        changes = []          # 真正变了的：(标题, 固件侧, 拖动后侧, 固件节点, 新节点)
+
+        def _side(path):
+            if not path:
+                return "无路"
+            return "南环过C4" if ("C4" in path or "N11" in path) else "楼梯侧"
+
+        for title, wps in WATCH:
+            # 先算「固件现状」，再算「拖动后」，两者并排 —— 这样一眼能看出变没变
+            base_path = None
+            if src_vals:
+                M.sync_obs_to_model({k: float(src_vals[k])
+                                     for k in src_vals if k in M.MapModel.OBS})
+                base_path, _bwhy = self.model.plan_route(wps, cost_mode="full")
+                M.sync_obs_to_model(vals)              # 恢复草稿
+            path, why = self.model.plan_route(wps, cost_mode="full")
+            if path is None:
+                lines.append("%-14s ✘ %s" % (title, why))
+                continue
+            now_side, base_side = _side(path), _side(base_path)
+            if base_path is None:
+                lines.append("%-14s %-12s %s" % (title, now_side, " ".join(path)))
+                continue
+            same_node = (base_path == path)
+            if same_node and now_side == base_side:
+                lines.append("%-14s %-12s %s" % (title, now_side, " ".join(path)))
+            else:
+                # 变了：写进 changes，并在这里逐行标出
+                changes.append((title, base_side, now_side, base_path, path))
+                lines.append("%-14s %-12s %s" % (title, now_side, " ".join(path)))
+                lines.append("%-14s %-12s %s" % ("", "↑ 固件原为", " ".join(base_path)))
+        if changes:
+            lines.insert(0, "★ 有 %d 条路段相对【固件现状】变了（每条下面第二行是固件原走向）"
+                         % len(changes))
+        watch.delete("1.0", "end")
+        watch.insert("1.0", "\n".join(lines))
+        # 变化汇总框（更醒目：变化项单独列出 + 完整一轮路线的前后对比）
+        self._weight_refresh_changes(changes, src_vals)
+        # ④ 当前线索下的完整一轮路线（去程/回程分色，与画布同一套算法）
+        self._weight_refresh_round1()
+        self.status("权重预览：已按草稿重算（%s）"
+                    % ("%d 条路段变化" % len(changes) if changes else "路线无变化"))
+
+    def _weight_refresh_changes(self, changes, src_vals):
+        """把「相对固件变了的路段」单独列一框，逐项给出去向 + 完整一轮路线前后对比。
+
+        为什么单独一框：① 区里"变化"只是每条下面的第二行，扫一眼容易漏；
+        而"拖一下到底改了什么"是调权重时最该一眼看到的事。
+        """
+        box = getattr(self, "_w_change", None)
+        if box is None:
+            return
+        clab = getattr(self, "_w_clab", None)
+        lines = []
+        if changes:
+            # 有变化：标题染红 + 框里 ★ 开头，一眼能扫到
+            if clab is not None:
+                clab.configure(text="② 变化汇总（相对固件现状）—— ★ %d 条路段已改变"
+                               % len(changes), foreground="#c62828")
+            lines.append("相对【固件现状】变化的 %d 条路段：" % len(changes))
+            for title, b_side, n_side, b_path, n_path in changes:
+                same_side = (b_side == n_side)
+                arrow = ("%s → %s" % (b_side, n_side)) if not same_side else "仍是 %s" % n_side
+                lines.append("  · %-14s %s" % (title, arrow))
+                lines.append("      固件: %s" % " ".join(b_path))
+                lines.append("      现在: %s" % " ".join(n_path))
+        else:
+            if clab is not None:
+                clab.configure(text="② 变化汇总（相对固件现状）—— 无变化",
+                               foreground="#2e7d32")
+            lines.append("相对【固件现状】：无变化（当前拉条算出的路线与固件一致）")
+
+        # 完整一轮路线的前后对比（用当前线索条件）
+        cmp_lines = self._weight_round1_compare(src_vals)
+        lines.append("")
+        lines.extend(cmp_lines)
+        box.delete("1.0", "end")
+        box.insert("1.0", "\n".join(lines))
+
+    def _weight_round1_compare(self, src_vals):
+        """完整一轮路线：固件现状 vs 当前拉条。返回几行文字。
+
+        与 `_weight_refresh_round1()` 共用同一套线索解析与 `_round1_complete()`，
+        只是这里跑两遍（固件权重 / 草稿权重）做前后对比。
+        """
+        watch2 = getattr(self, "_w_watch2", None)
+        cvars = getattr(self, "_w_cvars", None)
+        if watch2 is None or cvars is None:
+            return []
+        cv_p1, cv_ab, cv_tr, cv_pu, cv_to, cv_doors = cvars
+        cfg = {"p1clue": cv_p1.get(), "stg": cv_ab.get(), "treasure": cv_tr.get(),
+               "punch": cv_pu.get(), "tour": cv_to.get(),
+               "doors": [v.get() for v in cv_doors]}
+        clue, ab, doors, treasure, punch, tour, elapsed_s, err = self.clue_cfg_args(
+            cfg, self._elapsed_from_choice)
+        if err or ab is None:
+            return ["完整一轮：%s" % (err or "平台A/B 选的不合法")]
+
+        def _run(obs):
+            saved = dict(M.MapModel.OBS)
+            if obs:
+                M.sync_obs_to_model(obs)
+            saved_dim = list(self.route_dim_edges)
+            try:
+                _s, flat, split, e2 = self._round1_complete(
+                    clue, ab, doors, treasure, "full", punch, tour, elapsed_s)
+            except Exception as ex:                               # noqa: BLE001
+                M.MapModel.OBS.update(saved)
+                return None, None, None, str(ex)
+            finally:
+                self.route_dim_edges = saved_dim
+                M.MapModel.OBS.update(saved)
+            return flat, split, (e2[1] if e2 else None)
+
+        b_flat, b_split, b_err = _run(src_vals)
+        n_flat, n_split, n_err = _run(None)          # None = 保持草稿
+        if b_err or n_err:
+            return ["完整一轮：重算失败（%s）" % (b_err or n_err)]
+        if not b_flat or not n_flat:
+            return ["完整一轮：这一组线索下没有可走的一轮路线"]
+
+        def _side(seq):
+            return "南环过C4" if ("C4" in seq or "N11" in seq) else "楼梯侧"
+
+        bf, nf = b_flat[:b_split + 1], b_flat[b_split:]
+        nnf, nnf_back = n_flat[:n_split + 1], n_flat[n_split:]
+        if b_flat == n_flat:
+            return ["完整一轮（%d 跳）：与固件一致，无变化" % (len(b_flat) - 1)]
+        out = ["★ 完整一轮也变了（固件 %d 跳 → 现在 %d 跳）："
+               % (len(b_flat) - 1, len(n_flat) - 1)]
+        out.append("  固件: 去程 %d 跳 %s ｜ 回程 %d 跳 %s"
+                   % (len(bf) - 1, _side(bf), len(nf) - 1, _side(nf)))
+        out.append("  现在: 去程 %d 跳 %s ｜ 回程 %d 跳 %s"
+                   % (len(nnf) - 1, _side(nnf), len(nnf_back) - 1, _side(nnf_back)))
+        # 逐段标出第一处不同，让用户不用自己比对两个长串
+        for i in range(min(len(b_flat), len(n_flat))):
+            if b_flat[i] != n_flat[i]:
+                out.append("  第一处不同：第 %d 跳 固件 %s → 现在 %s"
+                           % (i, " ".join(b_flat[max(0, i - 2):i + 3]),
+                              " ".join(n_flat[max(0, i - 2):i + 3])))
+                break
+        return out
+
+    def _weight_refresh_round1(self):
+        """算「当前线索条件下的完整一轮路线」，写进监控区②。
+
+        走的是 `_round1_complete()` —— 与「线索路线…」**完全同一套**固件镜像，
+        所以这里看到的去/回程分色就是点「🖼 画布显示这一轮」后画布上的那条。
+        ⚠️ 会临时改 self.route_dim_edges（门区探灯半程的淡色边），算完还原，
+           否则会污染画布上别的路线。
+        """
+        watch2 = getattr(self, "_w_watch2", None)
+        if watch2 is None:
+            return
+        cvars = getattr(self, "_w_cvars", None)
+        if cvars is None:
+            return
+        cv_p1, cv_ab, cv_tr, cv_pu, cv_to, cv_doors = cvars
+        cfg = {"p1clue": cv_p1.get(), "stg": cv_ab.get(), "treasure": cv_tr.get(),
+               "punch": cv_pu.get(), "tour": cv_to.get(),
+               "doors": [v.get() for v in cv_doors]}
+        clue, ab, doors, treasure, punch, tour, elapsed_s, err = self.clue_cfg_args(
+            cfg, self._elapsed_from_choice)
+        if err:
+            watch2.delete("1.0", "end")
+            watch2.insert("1.0", "⚠ " + err)
+            return
+        if ab is None:
+            watch2.delete("1.0", "end")
+            watch2.insert("1.0", "⚠ 「平台A/B」选的不是 P5/P7/P6/P8 组合。")
+            return
+        saved_dim = list(self.route_dim_edges)
+        try:
+            _sec, flat, split, err2 = self._round1_complete(
+                clue, ab, doors, treasure, "full", punch, tour, elapsed_s)
+        except Exception as ex:                                   # noqa: BLE001
+            watch2.delete("1.0", "end")
+            watch2.insert("1.0", "⚠ 重算失败：%s" % ex)
+            return
+        finally:
+            self.route_dim_edges = saved_dim
+        if err2:
+            watch2.delete("1.0", "end")
+            watch2.insert("1.0", "⚠ %s：%s" % (err2[0], err2[1]))
+            return
+        if not flat:
+            watch2.delete("1.0", "end")
+            watch2.insert("1.0", "（这一组线索下没有可走的一轮路线）")
+            return
+        front = flat[:split + 1] if split else flat
+        back = flat[split:] if split else []
+        # 去/回程各自报「过不过 C4」—— 现状就是两者不一致，这个不对称要看出来
+        def _tag(seq):
+            if not seq:
+                return "（无）"
+            return "南环过C4" if ("C4" in seq or "N11" in seq) else "楼梯侧"
+        lines = [
+            "共 %d 跳（去程 %d / 回程 %d）　去程 %s ｜ 回程 %s"
+            % (len(flat) - 1, len(front) - 1, len(back) - 1, _tag(front), _tag(back)),
+            "",
+            "去程（蓝）: " + " → ".join(front),
+            "",
+            "回程（青绿）: " + " → ".join(back) if back else "回程（青绿）: （无）",
+        ]
+        if _tag(front) != _tag(back):
+            lines += ["",
+                      "⚠ 去程与回程走的是**不同的环**（去%s / 回%s）。"
+                      "同一条环路两腿代价不相等时就会这样 —— "
+                      "P5→P8 恰好是精确平局，平局落到哪边由枚举顺序决定，很脆。"
+                      % (_tag(front)[-3:], _tag(back)[-3:])]
+        watch2.delete("1.0", "end")
+        watch2.insert("1.0", "\n".join(lines))
 
     def turn_comp_dialog(self):
         """「转弯前补偿」可视化编辑器 —— 把 map.c 里两张**硬编码表**搬进界面。

@@ -21,6 +21,7 @@
 - `UPRIGHT_NEED_TREASURE=1`：直立景点（N14/N16）取宝门控，判据 `barrier.c:treasure_taken`（非 `treasure`），落点 `do_Upright()` 开头。
 - `P3P4_PUNCH_ENABLE`（默认 0）：一轮取宝后回家腿补打卡去程没去的 P3/P4（百位=3 补 P4 / 4 补 P3 / 0 都补），与巡回共用 `append_round1_return_tail()`。打开后 `validate/_check_door_perm.py` 的 12 golden 不再等于真实走法。镜像 `M.p3p4_punch_waypoints()` + 对话框下拉；sim 自检已覆盖。§2.21。
 - 二轮巡游顺序 = config.h 8 宏 `ROUND2_CRUISE_CW/CCW_1..4`（§2.22）；`p6_first`=「巡游首站是否 P6」不等于 `treasure==6`。上位机 `M.parse_round2_cruise()/splice_round2_cruise()` 可读写。
+- `ROUND2_S1_ENABLE`（二轮 S1 单独开关，默认 1）：0=二轮不绕 S1（S2/一轮不受影响），与 `UPRIGHT_TOUR_ENABLE` 相乘；落点 `get_newroute()` 插点行。镜像 `M.round2_waypoints(s1=)`（map_editor 两处调用走 `App._r2_s1_on()` 直读 config）+ 两个 sim 脚本读宏；sim 源同步自检②已改行级判据（S1 行允许 `&&` 二次门控，`_guarded` 只认宏单独成条件）。
 
 ## 门区画线（上位机）
 - 门灯物理位置：`N5→N12` 中点=D2、`N5→N8` 中点=D3、`N3→N8` 中点=D4。读灯=只开到中点，读不到 `door_retreat()` 倒车 ⇒ 不能当"开到对面"。`map_model.door_read_hops` 返回 N5 之后的节点。
@@ -35,11 +36,18 @@
 - 转向容差 `TURN_TOL_RELEASE 2.0f`、超时 `TURN_TIMEOUT_DEFAULT 2500u` → `[HANG] turn timeout`；超时只退出等待，电机靠调用方停。进 `is_Line` 必须紧跟设速（`handle_mode_switch()`）。
 
 ## 转弯补偿（§5/§14）
+- **折返点的 0 是另一条路径**（不在两张表里）：`map.c: GetForwardDistanceBeforeTurn()` 开头 `if (now == S1 || now == S2) return 0;`（10-12 由通用 `last == next` 收敛；穷举 6360 条路线确认只有 S1/S2 真会调这个函数）。**新增死端景点必须回来补点名字**；`P8` 的直穿靠运行时航向对准，没有兜底。
+
 - 入口=左栏「转弯补偿/显示:」行的「⟲ 转弯补偿…」。数据 `Navigation/map.c` 表1 `kTurnTbl[]`、表2 `GetForwardDistanceBeforeGyroTurn()`。写回只动三处（表1体/表2体/`kTurnTbl_node_check`）。测试用沙箱副本+SHA256 比对。
+- **表1 有死值（10-12 核对）**：`{N5,N6,S2}` 在 10-07 尾段交错成 `P3→S1→P4→S2` 后不可达（S2 入边由 `N5→N6` 变 `P4→N6`）⇒ 现场「调了没反应」先确认该三元组在本轮路线里真会出现；改尾段顺序会静默作废实测值。同轮不可达：表1 另 6 条 / 表2 4 条。
 - 左栏上半=转弯补偿表（节点表已删）；边表 10-07 已删但 `tree_edges` 对象仍在（_guismoke 等仍引用，**别删**）。`⇄ 平台交换`/`⟲ 转弯补偿` 按钮 pack 必须在 expand Treeview 之前。
 
 ## 工具链
 - `地图修改上位机/tools/ai/`：build.py / flash.py / serial_watch.py（真机未实测，先 `flash.py --probe-only`）。
+- **规划权重（NavObsPenalty[]）三处同步**：① `Navigation/nav_planner.c`（唯一数据源）② `map_model.MapModel.OBS`（`load_from_sources()` 启动时自动从①读，失败记 `m.obs["warnings"]`）③ `validate/_weight_calib.py` 的 `OBS_PENALTY`（独立脚本，`__main__` 已加 `sync_field_from_config()`）。`_selftest` 第8节比对①②。改权重用上位机左栏「⚖ 规划权重…」拉条（拖动实时看路线，可写回①，自动备份）。工具栏「查看代码差异」有**权重段**（`obs_diff`/`obs_diff_lines`）⇒ 拖了没写回会被报出来。
+- **★ 三个坑**（都写在 `map_editor/AI_CONTEXT.md` 映射表「改规划权重」行）：① 解析 `NavObsPenalty[]` 必须用**块注释状态机**——`Hill`/`DOOR` 注释跨多行且正文含 `**`，`r"/\*.*?\*/"` 非贪婪会吞行⇒只解析到 18 项；② 写回时**下标=枚举顺序号，不是行号**（循环变量复用会写错行）；③ `path=None` + 运行时读 `PATH_NAV_C`（默认参数在定义时绑定，改模块变量不生效）。
+- **★ 路线翻转的判据必须用固件真实 wp，不是"N12→P8"直连**（10-16 纠正）：固件去程是 `wp={过门落点, P5, P8}` **分段**各自最短路，`P5` 这个必经点把选择翻过来了 ⇒ **固件当前实际已在走南环(过C4)**，而去程南环、回程楼梯侧。根因是 `P5→P8` 两条路**精确平局 1748:1748**（`P8→P5` 则是楼梯侧赢 41）。翻转扫描：`Hill≤229` 去程也变楼梯侧（230 正在翻转点）；`BLBL 50→30` 可让去回都走南环。⚠️ 用 `N12→P8` 直连得出的「Hill 无解 / 需 BLBL+SM 联调」结论**对固件真实场景不适用**。
 - 仿真=手抄镜像：`sim_route_bookkeeping.py`（源同步自检）改 wp/开关后必跑；`trace_rounds.py` 复用它。
+- ⚠️ **`_guismoke.py` 里会开对话框的测试块，必须另起一个 `E.App()` 实例**——前面的断言做过 `fix_junction_flags`/`undo` 等改动，画布状态已被扰动，复用同一实例会让早先的「入口可见」断言假红（看着像布局回归）。且首次填充是 `dlg.after(30)`，断言前要主动调刷新函数，否则拿到空文本。
 - 改 `map_model.py` 后必跑 `_selftest.py` + `_guismoke.py`，用**系统 Python**（`C:/Users/14166/AppData/Local/Microsoft/WindowsApps/python.exe`，托管版无 tkinter）。
 - 改鼠标交互（`_on_node/bg_press`/`_on_motion`/`_on_release`）必须 `event_generate` 走真事件链验证（直调断言不够，README §3.4）。连线语义：普通单击=选中/拖动（>4px 为拖）；**Shift+点节点=连线**；双击不连线。误触源：工具栏连线模式复选框与 `A` 键。

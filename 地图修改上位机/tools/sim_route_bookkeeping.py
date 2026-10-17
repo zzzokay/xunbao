@@ -141,6 +141,8 @@ _TOUR_RAW = read_config_flag(TOUR_MACRO)
 TOUR = 0 if _TOUR_RAW is None else _TOUR_RAW      # 开关真值（0 = 与现状一致）
 _PUNCH_RAW = read_config_flag(PUNCH_MACRO)
 PUNCH = 0 if _PUNCH_RAW is None else _PUNCH_RAW
+_R2_S1_RAW = read_config_flag("ROUND2_S1_ENABLE")
+R2_S1 = 1 if _R2_S1_RAW is None else _R2_S1_RAW    # 二轮 S1 单独开关（缺宏按开）
 
 SYNC_PROBLEMS = []
 
@@ -196,19 +198,22 @@ def _sync_check():
         if "if (treasure == 4) {" not in _helper:
             SYNC_PROBLEMS.append(
                 "append_round1_return_tail() 缺 宝物=4 沿途重排分支（S2 -> P3 -> S1）")
-        # 基础序只查 P3/S1/P4（宝物=4 分支里 S2 先出现是预期的）
-        _order = [_helper.find("wp[n++] = P3;"), _helper.find("wp[n++] = S1;"),
-                  _helper.find("wp[n++] = P4;")]
+        # 基础序用 **rfind**（最后一段 = 全跑分支）：2026-10-11 起函数前段多了时间预算
+        # tier 分支（TB_ONE_PLAT/TB_NO_SIGHTS 只含 P3/P4），find 的首次出现会被推后报假红。
+        # 宝物=4 分支里 S2 先出现是预期的，rfind 只锚定末尾基础序 P3 -> S1 -> P4 -> S2。
+        _order = [_helper.rfind("wp[n++] = P3;"), _helper.rfind("wp[n++] = S1;"),
+                  _helper.rfind("wp[n++] = P4;"), _helper.rfind("wp[n++] = S2;")]
         if -1 in _order or _order != sorted(_order):
             SYNC_PROBLEMS.append(
-                "append_round1_return_tail() 基础插点顺序不是 P3 -> S1 -> P4（偏移 %s）"
+                "append_round1_return_tail() 基础插点顺序不是 P3 -> S1 -> P4 -> S2（偏移 %s）"
                 % _order)
     for fn in ("plan_treasure_return", "route_return_home"):
         body = _fn_body(MP_CODE, fn)
         if body is None:
             SYNC_PROBLEMS.append("%s() 找不到了" % fn)
             continue
-        if "append_round1_return_tail(wp, n, tier)" not in body:
+        # 2026-10-12 起签名是四参 (wp, n, tier, exit_n3)，按前缀匹配
+        if "append_round1_return_tail(wp, n" not in body:
             SYNC_PROBLEMS.append("%s() 没调用 append_round1_return_tail()" % fn)
         for macro in (TOUR_MACRO, PUNCH_MACRO):
             if _guarded(body, macro):
@@ -216,18 +221,20 @@ def _sync_check():
                     "%s() 里还留着 if (%s) 块 —— 应改走 append_round1_return_tail()"
                     % (fn, macro))
 
-    # ② 二轮那处：不带 treasure 条件，固定绕两个
+    # ② 二轮那处：不带 treasure 条件，固定绕两个（S1 允许 && ROUND2_S1_ENABLE 二次门控，
+    #    故按行判据而非 _guarded —— 后者只认「宏单独成条件」的 if）
     body = _fn_body(MP_CODE, "get_newroute")
     if body is None:
         SYNC_PROBLEMS.append("get_newroute() 找不到了")
     else:
-        joined = " ".join(_guarded(body, TOUR_MACRO))
         for stmt in ("wp[n++] = S1;", "wp[n++] = S2;"):
-            if stmt not in joined:
-                SYNC_PROBLEMS.append("get_newroute() 的开关块里缺 %s" % stmt)
-        if "treasure ==" in joined:
-            SYNC_PROBLEMS.append(
-                "get_newroute() 的开关块带了 treasure 条件（镜像假设二轮无条件绕两个）")
+            hit = [ln for ln in body.splitlines() if stmt in ln]
+            if not hit or not all(TOUR_MACRO in ln for ln in hit):
+                SYNC_PROBLEMS.append(
+                    "get_newroute() 里缺「与 %s 同行的 %s」" % (TOUR_MACRO, stmt))
+            elif any("treasure ==" in ln for ln in hit):
+                SYNC_PROBLEMS.append(
+                    "get_newroute() 的 %s 插点带了 treasure 条件（镜像假设二轮无条件绕两个）" % stmt)
 
     # ③ 反向：源码里每一处 S 赋值都必须和 UPRIGHT_TOUR_ENABLE 写在同一行
     #    （裸 if (UPRIGHT_TOUR_ENABLE) 或 if (goPx && UPRIGHT_TOUR_ENABLE)），
@@ -591,7 +598,7 @@ class Sim:
         # upright_Set() 只改 function，不动 route
 
         wp = ["N2", "P1", "P3"]
-        if self.tour:                                  # ← 镜像 mission_planner.c 二轮插点
+        if self.tour and R2_S1:                        # ← 镜像二轮插点（S1 受 ROUND2_S1_ENABLE 单独门控）
             wp.append("S1")
         wp.append("P4")
         if self.tour:                                  # ← 镜像 mission_planner.c 二轮插点
@@ -788,8 +795,8 @@ def run_case(title, clue, stage_a, stage_b, door_true, treasure, exit_elapsed_s=
 
 if __name__ == "__main__":
     print("=" * 78)
-    print("UPRIGHT_TOUR_ENABLE = %s ｜ P3P4_PUNCH_ENABLE = %s"
-          "   （读自 Mission/config.h；不用改本脚本）" % (TOUR, PUNCH))
+    print("UPRIGHT_TOUR_ENABLE = %s ｜ P3P4_PUNCH_ENABLE = %s ｜ ROUND2_S1_ENABLE = %s"
+          "   （读自 Mission/config.h；不用改本脚本）" % (TOUR, PUNCH, R2_S1))
     if SYNC_PROBLEMS:
         print("★ 源同步自检：不通过 —— 本镜像是旧版，下面的结论不可信：")
         for p in SYNC_PROBLEMS:

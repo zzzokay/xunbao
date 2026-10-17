@@ -22,7 +22,7 @@ void RampCtrl_Blocking(RampDir_t dir, float init_speed, float angle,
 
 #define Old_M_Speed         6                //老爷爷
 #define QQB_Out_Speed       8                //出跷跷板
-#define BL_Speed 	        15               //波浪板
+#define BL_Speed 	        12               //波浪板
 #define Rubbish_Speed       13               //Rubbish
 #define Stop_T_Speed        15               //原地转
 #define UnderMou_Speed      20

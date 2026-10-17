@@ -983,6 +983,7 @@ def main():
         "treasure": "6 · P6",
         "punch": "强制开",
         "tour": "强制开",
+        "elapsed": "不启用时间裁剪",
     }
     app.clue_route_cfg = dict(_cfg_want)
     app.plan_clue_route_dialog()
@@ -991,7 +992,8 @@ def main():
     _close_toplevels(app)
     _expect = ([_cfg_want["stage"], _cfg_want["p1clue"], _cfg_want["stg"]]
                + _cfg_want["doors"]
-               + [_cfg_want["treasure"], _cfg_want["punch"], _cfg_want["tour"]])
+               + [_cfg_want["treasure"], _cfg_want["punch"], _cfg_want["tour"],
+                  _cfg_want["elapsed"]])
     check(_vals == _expect, "对话框按上次配置预填（读到 %d 个下拉）" % len(_vals))
 
     # 配置脏/过期时要安全回退（不能崩，也不能填出非法值）。
@@ -1003,9 +1005,10 @@ def main():
     _vals2 = _dlg_combo_values(app)
     _close_toplevels(app)
     _legal_doors = [M.DOOR_STATE_NAME[s] for s in M.DOOR_STATE_ORDER]
-    check(len(_vals2) == 10 and _vals2[0].startswith("第一轮·完整路线")
+    check(len(_vals2) == 11 and _vals2[0].startswith("第一轮·完整路线")
           and all(v in _legal_doors for v in _vals2[3:7])
-          and _vals2[8].startswith("跟随 config.h（当前：") and _vals2[9].startswith("跟随 config.h（当前："),
+          and _vals2[8].startswith("跟随 config.h（当前：") and _vals2[9].startswith("跟随 config.h（当前：")
+          and _vals2[10] == "不启用时间裁剪",
           "配置非法时回退默认值（阶段=%r，灯=%s）" % (_vals2[0][:12] if _vals2 else None,
                                                       _vals2[3:7]))
 
@@ -1105,7 +1108,8 @@ def main():
     #     右边整段看不见 —— 用户报「窗口打开不能完整显示内容」）---
     step("dialogs fit their content")
     for _opener, _name in ((app.plan_clue_route_dialog, "线索路线"),
-                           (app.plan_round2_route_dialog, "二轮路线")):
+                           (app.plan_round2_route_dialog, "二轮路线"),
+                           (app.time_budget_dialog, "时间预算")):
         _opener()
         app.update_idletasks()
         _t = [w for w in app.winfo_children() if isinstance(w, tk.Toplevel)][-1]
@@ -1221,6 +1225,65 @@ def main():
     check(app.route_split is None, "普通「规划路线」会清掉 route_split（不误分色）")
     check(app.route_dim_edges == [],
           "普通「规划路线」会清掉门区淡色边（实测 %s）" % (app.route_dim_edges,))
+
+    # --- 时间预算（分级贪分）：宝物=P1 的专属两档 + 报告里的定档点 ---
+    step("time budget (round1_exit_recheck): P1-specific tiers")
+    _tb = M.time_budget_macros()
+    check(_tb["TB_P1_NO_SIGHTS_AT_S"] == 135,
+          "时间预算阈值读自 config.h（P1 专用 = %d/%d）"
+          % (_tb["TB_P1_NO_SIGHTS_AT_S"], _tb["TB_P1_HOME_ONLY_AT_S"]))
+    _wp, _info = M.round1_tail_plan(2, 0, True, True, elapsed_s=140)
+    check(_info["trigger"] == "在 P1 取完宝那一刻" and _wp == ["P3", "P4"],
+          "宝物=P1 在 2:20 定档 ⇒ 仅 P3、P4（定档点 = 在 P1 取完宝那一刻）")
+    check(M.round1_tail_tier(2, 150)[0] == 3 and M.round1_tail_tier(2, 130)[0] == 0,
+          "宝物=P1 的 2:15 / 2:25 两档分界正确")
+    # 「比赛已用时」下拉的选项：边界必须来自 config.h（改阈值后临界值不能丢）
+    _tv = E.time_budget_choices()
+    _p1m = "%d · %s" % (_tb["TB_P1_NO_SIGHTS_AT_S"], M.mmss(_tb["TB_P1_NO_SIGHTS_AT_S"]))
+    check(_tv[0] == "不启用时间裁剪" and _p1m in _tv and len(_tv) >= 12,
+          "「比赛已用时」下拉含 config.h 边界（%d 个选项，含 %s）" % (len(_tv), _p1m))
+    app.plan_clue_route_dialog()
+    app.update_idletasks()
+    _tops = [w for w in app.winfo_children() if isinstance(w, tk.Toplevel)]
+    _boxes = []
+
+    def _walk_boxes(c):
+        for _ch in c.winfo_children():
+            if _ch.winfo_class() == "TCombobox":
+                _boxes.append(_ch)
+            _walk_boxes(_ch)
+
+    for _w in _tops:
+        _walk_boxes(_w)
+    check(_boxes and list(_boxes[-1].cget("values")) == _tv,
+          "「线索路线…」的「比赛已用时」下拉真的挂上了 %d 个选项" % len(_tv))
+    for _w in _tops:
+        _w.destroy()
+    app.update()
+    # 「线索路线…」选了已用时 ⇒ 报告里必须出现「时间预算」段（走 P1 专属两档）
+    secs, _flat, err = app._clue_route_sections(
+        ST_ALL, 0, (5, 7),
+        [M.ONE_WAY_PASS, M.CAN_PASS, M.CAN_PASS, M.NO_PASS], 2, "full",
+        True, True, 150)
+    _t = _sections_text(secs)
+    check(err is None and "时间预算" in _t
+          and "定档点 = 在 P1 取完宝那一刻" in _t and "直接回家" in _t,
+          "线索路线报告带「时间预算」段（宝物=P1、已用时 150s ⇒ ≥2:25 直接回家）")
+    # 同一套输入、已用时给足 ⇒ 又回到「全跑」，且不该有被裁项
+    secs, _flat2, err = app._clue_route_sections(
+        ST_ALL, 0, (5, 7),
+        [M.ONE_WAY_PASS, M.CAN_PASS, M.CAN_PASS, M.NO_PASS], 2, "full",
+        True, True, 100)
+    _t2 = _sections_text(secs)
+    check(err is None and "被裁掉: 无" in _t2,
+          "已用时 100s ⇒ 不裁剪（报告写「被裁掉: 无」）")
+    # 不选已用时 ⇒ 行为与改动前完全一致（报告里不出现时间预算段）
+    secs, _flat3, err = app._clue_route_sections(
+        ST_ALL, 0, (5, 7),
+        [M.ONE_WAY_PASS, M.CAN_PASS, M.CAN_PASS, M.NO_PASS], 2, "full",
+        True, True)
+    check(err is None and "时间预算" not in _sections_text(secs),
+          "不选「比赛已用时」⇒ 不裁剪、报告里没有时间预算段（旧行为）")
 
     # --- 门区退回必须画真实边 N5→N8，不能拿 N12→N8 近似 ---
     # 固件物理：DOOR_D2 读不到 → door_retreat(N5,N8,63) = 倒车退回 N5 一侧再沿 N5→N8 去读 D3。
@@ -1921,6 +1984,112 @@ def main():
               and "DRIGHT" in M.flag_set(app.model.edge("N11", "N10").flag),
               "框选批量写角度+路口标志后，两条边都补上 DRIGHT")
         app.undo()
+
+    # ---------------- ⚖ 规划权重拉条：完整一轮路线 + 画布联动 ----------------
+    print()
+    print("=" * 78)
+    print("⚖ 规划权重拉条（线索条件 + 完整一轮路线 + 画布分色）")
+    print("=" * 78)
+    # ⚠️ **另起一个 App 实例**：前面的断言做过 fix_junction_flags/undo 等改动，
+    #    画布/控件状态已被扰动；在这个实例上单独验，避免互相污染
+    #    （之前复用同一个 app 时，本块会让早先的「入口可见」断言假红）。
+    try:
+        import tkinter as tk
+        from tkinter import ttk
+        wapp = E.App()
+        wapp.update_idletasks(); wapp.update()
+        wapp.clue_route_cfg = {
+            "stage": "第一轮·完整路线（去程 + 回程拼接）",
+            "p1clue": "线索=0：跳过 P3、P4", "stg": "P5=5, P8=8",
+            "doors": [M.DOOR_STATE_NAME[M.CAN_PASS], "不能过", "不能过", "不能过"],
+            "treasure": "5 · P5", "punch": "开", "tour": "开",
+            "elapsed": "不启用时间裁剪"}
+        wapp.weight_tuner_dialog()
+        wapp.update_idletasks(); wapp.update()
+        # 首次填充是 dlg.after(30)，这里主动跑一次（不依赖事件循环时序）
+        wapp._weight_refresh_now()
+        wapp.update_idletasks(); wapp.update()
+        check(getattr(wapp, "_w_watch", None) is not None and
+              getattr(wapp, "_w_watch2", None) is not None,
+              "权重拉条对话框建出监控框（①关键路段 ②变化汇总 ③完整一轮路线）")
+        check(len(getattr(wapp, "_w_rows", {})) >= 10,
+              "权重拉条 ≥10 项（实得 %d）" % len(getattr(wapp, "_w_rows", {})))
+        t2 = wapp._w_watch2.get("1.0", "end") if wapp._w_watch2 else ""
+        check("共" in t2 and "去程" in t2 and "回程" in t2,
+              "③ 显示完整一轮路线的去/回程（跳数 + 节点序列）")
+        check("南环过C4" in t2 or "楼梯侧" in t2,
+              "③ 标出去/回程各走哪一侧（南环过C4 / 楼梯侧）")
+        if getattr(wapp, "_w_cvars", None):
+            before = wapp._w_watch2.get("1.0", "end").splitlines()[0]
+            wapp._w_cvars[1].set("P6=6, P8=8")     # 平台 A/B
+            wapp.update_idletasks(); wapp.update()
+            wapp._weight_refresh_now(); wapp.update()
+            after = wapp._w_watch2.get("1.0", "end").splitlines()[0]
+            check(before != after,
+                  "改「平台A/B」下拉 → ② 立即重算（%s → %s）" % (before[:24], after[:24]))
+            _tops = [w for w in wapp.winfo_children() if isinstance(w, tk.Toplevel)]
+            _btn = []
+
+            def _walk(w):
+                for c in w.winfo_children():
+                    if isinstance(c, ttk.Button):
+                        _btn.append(c)
+                    _walk(c)
+            if _tops:
+                _walk(_tops[-1])
+            show_btn = [b for b in _btn if "画布显示" in str(b.cget("text"))]
+            check(len(show_btn) == 1, "有「🖼 画布显示这一轮」按钮")
+            # 防回归：内容比屏幕高时，_fit_dialog 会把窗口截到屏幕内，
+            # **若按钮仍在 frm 底部就会被顶到可视区外**（用户报"找不到写回固件"）。
+            if _tops:
+                _d = _tops[-1]
+                _dh, _top = _d.winfo_height(), _d.winfo_rooty()
+                _out = [b for b in _btn
+                        if b.winfo_rooty() - _top + b.winfo_height() > _dh
+                        or b.winfo_rooty() - _top < 0]
+                check(not _out,
+                      "所有按钮都在对话框可视区内（越界 %d 个）—— 否则用户找不到"
+                      % len(_out))
+                check(_dh <= wapp.winfo_screenheight() - 40,
+                      "对话框高度 %d 未超出屏幕 %d（超出就会被截，底部控件被顶掉）"
+                      % (_dh, wapp.winfo_screenheight()))
+                check(any("写回固件" in str(b.cget("text")) for b in _btn),
+                      "有「💾 写回固件」按钮（写回固件的正事，必须能找到）")
+            if show_btn:
+                wapp.route = []
+                wapp._reset_route_marks()
+                show_btn[0].invoke()
+                wapp.update_idletasks(); wapp.update()
+                check(len(wapp.route) > 1 and wapp._route_split_ok(),
+                      "点它 → 画布拿到完整一轮路线（%d 节点，split=%s，去程蓝/回程青绿）"
+                      % (len(wapp.route), wapp.route_split))
+            # 拖 BLBL → ②变化汇总 必须报出变化，并染红标题
+            if getattr(wapp, "_w_change", None) is not None:
+                txt0 = wapp._w_change.get("1.0", "end")
+                check("无变化" in txt0,
+                      "未拖动时『变化汇总』= 无变化（标题：%s）"
+                      % wapp._w_clab.cget("text"))
+                wapp._w_rows["BLBL"][0].set(10)
+                wapp.update_idletasks(); wapp.update()
+                wapp._weight_refresh_now()
+                wapp.update_idletasks(); wapp.update()
+                txt1 = wapp._w_change.get("1.0", "end")
+                check("变化的" in txt1 and "固件:" in txt1 and "现在:" in txt1,
+                      "拖 BLBL=10 → 变化汇总逐项列出【固件原走向 / 现在走向】")
+                check("完整一轮也变了" in txt1 or "完整一轮" in txt1,
+                      "变化汇总含【完整一轮前后对比】（跳数 + 去/回程各自走哪侧）")
+                check(str(wapp._w_clab.cget("foreground")).lower() in ("#c62828",),
+                      "有变化时『变化汇总』标题染红（当前 %s）" % wapp._w_clab.cget("foreground"))
+                # 还原，确认能回到"无变化"
+                wapp._w_rows["BLBL"][0].set(50)
+                wapp.update_idletasks(); wapp.update()
+                wapp._weight_refresh_now()
+                wapp.update_idletasks(); wapp.update()
+                check("无变化" in wapp._w_change.get("1.0", "end"),
+                      "拉条还原回固件值 → 回到『无变化』")
+        wapp.destroy()
+    except Exception as ex:                                       # noqa: BLE001
+        check(False, "⚖ 规划权重拉条：%s" % ex)
 
     app.destroy()
 

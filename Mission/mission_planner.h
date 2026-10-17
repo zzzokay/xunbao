@@ -109,9 +109,20 @@ uint32_t Match_Elapsed_S(void);
 
 /**
  * @brief 出门定档检查站：一轮到达 N3/N5 时用真实已用时给尾段定档
- *        （由 Navigation() 的节点推进调用；TIME_BUDGET_ENABLE=0 时空转）
+ *        （由 Navigation() 的节点推进 + barrier.c 的 Stage() 在 P1 取完宝后调用；TIME_BUDGET_ENABLE=0 时空转）
  */
 void round1_exit_recheck(void);
+
+/**
+ * @brief 硬截止：到点强制回家
+ *        「已用时 ≥ TB_GO_HOME_AT_S」且车已出门（门区封住也能到 P2）⇒ 路线压成 [当前节点, P2]；
+ *        车还在门东侧时不接管（交给 door() 状态机 / 出门后的 round1_exit_recheck）。
+ * @param enable 由调用方传 TB_FORCE_HOME_ENABLE（=0 时空转）。
+ *        ⚠️ 开关做成入参而不是在函数里判宏：宏是 0 时编译器会把 `if (!宏) return;` 常量折叠，
+ *           后面整段变「不可达」报 #111-D；项目又规定开关门控不用 #if（见 README §2.14）。
+ *        ⚠️ 必须在 round1_exit_recheck() 之后调用：到点时它要覆盖那边刚定好的档。
+ */
+void round_force_home_check(uint8_t enable);
 
 /* ==================== 工具函数（供 barrier.c 使用） ==================== */
 

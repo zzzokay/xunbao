@@ -16,7 +16,7 @@ void Start_task(void *pvParameters);//声明任务函数
 extern TaskHandle_t main_handler ; //定义主控任务句柄
 void main_task(void *pvParameters);//声明任务函数
 //#define main_size  1024*3  //任务堆栈大小
-#define main_size  1024*2  //任务堆栈大小
+#define main_size  1024*4  //任务堆栈大小
 #define main_task_priority  5   // FreeRTOS priority: 0..configMAX_PRIORITIES-1
 
 extern TaskHandle_t xHandle_ArriveDetect;//定义检测节点任务

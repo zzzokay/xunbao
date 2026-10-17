@@ -75,6 +75,7 @@ def _cfg_flag(name, default=0):
 
 TOUR = _cfg_flag("UPRIGHT_TOUR_ENABLE", 0)
 PUNCH = _cfg_flag("P3P4_PUNCH_ENABLE", 0)
+R2_S1 = _cfg_flag("ROUND2_S1_ENABLE", 1)   # 二轮 S1 单独开关（缺宏按开）
 
 # ---- 源同步自检：一轮交错段必须仍集中在共享小函数里（2026-10-07 起的结构）----
 SYNC = []
@@ -107,14 +108,16 @@ else:
         for _need in ("goP3", "goP4", "P3P4_PUNCH_ENABLE", "UPRIGHT_TOUR_ENABLE"):
             if _need not in _body:
                 SYNC.append("append_round1_return_tail() 里缺 %s（判据 / 开关变了）" % _need)
-        _ord = [_body.find("wp[n++] = P3;"), _body.find("wp[n++] = S1;"),
-                _body.find("wp[n++] = P4;"), _body.find("wp[n++] = S2;")]
+        # rfind 锚定末尾全跑分支（前段时间预算 tier 分支只含 P3/P4，find 会假红，2026-10-17 修）
+        _ord = [_body.rfind("wp[n++] = P3;"), _body.rfind("wp[n++] = S1;"),
+                _body.rfind("wp[n++] = P4;"), _body.rfind("wp[n++] = S2;")]
         if -1 in _ord or _ord != sorted(_ord):
             SYNC.append("append_round1_return_tail() 的插点顺序不是 P3 -> S1 -> P4 -> S2（偏移 %s）"
                         % _ord)
-    if _mp.count("n = append_round1_return_tail(wp, n);") != 2:
-        SYNC.append("append_round1_return_tail() 的调用点不是 2 个"
-                    "（plan_treasure_return / route_return_home 各一次）")
+    # 2026-10-12 起是四参签名 + 第三个调用点 round1_exit_recheck()（出门定档检查站），按前缀数
+    if _mp.count("append_round1_return_tail(wp, n") != 3:
+        SYNC.append("append_round1_return_tail() 的调用点不是 3 个"
+                    "（plan_treasure_return / route_return_home / round1_exit_recheck 各一次）")
 
 
 def cp(c):
@@ -151,7 +154,7 @@ def r2_wp(door, treasure, tour):
     """镜像 mission_planner.c:get_newroute() 的 wp。door=(D2,D3,D4,D5)"""
     p6f = (treasure == 6)
     wp = ["N2", "P1", "P3"]
-    if tour:
+    if tour and R2_S1:
         wp.append("S1")
     wp.append("P4")
     if tour:
@@ -272,7 +275,8 @@ def check(cond, tag, detail=""):
 
 print("=" * 78)
 print("直立景点巡回（S1/S2）路线验证 —— 镜像 mission_planner.c 的三处插点")
-print("UPRIGHT_TOUR_ENABLE=%d ｜ P3P4_PUNCH_ENABLE=%d（读自 Mission/config.h）" % (TOUR, PUNCH))
+print("UPRIGHT_TOUR_ENABLE=%d ｜ P3P4_PUNCH_ENABLE=%d ｜ ROUND2_S1_ENABLE=%d（读自 Mission/config.h）"
+      % (TOUR, PUNCH, R2_S1))
 if SYNC:
     print("★ 源同步自检：不通过 —— 本镜像是旧版，下面的结论不可信：")
     for _p in SYNC:
@@ -282,7 +286,8 @@ else:
 print("=" * 78)
 
 # ---------- [1] 二轮 get_newroute ----------
-print("\n[1] 二轮 get_newroute()：P3 之后绕 S1、P4 之后绕 S2")
+print("\n[1] 二轮 get_newroute()：P3 之后绕 S1、P4 之后绕 S2（S1 受 ROUND2_S1_ENABLE=%d）"
+      % R2_S1)
 n_case = n_sol = 0
 d_off = []
 d_on = []
@@ -302,7 +307,9 @@ for door in itertools.product((CAN, ONE, NO), repeat=4):
         check(p1 is not None, tag + " 打开态应可达")
         if p1 is None:
             continue
-        check("S1" in p1 and "S2" in p1, tag + " 打开态应含 S1+S2", f"{p1}")
+        check(("S1" in p1) == bool(R2_S1) and "S2" in p1,
+              tag + " 打开态 S1 应%s、S2 应在（ROUND2_S1_ENABLE=%d）"
+              % ("在" if R2_S1 else "不在", R2_S1), f"{p1}")
         if "S1" in p1 and "P3" in p1:
             check(p1.index("S1") > p1.index("P3"), tag + " S1 应在 P3 之后")
         if "S2" in p1 and "P4" in p1:

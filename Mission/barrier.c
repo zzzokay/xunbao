@@ -59,24 +59,24 @@ extern u8 door1route[100];
  *  路线更新（门/QR） update_route_at_P1
  *                    update_route_by_door_1~4 / update_route_at_door_for_stageAB
  *  第二轮路线规划    get_newroute
- *  OCR 读数字        WaitFor_OCR
- *  QR 码读取         WaitFor_QR
- *  启动流程          zhunbei
+ *  OCR 读数字        WaitForr_QR
+ *  启动流程          zhunbe
+ *  QR 码读取         WaitFoi
  *  路线连接          Connect
  *============================================================================*/
 
 
 
 /*===== 调试：预设5个门颜色，door() 自动读取 =====*/
-//uint8_t door_pass[5] = {ONE_WAY_PASS, CAN_PASS, NO_PASS, NO_PASS, NO_PASS};
+//uint8_t door_pass[5] = {ONE_WAY_PASS, NO_PASS, NO_PASS, NO_PASS, NO_PASS};
 uint8_t door_pass[5] = {0, 0, 0, 0, 0};
 #if DEBUG
-uint8_t debug_door_pass[5] = {ONE_WAY_PASS, CAN_PASS, CAN_PASS, NO_PASS, NO_PASS}; // 0:D2、1:D3、2:D4、3:D5、4:D1
-volatile uint8_t flag_line_clue    = 3;
+uint8_t debug_door_pass[5] = {NO_PASS, NO_PASS, ONE_WAY_PASS, CAN_PASS, NO_PASS}; // 0:D2、1:D3、2:D4、3:D5、4:D1
+volatile uint8_t flag_line_clue    = 0;
 volatile uint8_t flag_clue_stage_A = 5;
 volatile uint8_t flag_clue_stage_B = 7;
 // OCR 线索：P5/P6读clue_A，P7/P8读clue_B，treasure=clue_A+clue_B → 宝物平台编号
-uint8_t flag_clue_A       = 2;
+uint8_t flag_clue_A       = 4;
 uint8_t flag_clue_B       = 0;
 #else
 volatile uint8_t flag_line_clue    = 0;
@@ -182,56 +182,190 @@ static uint8_t GyroStableReset(uint16_t required, float *reset_angle)
 	return 0;
 }
 
+/* 采样缓存：static 避免占主任务栈（这两个函数都在 Barrier_HighMountain 等深层调用链上）。
+   上限 CATCH_MID_MAX 帧后不再追加 —— 统计已足够稳定，且防数组越界。
+   ⚠️ 由 Stage_DetectedRamp / Ramp_LineDrive_CatchMid 共用：两者都是阻塞函数、在同一任务里顺序执行，
+      不会并发；且都从下标 0 覆写、只读自己本次写入的前 n 个 ⇒ 无历史残留。 */
+#define CATCH_MID_MAX  256
+static float s_mid_buf[CATCH_MID_MAX];
+
+#define MID_TRIM_TOL   4.0f	/* 度：车身正常摆动幅度以内；超出视为瞬态斜压帧，剔除 */
+/* 抗扰统计：排序后取"靠近中位数的均值"（截尾均值）。
+   先定位中位数，再只对落在中位数 ±MID_TRIM_TOL 内的样本求均值；
+   窗口内可用样本不足 3 个时直接返回中位数（样本太少时均值无意义）。
+   比纯均值抗蛇形摆动/瞬态斜压帧，比纯中位数更平滑（能用到多个样本）。
+   ⚠️ 会原地排序传入的 buf（调用方下次会从下标 0 覆写，无残留）。 */
+static float MidTrimMean(float *buf, uint16_t n)
+{
+	uint16_t i, j, used = 0;
+	float med, sum = 0.0f;
+
+	for (i = 1; i < n; i++)		/* 插入排序，n ≤ 256 */
+	{
+		float key = buf[i];
+		j = i;
+		while (j > 0 && buf[j - 1] > key)
+		{
+			buf[j] = buf[j - 1];
+			j--;
+		}
+		buf[j] = key;
+	}
+
+	if (n & 1u)
+		med = buf[n / 2];
+	else
+		med = (buf[n / 2 - 1] + buf[n / 2]) * 0.5f;
+
+	for (i = 0; i < n; i++)
+	{
+		if (fabsf(buf[i] - med) <= MID_TRIM_TOL)
+		{
+			sum += buf[i];
+			used++;
+		}
+	}
+	if (used < 3) return med;	/* 样本太少，退化回中位数 */
+	return sum / (float)used;
+}
+
+/* 接近障碍检测的窗口长度：**样本份数**（中位两灯同时压线 = 一个标准样本），不是总帧数。
+   60 的理由：单灯帧被舍去后有效帧会被"稀释"，要求越大越可能整个接近行程都攒不满
+   （⇒ 出参不被写 ⇒ 调用方走 getAngleZ() 兜底）；60 个样本对截尾均值统计完全够，
+   且窗口越短 ⇒ 最后那个窗口越贴近坡底。
+   （无中性帧、无偏离时 60 帧 ≈ 60ms；实际因夹杂单灯/短暂偏离会略长）
+   ⚠️ 开启下面 RAMP_SINGLE_EN 后两灯帧吃 2 个名额、窗口填得更快 —— 届时可同步调大本值。 */
+#define RAMP_WIN  250
+
+/* 单灯帧（中位只有 1 个灯亮）是否也计入样本 + 权重（用"重复写份数"实现，统计层无需改动）：
+   RAMP_SINGLE_EN = 0 ⇒ 单灯帧只作**中性帧**（不采样、不断窗）—— 默认，与既有行为一致
+   RAMP_SINGLE_EN = 1 ⇒ 单灯帧**也采样**，但只记 RAMP_W_ONE 份（两灯帧记 RAMP_W_TWIN 份）
+                        —— 单灯时车也可能挺正，采样多一个来源；降权则防它主导统计 */
+#define RAMP_SINGLE_EN   1	/* 0 = 保持现状；1 = 单灯帧也采（低权重） */
+#define RAMP_W_TWIN      5	/* 两灯帧份数（相对权重） */
+#define RAMP_W_ONE       1	/* 单灯帧份数（相对权重） */
+
 static uint8_t Stage_DetectedRamp(float distance ,float *reset_angle)
 {
-	uint8_t state = 0;
-	uint16_t stable_times = 0;
-	float total_angle = 0.0f;	/* 展开后样本值之和 */
+	uint16_t win_cnt = 0;			/* 当前连续窗口内帧数 */
 	float unwrapped_angle = 0.0f;	/* 当前帧的展开角度 */
-	float last_angle = 0.0f;	/* 上一帧角度，增量展开用 */
+	float last_angle = 0.0f;		/* 上一帧角度，增量展开用 */
 	float angle_now = 0.0f;
+	uint8_t announced = 0;			/* 语音 32 只播一次 */
+	uint8_t w = 0;					/* 本帧计几份样本（0 = 本帧不作样本） */
+	uint8_t k = 0;					/* 写份数用 */
 	while(1){	
 	Cross_getline(&Cross_Scaner);
-	if(state == 0){
-		if ((Cross_Scaner.detail & 0X0180) == 0X0180 ||(Cross_Scaner.detail & 0X0180 && Cross_Scaner.ledNum<=1) )
-		{
-			/* 同 GyroStableReset：展开成连续角度后累加，跨 ±180 求均值不塌 */
-			angle_now = getAngleZ();
-			if (stable_times == 0)
-				unwrapped_angle = angle_now;
-			else
-				unwrapped_angle += need2turn(last_angle, angle_now);
-			last_angle = angle_now;
-			total_angle += unwrapped_angle;
-			stable_times++;
-			if (stable_times >= 250)
-			{
-				*reset_angle = need2turn(0.0f, total_angle / stable_times);
-				stable_times = 0;
-				total_angle = 0.0f;
-				state = 1;
-				send_play_specified_command(32);
-			}
-		}
+	/* 先定本帧"计几份"（0 = 本帧不作样本）：
+	   ① 中位两灯**同时**压线 = 车身正对中线 ⇒ 标准样本（RAMP_W_TWIN 份）
+	   ② 中位仅 1 个灯亮（ledNum<=1）⇒ 只在 RAMP_SINGLE_EN 打开时采，且降权（RAMP_W_ONE 份）
+	      —— 单灯时车也可能挺正，采样多一个来源；降权则防它主导统计 */
+	w = 0;
+	if ((Cross_Scaner.detail & 0X0180) == 0X0180)
+		w = RAMP_W_TWIN;
+	else if (RAMP_SINGLE_EN && (Cross_Scaner.detail & 0X0180) && Cross_Scaner.ledNum <= 1)
+		w = RAMP_W_ONE;
+
+	if (w > 0)
+	{
+		/* 同 GyroStableReset：展开成连续角度后累加，跨 ±180 统计不塌 */
+		angle_now = getAngleZ();
+		/* 窗口内用增量展开保连续；窗口首帧直接以绝对角起算 */
+		if (win_cnt == 0)
+			unwrapped_angle = angle_now;
 		else
+			unwrapped_angle += need2turn(last_angle, angle_now);
+		last_angle = angle_now;
+		/* 按权重重复写入 w 份（统计层无需改动；win_cnt 仍受 RAMP_WIN 保护不越界） */
+		for (k = 0; k < w && win_cnt < RAMP_WIN; k++)
+			s_mid_buf[win_cnt++] = unwrapped_angle;
+		if (win_cnt >= RAMP_WIN)
 		{
-			total_angle = 0.0f;
-			stable_times = 0;
+			/* 窗口满：结算并**覆盖**出参 ⇒ 越晚的窗口越靠近坡底，最终值取自最后一段稳定压线 */
+			if (reset_angle != 0)
+				*reset_angle = need2turn(0.0f, MidTrimMean(s_mid_buf, RAMP_WIN));
+			if (!announced)
+			{
+				send_play_specified_command(32);
+				announced = 1;
+			}
+			win_cnt = 0;
 		}
-	
+	}
+	else if (Cross_Scaner.detail & 0X0180)
+	{
+		/* 中位**还有灯亮**但不作样本（单灯且 RAMP_SINGLE_EN 关 / 多个灯但未同时亮中位两灯）：
+		   **舍去**但**也不清零** —— 它是"车大致还在中位"的过渡帧；
+		   若归到下面清零，车稍一偏窗口就断、样本永远攒不满。窗口继续，等下一次采样帧。
+		   断窗只留给"中位全黑"（车已明显偏离中线）—— 容差约 ±2 灯宽 */
+	}
+	else
+	{
+		win_cnt = 0;	/* 中位完全无线（车已明显偏离）：断一次就重新开窗 */
 	}
 	
 
+
 	if(fabsf(Chassis_GetMileage()) >= distance||
 		//imu.pitch >= Begin_up + 4 ||
-		Cross_Scaner.ledNum >= 7 ||
-		Cross_Scaner.lineNum >= 4 
+		Cross_Scaner.ledNum >= 4 ||
+		Cross_Scaner.lineNum >= 3 
 	 ){
 		send_play_specified_command(36);
 		return 1;}
 	vTaskDelay(1);
 	}
 	
+}
+
+/* 珠峰上坡循迹定长段：while 读距离走定长（替代 Chassis_DriveDistance_Blocking），
+   同时在循迹过程中记录"最中间两个灯"同时压线的帧角度，出循环后用 MidTrimMean
+   （靠近中位数的截尾均值，与 Stage_DetectedRamp 同口径）写回 *avg_angle。
+   —— 出参即最终可用角，调用方无需再做任何处理；本段无有效帧时 *avg_angle 保持不变。
+   —— 单段独立：每段进入时用当前绝对角重新起算展开基准，跨段之间不拼接（杜绝跨 ±180 折返）。
+   —— 传 NULL 表示只走位、不取结果（当前两段都取结果，保留该能力备用）。
+   distance = 定长（代码单位，60 ≈ 72cm，与旧 DriveDistance_Blocking 一致）
+   speed    = 循迹速度 */
+static void Ramp_LineDrive_CatchMid(float distance, float speed, float *avg_angle)
+{
+	float num = Chassis_GetMileage();	/* 进入时里程，做相对定长 */
+	uint16_t cnt = 0;					/* 本段有效帧计数 */
+	float unwrapped = 0.0f;				/* 展开角（连续轨迹） */
+	float last_angle = 0.0f;			/* 上一帧角度，增量展开用 */
+
+	/* ⚠️ 坡道循迹必须忽略左右各 3 个边缘灯（只用中间 10 灯）——
+	   与旧 Chassis_DriveDistance_Blocking(is_Line,60,20,0,3) 的 edge_ignore 参数一致，
+	   否则坡沿/白区被边缘灯看到会把循迹误差拉偏 */
+	Chassis_SetEdgeIgnore(3);
+	Chassis_MotorControl(is_Line, speed, speed, 0);
+	while (fabsf(Chassis_GetMileage() - num) < distance)
+	{
+		Cross_getline(&Cross_Scaner);
+		/* 中间两个灯同时压线 = 车身正对中线，记此帧角度 */
+		if ((Cross_Scaner.detail & 0X0180) == 0X0180)
+		{
+			float angle_now = getAngleZ();
+			/* 段内用增量展开保连续；段首（cnt==0）直接以绝对角起算 */
+			if (cnt == 0)
+				unwrapped = angle_now;
+			else
+				unwrapped += need2turn(last_angle, angle_now);
+			last_angle = angle_now;
+			if (cnt < CATCH_MID_MAX)
+				s_mid_buf[cnt] = unwrapped;
+			cnt++;
+		}
+		vTaskDelay(1);
+	}
+	Chassis_SetEdgeIgnore(0);	/* 恢复（旧 DriveDistance_Blocking 结束也是清 0） */
+
+	/* 统计：靠近中位数的截尾均值（MidTrimMean）—— 与 Stage_DetectedRamp 同一口径，
+	   既抗蛇形摆动/瞬态斜压帧，又比纯中位数更平滑 */
+	if (avg_angle != 0 && cnt > 0)
+	{
+		uint16_t n = (cnt < CATCH_MID_MAX) ? cnt : CATCH_MID_MAX;
+		*avg_angle = need2turn(0.0f, MidTrimMean(s_mid_buf, n));
+	}
 }
 
 void Stage_Correct(float back_distance){
@@ -482,6 +616,11 @@ static void Stage_Action(float original_angle)
 		//扭摄像头
 		if(stage_state == 1 && treasure == 0 )
 		{
+			/* 提前打开 OCR 模式：MaixCam 切模式/启动有延时，趁下面扭头的 ~210ms 并行完成，
+			   等真正 WaitFor_OCR 时已就绪，避免在扫描阶段干等摄像头启动 */
+			if (nodes.nowNode.nodenum == P5 || nodes.nowNode.nodenum == P6 ||
+			    nodes.nowNode.nodenum == P7 || nodes.nowNode.nodenum == P8)
+				open_OCR_mode();
 			Robot_Work(CAMERA, HEAD_MID);
 			stage_state = 2;
 		}
@@ -539,7 +678,7 @@ void Stage(void)
 	Chassis_EnableAntiSnake();
 	Chassis_MotorControl(is_Line, 15, 15, 0);//25
 	Chassis_OverrideLinePid(24, 0, 140, 30);
-	Chassis_OverrideGyroPid(5, 0, 50, 50);
+	Chassis_OverrideGyroPid(6, 0, 50, 50);
 	Chassis_ClearMileage();
 
 	while (state != STAGE_DONE)
@@ -566,10 +705,14 @@ void Stage(void)
 		case STAGE_TOP:
 			Robot_Work(BODY, UP); 	//人站起来
 			Robot_Work(CAMERA, HEAD_MID);
-			Stage_Action(original_angle);
-
+					
 			if(Stage_HasTreasure())
+			{
 				Stage_CollectTreasure();
+				round1_exit_recheck();   /* 宝物=P1：定档点在这里（其余宝物在出门边到达时，见 mission_planner.c） */
+			}
+
+			Stage_Action(original_angle);
 
 			Stage_Correct(4);
 
@@ -686,6 +829,7 @@ void Barrier_Bridge(void)
 	Chassis_EnableAntiSnake();
 	Chassis_MotorControl(is_Line, 15, 15, 0);
 	Chassis_OverrideLinePid(30, 0, 170, 30);
+	Chassis_OverrideGyroPid(5,0,70,30);
 	Chassis_ClearMileage();
 	uint16_t is_emergency = 0;
 	while (state != BRIDGE_DONE)
@@ -715,10 +859,11 @@ void Barrier_Bridge(void)
 				vTaskDelay(5);
 			}
 			//上桥结束检测
-			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
+			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, origin_angle,
 				0, UpDownStage_Speed_low, 0, UpDownStage_Speed_low, After_up, 0, 10.0f, 24);
 
 			Chassis_ClearMileage();
+			Chassis_RestoreGyroPid();
 			state = BRIDGE_ON_BRIDGE_TOP;
 			break;
 
@@ -767,7 +912,7 @@ void Barrier_Bridge(void)
 				{
 					centered_samples++;
 					if (centered_samples >= BRIDGE_CENTERED_THRESHOLD)
-						Chassis_SetTargetSpeed(SPEED25);
+						Chassis_SetTargetSpeed(SPEED2);
 					else
 						Chassis_SetTargetSpeed(SPEED1);
 				}
@@ -775,9 +920,9 @@ void Barrier_Bridge(void)
 				{
 					centered_samples = 0;
 					if(TG_speed<=20.0f){
-						Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);
+						Chassis_CorrectByInfrared(0.04f, 1.5f, 1.5f);
 					}
-					else{Chassis_CorrectByInfrared(0.02f, 1.3f, 1.0f);}
+					else{Chassis_CorrectByInfrared(0.01f, 1.3f, 1.0f);}
 					
 					Chassis_SetTargetSpeed(SPEED1);
 				}
@@ -792,14 +937,14 @@ void Barrier_Bridge(void)
 			else if (mileage_br >= 72)
 			{
 				Chassis_SetTargetSpeed(UpDownStage_Speed_low);
-				Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);
+				Chassis_CorrectByInfrared(0.04f, 1.5f, 1.5f);
 			}
 			break;
 		
 
 		case BRIDGE_ON_BRIDGE:
 
-			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, getAngleZ(),
+			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
 				Begin_down, UpDownStage_Speed_low, down_pitch, SPEED0, down_pitch-20,0, 0, 0.0f);//下坡下一半
 
 			//加一点修正
@@ -1013,11 +1158,16 @@ void Barrier_HighMountain(void)
 	} state = HM_APPROACH;
 
 	float origin_angle = 0.0f;
+	uint8_t origin_valid = 0;	/* 1 = Stage_DetectedRamp 真算出 origin_angle（非 getAngleZ 兜底） */
+
+	float flat_angle = 0.0f;
+	float straight_angle = 0.0f;
+	float descend_angle = 0.0f;
 
 	Chassis_OverrideGyroPid(5, 0, 50, 10);
 	Chassis_EnableAntiSnake();
 	Chassis_MotorControl(is_Line, 15, 15, 0);
-	Chassis_OverrideLinePid(30, 0, 120, 30);
+	Chassis_OverrideLinePid(35, 0, 120, 30);
 	Chassis_SetTrackMode(TRACK_NEAR_CENTER);
 	Chassis_ClearMileage();
 	while (state != HM_DONE)
@@ -1029,7 +1179,12 @@ void Barrier_HighMountain(void)
 			if (Stage_DetectedRamp(40, &origin_angle))
 			{
 				Chassis_RestoreLinePid();
+				/* 先判"是否真算出角"（0 = 没采够 250 帧，下面会兜底成瞬时角） */
+				origin_valid = (origin_angle != 0) ? 1 : 0;
 				if (origin_angle == 0) origin_angle = getAngleZ();
+				/* 两段循迹各自无有效帧时的回退值（此刻 origin_angle 才有效） */
+				flat_angle = origin_angle;
+				straight_angle = origin_angle;
 				state = HM_ASCEND_1;
 			}
 			break;
@@ -1039,16 +1194,19 @@ void Barrier_HighMountain(void)
 			Chassis_OverrideLinePid(20, 0, 150, 30);
 			RampCtrl_Blocking(RAMP_ASCEND, 10, origin_angle,
 				Begin_up, 15, up_pitch, 20, up_pitch+30, 0.07f, 10.0f, 24);
-			//用循迹走
-			Chassis_DriveDistance_Blocking(is_Line, 60, 20, 0, 3);
+			//用循迹走（定长 while 读距离，本段出"最直角度"给 HM_FLAT 用）
+			Ramp_LineDrive_CatchMid(60.0f, 20.0f, &flat_angle);
 			//检测上坡结束
-			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
+			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, flat_angle,
 				Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up-3, 0.07f, 10.0f, 0.0f);
 			state = HM_FLAT;
 			break;
 
 		case HM_FLAT:
-			Chassis_MotorControl(is_Gyro,UpDownStage_Speed_high , UpDownStage_Speed_high, getAngleZ());
+			/* 选角优先级：flat_angle（第一段采样，贴合当前姿态）> origin_angle（坡底平地实测）。
+			   固定目标角才真纠偏（原传 getAngleZ() 每帧目标=当前，等于放弃纠偏） */
+			Chassis_MotorControl(is_Gyro,UpDownStage_Speed_high , UpDownStage_Speed_high,
+				flat_angle != 0.0f ? flat_angle : origin_angle);
 			if (imu.pitch >= Begin_up)
 			{
 				state = HM_ASCEND_2;
@@ -1058,7 +1216,8 @@ void Barrier_HighMountain(void)
 		case HM_ASCEND_2:
 			RampCtrl_Blocking(RAMP_ASCEND, 20, getAngleZ(),
 				Begin_up, 20, up_pitch, 20, up_pitch+30, 0.07f, 10.0f, 24);
-			Chassis_DriveDistance_Blocking(is_Line, 60, 20, 0, 3);
+			//用循迹走（定长 while 读距离，本段出"最直角度"直接写进 straight_angle）
+			Ramp_LineDrive_CatchMid(60.0f, 20.0f, &straight_angle);
 			RampCtrl_Blocking(RAMP_ASCEND, UpDownStage_Speed_low, getAngleZ(),
 				Begin_up, UpDownStage_Speed_low, up_pitch, UpDownStage_Speed_low, After_up-3, 0.03f, 10.0f, 0.0f);
 			state = HM_IMPACT;
@@ -1068,10 +1227,11 @@ void Barrier_HighMountain(void)
 			Chassis_RestoreLinePid();
 			Robot_Work(BODY, UP); 	//人站起来
 			Robot_Work(CAMERA, HEAD_MID);
-			//平台动作
-			Stage_Action(getAngleZ());
+			/* 平台动作（选角同优先级：origin 坡底平地实测更直 > 第二段采样 straight_angle） */
+			Stage_Action(origin_valid ? origin_angle : straight_angle);
 
 			origin_angle = need2turn(0.0f, nodes.nowNode.angle + 180.0f);
+			descend_angle = origin_angle;	/* 下坡第一段无有效帧时的回退值 */
 			if (treasure == 0)
 			{
 				treasure = flag_clue_A + flag_clue_B;
@@ -1088,14 +1248,17 @@ void Barrier_HighMountain(void)
 		case HM_DESCEND_1:
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low-5, origin_angle,
 				Begin_down, UpDownStage_Speed_low-5, down_pitch-7, 20, down_pitch-30, 0.07f, 10.0f, 0.0f);
-			Chassis_DriveDistance_Blocking(is_Line, 60, 20, 0, 3);
+			//用循迹走（定长 while 读距离，本段出"最直角度"给 HM_DESCEND_FLAT 选角）
+			Ramp_LineDrive_CatchMid(60.0f, 20.0f, &descend_angle);
 			RampCtrl_Blocking(RAMP_DESCEND, 20, origin_angle,
 				Begin_down, 20, down_pitch, 20, After_down, 0.07f, 10.0f, 0.0f);
 			state = HM_DESCEND_FLAT;
 			break;
 
 		case HM_DESCEND_FLAT:
-			Chassis_MotorControl(is_Gyro, UpDownStage_Speed_low-2, UpDownStage_Speed_low-2, origin_angle);
+			/* 用下坡第一段循迹实测的最直角度（贴合实际坡道方向）；
+			   无有效帧时 descend_angle 仍是 HM_IMPACT 里赋的 origin_angle */
+			Chassis_MotorControl(is_Gyro, UpDownStage_Speed_low-2, UpDownStage_Speed_low-2, descend_angle);
 			while(imu.pitch <= Begin_down)vTaskDelay(2);
 			state = HM_DESCEND_2;
 			break;
@@ -1103,7 +1266,8 @@ void Barrier_HighMountain(void)
 		case HM_DESCEND_2:
 			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low-5, origin_angle,
 				Begin_down, UpDownStage_Speed_low-5, down_pitch-7, 20, down_pitch-30, 0.07f, 10.0f, 0.0f);
-			Chassis_DriveDistance_Blocking(is_Line, 60, 20, 0, 3);
+			//用循迹走（与上坡/下坡第一段写法一致；本段无下游消费者，只走位不取结果）
+			Ramp_LineDrive_CatchMid(60.0f, 20.0f, 0);
 			RampCtrl_Blocking(RAMP_DESCEND, 20, origin_angle,
 				Begin_down, 20, down_pitch, 20, After_down, 0.07f, 10.0f, 0.0f);
 
@@ -1131,17 +1295,20 @@ void Barrier_WavedPlate(float lenght)
 		WP_DONE        // 清理收尾
 	} state = WP_APPROACH;
 	Chassis_EnableAntiSnake();
-	Chassis_MotorControl(is_Line, 15, 15, 0);
+	if(lenght > 60)		{Chassis_MotorControl(is_Line, 15, 15, 0);}
+	else 	{Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);} 
+
 	Chassis_OverrideLinePid(24, 0, 140, 30);
-	Chassis_OverrideGyroPid(4, 0, 50, 50);
+	Chassis_OverrideGyroPid(5, 0, 50, 50);
 	Chassis_ClearMileage();
+	
 	float origin_angle = 0.0f;
 	while (state != WP_DONE)
 	{
 		switch (state)
 		{
 		case WP_APPROACH:
-			if (Stage_DetectedRamp(60, &origin_angle))
+			if (Stage_DetectedRamp(30, &origin_angle))
 			{
 				Chassis_RestoreLinePid();
 				//buzzer_on();
@@ -1151,8 +1318,17 @@ void Barrier_WavedPlate(float lenght)
 
 		case WP_DRIVE:
 			// 俯仰角阈值设 100（不可能达到），只靠 max_distance=lenght 退出
-			RampCtrl_Blocking(RAMP_ASCEND, BL_Speed, getAngleZ(),
+			if(lenght > 60)
+			{
+				RampCtrl_Blocking(RAMP_ASCEND, BL_Speed, getAngleZ(),
 				100, BL_Speed, 100, BL_Speed, 100, 0.05f, 0, lenght);
+			}
+			else 
+			{
+				RampCtrl_Blocking(RAMP_ASCEND, SPEED0, getAngleZ(),
+				100, SPEED0, 100, SPEED0, 100, 0.05f, 0, lenght);
+			}
+			
 			//buzzer_off();
 			state = WP_DONE;
 			break;
@@ -1233,8 +1409,8 @@ void South_Pole(void)
 		case SP_DESCEND:
 			/* 同 Barrier_HighMountain：用"进平台边的反向"当参考航向（C9→P7=180 → 得 0 ✓） */
 			origin_angle = need2turn(0.0f, nodes.nowNode.angle + 180.0f);
-			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low, origin_angle,
-				Begin_down, UpDownStage_Speed_low, down_pitch, UpDownStage_Speed_high, After_down, 0.04f, 10.0f, 0.0f);
+			RampCtrl_Blocking(RAMP_DESCEND, UpDownStage_Speed_low-5, origin_angle,
+				Begin_down, UpDownStage_Speed_low-2, down_pitch, UpDownStage_Speed_high, After_down, 0.04f, 10.0f, 0.0f);
 			Chassis_MotorControl(is_Line, SPEED1, SPEED1, 0);
 			state = SP_DONE;
 			break;
@@ -1291,11 +1467,12 @@ void QQB_1(void)
 			
 			//改变电机控制模式为巡线模式
 			Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
-			Chassis_OverrideLinePid(17,0.01f,50,30);
+			Chassis_OverrideLinePid(18,0.03f,50,40);
 
 			//等待小车行驶10cm后，改变循迹模式为中间循迹
 			Chassis_ClearMileage();
-			while(Chassis_GetMileage() < 60)vTaskDelay(2);	
+			
+			while(Chassis_GetMileage() < 90)vTaskDelay(2);	
 			Chassis_SetTrackMode(TRACK_NEAR_CENTER);
 			Chassis_ClearMileage();
 			
@@ -1308,15 +1485,15 @@ void QQB_1(void)
 			//防止循迹受到旁边红线的干扰
 			//if(imu.pitch>=After_up ||Cross_Scaner.ledNum>=4||Cross_Scaner.lineNum>=2)Chassis_SetEdgeIgnore(4);
 			//等待对其
-			if ((imu.yaw >=65&&imu.yaw <=115)||(imu.yaw <=-65&&imu.yaw >=-115)
-			)
-			{		
-				Chassis_OverrideGyroPid(4, 0, 70, 5);  
-				Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ()>0?90:-90);
+			if ((imu.yaw >=65&&imu.yaw <=115)||(imu.yaw <=-65&&imu.yaw >=-115))
+			{
+				Chassis_OverrideGyroPid(5, 0, 70, 5);  
+				if(getAngleZ()<0){Chassis_MotorControl(is_Gyro, 10, 10, getAngleZ()>0?90:-90);}
+				else Chassis_MotorControl(is_Gyro, 15, 15, getAngleZ()>0?90:-90);
 				Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);	
 			}
 			//等待小车爬上跷跷板，俯仰角大于 up_pitch 进入下一状态
-			if(imu.pitch> basic_p+25)
+			if(imu.pitch> basic_p+20)
 			{
 				Chassis_ClearMileage();	
 				CarBrake();	
@@ -1387,7 +1564,7 @@ void QQB_1(void)
 
 			if(is_emergency==0)Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);
 
-			if(Chassis_GetMileage() > 43 && is_emergency == 0)///48
+			if(Chassis_GetMileage() > QQB_LENGTH && is_emergency == 0)///48
 			{
 				CarBrake();
 				state = QQB_WAIT;		
@@ -1436,17 +1613,13 @@ void QQB_1(void)
 			Chassis_SetCatchSensorNum(line_weight_default[8]);
 			Chassis_SetTrackMode(TRACK_LEFT_EDGE);
 			Chassis_MotorControl(is_Line, 15, 15, 0);
-			//Chassis_OverrideLinePid(13,0.00f,50,30);
+	
 			Chassis_ClearMileage();
 			uint8_t dis = getAngleZ()>0?(uint8_t)(70):(uint8_t)(50);
 			while(Chassis_GetMileage() < dis)vTaskDelay(2);
 
 			float angle = getAngleZ();
-			// if(angle<0&&angle>-20){
-			// Chassis_MotorControl(is_Gyro, 15, 15,0);
-			// while(getAngleZ() < -5){Chassis_CorrectByInfrared(0.05f, 1.5f, 1.5f);vTaskDelay(2);	}
-			// }
-			//Chassis_RestoreLinePid();
+
 			state = QQB_DONE;
 			break;	
 		}  
@@ -1564,6 +1737,7 @@ static NODE door_retreat(uint8_t a, uint8_t b, float dis)
 	if (idx == ROUTE_NOT_FOUND) return (NODE){0};  /* 兜底：找不到，返回全零结构体 */
 	NODE newNode = Node[idx];
 	Chassis_Brake();
+	vTaskDelay(200);
 	Chassis_Turn_By_StopGyro_Blocking(newNode.angle, getAngleZ(), 30.0f, TURN_TIMEOUT_DEFAULT);
 	return newNode;  /* 返回目标节点状态 */
 }
@@ -1860,7 +2034,8 @@ uint8_t WaitFor_OCR(void)
 			/* 本轮失败：只调车位，不关相机 */
 			if(retry==2)
 			{
-				Chassis_DriveDistance_Blocking(is_Gyro, 4, SPEED0, getAngleZ(), 0);
+				if(nodes.nowNode.nodenum != P8 )
+					Chassis_DriveDistance_Blocking(is_Gyro, 4, SPEED0, getAngleZ(), 0);
 				CarBrake();
 			}
 			if(retry==5)
@@ -1868,6 +2043,7 @@ uint8_t WaitFor_OCR(void)
 				/* 全部失败收尾：头慢转回中 + 后退7cm 复位 */
 				moveServo(0, OCR_HEAD_MID, OCR_HEAD_SWEEP_MS);
 				head_right_left = 0;
+				if(nodes.nowNode.nodenum != P8 )
 				Chassis_DriveDistance_Blocking(is_Gyro, 7, -SPEED0, getAngleZ(), 0);
 				CarBrake();
 			}
@@ -1927,7 +2103,7 @@ uint8_t WaitFor_QR(void)
 #if DEBUG
 	return 1;
 #else
-	uint8_t attempt;
+	uint8_t attempt=0;
 
 	/*
 	 * 进函数只清一次识别标志，循环里不再清：
@@ -1966,7 +2142,7 @@ uint8_t WaitFor_QR(void)
 	}
 
 	/* 退一次仍扫不到 → 返回0，Stage_Action 会再撞一次重新贴近后重扫 */
-	close_Maxicam();
+	//close_Maxicam();
 	return 0;
 #endif
 }
@@ -1989,7 +2165,7 @@ void zhunbei(void)
 	vTaskDelay(500);
 	Robot_Work(MIKU, HEAD_RIGHT);
 	vTaskDelay(500);
-
+	open_OCR_mode();//解决前摇（摄像头问题）
 	/*等待挡板*/
 	while (Infrared_ahead == 0)
 		vTaskDelay(5);
@@ -1998,6 +2174,7 @@ void zhunbei(void)
 	while(Infrared_ahead == 1)
 		vTaskDelay(5);
 
+	close_Maxicam();
 	
 	Match_Timer_Start();   /* 出发计时：两个红外 while 退出（一/二轮各自 180s） */
 	/**************转弯测试***************/
@@ -2078,12 +2255,13 @@ void do_Upright()
 	CarBrake();
 	Chassis_Turn_By_StopGyro_Blocking(getAngleZ()+TurnAngle,getAngleZ(),30, TURN_TIMEOUT_DEFAULT);
 	Chassis_DriveDistance_Blocking(is_Gyro,15,Gyro_Speed,getAngleZ(),0);
-	send_play_specified_command(37);
-	Chassis_Brake(); 
-	vTaskDelay(500);
-	Chassis_DriveDistance_Blocking(is_Gyro,19,-Gyro_Speed,getAngleZ(),0);
-	Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-TurnAngle,getAngleZ(),30, TURN_TIMEOUT_DEFAULT);
 	CarBrake();
+	Chassis_DriveDistance_Blocking(is_Gyro,15,-Gyro_Speed,getAngleZ(),0);
+	send_play_specified_command(37);
+	CarBrake();
+	vTaskDelay(500);
+	Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-TurnAngle,getAngleZ(),30, TURN_TIMEOUT_DEFAULT);
+	
 	Chassis_MotorControl(is_Line,15,15,0);
 	
 	nodes.nowNode.function = 0;
@@ -2093,28 +2271,19 @@ void do_Upright()
 
 void do_Upright_Far()
 {
-	/* 红线兜底（2026-10-11）：拿完宝藏才允许撞直立景点。
-	 * 路线构造已保证 S1/S2 在宝物平台之后（append_round1_return_tail），
-	 * 这里是第二道保险：万一顺序异常，不撞挡板、原地折返继续。
-	 * ⚠️ View1 边（N3→S1/N6→S2）flag=NO 无到达判据，跳过时必须自己置 ARRIVED
-	 *    否则 ArriveDetect 无判据死等；置 ARRIVED 即在当前里程点折返。 */
-	if (UPRIGHT_NEED_TREASURE && !treasure_taken)
-	{
-		printf("[UPRIGHT-FAR] skipped: treasure not collected yet\r\n");
-		nodes.nowNode.function = 0;
-		cross_event |= CROSS_EVENT_ARRIVED;
-		return;
-	}
 	Chassis_MotorControl(is_Line,SPEED0,SPEED0,0);	
 	/*等待挡板*/
 	while (Infrared_ahead == 0)
 		vTaskDelay(5);	
-	Chassis_DriveDistance_Blocking(is_Gyro,15,Gyro_Speed,getAngleZ(),0);
+	if(nodes.nowNode.nodenum==S1) {
+	Chassis_DriveDistance_Blocking(is_Gyro,21,Gyro_Speed,getAngleZ(),0);	
+	}
+	else Chassis_DriveDistance_Blocking(is_Gyro,19,Gyro_Speed,getAngleZ(),0);
+	CarBrake();
+	Chassis_DriveDistance_Blocking(is_Gyro,10,-Gyro_Speed,getAngleZ(),0);
 	Chassis_Brake();
-	vTaskDelay(500); 
 	send_play_specified_command(37);
-	Chassis_DriveDistance_Blocking(is_Gyro,19,-Gyro_Speed,getAngleZ(),0);
-
+	vTaskDelay(500); 
 	nodes.nowNode.function = 0;
 	cross_event |= CROSS_EVENT_ARRIVED;
 }

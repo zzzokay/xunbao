@@ -237,6 +237,49 @@ def main():
         check(not bad, "OBS 与固件逐项一致（比 %d 项，不符 %d 项）" % (len(M.FUNC_ORDER), len(bad)))
         for name, want, got in bad[:12]:
             print("        %-14s 固件=%s 上位机=%s" % (name, want, got))
+        # --- 权重拉条「⚖ 规划权重…」的契约 ---
+        check(hasattr(M, "parse_obs_penalty") and hasattr(M, "write_obs_penalty"),
+              "map_model 提供 parse/write_obs_penalty（拉条读写固件 NavObsPenalty[] 的入口）")
+        check(len(M.WEIGHT_EDITABLE) >= 10 and "Hill" in M.WEIGHT_EDITABLE
+              and "BLBL" in M.WEIGHT_EDITABLE and "SM" in M.WEIGHT_EDITABLE,
+              "WEIGHT_EDITABLE 含调南环最关键的 3 项（Hill/BLBL/SM），共 %d 项"
+              % len(M.WEIGHT_EDITABLE))
+        # 块注释状态机：固件里 Hill/DOOR 两项注释跨多行且含 `**`，
+        # 用朴素的 `/* ... */` 非贪婪剥注释会漏项⇒ 只解析到 18 项。
+        check(len(fw) >= 20,
+              "NavObsPenalty[] 解析到 ≥20 项（跨行注释+含 `**` 的注释都要正确跳过，实得 %d）"
+              % len(fw))
+        check(abs(fw[13] - M.MapModel.OBS.get("BLBL", -1)) < 1e-6
+              and abs(fw[6] - M.MapModel.OBS.get("SM", -1)) < 1e-6,
+              "BLBL(下标13)/SM(下标6) 下标对齐正确（写回靠这个映射，写错会改错行）")
+        # --- 「查看代码差异」里的权重段 ---
+        check(hasattr(M, "obs_diff") and hasattr(M, "obs_diff_lines"),
+              "map_model 提供 obs_diff/obs_diff_lines（『查看代码差异』的权重段）")
+        cur_obs = {n: v for n, v in M.MapModel.OBS.items()}
+        same_td = M.obs_diff(cur_obs, {n: v for n, v in zip(M.FUNC_ORDER, fw[1:])})
+        check(same_td["same"],
+              "obs_diff：与固件一致时判为无差异")
+        cur_obs2 = dict(cur_obs)
+        cur_obs2["BLBL"] = cur_obs2.get("BLBL", 0) - 30
+        chg_td = M.obs_diff(cur_obs2, {n: v for n, v in zip(M.FUNC_ORDER, fw[1:])})
+        check((not chg_td["same"]) and len(chg_td["chg"]) == 1
+              and chg_td["chg"][0][0] == "BLBL",
+              "obs_diff：改 1 项就只报那 1 项（不误报/不漏报）")
+        check(any("写回固件后两边才一致" in l for l in M.obs_diff_lines(chg_td)),
+              "obs_diff_lines：有差异时提示『写回后才一致』"
+              "（这是『显示的路线≠车上跑的』的关键提醒）")
+        # --- 权重拉条里的「线索条件」解析：必须与「线索路线…」run() 逐行对齐 ---
+        # ⚠️ clue_cfg_args 住在 map_editor.App 上（GUI 模块），**本自检不 import GUI**。
+        #    这里锁的是它依赖的**纯解析契约**（门灯名→状态码、宝物串→整数），
+        #    真正的端到端验证在 _guismoke（那里本来就要建 Tk）。
+        check(M.DOOR_STATE_NAME[M.CAN_PASS] in
+              [M.DOOR_STATE_NAME[s] for s in M.DOOR_STATE_ORDER],
+              "门灯显示名与状态码一一对应（权重拉条的线索下拉靠它把文本转回状态码）")
+        check(int("5 · P5".split(" ")[0]) == 5,
+              "宝物下拉串『5 · P5』可解析出编号 5（权重拉条复用同一套解析）")
+        check(("P5=5, P8=8".split(",")[0].split("=")[1],
+               "P5=5, P8=8".split(",")[1].split("：")[0].split("=")[1]) == ("5", "8"),
+              "平台A/B 串『P5=5, P8=8』可解析出 (5, 8)（与线索路线 run() 同一套 split）")
 
     sec("9. 门回程镜像 == 固件 golden（真值来源：地图修改上位机/validate/_check_door_perm.py）")
     try:
@@ -565,6 +608,40 @@ def main():
         _it2 = next((x for x in _ro2 if x["edge"] is e_n16), None)
         check(_it2 is not None and "DRIGHT" in _it2["extra"] and "DLEFT" in _it2["missing"],
               "人为写反（只留 DRIGHT）后 right_only 仍抓出 N16→N18（多余 DRIGHT、缺失 DLEFT）")
+
+    sec("时间预算（分级贪分，2026-10-12）")
+    _tb = M.time_budget_macros()
+    check(_tb["TB_P1_NO_SIGHTS_AT_S"] == 135 and _tb["TB_P1_HOME_ONLY_AT_S"] == 145,
+          "5 个 TB_* 宏从 config.h 读到（P1 专用 = %d/%d）"
+          % (_tb["TB_P1_NO_SIGHTS_AT_S"], _tb["TB_P1_HOME_ONLY_AT_S"]))
+    _raw_en = str(M.parse_config_macros()[0].get("TIME_BUDGET_ENABLE", "")).strip()
+    check(M.time_budget_enabled() is (_raw_en == "1"),
+          "TIME_BUDGET_ENABLE 的 0/1 → bool 映射正确（config.h 现值 = %r；改它不该让自检红）"
+          % _raw_en)
+    check([t for _r, t, _d in M.round1_tail_ladder(2)] == [0, 1, 3],
+          "宝物=P1 的档位只有 全跑/仅平台/回家 三档（没有「只跑一个平台」）")
+    check([t for _r, t, _d in M.round1_tail_ladder(3)] == [0, 1, 2, 3],
+          "其余宝物是四档：全跑/不跑景点/只跑一个平台/回家")
+    check([M.round1_tail_tier(2, s)[0] for s in (134, 135, 144, 145)] == [0, 1, 1, 3],
+          "宝物=P1 的 2:15/2:25 分界（134→全跑 / 135,144→仅平台 / 145→回家）")
+    check(M.round1_tail_tier(2, 150)[0] == 3 and M.round1_tail_tier(4, 150)[0] == 1,
+          "同一时刻 150s：宝物=P1 已回家、宝物=P4 还在跑平台（两套阈值互不干扰）")
+    _wp2, _i2 = M.round1_tail_plan(2, 0, True, True, elapsed_s=140)
+    check(_i2["trigger"] == "在 P1 取完宝那一刻" and _i2["exit_n3"] is True
+          and _wp2 == ["P3", "P4"],
+          "宝物=P1 的定档点 = 「在 P1 取完宝那一刻」，出口恒按 N3 侧（exit_n3=True）")
+    _i4a = M.round1_tail_plan(4, 0, True, True, elapsed_s=140, exit_node="N5")[1]
+    _i4b = M.round1_tail_plan(4, 0, True, True, elapsed_s=140, exit_node="N3")[1]
+    check(_i4a["trigger"].startswith("回程到达出门边") and _i4a["exit_n3"] is False
+          and _i4b["exit_n3"] is True,
+          "其余宝物的定档点仍是出门边，exit_n3 跟着 N3/N5 走")
+    check([r[3] for r in M.round1_tail_ladder_wp(2, 0, True, True)]
+          == [["P3", "S1", "P4", "S2"], ["P3", "P4"], []],
+          "宝物=P1·百位0 的档位阶梯 wp：全跑 / 仅平台 / 空（直接回家）")
+    check(M.round1_return_extra_waypoints(2, 0, True, True) == ["P3", "S1", "P4", "S2"]
+          and M.round1_return_extra_waypoints(3, 0, False, True) == ["S1"]
+          and M.round1_return_extra_waypoints(4, 0, False, True) == ["S2"],
+          "旧签名薄壳行为不变（回归）")
 
     sec("结果")
     if FAIL:

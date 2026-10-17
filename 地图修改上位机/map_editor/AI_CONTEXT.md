@@ -390,6 +390,7 @@ Delete 删边、校验面板、规划、6 类导出、节点增删/恢复、滚�
 | **改平台快速交换** | `MapModel.swap_platforms(a, b, swap_xy=False, dry_run=False)` + `MapModel.node_io_roles(name)`；界面 `App.platform_swap_dialog()` | 语义：**只改 `from`/`to`**（step/angle/flag/speed 不动），`func` 换成新名字平台的入口/出口动作；入口/出口动作**从当前地图读**（不硬编码）。`dry_run` 给对话框做预览。见 §6.12 |
 | 改边表解析 | `parse_edge_table()` / `_EDGE_ROW_RE` | 保持"文本原样保留"；跑 `_selftest` 的往返断言 |
 | 改宏解析 | `parse_config_macros()` / `_CExpr`；差异对比 `macros_diff()` / `macros_diff_lines()` | 见 §6.4 两个坑；求值器不要改回 `eval`+文本替换。「查看代码差异」的宏段按**去空白文本**比（宏可以是表达式 / 带后缀 / 别的宏名，别拆数字） |
+| **改规划权重** | 读写 `parse_obs_penalty()` / `write_obs_penalty()` / `_scan_obs_lines()`；差异对比 `obs_diff()` / `obs_diff_lines()`；界面 `App.weight_tuner_dialog()`（左栏「⚖ 规划权重…」拉条）；启动时 `MapModel.load_from_sources()` 自动用固件值覆盖 `MapModel.OBS`；线索条件解析 `App.clue_cfg_args()`、完整一轮路线 `App._weight_refresh_round1()` | ★ `_scan_obs_lines()` 必须用**块注释状态机**：固件里 `Hill`/`DOOR` 两项注释**跨多行**且正文含 `**`，`r"/\*.*?\*/"` 非贪婪会提前终止把它们吞掉 ⇒ 只解析到 18 项（自检已锁 `≥20`）。写回时**下标 = 枚举顺序号，不是行号**（循环变量被复用会把值写到别的行）。`path=None`+运行时读 `PATH_NAV_C`（默认参数在定义时绑定，改模块变量不生效）。「查看代码差异」的权重段专治"拖了拉条没写回 ⇒ 显示的路线≠车上跑的"。拉条对话框里 **①②两块都按上面的线索条件实时重算**，②走 `_round1_complete()`（与「线索路线…」**同一套**镜像，所以看到的去/回程分色就是点「🖼 画布显示这一轮」后画布那条）；算②前必须**存/还原 `self.route_dim_edges`**，否则门区探灯淡色边会污染画布上别的路线 |
 | 加导出格式 | `MapModel.export_*()` | 保持确定性（不要输出时间戳到会被 diff 的块里） |
 
 ---

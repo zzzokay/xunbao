@@ -410,6 +410,14 @@ def build_route_verify(edges, adj, W_len, W_turn, W_obs):
             print(f"        期望: {' '.join(exp)}")
 
 if __name__ == "__main__":
+    # ★ 必须先 sync：模块顶部的 _LEN/_DOOR_LEN/_ANGLE 是**硬编码占位**，与 config.h 不同步。
+    #   不同步的后果（本脚本实测踩过）：config.h 学校场地楼梯四段合计 465cm，而本模块内置
+    #   200/180/72/72 合计 524cm ⇒ 两条候选路线的代价差正好差 59cm，把「完全平局」打破 ⇒
+    #   `rout_58`（历史手写、过 C4 的那条）被判成"不复现"，而固件实跑已经改走楼梯侧。
+    #   换句话说：**不 sync 就跑这个脚本，结论可能整个反过来**，而它还照样打印 "15/15 复现"。
+    _field, _module = sync_field_from_config()
+    print("场地：config.h = %s ｜ 本模块原为 %s%s"
+          % (_field, _module, "" if _field == _module else "（已按 config.h 覆盖长度宏）"))
     edges = parse_graph()
     adj = build_adj(edges)
     print(f"解析出 {len(edges)} 条边；节点 {len(adj)} 个")

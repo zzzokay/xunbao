@@ -37,6 +37,11 @@
  *     二轮去 P3/P4 时固定两个都绕。
  * 0 = 完全不进 S1/S2*/
 #define UPRIGHT_TOUR_ENABLE  1
+/* ===================== 二轮 S1 单独开关（2026-10-17） =====================
+ * 1 = 二轮照旧绕 S1（N3 支路）；0 = 二轮不绕 S1（S2 与一轮不受影响）
+ * 与 UPRIGHT_TOUR_ENABLE 相乘生效（后者 =0 时二轮本来就不绕）。
+ * 上位机镜像：map_model.round2_waypoints(s1=...)；tools/sim_* 自检读本宏。 */
+#define ROUND2_S1_ENABLE  0
 
 /* ===================== 一轮回程补打卡 P3/P4 =====================
  * 1 = 一轮【取宝之后】的回家腿，把去程没去的 P3/P4 补上再回家（**缺哪个补哪个**）：
@@ -81,49 +86,66 @@
  * 口径：用户原话 2:15 前全跑，2:15~2:25 为缓冲带维持全跑；要提前收景点把
  *   TB_NO_SIGHTS_AT_S 改 135。门控细节见 mission_planner.c 的 round1_tail_tier()。 */
 #define TIME_BUDGET_ENABLE   1  /* 总开关：0=完全关闭时间预算（不定档/不计时/不重排），尾段恒为全量 */
-#define TB_NO_SIGHTS_AT_S   145  /* 2:25 起不跑 S1/S2 */
-#define TB_ONE_PLAT_AT_S    155  /* 2:35 起只跑一个平台 */
-#define TB_HOME_ONLY_AT_S   160  /* 2:40 起直接回家 */
+#define TB_NO_SIGHTS_AT_S   135  /* 2:15 起不跑 S1/S2 */
+#define TB_ONE_PLAT_AT_S    145  /* 2:25 起只跑一个平台 */
+#define TB_HOME_ONLY_AT_S   155  /* 2:35 起直接回家 */
+#define TB_P1_NO_SIGHTS_AT_S  125  /* 宝物在 P1：2:05 起不跑 S1/S2（比通用 145 提前 10s） */
+#define TB_P1_HOME_ONLY_AT_S  135  /* 宝物在 P1：2:15 起直接回家 */
+
+/* ---- 硬截止：到点强制回家（2026-10-16）----
+ * 1 = 只要「已用时 ≥ TB_GO_HOME_AT_S」，无论当前节点在哪、正在做什么，剩下的路线立刻压成
+ *     [当前节点, P2]：放弃补打卡 P3/P4、放弃景点 S1/S2，必要时连宝物平台也不去。
+ *     只在「车已出门（门区 8 条边全禁也能到 P2）」时接管；车还在门东侧时不接管 —— 穿门回家
+ *     得靠 door() 状态机（读灯/退回/重读），临时另写一条穿门路线风险更大，而车本来也正朝门走，
+ *     出门那一刻 round1_exit_recheck() 会接管（它已有自己的「直接回家」档）。
+ * 0 = 完全关闭（默认）：行为与加这段之前一字不差。
+ * ⚠️ 与 TIME_BUDGET_ENABLE 独立：那个管「出门分级裁景点」，这个管「硬截止回家」；
+ *    两个开关**任一为 1** 都会启动比赛计时器（mission_planner.c 的 Match_Timer_Start）。
+ * ⚠️ 一轮二轮都管（二轮计时器由 get_newroute 重置）；要只留一轮，在
+ *    round_force_home_check() 里加一句 `if (map.routetime != 0) return;`。 */
+#define TB_FORCE_HOME_ENABLE   0     /* 总开关：默认 0（不影响原有逻辑） */
+#define TB_GO_HOME_AT_S        165   /* 2:45 起（剩 15s）强制回家 */
 
 /* ===================== 地图起始/目标 & 按键合并窗口 ===================== */
 /* 调试（MAP_DEBUG=1）时，只需改这三个节点名：程序用最短路径算法自动生成 起始点->[途径点]->目标点 的路线 */
-#define FIRST_POINT   P4
-#define VIA_POINT     P3     /* 调试途径点（MapNode 枚举名）；填 0 = 不用途径点（退化成两点路线）。
+#define FIRST_POINT   P3
+#define VIA_POINT     P4      /* 调试途径点（MapNode 枚举名）；填 0 = 不用途径点（退化成两点路线）。
                                注意 S1=0，故 S1 不能当途径点；要途经 S1 请改用别的调试方式 */
-#define END_POINT     P4
+#define END_POINT     S2
 #define NAV_TOKEN_WINDOW_MS  2000
 
 
 /* ===================== 场地选择 =====================
  * FIELD_COMP   = 比赛场地（当前默认数据，与原先完全一致）
  * FIELD_SCHOOL = 学校场地（实测值填入下方对应块的 TODO）
- * 切换场地：只改 USE_FIELD 这一行，重新编译即可。
+ * 切换场地：只改 USE_FIELD_ 这一行，重新编译即可。
  */
-#define FIELD_COMP     0
-#define FIELD_SCHOOL   1
-#ifndef USE_FIELD
-#define USE_FIELD      FIELD_SCHOOL
+#define FIELD_COMP     1
+#define FIELD_SCHOOL   0
+
+#ifndef USE_FIELD_
+#define USE_FIELD_      FIELD_COMP
 #endif
 
 /* ===== 楼梯/山区段长度（单位 cm，按"起点→目标"方向命名）=====
  * 双向同长：B5—N19、B5—N18、B7—C6、B7—N22 这 4 段楼梯/山地，两个方向共用同一宏（取物理真实长度，即两向中较大的那个）。
  * map_message.c 的正反向边都用下面的宏，避免同段两个方向长度不一致。
- * 派生约束（两套共用，块外自动算）：B7C6 = B5N19 + 20；N18B5 = N22B7 - 20 */
-#if USE_FIELD == FIELD_SCHOOL
+ * 派生约束（两套共用，块外自动算）：B7C6 = B5N19 + 20；N18B5 = N22B7 - 50 */
+#if USE_FIELD_ == FIELD_SCHOOL
     /* —— 学校场地实测值（TODO: 填入实测数字）—— */
-    #define LEN_N22B7   90
+    #define LEN_N22B7   100
     #define LEN_B5N19   150
 #else
     /* —— 比赛场地（现状）—— */
-    #define LEN_N22B7   200
-    #define LEN_B5N19   72
+    #define LEN_N22B7   180
+    #define LEN_B5N19   60
 #endif
-#define LEN_N18B5   (LEN_N22B7 - 20)
+#define LEN_N18B5   (LEN_N22B7 - 50)
 //#define LEN_N18B5   100     /* N18B5 = 180 */
 #define LEN_B7C6    LEN_B5N19 + 20
 
 /* ===== 红绿灯门区段：全长（door_set_pass_node 用全长；map_message 中 DOOR 条目用 全长/2）===== */
-#if USE_FIELD == FIELD_SCHOOL
+#if USE_FIELD_ == FIELD_SCHOOL
     /* —— 学校场地实测值（TODO）—— */
     #define DOOR_LEN_N5N12  170
     #define DOOR_LEN_N5N8   170
@@ -142,7 +164,7 @@
 #endif
 
 /* ===== door_retreat 后退距离（与路段全长无关，按”起点→目标”方向命名）===== */
-#if USE_FIELD == FIELD_SCHOOL
+#if USE_FIELD_ == FIELD_SCHOOL
     /* —— 学校场地实测值（TODO）—— */
     #define DOOR_RETREAT_N5N8   60
     #define DOOR_RETREAT_N5N4   60
@@ -150,16 +172,16 @@
     #define DOOR_RETREAT_N8N5   60
 #else
     /* —— 比赛场地（现状）—— */
-    #define DOOR_RETREAT_N5N8   85
-    #define DOOR_RETREAT_N5N4   85
+    #define DOOR_RETREAT_N5N8   72
+    #define DOOR_RETREAT_N5N4   68
     #define DOOR_RETREAT_N10N8  100
-    #define DOOR_RETREAT_N8N5   75
+    #define DOOR_RETREAT_N8N5   78
 #endif
 
 /* ===== 门区段角度基准量（与 DOOR_LEN_* 同名段，按”起点→目标”命名，范围 -180~+180）
  * 正向基准：N3→N8 / N5→N8；门两侧平行，N8→N12=N3N8、N8→N10=N5N8
  * 反向：加 180 或减 180，结果保持在 [-180, 180]  ===== */
-#if USE_FIELD == FIELD_SCHOOL
+#if USE_FIELD_ == FIELD_SCHOOL
     /* —— 学校场地实测值（TODO）—— */
     #define ANGLE_N3N8   145
     #define ANGLE_N5N8   35
@@ -195,6 +217,8 @@
 #define OCR_HEAD_NEAR_LEFT   1690   /* 靠近后左转约25° */
 #define OCR_HEAD_SWEEP_MS    2500   /* 缓慢转头：舵机运动时长(ms)，转动中相机持续在扫 */
 #define OCR_HEAD_SETTLE_MS    500   /* 到位后保底扫时长(ms) */
+
+#define QQB_LENGTH  48   //48
 
 
 /* ===================== 底盘长度标定 =====================

@@ -122,14 +122,15 @@ uint32_t match_start_tick = 0;   /* 0 = 未启动（视为时间充足，保护�
 
 void Match_Timer_Start(void)
 {
-	if (!TIME_BUDGET_ENABLE) return;   /* 总开关关闭时不计时 */
+	/* 两个功能（分级贪分 / 硬截止回家）任一需要计时就启动；都为 0 时与加"硬截止"之前一字不差 */
+	if (!TIME_BUDGET_ENABLE && !TB_FORCE_HOME_ENABLE) return;
 	match_start_tick = xTaskGetTickCount();
 }
 
 uint32_t Match_Elapsed_S(void)
 {
 	if (match_start_tick == 0) return 0;
-	return (xTaskGetTickCount() - match_start_tick) * 1000u / configTICK_RATE_HZ;
+	return (xTaskGetTickCount() - match_start_tick) / configTICK_RATE_HZ;   /* 秒：1000Hz ⇒ 必须 /1000 */
 }
 
 /* 尾段档位 */
@@ -137,10 +138,14 @@ enum { TB_ALL = 0, TB_NO_SIGHTS, TB_ONE_PLAT, TB_HOME_ONLY };
 
 static uint8_t round1_tail_tier_of(uint32_t exit_elapsed_s)
 {
-	/* 唯一调用方 = round1_exit_recheck()（到达 N3/N5 那一刻真实定档）。
-	 * exit_elapsed_s = 出门时刻已用时（节点触发，车已在 N3/N5 点上）。
+	/* 唯一调用方 = round1_exit_recheck()（宝物=P1 时在 P1 取完宝那一刻，其余在到达 N3/N5 那一刻）。
 	 * TIME_BUDGET_ENABLE=0 时恒返 TB_ALL（全量尾段，即无时间预算行为）。 */
 	if (!TIME_BUDGET_ENABLE) return TB_ALL;
+	if (treasure == 2) {                         /* 宝物在 P1：收景点提前到 2:15、2:25 就回家 */
+		if (exit_elapsed_s < TB_P1_NO_SIGHTS_AT_S)  return TB_ALL;
+		if (exit_elapsed_s < TB_P1_HOME_ONLY_AT_S)  return TB_NO_SIGHTS;
+		return TB_HOME_ONLY;
+	}
 	if (exit_elapsed_s < TB_NO_SIGHTS_AT_S)  return TB_ALL;
 	if (exit_elapsed_s < TB_ONE_PLAT_AT_S)   return TB_NO_SIGHTS;
 	if (exit_elapsed_s < TB_HOME_ONLY_AT_S)  return TB_ONE_PLAT;
@@ -151,7 +156,8 @@ static uint8_t round1_tail_tier_of(uint32_t exit_elapsed_s)
 static uint8_t append_round1_return_tail(u8 *wp, uint8_t n, uint8_t tier, uint8_t exit_n3);
 static void door_block_all(void);
 
-static uint8_t s_exit_checked = 0;   /* 本轮是否已出门定档（get_newroute 复位） */
+static uint8_t s_exit_checked = 0;   /* 本轮是否已定档（宝物=P1 在 P1、其余在出门边；get_newroute 复位） */
+static uint8_t s_home_forced = 0;    /* 本轮硬截止是否已接管路线（TB_FORCE_HOME_ENABLE；get_newroute 复位） */
 
 /* 出门定档检查站（时间预算的唯一决策点，2026-10-12）：
  * 一轮完成出门边（N10→N3 / N8→N3 / N12→N5 / N8→N5）、
@@ -159,7 +165,7 @@ static uint8_t s_exit_checked = 0;   /* 本轮是否已出门定档（get_newrou
  * 无论回程走 door() BACK（D5/D4 首读）还是绿灯穿门（门边
  * func=NONE，door() 不触发），都会在这里汇合——前者的预案被覆盖，
  * 后者完全靠这里。每轮只做一次（s_exit_checked）。
- * 由 Navigation() 的 Nav_TurnAndAdvance() 入口调用（到达判定后、节点推进前）。 */
+ * 由 Nav_TurnAndAdvance() 入口 + barrier.c 的 Stage()（宝物=P1，取完宝后）调用。 */
 void round1_exit_recheck(void)
 {
 	u8 wp[8];
@@ -171,14 +177,15 @@ void round1_exit_recheck(void)
 	if (!TIME_BUDGET_ENABLE) return;
 	if (map.routetime != 0) return;         /* 只管一轮（二轮=2） */
 	if (s_exit_checked) return;
-	/* 只认四条出门边的到达（去程的 N4→N5、N4→N3 不会误触发） */
-	if (!((arr == N3 && (from == N10 || from == N8)) ||
-	      (arr == N5 && (from == N12 || from == N8)))) return;
+	/* 定档点：宝物=P1 → 在 P1 平台（Stage() 调）；其余 → 到达四条出门边（去程不会误触发） */
+	if (treasure == 2) { if (arr != P1) return; }
+	else if (!((arr == N3 && (from == N10 || from == N8)) ||
+	           (arr == N5 && (from == N12 || from == N8)))) return;
 
 	/* 前方还有可选加分项（S1/S2/补打卡平台）才值得重排 */
 	{
 		uint8_t has_opt = 0;
-		for (i = map.point; route[i] != 0xFF && i < (u8)sizeof(route); i++) {
+		for (i = map.point; i < (u8)sizeof(route) && route[i] != 0xFF; i++) {
 			if (route[i] == S1 || route[i] == S2
 				|| (route[i] == P3 && treasure != 3)
 				|| (route[i] == P4 && treasure != 4)) { has_opt = 1; break; }
@@ -188,12 +195,12 @@ void round1_exit_recheck(void)
 
 	door_block_all();   /* 与 route_return_home 同口径：门区不再进 */
 	wp[n++] = arr;
-	if (treasure == 2)       wp[n++] = P1;
+	if (treasure == 2)       { if (arr != P1) wp[n++] = P1; }   /* 宝物=P1 时 arr 就是 P1 */
 	else if (treasure == 3)  wp[n++] = P3;
 	else if (treasure == 4)  wp[n++] = P4;
 	n = append_round1_return_tail(wp, n,
 		round1_tail_tier_of(Match_Elapsed_S()),
-		(arr == N3));
+		(treasure == 2) ? 1 : (arr == N3));   /* P1 之后先西(P3)后东(P4) */
 	wp[n++] = P2;
 	/* 交接同 plan_treasure_return：从 route[point-1] 起重写，并把 nextNode 
 	 * 对齐到新路线的第一跳（推进随后正常进行） */
@@ -203,6 +210,46 @@ void round1_exit_recheck(void)
 			nodes.nextNode = Node[getNextConnectNode(arr, first)];
 	}
 	s_exit_checked = 1;
+}
+
+/* 硬截止：到点强制回家（2026-10-16，受 config.h 的 TB_FORCE_HOME_ENABLE 门控）
+ * 只要「已用时 ≥ TB_GO_HOME_AT_S」，无论当前节点在哪、正在做什么，剩下的路线立刻压成
+ *   [当前节点, P2] —— 放弃补打卡 P3/P4、放弃景点 S1/S2，必要时连宝物平台也不去。
+ * 只在「车已出门」时接管：判据 = 门区 8 条边全禁掉之后，还能不能到 P2。
+ *   能到（= 门西侧那 14 个节点 B1/B2/B3/N1~N6/P1/P3/P4/S1/S2）→ 重排 [当前, P2]；
+ *   到不了（= 门东侧，含门区自身）→ 不接管：穿门回家得靠 door() 状态机（读灯/退回/重读），
+ *   临时另写一条穿门路线风险更大，而车本来也正朝门走 —— 出门那一刻
+ *   round1_exit_recheck() 会接管（它已有自己的「直接回家」档）。
+ * ⚠️ 探针用 nav_shortest_path()：它**不触发停车**（plan_route_at 失败会 CarBrake_Stop），
+ *    且严格吃 s_blocked，返回 0 **当且仅当真不可达**（缓冲写满只是截断、仍返回 >0）。
+ * ⚠️ 探针失败时门区保持禁用（与回程腿同口径）：之后需要穿门的都是门区自身的 door() 分支，
+ *    它们本来就会再禁一次；这里不解禁，免得给后续规划重新打开一条穿门路。
+ * ⚠️ 开关走**入参** enable（调用方传 TB_FORCE_HOME_ENABLE），不在函数里判宏 ——
+ *    宏=0 时编译器会把 `if (!宏) return;` 常量折叠，后面整段变「不可达」报 #111-D；
+ *    项目又规定开关门控不用 #if（见 README §2.14）。enable=0 时等于没这个函数。
+ * ⚠️ 必须在 round1_exit_recheck() 之后调用：到点时它要覆盖那边刚定好的档。 */
+void round_force_home_check(uint8_t enable)
+{
+	u8 probe[12];   /* 只判"是不是 0"：西侧到 P2 最长 7 个节点，截断也不影响判定 */
+	u8 wp[2];
+	u8 now = nodes.nowNode.nodenum;
+
+	if (!enable) return;                               /* 总开关关：完全不动（默认） */
+	if (s_home_forced) return;                         /* 本轮已接管过 */
+	if (Match_Elapsed_S() < TB_GO_HOME_AT_S) return;   /* 还没到点 */
+	if (now == P2) { s_home_forced = 1; return; }      /* 已在家 */
+
+	door_block_all();
+	if (nav_shortest_path(now, P2, probe, (u8)sizeof(probe)) == 0) return;  /* 门东侧：不接管 */
+
+	wp[0] = now;
+	wp[1] = P2;
+	if (plan_route_at(map.point - 1, wp, 2)) {
+		u8 first = route[map.point - 1];
+		if (first != 0xFF)
+			nodes.nextNode = Node[getNextConnectNode(now, first)];
+	}
+	s_home_forced = 1;
 }
 
 static uint8_t append_round1_return_tail(u8 *wp, uint8_t n, uint8_t tier, uint8_t exit_n3)
@@ -264,6 +311,7 @@ static uint8_t plan_treasure_return(uint8_t start)
 	u8 wp[10];   /* 补打卡 + 巡回交错后最多 9 个点（start + P5/P6 + 门×2 + 宝物平台 + P3 + S1 + P4 + S2 + P2），10 够 */
 	uint8_t n = 0;
 	uint8_t target;
+	u8 exit_node;                /* 出门节点：门区最后加的节点（宝物平台加在它后面，别拿 wp[n-1] 判） */
 
 	switch (treasure)
 	{
@@ -323,6 +371,8 @@ static uint8_t plan_treasure_return(uint8_t start)
 		return 0;
 	}
 
+	exit_node = wp[n - 1];        /* 出门节点：N3 或 N5（门区最后加的节点） */
+
 	/* 添加非特殊平台的宝物目标 */
 	if (treasure != 5 && treasure != 6)
 		wp[n++] = target;
@@ -331,7 +381,7 @@ static uint8_t plan_treasure_return(uint8_t start)
 	 * 判据与顺序见 append_round1_return_tail()（S1/S2 不再依赖宝物值；宝物=4 时尾段按沿途岔口重排 S2 -> P3 -> S1，景点也全在宝物后）。 */
 	/* 尾段预案恒为全量（TB_ALL）：到达 N3/N5 时由
 	 * round1_exit_recheck() 用真实已用时重定档（时间预算总开关 TIME_BUDGET_ENABLE）。 */
-	n = append_round1_return_tail(wp, n, TB_ALL, (n > 0 && wp[n - 1] == N3));
+	n = append_round1_return_tail(wp, n, TB_ALL, (exit_node == N3));
 	wp[n++] = P2;
 
 	/* 交接（stageAB 段不再写尾锚点 C9/N20 后必须做）：
@@ -424,12 +474,14 @@ static void route_return_home(uint8_t allow_N8_N3)
 {
 	u8 wp[8];   /* ⚠️ 原为 wp[3]：插直立景点 + 补打卡交错后最多 7 个点 —— 留到 8 */
 	uint8_t n = 0;
+	u8 exit_node;
 
 	door_block_all();
 	if (allow_N8_N3)
 		nav_set_edge_blocked(N8, N3, 0);
 
-	wp[n++] = nodes.nowNode.nodenum;      /* 调用前已由 door_retreat/door_set_pass_node 置为 N3 / N8 / N5 */
+	exit_node = nodes.nowNode.nodenum;    /* 出门节点：door_retreat/door_set_pass_node 置为 N3 / N8 / N5 */
+	wp[n++] = nodes.nowNode.nodenum;
 	if (treasure == 2)       wp[n++] = P1;
 	else if (treasure == 3)  wp[n++] = P3;
 	else if (treasure == 4)  wp[n++] = P4;
@@ -438,7 +490,7 @@ static void route_return_home(uint8_t allow_N8_N3)
 	 * ⚠️ 两处都要插：回程过门时 door() 会重规划后半段，与本函数各管一段；
 	 *    若该门边去程已被 door_set_pass_node() 改成 func=NONE，则不进 door()，只有本函数生效。 */
 	/* 尾段预案恒为全量：到达 N3/N5 时由 round1_exit_recheck() 重定档 */
-	n = append_round1_return_tail(wp, n, TB_ALL, (n > 0 && wp[n - 1] == N3));
+	n = append_round1_return_tail(wp, n, TB_ALL, (exit_node == N3));
 	wp[n++] = P2;
 
 	(void)plan_route_at(0, wp, n);
@@ -587,6 +639,7 @@ void get_newroute(void)
 	extern void mapInit(void);  /* 前向声明 */
 	Match_Timer_Start();   /* 二轮自己的 180s：重置本轮计时（2026-10-11） */
 	s_exit_checked = 0;    /* 二轮复位出门定档检查站 */
+	s_home_forced = 0;     /* 二轮复位硬截止接管标志 */
 
 	const u8 r[] = {B1, N1, P1, 0XFF};
 	load_route_at(0, r);
@@ -612,7 +665,7 @@ void get_newroute(void)
 		wp[n++] = N2;
 		wp[n++] = P1;
 		wp[n++] = P3;
-		if (UPRIGHT_TOUR_ENABLE) wp[n++] = S1;   /* 二轮固定绕 S1（N3 支路，往返 518cm） */
+		if (UPRIGHT_TOUR_ENABLE && ROUND2_S1_ENABLE) wp[n++] = S1;   /* 二轮绕 S1（N3 支路，往返 518cm）；ROUND2_S1_ENABLE（config.h）可单独关 */
 		wp[n++] = P4;
 		if (UPRIGHT_TOUR_ENABLE) wp[n++] = S2;   /* 二轮固定绕 S2（N6 支路，往返 288cm） */
 		wp[n++] = N5;

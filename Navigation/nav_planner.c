@@ -9,8 +9,8 @@ static const float NavObsPenalty[20] = {
     0.0f,   /* 0 空 */
     0.0f,   /* 1 NONE */
     60.0f,  /* 2 UpStage 平台(去完要往返，含爬坡) */
-    300.0f, /* 3 Bridge 桥(过桥固定耗时>爬楼梯，故取更高) */
-    230.0f, /* 4 Hill 山地/楼梯：**2026-09-13 由 300 降到 230**。为什么是 230：
+    139.0f, /* 3 Bridge 桥(过桥固定耗时>爬楼梯，故取更高) */
+    51.0f, /* 4 Hill 山地/楼梯：**2026-09-13 由 300 降到 230**。为什么是 230：
                 实测（用户正式图 scripts/map_editor/layouts/57交换.json，全 2450 对起终点）各对的翻转阈值不同——
                   · N8→C9 / N8→P5：Hill <= 239 才翻成"走 N12→N16→N18→B5 楼梯"
                   · N12→N20      ：要到 Hill <= 200 才翻
@@ -21,7 +21,7 @@ static const float NavObsPenalty[20] = {
                 改这里必须同步 scripts/map_editor/map_model.py 的 OBS["Hill"] 与
                 scripts/validate/_weight_calib.py 的 OBS_PENALTY[4]（_selftest.py 第 8 节会逐项比对）。 */
     50.0f,  /* 5 LBHill */
-    120.0f, /* 6 SM 刀山(round2 用权重避开 N11) */
+    265.0f, /* 6 SM 刀山(round2 用权重避开 N11) */
     100.0f, /* 7 View 景点支路(不应被当捷径) */
     100.0f, /* 8 View1 景点支路 */
     1000.0f,/* 9 BACK 后退桩(绝不该选为前进路径) */
@@ -307,5 +307,11 @@ uint8_t nav_build_route(uint8_t *route, uint8_t max_len,
     if (n == 0) return 0;          /* 规划失败直接返回 0 */
     for (i = 1; i < n && j < max_len; i++) route[j++] = path[i];
     /* 从下标 1 开始拷贝：跳过起点 path[0]，只留后续目标节点；缓冲满则停 */
-    return j;                      /* 返回去掉起点后的节点数 */
+    /* 2026-10-17 补 0xFF 哨兵（修复：原来只在失败路径写 route[offset]=0xFF，成功路径不写。
+     * 后果：每次 plan_route_at() 重写都把更短的 route 盖在旧 route 上、却留着旧尾段，
+     * route[] 里再无 0xFF；round1_exit_recheck() 2:15~2:25 档把尾段裁成 P4+P3 后，
+     * 车会顺着残留下一段把 S1/S2 旧路线照跑（2026-10-17 实车 2:20 于 N5 后多跑 S1/S2）。
+     * 手抄镜像 sim_route_bookkeeping.py 一直按「含 0xFF 哨兵」模拟，掩盖了本 bug。 */
+    if (j < max_len) route[j++] = 0xFF;
+    return j;                      /* 返回去掉起点后的节点数（不含哨兵） */
 }
