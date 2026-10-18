@@ -30,6 +30,8 @@
   "TB_P1_HOME_ONLY_AT_S": "135",
   "TB_FORCE_HOME_ENABLE": "0",
   "TB_GO_HOME_AT_S": "165",
+  "P56_EXTRA_STOP_ENABLE": "1",
+  "TB_P56_EXTRA_MIN_REMAIN_S": "85",
   "FIRST_POINT": "C3",
   "VIA_POINT": "0",
   "END_POINT": "P8",
@@ -93,19 +95,21 @@
   "turn_view": "只看实测停车转",
   "label_mode": "标准",
   "clue_route": {
-   "stage": "第二轮·完整路线（get_newroute）",
-   "p1clue": "线索=3：经过 P3",
-   "stg": "A=5,B=7：P5 -> P7",
+   "stage": "第一轮·完整路线（去程+门区+东区+回程 自动拼接，画布分色）",
+   "p1clue": "线索=4：经过 P4",
+   "stg": "A=5,B=8：P5 -> P8",
    "doors": [
     "蓝(单相)",
     "黑(不能过)",
     "绿(能过)",
-    "蓝(单相)"
+    "绿(能过)"
    ],
-   "treasure": "6 · P6",
+   "treasure": "5 · P5",
    "punch": "跟随 config.h（当前：开）",
    "tour": "跟随 config.h（当前：开）",
-   "elapsed": "不启用时间裁剪"
+   "p56": "跟随 config.h（当前：开）",
+   "plan_elapsed": "60 · 1:00",
+   "elapsed": "110 · 1:50"
   },
   "round2_route": {
    "doors": [
@@ -159,8 +163,8 @@
   {
    "name": "B2",
    "comment": "4\t4",
-   "x": 743.7886941908347,
-   "y": 141.79004058848386
+   "x": 762.4308310694098,
+   "y": 137.12950636884005
   },
   {
    "name": "B3",
@@ -201,8 +205,8 @@
   {
    "name": "N4",
    "comment": "11\t11",
-   "x": 823.597128995378,
-   "y": 238.7375507356048
+   "x": 876.9304623287112,
+   "y": 238.73755073560483
   },
   {
    "name": "N5",
@@ -713,8 +717,8 @@
    "to": "N6",
    "flag": "MUL2SING|CLEFT|CRIGHT",
    "angle": "180",
-   "step": "100",
-   "speed": "SPEED3",
+   "step": "90",
+   "speed": "SPEED2",
    "func": "NONE",
    "comment": "",
    "tag": "e29"
@@ -1548,7 +1552,7 @@
    "frm": "C10",
    "to": "N20",
    "flag": "NO|CLEFT|STOPTURN",
-   "angle": "145",
+   "angle": "150",
    "step": "90",
    "speed": "SPEED3",
    "func": "NONE",
@@ -1560,7 +1564,7 @@
    "to": "C10",
    "flag": "NO|MCLEFT",
    "angle": "-35",
-   "step": "90",
+   "step": "270",
    "speed": "SPEED3",
    "func": "NONE",
    "comment": "",
@@ -1571,7 +1575,7 @@
    "to": "C10",
    "flag": "NO|MCRIGHT",
    "angle": "180",
-   "step": "20",
+   "step": "90",
    "speed": "SPEED2",
    "func": "NONE",
    "comment": "",
@@ -1661,19 +1665,19 @@
     "last": "N16",
     "now": "N18",
     "next": "B5",
-    "dist": 25.0
+    "dist": 20.0
    },
    {
     "last": "N8",
     "now": "N10",
     "next": "N20",
-    "dist": 30.0
+    "dist": 26.0
    },
    {
     "last": "N8",
     "now": "N10",
     "next": "N11",
-    "dist": 30.0
+    "dist": 26.0
    },
    {
     "last": "B8",
@@ -1685,12 +1689,6 @@
     "last": "C3",
     "now": "N9",
     "next": "B9",
-    "dist": 30.0
-   },
-   {
-    "last": "N8",
-    "now": "N10",
-    "next": "N20",
     "dist": 30.0
    },
    {

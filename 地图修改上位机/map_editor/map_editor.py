@@ -4148,6 +4148,12 @@ class App(tk.Tk):
         """「直立景点巡回 S1/S2」下拉 → bool（`UPRIGHT_TOUR_ENABLE`）。"""
         return self._switch_on("UPRIGHT_TOUR_ENABLE", choice)
 
+    def _p56_on(self, choice):
+        # 「宝物=P5/P6 补走 7/8」下拉 → bool（P56_EXTRA_STOP_ENABLE，固件 #if 预编译开关）。
+        # 固件里真触发还要过时间判据（规划时刻剩余 >= TB_P56_EXTRA_MIN_REMAIN_S）；
+        # 上位机没有比赛时钟：强制开 = 预览按会去补走画（固件侧仍以时间为准）。
+        return self._switch_on("P56_EXTRA_STOP_ENABLE", choice)
+
     def _r2_s1_on(self):
         """二轮 S1 插点开关（config.h 的 ROUND2_S1_ENABLE；读不到宏按开处理）。
 
@@ -4159,6 +4165,20 @@ class App(tk.Tk):
         except Exception as ex:                                  # noqa: BLE001
             self.status("⚠ 读 config.h 的 ROUND2_S1_ENABLE 失败（按开处理）：%s" % ex)
             return True
+
+    def _p56_extra_on(self):
+        """一轮宝物=P5/P6 补走 7/8 中未走平台（config.h 的 P56_EXTRA_STOP_ENABLE）。
+
+        预编译开关（固件 #if 门控）：读不到宏按【关】处理 —— C 的 #if 对未定义宏当 0，
+        语义对齐。时间判据（规划时刻剩余 ≥ TB_P56_EXTRA_MIN_REMAIN_S）在固件里查，
+        上位机不知道比赛时钟：开关开 + 宝物=5/6 就把补走段画进预览。
+        """
+        try:
+            macros, _field = M.parse_config_macros()
+            return bool(M.eval_c_expr("P56_EXTRA_STOP_ENABLE", macros))
+        except Exception as ex:                                  # noqa: BLE001
+            self.status("⚠ 读 config.h 的 P56_EXTRA_STOP_ENABLE 失败（按关处理）：%s" % ex)
+            return False
 
     def _doors_after_entry_read(self, doors):
         """回程梯子的输入：只有"进门时真读到的门"算已知，其余按固件初值 0（未读）算。
@@ -4180,7 +4200,8 @@ class App(tk.Tk):
         return eff, read, warn
 
     def _append_after_door(self, sections, enter, ab, doors, treasure, mode,
-                           clue=None, punch=False, tour=False, elapsed_s=None):
+                           clue=None, punch=False, tour=False, elapsed_s=None,
+                           p56=None):
         """过门之后：stageAB（平台 A/B）+ 宝物回程。返回可上画布的 path（或 None）。
 
         clue = P1 线索（QR 百位）、punch = P3P4_PUNCH_ENABLE、tour = UPRIGHT_TOUR_ENABLE，
@@ -4205,7 +4226,9 @@ class App(tk.Tk):
             return canvas
         doors_eff, _read, warn_doors = self._doors_after_entry_read(doors)
         wp2, why2 = M.treasure_return_waypoints("P%d" % b, doors_eff, treasure,
-                                                clue, punch, tour, elapsed_s)
+                                                clue, punch, tour, elapsed_s,
+                                                p56_extra=(self._p56_extra_on()
+                                                           if p56 is None else p56))
         if wp2 is None:
             sections.append(("宝物回程 / plan_treasure_return()", ["⚠ %s" % why2]))
             return canvas
@@ -4337,7 +4360,7 @@ class App(tk.Tk):
         return clue, ab, doors, treasure, punch, tour, elapsed_s, err
 
     def _round1_complete(self, clue, ab, doors, treasure, mode="full", punch=False,
-                         tour=False, elapsed_s=None):
+                         tour=False, elapsed_s=None, p56=None):
         """第一轮**完整路线**：起步 → P1 → 门区 → 东区 → 回程，逐段拼接成一条。
 
         拼接依据（都是固件真实交接点）：
@@ -4418,7 +4441,9 @@ class App(tk.Tk):
             return sections, outbound, None, None
         doors_eff, read_entry, warn_doors = self._doors_after_entry_read(doors)
         wp2, why2 = M.treasure_return_waypoints("P%d" % b, doors_eff, treasure,
-                                                clue, punch, tour, elapsed_s)
+                                                clue, punch, tour, elapsed_s,
+                                                p56_extra=(self._p56_extra_on()
+                                                           if p56 is None else p56))
         if wp2 is None:
             return sections, [], None, ("固件会停车", str(why2))
         p2, e2 = self.model.plan_route(wp2, mode)
@@ -4504,7 +4529,7 @@ class App(tk.Tk):
         return "stop", None, "D2/D3/D4 都不能过 ⇒ 固件 plan_treasure_return() 直接 CarBrake_Stop()"
 
     def _input_section(self, stage, clue, ab, doors, treasure, punch=None, tour=None,
-                       elapsed_s=None):
+                       elapsed_s=None, p56=None, plan_elapsed_s=None):
         """报告头：把这次的输入原样回显（免得以后分不清这份报告是哪套灯算的）。"""
         clue_txt = {None: "不指定（固件不改路线）", 0: "0（跳过 P3/P4）",
                     3: "3（经过 P3）", 4: "4（经过 P4）"}.get(clue, str(clue))
@@ -4525,13 +4550,22 @@ class App(tk.Tk):
                          % ("开" if tour else "关",
                             "；一轮 S1/S2 跟着「回程会不会去 P3/P4」走（补打卡开着时交错成 P3→S1→P4→S2，关着则宝物 P3→S1、P4→S2）；二轮 P3 后绕 S1、P4 后绕 S2"
                             if tour else "（不进 S1/S2）"))
+        if p56 is not None:
+            lines.append("宝物=P5/P6 补走 7/8（P56_EXTRA_STOP_ENABLE）= %s%s"
+                         % ("开" if p56 else "关",
+                            "；时间判据看下面「规划回程已用时」（没选则按会去画，固件侧仍会判）"
+                            if p56 else "（不补走）"))
+        if plan_elapsed_s is not None:
+            lines.append("规划回程已用时（P7/P8 拿宝前）= %d s（%s）⇒ 补走 7/8 的时间判据用这个时刻"
+                         % (plan_elapsed_s, M.mmss(plan_elapsed_s)))
         if elapsed_s is not None:
-            lines.append("比赛已用时 = %d s（%s）⇒ 尾段按时间预算裁剪，见下面「时间预算」段"
+            lines.append("出门已用时（N3/N5）= %d s（%s）⇒ 尾段按时间预算裁剪，见下面「时间预算」段"
                          % (elapsed_s, M.mmss(elapsed_s)))
         return ("本次输入（这份报告按这套算）", lines)
 
     def _clue_route_sections(self, stage, clue, ab, doors, treasure, mode="full",
-                             punch=False, tour=False, elapsed_s=None):
+                             punch=False, tour=False, elapsed_s=None, p56=None,
+                             plan_elapsed_s=None):
         """线索/门灯/宝物 → 固件分支的路线（**纯计算，不碰 UI**；对话框与冒烟测试共用）。
 
         参数：stage=阶段文本；clue=P1 线索(0/3/4/None)；ab=(平台A, 平台B)；
@@ -4541,8 +4575,19 @@ class App(tk.Tk):
         返回 (sections, canvas_path, err)：sections=[(标题, 行列表)]；err=(标题, 说明) 或 None。
         第一段固定是「本次输入」回显，方便对上报告是哪套灯算的。
         """
+        # 补走 7/8 的时间判据（固件 plan_treasure_return() 在 P7/P8 那一刻查）：
+        # 已用时 + TB_P56_EXTRA_MIN_REMAIN_S > 180 ⇒ 固件不会绕，预览也按不绕画。
+        # 放在纯计算层（而非对话框 run()）：直接调本函数的路径（冒烟/脚本）同样过闸。
+        if p56 and plan_elapsed_s is not None:
+            try:
+                _need = int(M.time_budget_macros()["TB_P56_EXTRA_MIN_REMAIN_S"])
+            except Exception:                                # noqa: BLE001
+                _need = 85
+            if plan_elapsed_s + _need > 180:
+                p56 = False
         sections = [self._input_section(stage, clue, ab, doors, treasure, punch, tour,
-                                        elapsed_s=elapsed_s)]
+                                        elapsed_s=elapsed_s, p56=p56,
+                                        plan_elapsed_s=plan_elapsed_s)]
         canvas = []
         self._reset_route_marks()        # 每次重算；只有「第一轮·完整路线」会设 split/淡色边
 
@@ -4551,7 +4596,7 @@ class App(tk.Tk):
 
         if stage.startswith("第一轮·完整路线"):
             sub, flat, split, err = self._round1_complete(clue, ab, doors, treasure, mode,
-                                                          punch, tour, elapsed_s)
+                                                          punch, tour, elapsed_s, p56=p56)
             sections += sub
             if err:
                 return sections, [], err
@@ -4585,7 +4630,7 @@ class App(tk.Tk):
             if err:
                 return sections, canvas, None
             canvas = self._append_after_door(sections, enter, ab, doors, treasure, mode,
-                                             clue, punch, tour, elapsed_s) or []
+                                             clue, punch, tour, elapsed_s, p56=p56) or []
 
         elif stage.startswith("第一轮·过门"):
             trace, enter, err = self._door_trace_lines(doors, with_back=False)
@@ -4593,7 +4638,7 @@ class App(tk.Tk):
                 return sections, canvas, ("固件会停车", err)
             sections.append(("门区读灯推进（door()，路线写在门里）", trace))
             canvas = self._append_after_door(sections, enter, ab, doors, treasure, mode,
-                                             clue, punch, tour, elapsed_s) or []
+                                             clue, punch, tour, elapsed_s, p56=p56) or []
 
         elif stage.startswith("第一轮·门区回程"):
             bsteps, hazards = M.door_back_flow(doors)
@@ -4656,7 +4701,7 @@ class App(tk.Tk):
 
     @staticmethod
     def _elapsed_from_choice(choice):
-        """「比赛已用时」下拉 → 秒数（None = 不启用时间裁剪）。"""
+        """已用时下拉（「出门 N3/N5」与「规划回程 P7/P8」共用）→ 秒数（None = 不启用）。"""
         if not choice or choice.startswith("不启用"):
             return None
         try:
@@ -4838,6 +4883,7 @@ class App(tk.Tk):
         TREASURE_VALS = ["未定", "2 · P1", "3 · P3", "4 · P4", "5 · P5", "6 · P6"]
         PUNCH_VALS = self._switch_vals("P3P4_PUNCH_ENABLE")
         TOUR_VALS = self._switch_vals("UPRIGHT_TOUR_ENABLE")
+        P56_VALS = self._switch_vals("P56_EXTRA_STOP_ENABLE")
         light_vals = [M.DOOR_STATE_NAME[s] for s in M.DOOR_STATE_ORDER]
 
         # 上次用的配置（内存里记着；随「保存布局」写进 constraints.clue_route，重启也能恢复）
@@ -4875,17 +4921,23 @@ class App(tk.Tk):
                           _pick("punch", PUNCH_VALS, PUNCH_VALS[0]))
         tour_sel = combo(7, "直立景点巡回 S1/S2", TOUR_VALS,
                          _pick("tour", TOUR_VALS, TOUR_VALS[0]))
+        p56_sel = combo(8, "宝物=P5/P6 补走 7/8", P56_VALS,
+                        _pick("p56", P56_VALS, P56_VALS[0]))
         TIME_VALS = time_budget_choices()   # 10 秒阶梯 + config.h 的 TB_* 边界
-        elapsed_sel = combo(8, "比赛已用时", TIME_VALS,
+        plan_sel = combo(9, "规划回程已用时（P7/P8 拿宝前）", TIME_VALS,
+                         _pick("plan_elapsed", TIME_VALS, TIME_VALS[0]))
+        elapsed_sel = combo(10, "出门已用时（N3/N5）", TIME_VALS,
                             _pick("elapsed", TIME_VALS, TIME_VALS[0]))
         ttk.Label(frm, text="（回程走哪个门区入口不用选：由上面 4 格门灯自动推；"
                             "补打卡 = P3P4_PUNCH_ENABLE（缺哪个补哪个）；"
                             "巡回 = UPRIGHT_TOUR_ENABLE（一轮跟着「会不会去 P3/P4」绕 S1/S2，与补打卡交错成 P3→S1→P4→S2，二轮两个都绕）；"
-                            "已用时 = 固件比赛计时（出发起算）；选了就会按时间预算裁剪尾段"
-                            "（宝物在 P1 另有更紧的 2:15 / 2:25 两档，见「时间预算…」）；"
+                            "补走 7/8 = P56_EXTRA_STOP_ENABLE（宝物在 P5/P6 时先绕去 7/8 中没去过的那个平台再过门；固件里还要按剩余时间判，强制开 = 预览按会去画）；"
+                            "两个已用时都是固件比赛计时（出发起算）：规划回程（P7/P8 拿宝前）= 补走 7/8 的时间判据（已用时+85 ≤ 180 才绕，预览同样把关）；"
+                            "出门（N3/N5）= 选了就会按时间预算裁剪尾段"
+                            "（宝物=P1 时固件这次读表在 P1 取宝那一刻，阈值也更紧：2:05 / 2:15，见「时间预算…」）；"
                             "这些选择会记住，随「保存布局」一起存，重启也在）",
                   foreground="#666666", wraplength=620, justify="left").grid(
-            row=9, column=0, columnspan=2, sticky="w", pady=(6, 0))
+            row=10, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
         def light_state(i):
             for s in M.DOOR_STATE_ORDER:
@@ -4903,6 +4955,8 @@ class App(tk.Tk):
                   int(stg.get().split(",")[1].split("：")[0].split("=")[1]))
             punch = self._punch_on(punch_sel.get())
             tour = self._tour_on(tour_sel.get())
+            p56 = self._p56_on(p56_sel.get())
+            plan_elapsed = self._elapsed_from_choice(plan_sel.get())
             elapsed = self._elapsed_from_choice(elapsed_sel.get())
             # 记住这次的选择（下次打开就是这套；也会随「保存布局」写进 constraints）
             self.clue_route_cfg = {
@@ -4913,11 +4967,13 @@ class App(tk.Tk):
                 "treasure": tsel,
                 "punch": punch_sel.get(),
                 "tour": tour_sel.get(),
+                "p56": p56_sel.get(),
+                "plan_elapsed": plan_sel.get(),
                 "elapsed": elapsed_sel.get(),
             }
             sections, canvas, err = self._clue_route_sections(
                 stage.get(), clue, ab, doors, tval, self.cost_mode.get(), punch, tour,
-                elapsed_s=elapsed)
+                elapsed_s=elapsed, p56=p56, plan_elapsed_s=plan_elapsed)
             if err:
                 self._write_route_report(sections)      # 先把已经算出来的段落给出来
                 messagebox.showerror(err[0], err[1], parent=dlg)
@@ -4934,7 +4990,7 @@ class App(tk.Tk):
             dlg.destroy()
 
         buttons = ttk.Frame(frm)
-        buttons.grid(row=10, column=0, columnspan=2, sticky="w", pady=(14, 0))
+        buttons.grid(row=11, column=0, columnspan=2, sticky="w", pady=(14, 0))
         ttk.Button(buttons, text="显示路线", command=run).pack(side="left")
         ttk.Button(buttons, text="取消", command=dlg.destroy).pack(side="left", padx=8)
         _fit_dialog(dlg, frm, 660, 430)

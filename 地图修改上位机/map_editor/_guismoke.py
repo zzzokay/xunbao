@@ -1072,6 +1072,8 @@ def main():
         "treasure": "6 · P6",
         "punch": "强制开",
         "tour": "强制开",
+        "p56": "强制关",
+        "plan_elapsed": "不启用时间裁剪",
         "elapsed": "不启用时间裁剪",
     }
     app.clue_route_cfg = dict(_cfg_want)
@@ -1082,7 +1084,7 @@ def main():
     _expect = ([_cfg_want["stage"], _cfg_want["p1clue"], _cfg_want["stg"]]
                + _cfg_want["doors"]
                + [_cfg_want["treasure"], _cfg_want["punch"], _cfg_want["tour"],
-                  _cfg_want["elapsed"]])
+                  _cfg_want["p56"], _cfg_want["plan_elapsed"], _cfg_want["elapsed"]])
     check(_vals == _expect, "对话框按上次配置预填（读到 %d 个下拉）" % len(_vals))
 
     # 配置脏/过期时要安全回退（不能崩，也不能填出非法值）。
@@ -1094,10 +1096,11 @@ def main():
     _vals2 = _dlg_combo_values(app)
     _close_toplevels(app)
     _legal_doors = [M.DOOR_STATE_NAME[s] for s in M.DOOR_STATE_ORDER]
-    check(len(_vals2) == 11 and _vals2[0].startswith("第一轮·完整路线")
+    check(len(_vals2) == 13 and _vals2[0].startswith("第一轮·完整路线")
           and all(v in _legal_doors for v in _vals2[3:7])
           and _vals2[8].startswith("跟随 config.h（当前：") and _vals2[9].startswith("跟随 config.h（当前：")
-          and _vals2[10] == "不启用时间裁剪",
+          and _vals2[10].startswith("跟随 config.h（当前：")
+          and _vals2[11] == "不启用时间裁剪" and _vals2[12] == "不启用时间裁剪",
           "配置非法时回退默认值（阶段=%r，灯=%s）" % (_vals2[0][:12] if _vals2 else None,
                                                       _vals2[3:7]))
 
@@ -1118,12 +1121,23 @@ def main():
           % (_punch_off, _punch_on))
     check(_vals2[8] == app._switch_vals("P3P4_PUNCH_ENABLE")[0]
           and _vals2[9] == app._switch_vals("UPRIGHT_TOUR_ENABLE")[0],
-          "两个开关下拉的「跟随 config.h」直接写出当前值（%s ｜ %s）"
+          "开关下拉的「跟随 config.h」直接写出当前值（%s ｜ %s）"
           % (_vals2[8], _vals2[9]))
     _cfg_punch = bool(M.eval_c_expr("P3P4_PUNCH_ENABLE", M.parse_config_macros()[0]))
     check(app._punch_on("跟随 config.h") is _cfg_punch
           and app._punch_on("强制开") is True and app._punch_on("强制关") is False,
           "「回程补打卡」下拉跟随 config.h（当前 P3P4_PUNCH_ENABLE=%d）" % _cfg_punch)
+    _p56_cfg = bool(M.eval_c_expr("P56_EXTRA_STOP_ENABLE", M.parse_config_macros()[0]))
+    check(app._p56_on("跟随 config.h") is _p56_cfg
+          and app._p56_on("强制开") is True and app._p56_on("强制关") is False,
+          "「补走 7/8」下拉跟随 config.h（当前 P56_EXTRA_STOP_ENABLE=%d）" % _p56_cfg)
+    _w0, _ = M.treasure_return_waypoints("P8", [2, 1, 1, 1], 5, 0, True, True, None)
+    _w1, _ = M.treasure_return_waypoints("P8", [2, 1, 1, 1], 5, 0, True, True, None,
+                                         p56_extra=True)
+    check(_w0 == ["P8", "P5", "N12", "N5", "P3", "S1", "P4", "S2", "P2"]
+          and _w1[:3] == ["P8", "P5", "P7"] and len(_w1) == len(_w0) + 1,
+          "补走 7/8：宝物=P5 时在宝物平台后、门节点前插没走过的那个（%s -> %s）"
+          % (_w0, _w1))
     _wp_p, _ = M.door_return_home_waypoints("N3", 4, False, 0, True)
     _rt_p, _why_p = app.model.plan_route(_wp_p, "full")
     check(bool(_rt_p) and "P4" in _rt_p and "P3" in _rt_p,

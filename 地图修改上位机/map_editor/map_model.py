@@ -2309,11 +2309,13 @@ def time_budget_rule_lines(cfg=None):
 
 
 def treasure_return_waypoints(start, doors, treasure, line_clue=None, punch=False,
-                              tour=False, elapsed_s=None):
+                              tour=False, elapsed_s=None, p56_extra=False):
     """镜像 plan_treasure_return()：在 P7/P8 读到宝物编号后的回程 wp。
 
     punch=True ⇒ 按 `P3P4_PUNCH_ENABLE` 追加"补打卡"平台；
     tour=True ⇒ 按 `UPRIGHT_TOUR_ENABLE` 追加 S1/S2。
+    p56_extra=True ⇒ 按 `P56_EXTRA_STOP_ENABLE`（镜像固件 #if 段）在宝物平台之后、门节点之前
+    补走 P7/P8 中尚未走过的那个（仅宝物=P5/P6；时间判据在固件里查，这里由调用方决定传不传）。
     两者都在**宝物平台之后、P2 之前**，且按 **P3 -> S1 -> P4 -> S2 交错**
     （见 round1_return_extra_waypoints()；S1/S2 跟着"会去 P3/P4"走，不再依赖宝物值）。
     line_clue = QR 百位（0/3/4/None）。
@@ -2325,6 +2327,8 @@ def treasure_return_waypoints(start, doors, treasure, line_clue=None, punch=Fals
         wp.append("P5")          # P5 是 N13 支路
     elif treasure == 6:
         wp.append("P6")          # P6 经 N7/N9 支路
+    if p56_extra and treasure in (5, 6):
+        wp.append("P8" if start == "P7" else "P7")   # 7/8 中尚未走过的那个
     d2, d3, d4 = doors[0], doors[1], doors[2]
     # ⚠️ N12 只在 D2 分支：D2 的门是 N5<->N12，规划层看不见门颜色，靠必经点把车赶到 D2 门口。
     #    D3/D4 的门在 N8 上，wp 已钉死 N8，多加 N12 只会绕路（多 170cm + 经 N10->N11 刀山）。

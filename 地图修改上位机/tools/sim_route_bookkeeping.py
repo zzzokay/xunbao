@@ -143,6 +143,8 @@ _PUNCH_RAW = read_config_flag(PUNCH_MACRO)
 PUNCH = 0 if _PUNCH_RAW is None else _PUNCH_RAW
 _R2_S1_RAW = read_config_flag("ROUND2_S1_ENABLE")
 R2_S1 = 1 if _R2_S1_RAW is None else _R2_S1_RAW    # 二轮 S1 单独开关（缺宏按开）
+_P56_RAW = read_config_flag("P56_EXTRA_STOP_ENABLE")
+P56_EXTRA = 0 if _P56_RAW is None else _P56_RAW    # 一轮宝物=P5/P6 补走 7/8 中未走平台（镜像固件 #if 段）
 
 SYNC_PROBLEMS = []
 
@@ -546,6 +548,12 @@ class Sim:
             wp.append("P5")
         elif self.treasure == 6:
             wp.append("P6")
+        # ★ 镜像 plan_treasure_return() 的 P56_EXTRA_STOP_ENABLE 段（固件 #if 预编译开关）：
+        #   宝物=P5/P6 → 补走 P7/P8 中尚未走过的那个（start = 一轮当过线索平台的那个）。
+        #   时间判据（已用时 + TB_P56_EXTRA_MIN_REMAIN_S ≤ 180）在 sim 不建模（无比赛计时器），
+        #   开关开 = 恒插点，只验走法/记账是否被这 1 个点撑爆。
+        if P56_EXTRA and self.treasure in (5, 6):
+            wp.append("P8" if start == "P7" else "P7")
         d2, d3, d4 = self.door_pass[0], self.door_pass[1], self.door_pass[2]
         if d2 == CAN_PASS:
             wp += ["N12", "N5"]

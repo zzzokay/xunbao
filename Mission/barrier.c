@@ -235,13 +235,13 @@ static float MidTrimMean(float *buf, uint16_t n)
    且窗口越短 ⇒ 最后那个窗口越贴近坡底。
    （无中性帧、无偏离时 60 帧 ≈ 60ms；实际因夹杂单灯/短暂偏离会略长）
    ⚠️ 开启下面 RAMP_SINGLE_EN 后两灯帧吃 2 个名额、窗口填得更快 —— 届时可同步调大本值。 */
-#define RAMP_WIN  250
+#define RAMP_WIN  50
 
 /* 单灯帧（中位只有 1 个灯亮）是否也计入样本 + 权重（用"重复写份数"实现，统计层无需改动）：
    RAMP_SINGLE_EN = 0 ⇒ 单灯帧只作**中性帧**（不采样、不断窗）—— 默认，与既有行为一致
    RAMP_SINGLE_EN = 1 ⇒ 单灯帧**也采样**，但只记 RAMP_W_ONE 份（两灯帧记 RAMP_W_TWIN 份）
                         —— 单灯时车也可能挺正，采样多一个来源；降权则防它主导统计 */
-#define RAMP_SINGLE_EN   1	/* 0 = 保持现状；1 = 单灯帧也采（低权重） */
+#define RAMP_SINGLE_EN   0	/* 0 = 保持现状；1 = 单灯帧也采（低权重） */
 #define RAMP_W_TWIN      5	/* 两灯帧份数（相对权重） */
 #define RAMP_W_ONE       1	/* 单灯帧份数（相对权重） */
 
@@ -569,7 +569,6 @@ static void Arrived_Stage(void)
 	Robot_Work(LARM, UP);
 	vTaskDelay(300);
 	Robot_Work(RARM, UP);
-	vTaskDelay(200);
 	/* 播报到达X号平台，规则要求转身180度后再播报 */
 	switch (nodes.nowNode.nodenum)
 	{
@@ -1115,7 +1114,7 @@ void Sword_Mountain(void)
 			}
 			else if(fabsf(Chassis_GetMileage()) >= 18&&fabsf(Chassis_GetMileage()) < 66)
 			{			
-				Chassis_MotorControl(is_Free, 2500, 2500, 0);
+				Chassis_MotorControl(is_Free, 1800, 1800, 0);
 			}
 			else
 			{
@@ -1126,7 +1125,7 @@ void Sword_Mountain(void)
 			// 平台走完 or pitch 变负（开始下坡）
 			if (fabsf(Chassis_GetMileage()) > 80 || imu.pitch < After_down|| Cross_Scaner.ledNum <= 3)
 			{
-				Chassis_DriveDistance_Blocking(is_Gyro, 10, SPEED1, recorded_angle, 0);
+				Chassis_DriveDistance_Blocking(is_Gyro, 10, SPEED0, recorded_angle, 0);
 				state = SM_DONE;
 			}
 			break;
@@ -1137,7 +1136,8 @@ void Sword_Mountain(void)
 
 	/* 收尾 */
 	Chassis_RestoreGyroPid();
-	Chassis_MotorControl(is_Line, SPEED1, SPEED1, 0);
+	Chassis_MotorControl(is_Line, SPEED0, SPEED0, 0);
+	vTaskDelay(200);
 	nodes.nowNode.function = 0;
 	cross_event |= CROSS_EVENT_ARRIVED;
 }
@@ -1167,7 +1167,7 @@ void Barrier_HighMountain(void)
 	Chassis_OverrideGyroPid(5, 0, 50, 10);
 	Chassis_EnableAntiSnake();
 	Chassis_MotorControl(is_Line, 15, 15, 0);
-	Chassis_OverrideLinePid(35, 0, 120, 30);
+	Chassis_OverrideLinePid(40, 0, 120, 30);
 	Chassis_SetTrackMode(TRACK_NEAR_CENTER);
 	Chassis_ClearMileage();
 	while (state != HM_DONE)
@@ -1206,7 +1206,7 @@ void Barrier_HighMountain(void)
 			/* 选角优先级：flat_angle（第一段采样，贴合当前姿态）> origin_angle（坡底平地实测）。
 			   固定目标角才真纠偏（原传 getAngleZ() 每帧目标=当前，等于放弃纠偏） */
 			Chassis_MotorControl(is_Gyro,UpDownStage_Speed_high , UpDownStage_Speed_high,
-				flat_angle != 0.0f ? flat_angle : origin_angle);
+				origin_valid  ? origin_angle : flat_angle);
 			if (imu.pitch >= Begin_up)
 			{
 				state = HM_ASCEND_2;
@@ -2284,10 +2284,10 @@ void do_Upright()
 	if(nodes.nowNode.nodenum==C8) {
 		Chassis_DriveDistance_Blocking(is_Gyro,19,-Gyro_Speed,getAngleZ(),0);
 	}
-	else Chassis_DriveDistance_Blocking(is_Gyro,15,-Gyro_Speed,getAngleZ(),0);
+	else Chassis_DriveDistance_Blocking(is_Gyro,12,-Gyro_Speed,getAngleZ(),0);
 	send_play_specified_command(37);
 	CarBrake();
-	vTaskDelay(500);
+	vTaskDelay(200);
 	Chassis_Turn_By_StopGyro_Blocking(getAngleZ()-TurnAngle,getAngleZ(),30, TURN_TIMEOUT_DEFAULT);
 	
 	Chassis_MotorControl(is_Line,15,15,0);
@@ -2311,7 +2311,7 @@ void do_Upright_Far()
 	Chassis_DriveDistance_Blocking(is_Gyro,10,-Gyro_Speed,getAngleZ(),0);
 	Chassis_Brake();
 	send_play_specified_command(37);
-	vTaskDelay(500); 
+	vTaskDelay(200); 
 	nodes.nowNode.function = 0;
 	cross_event |= CROSS_EVENT_ARRIVED;
 }

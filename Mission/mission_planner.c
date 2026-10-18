@@ -122,8 +122,12 @@ uint32_t match_start_tick = 0;   /* 0 = 未启动（视为时间充足，保护�
 
 void Match_Timer_Start(void)
 {
+#if P56_EXTRA_STOP_ENABLE
+	/* P56 补走平台要用计时器（规划时刻的剩余时间判据）⇒ 开关开时恒启动 */
+#else
 	/* 两个功能（分级贪分 / 硬截止回家）任一需要计时就启动；都为 0 时与加"硬截止"之前一字不差 */
 	if (!TIME_BUDGET_ENABLE && !TB_FORCE_HOME_ENABLE) return;
+#endif
 	match_start_tick = xTaskGetTickCount();
 }
 
@@ -308,7 +312,7 @@ static uint8_t append_round1_return_tail(u8 *wp, uint8_t n, uint8_t tier, uint8_
  */
 static uint8_t plan_treasure_return(uint8_t start)
 {
-	u8 wp[10];   /* 补打卡 + 巡回交错后最多 9 个点（start + P5/P6 + 门×2 + 宝物平台 + P3 + S1 + P4 + S2 + P2），10 够 */
+	u8 wp[12];   /* 补打卡 + 巡回交错后最多 9 个点（start + P5/P6 + 门×2 + 宝物平台 + P3 + S1 + P4 + S2 + P2）；P56_EXTRA_STOP_ENABLE=1 时再 +1（补走 7/8），留到 12 */
 	uint8_t n = 0;
 	uint8_t target;
 	u8 exit_node;                /* 出门节点：门区最后加的节点（宝物平台加在它后面，别拿 wp[n-1] 判） */
@@ -337,6 +341,23 @@ static uint8_t plan_treasure_return(uint8_t start)
 	{
 		wp[n++] = P6;
 	}
+
+#if P56_EXTRA_STOP_ENABLE
+	/* ★ 宝物在 P5/P6（门东侧）且时间充足：取完宝先绕去 P7/P8 中【尚未走过的】那个
+	 *   （start = 一轮去程当过线索平台的那个），再过门回家。必须在门节点【之前】插：
+	 *   两个平台都在门东侧，过门后再去 = 走错即结束比赛。过门后尾段贪分照常
+	 *   （append_round1_return_tail / round1_exit_recheck 不受影响）—— 两处贪分互不冲突，
+	 *   本功能在门前先执行、优先级更高。时间在【规划时刻】查（比"拿完宝藏"早 10~20s，
+	 *   阈值已含提前量，见 config.h）；写成加法防无符号下溢。match_start_tick != 0
+	 *   = 计时器确实在跑（调试路径没启动就不决策）。
+	 *   ⚠️ 回程撞补走平台不会重规划：barrier.c 的 HM/SP 分支有 flag_clue_stage_B==8/7
+	 *   门控，补走的正是没当过线索的那个，条件不成立。 */
+	if ((treasure == 5 || treasure == 6) && match_start_tick != 0
+		&& (Match_Elapsed_S() + TB_P56_EXTRA_MIN_REMAIN_S) <= 180u)
+	{
+		wp[n++] = (start == P7) ? P8 : P7;   /* 7/8 中尚未走过的那个 */
+	}
+#endif
 
 	/* 根据门状态选择回程路径
 	 * ⚠️ N12 只在 D2 分支当必经点：D2 的门是 N5<->N12，而规划层看不见门颜色，

@@ -239,8 +239,8 @@ static const struct { u8 last, now, next; float dist; } kTurnTbl[] = {
 	{ B9, N7, P6, 20 },
 	{ P4, N6, S2, 30 },
 	{ N16, N18, B5, 20 },
-	{ N8, N10, N20, 30 },
-	{ N8, N10, N11, 30 },
+	{ N8, N10, N20, 26 },
+	{ N8, N10, N11, 26 },
 	{ B8, N9, B10, 25 },
 	{ C3, N9, B9, 30 },
 	{ C10, N20, P8, 27 },
@@ -481,8 +481,10 @@ static void Nav_PrepareArrival(void)
     {
         Chassis_SetTargetSpeed(SPEED0);
     }
-
-
+    if(nodes.lastNode.nodenum == P7 && nodes.nowNode.nodenum == C9 && nodes.nextNode.nodenum == B6)
+    {
+        Chassis_SetTargetSpeed(SPEED0);
+    }
     if(nodes.nowNode.function !=NONE && nodes.nowNode.speed >= SPEED0)
     {
         Chassis_SetTargetSpeed(SPEED0);
@@ -493,7 +495,8 @@ static void Nav_PrepareArrival(void)
 static void Nav_NearEnd(void)
 {
     map_function(nodes.nowNode.function);
-
+    
+    if(nodes.nowNode.nodenum == C10) cross_event = cross_event|CROSS_EVENT_ARRIVED ;
     /* 尚未到达且无障碍结果时，通知 ArriveDetect_task 检测到达 */
     if ((cross_event & CROSS_EVENT_ARRIVED) != CROSS_EVENT_ARRIVED &&
         (cross_event & CROSS_EVENT_DOOR) != CROSS_EVENT_DOOR)

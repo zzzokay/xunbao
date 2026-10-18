@@ -61,7 +61,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
 
     /* ========== N5 ========== */
     { N5, N4, RIGHT_LINE|Temp_L|MUL2SING, 0, 84, SPEED3, NONE },
-    { N5, N6, MUL2SING|CLEFT|CRIGHT, 180, 100, SPEED3, NONE },
+    { N5, N6, MUL2SING|CLEFT|CRIGHT, 180, 90, SPEED25, NONE },
     { N5, N8, CLEFT|DLEFT|DRIGHT, ANGLE_N5N8, 60, SPEED2, DOOR },
     { N5, N12, AWHITE|LEFT_LINE, 90, 70, SPEED2, DOOR },
 
@@ -172,7 +172,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { N20, P8, RESTMPUZ|LEFT_LINE|NEAR_CENTER, 0, 20, SPEED0, BHM },
     { N20, N3, NO|DRIGHT, -90, 10, SPEED2, DOOR },
     { N20, N10, NO|DLEFT|RIGHT_LINE, 90, 10, SPEED2, NONE },
-    { N20, C10, NO|MCLEFT, -35, 90, SPEED3, NONE },
+    { N20, C10, NO|MCLEFT, -35, 270, SPEED3, NONE },
 
     /* ========== N22 ========== */
     { N22, B7, NO, 180, LEN_N22B7, SPEED3, Hill },
@@ -189,7 +189,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     /* ========== C8 ========== */
     { C8, C7, NO|DLEFT, 0, 20, SPEED2, NONE },
     { C8, S3, NO, 90, 0, SPEED2, NONE },
-    { C8, C10, NO|MCRIGHT, 180, 20, SPEED2, NONE },
+    { C8, C10, NO|MCRIGHT, 180, 90, SPEED2, NONE },
 
     /* ========== C9 ========== */
     { C9, P7, NONE, 180, 250, SPEED4, BSoutPole },
@@ -208,7 +208,7 @@ const NavEdge NavEdgeTbl[NAV_EDGE_COUNT] = {
     { B10, N9, NO|RIGHT_LINE|MCLEFT|NOTURN, 90, 100, SPEED3, NONE },
 
     /* ========== C10 ========== */
-    { C10, N20, NO|CLEFT|STOPTURN, 145, 90, SPEED3, NONE },
+    { C10, N20, NO|CLEFT|STOPTURN, 150, 90, SPEED3, NONE },
     { C10, C8, NO|DLEFT, 0, 20, SPEED2, View },
 };
 
